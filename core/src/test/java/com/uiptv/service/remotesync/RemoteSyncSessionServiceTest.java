@@ -23,6 +23,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
@@ -32,6 +33,66 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     private static final long STATUS_POLL_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
     private final DatabaseSnapshotService snapshotService = new DatabaseSnapshotService();
+
+    @Test
+    void createSession_boundsPendingApprovalsPerPeer() {
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                snapshotService,
+                DatabaseSyncService.getInstance(),
+                Clock.systemUTC(),
+                (request, decisionConsumer) -> { },
+                new RecordingNotifier()
+        );
+        RemoteSyncRequest request = new RemoteSyncRequest(
+                RemoteSyncDirection.EXPORT_TO_REMOTE, "1234", "remote", new RemoteSyncOptions(false, false));
+
+        for (int i = 0; i < 5; i++) service.createSession(request, "10.0.0.8");
+
+        assertThrows(IllegalStateException.class, () -> service.createSession(request, "10.0.0.8"));
+    }
+
+    @Test
+    void uploadIsClaimedOnceBeforeReadingRequestBody() throws Exception {
+        Path database = tempDir.resolve("remote-upload-once.db");
+        initializeDatabase(database);
+        CountDownLatch bodyRead = new CountDownLatch(1);
+        CountDownLatch finishBody = new CountDownLatch(1);
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                snapshotService,
+                DatabaseSyncService.getInstance(),
+                Clock.systemUTC(),
+                (request, decisionConsumer) -> decisionConsumer.accept(true),
+                new RecordingNotifier()
+        );
+        String sessionId = withDatabase(database, () -> service.createSession(
+                new RemoteSyncRequest(RemoteSyncDirection.EXPORT_TO_REMOTE, "1234", "remote",
+                        new RemoteSyncOptions(false, false)), "10.0.0.8").sessionId());
+        InputStream blockedBody = new InputStream() {
+            @Override public int read() throws IOException { return read(new byte[1], 0, 1); }
+            @Override public int read(byte[] buffer, int offset, int length) throws IOException {
+                bodyRead.countDown();
+                try {
+                    if (!finishBody.await(2, TimeUnit.SECONDS)) throw new IOException("timed out");
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(ex);
+                }
+                return -1;
+            }
+        };
+        CompletableFuture<Void> firstUpload = CompletableFuture.runAsync(() -> {
+            try {
+                withDatabase(database, () -> service.acceptUpload(sessionId, blockedBody));
+            } catch (Exception ignored) { }
+        });
+        assertTrue(bodyRead.await(2, TimeUnit.SECONDS));
+        assertEquals(RemoteSyncStatus.UPLOADING, service.getSessionState(sessionId).status());
+        assertThrows(IllegalStateException.class,
+                () -> service.acceptUpload(sessionId, new ByteArrayInputStream(new byte[0])));
+        finishBody.countDown();
+        firstUpload.get(3, TimeUnit.SECONDS);
+        assertEquals(RemoteSyncStatus.FAILED, service.getSessionState(sessionId).status());
+    }
 
     @Test
     void boundedTransferCopy_rejectsPayloadAfterConfiguredLimit() throws Exception {

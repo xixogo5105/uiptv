@@ -13,6 +13,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -30,6 +31,9 @@ public class DatabaseBackupArchiveService {
     public static final String METADATA_ENTRY = "uiptv-backup.json";
     public static final String DATABASE_ENTRY = "uiptv.db";
     public static final int FORMAT_VERSION = 1;
+    /** Maximum accepted expanded archive size, including the database and metadata. */
+    public static final long MAX_ARCHIVE_EXPANDED_BYTES = 1024L * 1024L * 1024L;
+    private static final int MAX_ARCHIVE_ENTRIES = 128;
     private static final String SQLITE_PREFIX = "jdbc:sqlite:";
     private static final String SQLITE_HEADER = "SQLite format 3";
 
@@ -96,7 +100,6 @@ public class DatabaseBackupArchiveService {
         try {
             Path stagedDatabase = restoreDir.resolve(DATABASE_ENTRY);
             stageRestoreDatabase(sourceBackup, stagedDatabase);
-            migrateAndValidate(stagedDatabase);
             replaceLiveDatabase(stagedDatabase, targetDatabase);
             if (Path.of(SQLConnection.getDatabasePath()).toAbsolutePath().normalize()
                     .equals(targetDatabase.toAbsolutePath().normalize()))
@@ -150,19 +153,41 @@ public class DatabaseBackupArchiveService {
     }
 
     private void extractDatabaseEntry(Path sourceBackup, Path stagedDatabase) throws IOException {
+        extractDatabaseEntry(sourceBackup, stagedDatabase, MAX_ARCHIVE_EXPANDED_BYTES);
+    }
+
+    void extractDatabaseEntry(Path sourceBackup, Path stagedDatabase, long maxExpandedBytes) throws IOException {
         boolean databaseFound = false;
+        int entryCount = 0;
+        long expandedBytes = 0;
         try (InputStream input = Files.newInputStream(sourceBackup);
              ZipInputStream zip = new ZipInputStream(new BufferedInputStream(input))) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
-                if (!entry.isDirectory() && DATABASE_ENTRY.equals(entry.getName())) {
-                    try (OutputStream output = Files.newOutputStream(stagedDatabase)) {
-                        zip.transferTo(output);
-                    }
-                    databaseFound = true;
+                if (++entryCount > MAX_ARCHIVE_ENTRIES) {
+                    throw new IOException("Backup archive contains too many entries.");
                 }
+                boolean databaseEntry = !entry.isDirectory() && DATABASE_ENTRY.equals(entry.getName());
+                if (databaseEntry && databaseFound) {
+                    throw new IOException("Backup archive contains duplicate database entries.");
+                }
+                try (OutputStream output = databaseEntry ? Files.newOutputStream(stagedDatabase) : OutputStream.nullOutputStream()) {
+                    byte[] buffer = new byte[16 * 1024];
+                    int read;
+                    while ((read = zip.read(buffer)) != -1) {
+                        expandedBytes += read;
+                        if (expandedBytes > maxExpandedBytes) {
+                            throw new IOException("Backup archive expands beyond the supported size limit.");
+                        }
+                        output.write(buffer, 0, read);
+                    }
+                }
+                if (databaseEntry) databaseFound = true;
                 zip.closeEntry();
             }
+        } catch (IOException | RuntimeException failure) {
+            Files.deleteIfExists(stagedDatabase);
+            throw failure;
         }
         if (!databaseFound) {
             throw new IOException("Backup does not contain " + DATABASE_ENTRY + ".");
@@ -188,10 +213,20 @@ public class DatabaseBackupArchiveService {
         if (Files.exists(targetDatabase)) {
             checkpointDatabase(targetDatabase);
         }
-        deleteDatabaseSidecars(targetDatabase);
-        Files.copy(stagedDatabase, targetDatabase, StandardCopyOption.REPLACE_EXISTING);
-        deleteDatabaseSidecars(targetDatabase);
-        migrateAndValidate(targetDatabase);
+        Path absoluteTarget = targetDatabase.toAbsolutePath();
+        Path replacement = Files.createTempFile(absoluteTarget.getParent(), ".uiptv-restore-", ".db");
+        try {
+            Files.copy(stagedDatabase, replacement, StandardCopyOption.REPLACE_EXISTING);
+            migrateAndValidate(replacement);
+            deleteDatabaseSidecars(targetDatabase);
+            try {
+                Files.move(replacement, absoluteTarget, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ex) {
+                throw new IOException("The database filesystem does not support a safe atomic restore.", ex);
+            }
+        } finally {
+            Files.deleteIfExists(replacement);
+        }
     }
 
     private void checkpointDatabase(Path databaseFile) throws SQLException {

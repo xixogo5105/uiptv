@@ -16,6 +16,7 @@ import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 
@@ -89,9 +90,20 @@ class UIptvServerTest extends DbBackedTest {
             UIptvServer.start();
             assertTrue(UIptvServer.isRunning());
             assertEquals(200, httpsStatus(httpsPort));
+            assertOwnerOnly(tempDir.resolve("uiptv").resolve(HTTPS_KEYSTORE_FILENAME));
+            assertOwnerOnly(tempDir.resolve("uiptv").resolve(HTTPS_KEYSTORE_PROTECTION_FILENAME));
         } finally {
             UIptvServer.stop();
             System.setProperty("user.home", originalUserHome);
+        }
+    }
+
+    private void assertOwnerOnly(Path path) throws Exception {
+        try {
+            assertEquals(java.util.Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
+                    Files.getPosixFilePermissions(path));
+        } catch (UnsupportedOperationException _) {
+            // Windows ACL enforcement is exercised by runtime setup on Windows CI.
         }
     }
 

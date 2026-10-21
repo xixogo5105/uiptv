@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -26,6 +27,9 @@ public class RemoteSyncSessionService {
     public static final long MAX_TRANSFER_BYTES = 256L * 1024L * 1024L;
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(2);
     private static final Duration TRANSFER_TTL = Duration.ofMinutes(10);
+    private static final Duration TERMINAL_RETENTION = Duration.ofMinutes(10);
+    private static final int MAX_SESSIONS = 128;
+    private static final int MAX_SESSIONS_PER_PEER = 5;
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
     private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
     private static final String I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE = "remoteSyncRemoteFailedMessage";
@@ -64,16 +68,30 @@ public class RemoteSyncSessionService {
 
     public RemoteSyncSessionState createSession(RemoteSyncRequest request, String requesterAddress) {
         validateRequest(request);
-        SessionState session = new SessionState(
-                UUID.randomUUID().toString(),
-                request.direction(),
-                request.verificationCode(),
-                blankToFallback(request.requesterName(), requesterAddress),
-                blankToFallback(requesterAddress, "unknown"),
-                request.options(),
-                clock.instant().plus(APPROVAL_TTL)
-        );
-        sessions.put(session.sessionId, session);
+        String peer = blankToFallback(requesterAddress, "unknown");
+        SessionState session;
+        synchronized (sessions) {
+            pruneSessions();
+            long peerSessions = sessions.values().stream().filter(candidate -> {
+                synchronized (candidate.monitor) {
+                    return candidate.requesterAddress.equals(peer) && !candidate.isTerminal();
+                }
+            }).count();
+            if (peerSessions >= MAX_SESSIONS_PER_PEER || sessions.size() >= MAX_SESSIONS) {
+                throw new IllegalStateException("Remote sync is temporarily busy. Try again later.");
+            }
+            session = new SessionState(
+                    UUID.randomUUID().toString(),
+                    request.direction(),
+                    request.verificationCode(),
+                    blankToFallback(request.requesterName(), requesterAddress),
+                    peer,
+                    request.options(),
+                    clock.instant().plus(APPROVAL_TTL),
+                    clock
+            );
+            sessions.put(session.sessionId, session);
+        }
         approvalPrompt.get().requestApproval(session.toApprovalRequest(), approved -> applyDecision(session.sessionId, approved));
         return session.toPublicState();
     }
@@ -88,22 +106,26 @@ public class RemoteSyncSessionService {
 
     public RemoteSyncExecutionResult acceptUpload(String sessionId, InputStream requestBody) throws IOException, SQLException {
         SessionState session = requireSession(sessionId);
-        Path uploadedTransfer = null;
+        Path uploadedTransfer;
         Path payloadPath = null;
         Path uploadedSnapshot = null;
         synchronized (session.monitor) {
             expireIfNeeded(session);
-            // Accept uploads for either direction - the remote will process as import
-            session.ensureStatus(session.direction, RemoteSyncStatus.APPROVED);
+            session.ensureStatus(RemoteSyncDirection.EXPORT_TO_REMOTE, RemoteSyncStatus.APPROVED);
             uploadedTransfer = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".bin");
-            try (InputStream inputStream = requestBody) {
-                copyBounded(inputStream, uploadedTransfer, MAX_TRANSFER_BYTES);
-            } catch (IOException ex) {
+            session.status = RemoteSyncStatus.UPLOADING;
+            session.message = "Upload in progress.";
+            session.expiresAt = clock.instant().plus(TRANSFER_TTL);
+        }
+        try (InputStream inputStream = requestBody) {
+            copyBounded(inputStream, uploadedTransfer, MAX_TRANSFER_BYTES);
+        } catch (IOException | RuntimeException ex) {
+            synchronized (session.monitor) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
-                notifier.get().showError(I18n.tr(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE));
-                deleteIfExists(uploadedTransfer);
-                throw ex;
             }
+            notifier.get().showError(I18n.tr(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE));
+            deleteIfExists(uploadedTransfer);
+            throw ex;
         }
 
         try {
@@ -122,7 +144,7 @@ public class RemoteSyncSessionService {
             }
             notifier.get().showInfo(I18n.tr("remoteSyncRemoteCompletedMessage"));
             return new RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE);
-        } catch (IOException | SQLException ex) {
+        } catch (IOException | SQLException | RuntimeException ex) {
             AppLog.addErrorLog(
                     RemoteSyncSessionService.class,
                     "Remote database sync failed while accepting upload: " + ex.getMessage()
@@ -169,8 +191,7 @@ public class RemoteSyncSessionService {
         SessionState session = requireSession(sessionId);
         synchronized (session.monitor) {
             expireIfNeeded(session);
-            // Accept either direction - allow downloading for both export and import flows
-            session.ensureStatus(session.direction, RemoteSyncStatus.READY_FOR_DOWNLOAD);
+            session.ensureStatus(RemoteSyncDirection.IMPORT_FROM_REMOTE, RemoteSyncStatus.READY_FOR_DOWNLOAD);
             return session.snapshotPath;
         }
     }
@@ -179,6 +200,7 @@ public class RemoteSyncSessionService {
         SessionState session = requireSession(sessionId);
         synchronized (session.monitor) {
             expireIfNeeded(session);
+            session.ensureStatus(RemoteSyncDirection.IMPORT_FROM_REMOTE, RemoteSyncStatus.READY_FOR_DOWNLOAD);
             if (success) {
                 AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
                 session.complete(blankToFallback(message, REMOTE_SYNC_COMPLETED_MESSAGE));
@@ -331,12 +353,29 @@ public class RemoteSyncSessionService {
     }
 
     private void expireIfNeeded(SessionState session) {
+        if (session.status == RemoteSyncStatus.UPLOADING) return;
         if (session.isTerminal() || !clock.instant().isAfter(session.expiresAt)) {
             return;
         }
         session.status = RemoteSyncStatus.EXPIRED;
         session.message = "Remote sync request expired.";
         cleanupSnapshot(session);
+    }
+
+    private void pruneSessions() {
+        Instant now = clock.instant();
+        for (SessionState session : new ArrayList<>(sessions.values())) {
+            synchronized (session.monitor) {
+                expireIfNeeded(session);
+                if (session.isTerminal()) {
+                    if (session.terminalAt == null) session.terminalAt = now;
+                    if (!now.isBefore(session.terminalAt.plus(TERMINAL_RETENTION))) {
+                        cleanupSnapshot(session);
+                        sessions.remove(session.sessionId, session);
+                    }
+                }
+            }
+        }
     }
 
     private void cleanupSnapshot(SessionState session) {
@@ -367,10 +406,12 @@ public class RemoteSyncSessionService {
         private final String requesterName;
         private final String requesterAddress;
         private final RemoteSyncOptions options;
+        private final Clock clock;
         private RemoteSyncStatus status;
         private String message;
         private Instant expiresAt;
         private Path snapshotPath;
+        private Instant terminalAt;
 
         private SessionState(String sessionId,
                              RemoteSyncDirection direction,
@@ -378,13 +419,15 @@ public class RemoteSyncSessionService {
                              String requesterName,
                              String requesterAddress,
                              RemoteSyncOptions options,
-                             Instant expiresAt) {
+                             Instant expiresAt,
+                             Clock clock) {
             this.sessionId = sessionId;
             this.direction = direction;
             this.verificationCode = verificationCode;
             this.requesterName = requesterName;
             this.requesterAddress = requesterAddress;
             this.options = options;
+            this.clock = clock;
             this.status = RemoteSyncStatus.PENDING_APPROVAL;
             this.message = "Awaiting approval.";
             this.expiresAt = expiresAt;
@@ -426,16 +469,19 @@ public class RemoteSyncSessionService {
         private void complete(String message) {
             this.status = RemoteSyncStatus.COMPLETED;
             this.message = message;
+            this.terminalAt = clock.instant();
         }
 
         private void reject() {
             this.status = RemoteSyncStatus.REJECTED;
             this.message = "Remote sync request rejected.";
+            this.terminalAt = clock.instant();
         }
 
         private void fail(String message) {
             this.status = RemoteSyncStatus.FAILED;
             this.message = message == null || message.isBlank() ? "Remote sync failed." : message;
+            this.terminalAt = clock.instant();
         }
 
         private boolean isTerminal() {

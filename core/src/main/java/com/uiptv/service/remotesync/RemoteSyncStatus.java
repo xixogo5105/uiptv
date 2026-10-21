@@ -3,6 +3,7 @@ package com.uiptv.service.remotesync;
 public enum RemoteSyncStatus {
     PENDING_APPROVAL,
     APPROVED,
+    UPLOADING,
     READY_FOR_DOWNLOAD,
     REJECTED,
     COMPLETED,

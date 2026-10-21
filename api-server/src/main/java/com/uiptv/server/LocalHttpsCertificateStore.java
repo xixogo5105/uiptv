@@ -13,6 +13,11 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -28,6 +33,8 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.regex.Pattern;
 
 final class LocalHttpsCertificateStore {
@@ -60,40 +67,74 @@ final class LocalHttpsCertificateStore {
         Path keyStorePath = keyStorePath();
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         if (Files.exists(keyStorePath)) {
+            restrictToOwner(keyStorePath);
             try (var input = Files.newInputStream(keyStorePath)) {
                 keyStore.load(input, protection);
                 return keyStore;
-            } catch (IOException | GeneralSecurityException _) {
-                Files.deleteIfExists(keyStorePath);
+            } catch (IOException | GeneralSecurityException ex) {
+                throw new IOException("The existing local HTTPS keystore could not be opened; it was preserved at "
+                        + keyStorePath.getFileName() + ".", ex);
             }
         }
 
         Files.createDirectories(keyStorePath.getParent());
+        restrictToOwner(keyStorePath.getParent());
         keyStore.load(null, protection);
         KeyPair keyPair = generateKeyPair();
         X509Certificate certificate = generateCertificate(keyPair, certificateHosts(bindHosts));
         keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), protection, new Certificate[]{certificate});
-        try (OutputStream output = Files.newOutputStream(keyStorePath)) {
+        try (OutputStream output = Files.newOutputStream(keyStorePath,
+                java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE)) {
             keyStore.store(output, protection);
         }
+        restrictToOwner(keyStorePath);
         return keyStore;
     }
 
     private static char[] loadOrCreateKeyStoreProtection() throws IOException {
         Path path = keyStoreProtectionPath();
         if (Files.exists(path)) {
+            restrictToOwner(path);
             String value = Files.readString(path, StandardCharsets.US_ASCII).trim();
             if (!value.isBlank()) {
                 return value.toCharArray();
             }
+            throw new IOException("The local HTTPS keystore protection file is empty; existing key material was preserved.");
         }
 
         Files.createDirectories(path.getParent());
+        restrictToOwner(path.getParent());
+        if (Files.exists(keyStorePath())) {
+            throw new IOException("The local HTTPS protection file is missing; existing key material was preserved. "
+                    + "Restore " + KEYSTORE_PROTECTION_FILENAME + " from backup before enabling HTTPS.");
+        }
         byte[] randomBytes = new byte[32];
         SECURE_RANDOM.nextBytes(randomBytes);
         String value = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
-        Files.writeString(path, value, StandardCharsets.US_ASCII);
+        Files.writeString(path, value, StandardCharsets.US_ASCII,
+                java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE);
+        restrictToOwner(path);
         return value.toCharArray();
+    }
+
+    private static void restrictToOwner(Path path) throws IOException {
+        try {
+            Files.setPosixFilePermissions(path, Files.isDirectory(path)
+                    ? EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE)
+                    : EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            return;
+        } catch (UnsupportedOperationException _) {
+            // Windows uses ACLs rather than POSIX mode bits.
+        }
+        AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class);
+        if (view == null) return;
+        var owner = Files.getOwner(path);
+        AclEntry ownerOnly = AclEntry.newBuilder()
+                .setType(AclEntryType.ALLOW)
+                .setPrincipal(owner)
+                .setPermissions(EnumSet.allOf(AclEntryPermission.class))
+                .build();
+        view.setAcl(List.of(ownerOnly));
     }
 
     private static Path keyStorePath() {

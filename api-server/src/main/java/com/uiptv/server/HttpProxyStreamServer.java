@@ -78,13 +78,19 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final String SCHEME_HTTPS = "https";
     private static final String CACHE_NO_STORE = "no-cache";
     private final Predicate<String> targetUrlValidator;
+    private final boolean injectedTargetValidator;
 
     public HttpProxyStreamServer() {
-        this(HttpProxyStreamServer::isAllowedTargetUrl);
+        this(HttpProxyStreamServer::isAllowedTargetUrl, false);
     }
 
     HttpProxyStreamServer(Predicate<String> targetUrlValidator) {
+        this(targetUrlValidator, true);
+    }
+
+    private HttpProxyStreamServer(Predicate<String> targetUrlValidator, boolean injectedTargetValidator) {
         this.targetUrlValidator = Objects.requireNonNull(targetUrlValidator);
+        this.injectedTargetValidator = injectedTargetValidator;
     }
 
     @Override
@@ -97,7 +103,15 @@ public class HttpProxyStreamServer implements HttpHandler {
         if (!isSupportedMethod(ex)) return;
         String current = validatedSource(ex);
         if (current == null) return;
-        proxy(ex, current);
+        HttpRequestResourceLimits.Permit permit = HttpRequestResourceLimits.tryAcquireProxyStream();
+        if (permit == null) {
+            ex.getResponseHeaders().set("Retry-After", "5");
+            ex.sendResponseHeaders(503, -1);
+            return;
+        }
+        try (permit) {
+            proxy(ex, current);
+        }
     }
 
     private boolean isSupportedMethod(HttpExchange ex) throws IOException {
@@ -122,7 +136,7 @@ public class HttpProxyStreamServer implements HttpHandler {
     }
 
     private void proxy(HttpExchange ex, String current) throws IOException {
-        List<String> cookies = new ArrayList<>();
+        CookieJar cookies = new CookieJar();
         String requestMethod = ex.getRequestMethod();
         boolean responseStarted = false;
 
@@ -186,6 +200,8 @@ public class HttpProxyStreamServer implements HttpHandler {
             if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !SCHEME_HTTPS.equalsIgnoreCase(scheme))) {
                 return false;
             }
+            if (uri.getRawUserInfo() != null || uri.getRawFragment() != null
+                    || uri.getPort() < -1 || uri.getPort() > 65535 || uri.getPort() == 0) return false;
             String host = hostOf(uri);
             if (isBlank(host)) {
                 return false;
@@ -206,6 +222,14 @@ public class HttpProxyStreamServer implements HttpHandler {
     }
 
     private static boolean isBlockedAddress(InetAddress address) {
+        byte[] bytes = address.getAddress();
+        if (bytes.length == 16 && isIpv4MappedAddress(bytes)) {
+            try {
+                return isBlockedAddress(InetAddress.getByAddress(Arrays.copyOfRange(bytes, 12, 16)));
+            } catch (UnknownHostException _) {
+                return true;
+            }
+        }
         return address.isAnyLocalAddress()
                 || address.isLoopbackAddress()
                 || address.isLinkLocalAddress()
@@ -253,17 +277,42 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
         int first = bytes[0] & 0xff;
         int second = bytes[1] & 0xff;
-        return (first == 192 && second == 0)
-                || (first == 198 && (second == 18 || second == 19));
+        int third = bytes[2] & 0xff;
+        return first == 0
+                || first == 192 && (second == 0 || second == 88 && third == 99)
+                || first == 198 && (second == 18 || second == 19 || second == 51 && third == 100)
+                || first == 203 && second == 0 && third == 113
+                || first >= 224;
     }
 
     private static boolean isUniqueLocalIpv6Address(InetAddress address) {
         byte[] bytes = address.getAddress();
-        return bytes.length == 16 && (bytes[0] & 0xfe) == 0xfc;
+        return bytes.length == 16 && ((bytes[0] & 0xfe) == 0xfc
+                || (bytes[0] & 0xff) == 0xfe && (bytes[1] & 0xc0) == 0x80
+                || (bytes[0] & 0xff) == 0xff
+                || (bytes[0] & 0xff) == 0x20 && (bytes[1] & 0xff) == 0x01
+                    && (bytes[2] & 0xff) == 0x0d && (bytes[3] & 0xff) == 0xb8);
+    }
+
+    private static boolean isIpv4MappedAddress(byte[] bytes) {
+        for (int i = 0; i < 10; i++) if (bytes[i] != 0) return false;
+        return bytes[10] == (byte) 0xff && bytes[11] == (byte) 0xff;
+    }
+
+    private InetAddress[] resolveConnectedAddresses(String rawUrl) throws IOException {
+        URI uri = URI.create(rawUrl);
+        String host = hostOf(uri);
+        if (isBlank(host)) throw new IOException("Invalid upstream host.");
+        InetAddress[] addresses = InetAddress.getAllByName(host);
+        if (addresses.length == 0) throw new IOException("Upstream host did not resolve.");
+        if (!injectedTargetValidator && Arrays.stream(addresses).anyMatch(HttpProxyStreamServer::isBlockedAddress))
+            throw new IOException("Upstream address is not publicly routable.");
+        if (!targetUrlValidator.test(rawUrl)) throw new IOException("Upstream target is not allowed.");
+        return addresses;
     }
 
     private HttpUtil.StreamResult openResolvedStream(String current,
-                                                     List<String> cookies,
+                                                     CookieJar cookies,
                                                      Map<String, String> forwardHeaders,
                                                      String requestMethod) throws IOException {
         String originalAuthority = authorityOf(current);
@@ -277,14 +326,16 @@ public class HttpProxyStreamServer implements HttpHandler {
         return null;
     }
 
-    private HttpUtil.StreamResult openUpstream(String current, String originalAuthority, List<String> cookies,
+    private HttpUtil.StreamResult openUpstream(String current, String originalAuthority, CookieJar cookies,
                                                Map<String, String> forwardHeaders, String requestMethod) throws IOException {
+        cookies.scopeTo(originOf(current));
         Map<String, String> headers = buildUpstreamHeaders(current, cookies, forwardHeaders);
         String redirectHost = redirectHostHeader(originalAuthority, current);
         if (!isBlank(redirectHost)) headers.put(HEADER_HOST, redirectHost);
         String method = METHOD_HEAD.equalsIgnoreCase(requestMethod) ? METHOD_HEAD : METHOD_GET;
-        HttpUtil.StreamResult upstream = HttpUtil.openStream(
-                current, headers, method, null, HttpUtil.RequestOptions.streamingProxy());
+        InetAddress[] addresses = resolveConnectedAddresses(current);
+        HttpUtil.StreamResult upstream = HttpUtil.openStreamPinned(
+                current, headers, method, null, HttpUtil.RequestOptions.streamingProxy(), addresses);
         collectCookies(upstream.responseHeaders(), cookies);
         return upstream;
     }
@@ -300,8 +351,11 @@ public class HttpProxyStreamServer implements HttpHandler {
         try (upstream) {
             String location = firstHeader(upstream.responseHeaders(), HEADER_LOCATION);
             if (isBlank(location)) return null;
-            URI resolved = URI.create(current).resolve(location);
-            String target = downgradeHttpsToHttp(resolved.toString());
+            URI currentUri = URI.create(current);
+            URI resolved = currentUri.resolve(location);
+            if (SCHEME_HTTPS.equalsIgnoreCase(currentUri.getScheme())
+                    && "http".equalsIgnoreCase(resolved.getScheme())) return null;
+            String target = resolved.toString();
             return targetUrlValidator.test(target) ? target : null;
         }
     }
@@ -367,15 +421,14 @@ public class HttpProxyStreamServer implements HttpHandler {
         return true;
     }
 
-    private void collectCookies(Map<String, List<String>> responseHeaders, List<String> cookies) {
+    private void collectCookies(Map<String, List<String>> responseHeaders, CookieJar cookies) {
         if (responseHeaders == null || cookies == null) {
             return;
         }
-        List<String> setCookie = null;
+        List<String> setCookie = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
             if (entry.getKey() != null && HEADER_SET_COOKIE.equalsIgnoreCase(entry.getKey())) {
-                setCookie = entry.getValue();
-                break;
+                if (entry.getValue() != null) setCookie.addAll(entry.getValue());
             }
         }
         if (setCookie == null || setCookie.isEmpty()) {
@@ -393,8 +446,8 @@ public class HttpProxyStreamServer implements HttpHandler {
             if (isBlank(key)) {
                 continue;
             }
-            cookies.removeIf(existing -> existing.startsWith(key + "="));
-            cookies.add(pair);
+            cookies.values.removeIf(existing -> existing.startsWith(key + "="));
+            cookies.values.add(pair);
         }
     }
 
@@ -422,7 +475,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         return headers;
     }
 
-    private Map<String, String> buildUpstreamHeaders(String currentUrl, List<String> cookies, Map<String, String> forwardedHeaders) {
+    private Map<String, String> buildUpstreamHeaders(String currentUrl, CookieJar cookies, Map<String, String> forwardedHeaders) {
         Map<String, String> upstreamHeaders = new LinkedHashMap<>();
         boolean stalkerStyle = isStalkerPortalStream(currentUrl);
         upstreamHeaders.put("User-Agent", stalkerStyle ? MAG_USER_AGENT : USER_AGENT);
@@ -445,8 +498,8 @@ public class HttpProxyStreamServer implements HttpHandler {
         addHeaderIfPresent(upstreamHeaders, HEADER_ORIGIN, origin);
         addHeaderIfPresent(upstreamHeaders, HEADER_REFERER, referer);
         addStalkerCookieFromUrl(upstreamHeaders, currentUrl, cookies);
-        if (!cookies.isEmpty()) {
-            upstreamHeaders.computeIfAbsent(HEADER_COOKIE, _ -> String.join("; ", cookies));
+        if (!cookies.values.isEmpty()) {
+            upstreamHeaders.computeIfAbsent(HEADER_COOKIE, _ -> String.join("; ", cookies.values));
         }
         return upstreamHeaders;
     }
@@ -455,7 +508,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         return !isBlank(url) && url.toLowerCase().contains(".m3u8");
     }
 
-    private void addStalkerCookieFromUrl(Map<String, String> upstreamHeaders, String currentUrl, List<String> cookies) {
+    private void addStalkerCookieFromUrl(Map<String, String> upstreamHeaders, String currentUrl, CookieJar cookies) {
         if (!isStalkerPortalStream(currentUrl)) {
             return;
         }
@@ -464,8 +517,8 @@ public class HttpProxyStreamServer implements HttpHandler {
             return;
         }
         String cookieValue = "mac=" + mac + "; stb_lang=en; timezone=Europe/London;";
-        if (cookies.stream().noneMatch(existing -> existing.startsWith("mac="))) {
-            cookies.add("mac=" + mac);
+        if (cookies.values.stream().noneMatch(existing -> existing.startsWith("mac="))) {
+            cookies.values.add("mac=" + mac);
         }
         upstreamHeaders.put(HEADER_COOKIE, cookieValue);
     }
@@ -769,13 +822,18 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final class PlaylistTooLargeException extends IOException {
     }
 
-    private String downgradeHttpsToHttp(String url) {
-        if (isBlank(url)) return url;
-        String lower = url.toLowerCase();
-        if (lower.startsWith("https://") && (isPortalPlaybackPath(lower) || hasNumericLastPathSegment(lower))) {
-            return "http://" + url.substring("https://".length());
+    private static final class CookieJar {
+        private String authority;
+        private final List<String> values = new ArrayList<>();
+
+        private void scopeTo(String nextAuthority) {
+            if (authority == null) {
+                authority = nextAuthority;
+            } else if (!authority.equalsIgnoreCase(nextAuthority)) {
+                values.clear();
+                authority = nextAuthority;
+            }
         }
-        return url;
     }
 
     private String build406Fallback(String originalUrl) {

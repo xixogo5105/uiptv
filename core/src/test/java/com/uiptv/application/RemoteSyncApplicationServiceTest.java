@@ -52,9 +52,9 @@ class RemoteSyncApplicationServiceTest {
                 () -> service.acceptUpload(sessionId, upload));
         assertThrows(IllegalStateException.class, () -> service.getDownloadSnapshot(sessionId));
 
-        service.completeImport(created.sessionId(), false, "failed");
-
-        assertEquals(RemoteSyncStatus.FAILED, service.getSessionState(created.sessionId()).status());
+        assertThrows(IllegalStateException.class,
+                () -> service.completeImport(created.sessionId(), false, "failed"));
+        assertEquals(RemoteSyncStatus.REJECTED, service.getSessionState(created.sessionId()).status());
     }
 
     @Test

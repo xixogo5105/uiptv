@@ -3,6 +3,7 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.application.EpgChangeNotifications;
+import com.uiptv.server.HttpRequestResourceLimits;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -22,30 +23,38 @@ public final class HttpEpgChangeEventServer implements HttpHandler {
             exchange.sendResponseHeaders(405, -1);
             return;
         }
+        HttpRequestResourceLimits.Permit permit = HttpRequestResourceLimits.tryAcquireEventStream();
+        if (permit == null) {
+            exchange.getResponseHeaders().set("Retry-After", "5");
+            exchange.sendResponseHeaders(503, -1);
+            return;
+        }
         long after = parseRevision(exchange.getRequestHeaders().getFirst("Last-Event-ID"));
         if (after < 0) after = parseRevision(query(exchange.getRequestURI().getRawQuery(), "since"));
         if (after < 0) after = EpgChangeNotifications.snapshot().revision();
 
         var queue = new ArrayBlockingQueue<EpgChangeNotifications.Notification>(QUEUE_SIZE);
         var subscription = EpgChangeNotifications.subscribe(after, queue::offer);
-        exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=UTF-8");
-        exchange.getResponseHeaders().set("Cache-Control", "no-cache, no-transform");
-        exchange.getResponseHeaders().set("Connection", "keep-alive");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStream output = exchange.getResponseBody()) {
-            while (!Thread.currentThread().isInterrupted()) {
-                EpgChangeNotifications.Notification event = queue.poll(HEARTBEAT_SECONDS, TimeUnit.SECONDS);
-                if (event == null) {
-                    output.write(": heartbeat\n\n".getBytes(StandardCharsets.UTF_8));
-                } else {
-                    JSONObject payload = new JSONObject()
-                            .put("revision", event.revision())
-                            .put("generation", event.databaseGeneration())
-                            .put("kind", event.kind().name());
-                    output.write(("id: " + event.revision() + "\ndata: " + payload + "\n\n").getBytes(StandardCharsets.UTF_8));
+        try {
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=UTF-8");
+            exchange.getResponseHeaders().set("Cache-Control", "no-cache, no-transform");
+            exchange.getResponseHeaders().set("Connection", "keep-alive");
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream output = exchange.getResponseBody()) {
+                while (!Thread.currentThread().isInterrupted()) {
+                    EpgChangeNotifications.Notification event = queue.poll(HEARTBEAT_SECONDS, TimeUnit.SECONDS);
+                    if (event == null) {
+                        output.write(": heartbeat\n\n".getBytes(StandardCharsets.UTF_8));
+                    } else {
+                        JSONObject payload = new JSONObject()
+                                .put("revision", event.revision())
+                                .put("generation", event.databaseGeneration())
+                                .put("kind", event.kind().name());
+                        output.write(("id: " + event.revision() + "\ndata: " + payload + "\n\n").getBytes(StandardCharsets.UTF_8));
+                    }
+                    output.flush();
                 }
-                output.flush();
             }
         } catch (IOException _) {
             // Client disconnects are normal for foreground-only subscriptions.
@@ -53,6 +62,7 @@ public final class HttpEpgChangeEventServer implements HttpHandler {
             Thread.currentThread().interrupt();
         } finally {
             subscription.close();
+            permit.close();
         }
     }
 

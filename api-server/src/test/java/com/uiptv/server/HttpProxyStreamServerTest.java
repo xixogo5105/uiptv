@@ -128,6 +128,43 @@ class HttpProxyStreamServerTest {
     }
 
     @Test
+    void redirectDoesNotForwardCookiesToAnotherAuthority() throws Exception {
+        AtomicReference<String> receivedCookie = new AtomicReference<>();
+        upstreamServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        upstreamServer.createContext("/start", exchange -> {
+            exchange.getResponseHeaders().add("Set-Cookie", "portal_session=secret; Path=/");
+            exchange.getResponseHeaders().add("Location", "http://127.0.0.1:" + upstreamServer.getAddress().getPort() + "/final");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        upstreamServer.createContext("/final", exchange -> {
+            receivedCookie.set(exchange.getRequestHeaders().getFirst("Cookie"));
+            byte[] body = "stream".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "video/mp4");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream output = exchange.getResponseBody()) { output.write(body); }
+        });
+        upstreamServer.start();
+        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        int upstreamPort = upstreamServer.getAddress().getPort();
+        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer(url -> {
+            URI uri = URI.create(url);
+            return "http".equalsIgnoreCase(uri.getScheme())
+                    && ("localhost".equalsIgnoreCase(uri.getHost()) || "127.0.0.1".equals(uri.getHost()))
+                    && uri.getPort() == upstreamPort;
+        }));
+        proxyServer.start();
+
+        String startUrl = "http://localhost:" + upstreamPort + "/start";
+        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
+                + URLEncoder.encode(startUrl, StandardCharsets.UTF_8);
+        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
+        assertEquals(200, connection.getResponseCode());
+        connection.getInputStream().readAllBytes();
+        assertNull(receivedCookie.get());
+    }
+
+    @Test
     void optionsRequestsReturnCorsContractWithoutContactingUpstream() throws Exception {
         proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer(url -> {
@@ -152,16 +189,20 @@ class HttpProxyStreamServerTest {
         HttpProxyStreamServer handler = new HttpProxyStreamServer(url -> true);
 
         try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
-            httpUtil.when(() -> HttpUtil.openStream(
-                            anyString(), anyMap(), eq("GET"), isNull(), any(HttpUtil.RequestOptions.class)))
+            httpUtil.when(() -> HttpUtil.openStreamPinned(
+                            anyString(), anyMap(), eq("GET"), isNull(), any(HttpUtil.RequestOptions.class), any(InetAddress[].class)))
                     .thenAnswer(invocation -> {
                         options.set(invocation.getArgument(4));
                         return upstream;
                     });
 
+            Class<?> cookieJarClass = Class.forName("com.uiptv.server.HttpProxyStreamServer$CookieJar");
+            var cookieJarConstructor = cookieJarClass.getDeclaredConstructor();
+            cookieJarConstructor.setAccessible(true);
+            Object cookieJar = cookieJarConstructor.newInstance();
             HttpUtil.StreamResult result = invoke(handler, "openResolvedStream",
-                    new Class[]{String.class, List.class, Map.class, String.class},
-                    "http://provider.test/live/channel", new ArrayList<>(), Map.of(), "GET");
+                    new Class[]{String.class, cookieJarClass, Map.class, String.class},
+                    "http://localhost/live/channel", cookieJar, Map.of(), "GET");
 
             assertSame(upstream, result);
             assertNotNull(options.get());
@@ -300,9 +341,20 @@ class HttpProxyStreamServerTest {
 
         Map<String, List<String>> responseHeaders = new LinkedHashMap<>();
         responseHeaders.put("set-cookie", List.of("session=one; Path=/", "mac=00:11; HttpOnly", " "));
-        List<String> cookies = new ArrayList<>(List.of("session=old"));
-        invoke(handler, "collectCookies", new Class[]{Map.class, List.class}, responseHeaders, cookies);
-        assertEquals(List.of("session=one", "mac=00:11"), cookies);
+        Class<?> cookieJarClass = Class.forName("com.uiptv.server.HttpProxyStreamServer$CookieJar");
+        var cookieJarConstructor = cookieJarClass.getDeclaredConstructor();
+        cookieJarConstructor.setAccessible(true);
+        Object cookies = cookieJarConstructor.newInstance();
+        invoke(cookies, "scopeTo", new Class[]{String.class}, "http://portal.test");
+        invoke(handler, "collectCookies", new Class[]{Map.class, cookieJarClass}, responseHeaders, cookies);
+        var valuesField = cookieJarClass.getDeclaredField("values");
+        valuesField.setAccessible(true);
+        assertEquals(List.of("session=one", "mac=00:11"), valuesField.get(cookies));
+        invoke(cookies, "scopeTo", new Class[]{String.class}, "http://other.test");
+        assertTrue(((List<?>) valuesField.get(cookies)).isEmpty());
+        ((List<String>) valuesField.get(cookies)).add("secure=one");
+        invoke(cookies, "scopeTo", new Class[]{String.class}, "https://other.test");
+        assertTrue(((List<?>) valuesField.get(cookies)).isEmpty());
 
         assertEquals("session=one; Path=/", invoke(handler, "firstHeader", new Class[]{Map.class, String.class}, responseHeaders, "Set-Cookie"));
         assertEquals("", invoke(handler, "firstHeader", new Class[]{Map.class, String.class}, null, "Set-Cookie"));
@@ -314,7 +366,7 @@ class HttpProxyStreamServerTest {
         forwarded.put("Origin", "http://localhost:8080");
         @SuppressWarnings("unchecked")
         Map<String, String> upstreamHeaders = invoke(handler, "buildUpstreamHeaders",
-                new Class[]{String.class, List.class, Map.class},
+                new Class[]{String.class, cookieJarClass, Map.class},
                 "http://portal.test/live/play/123?mac=AA%3ABB&play_token=pt", cookies, forwarded);
         assertEquals("video/*", upstreamHeaders.get("Accept"));
         assertEquals("bytes=0-10", upstreamHeaders.get("Range"));
@@ -352,12 +404,6 @@ class HttpProxyStreamServerTest {
     void privateHelpers_coverFallbackAndNumericPathHelpers() throws Exception {
         HttpProxyStreamServer handler = new HttpProxyStreamServer();
 
-        assertEquals("http://host/live/play/123",
-                invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/live/play/123"));
-        assertEquals("http://host/play/live.php?stream=123&extension=ts",
-                invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/play/live.php?stream=123&extension=ts"));
-        assertEquals("https://host/static/file.mp4",
-                invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/static/file.mp4"));
         assertTrue((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/play/live.php?stream=1"));
         assertTrue((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/play/movie.php?stream=1"));
         assertTrue((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/live/play/1"));
@@ -441,6 +487,11 @@ class HttpProxyStreamServerTest {
         when(redirect.responseHeaders()).thenReturn(Map.of("Location", List.of("/final")));
         assertEquals("https://provider.test/final", invoke(handler, "resolveRedirect",
                 new Class[]{String.class, HttpUtil.StreamResult.class}, "https://provider.test/start", redirect));
+
+        HttpUtil.StreamResult insecureRedirect = mock(HttpUtil.StreamResult.class);
+        when(insecureRedirect.responseHeaders()).thenReturn(Map.of("Location", List.of("http://provider.test/live/123?token=secret")));
+        assertNull(invoke(handler, "resolveRedirect",
+                new Class[]{String.class, HttpUtil.StreamResult.class}, "https://provider.test/start", insecureRedirect));
 
         HttpUtil.StreamResult missingLocation = mock(HttpUtil.StreamResult.class);
         when(missingLocation.responseHeaders()).thenReturn(Map.of());

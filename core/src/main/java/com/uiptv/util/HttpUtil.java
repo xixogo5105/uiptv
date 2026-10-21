@@ -7,6 +7,7 @@ import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.DnsResolver;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -29,6 +30,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URI;
+import java.net.InetAddress;
 import java.net.URL;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -71,8 +73,22 @@ public class HttpUtil {
     private static final int MAX_CONNECTIONS_TOTAL = Integer.getInteger("uiptv.http.max.connections.total", 50);
     private static final int MAX_CONNECTIONS_PER_ROUTE = Integer.getInteger("uiptv.http.max.connections.per.route", 10);
     private static final int IDLE_CONNECTION_EVICT_SECONDS = Integer.getInteger("uiptv.http.idle.connection.evict.seconds", 120);
+    private static final ThreadLocal<Map<String, InetAddress[]>> PINNED_DNS = ThreadLocal.withInitial(Map::of);
+    private static final DnsResolver DNS_RESOLVER = new DnsResolver() {
+        @Override
+        public InetAddress[] resolve(String host) throws java.net.UnknownHostException {
+            InetAddress[] pinned = PINNED_DNS.get().get(host.toLowerCase(Locale.ROOT));
+            return pinned == null ? InetAddress.getAllByName(host) : pinned.clone();
+        }
+
+        @Override
+        public String resolveCanonicalHostname(String host) {
+            return host;
+        }
+    };
     private static final PoolingHttpClientConnectionManager CONNECTION_MANAGER =
             PoolingHttpClientConnectionManagerBuilder.create()
+                    .setDnsResolver(DNS_RESOLVER)
                     .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)
                     .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
                     // Portals commonly close keep-alive sockets while a bulk cache
@@ -81,26 +97,40 @@ public class HttpUtil {
                     // stale connection and fail until manually retried.
                     .setValidateAfterInactivity(TimeValue.ofSeconds(5))
                     .build();
+    // Isolate proxy traffic so a connection created by a non-proxy request can
+    // never be reused for a hostname whose public address was separately vetted.
+    private static final PoolingHttpClientConnectionManager PROXY_CONNECTION_MANAGER =
+            PoolingHttpClientConnectionManagerBuilder.create()
+                    .setDnsResolver(DNS_RESOLVER)
+                    .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)
+                    .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
+                    .setValidateAfterInactivity(TimeValue.ofSeconds(5))
+                    .build();
     private static final PoolingAsyncClientConnectionManager ASYNC_CONNECTION_MANAGER =
             PoolingAsyncClientConnectionManagerBuilder.create()
                     .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)
                     .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
                     .setValidateAfterInactivity(TimeValue.ofSeconds(5))
                     .build();
-    private static final CloseableHttpClient HTTP_CLIENT = HttpClients.custom()
-            .setConnectionManager(CONNECTION_MANAGER)
-            .setRedirectStrategy(new org.apache.hc.client5.http.impl.LaxRedirectStrategy())
-            .disableAutomaticRetries()
-            .evictExpiredConnections()
-            .evictIdleConnections(TimeValue.ofSeconds(IDLE_CONNECTION_EVICT_SECONDS))
-            .setDefaultRequestConfig(RequestConfig.custom()
-                    .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS))
-                    .setConnectionRequestTimeout(Timeout.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS))
-                    .setResponseTimeout(Timeout.ofSeconds(RESPONSE_TIMEOUT_SECONDS))
-                    .setRedirectsEnabled(true)
-                    .setMaxRedirects(MAX_REDIRECTS)
-                    .build())
-             .build();
+    private static final CloseableHttpClient HTTP_CLIENT = createHttpClient(CONNECTION_MANAGER);
+    private static final CloseableHttpClient PROXY_HTTP_CLIENT = createHttpClient(PROXY_CONNECTION_MANAGER);
+
+    private static CloseableHttpClient createHttpClient(PoolingHttpClientConnectionManager manager) {
+        return HttpClients.custom()
+                .setConnectionManager(manager)
+                .setRedirectStrategy(new org.apache.hc.client5.http.impl.LaxRedirectStrategy())
+                .disableAutomaticRetries()
+                .evictExpiredConnections()
+                .evictIdleConnections(TimeValue.ofSeconds(IDLE_CONNECTION_EVICT_SECONDS))
+                .setDefaultRequestConfig(RequestConfig.custom()
+                        .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS))
+                        .setConnectionRequestTimeout(Timeout.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS))
+                        .setResponseTimeout(Timeout.ofSeconds(RESPONSE_TIMEOUT_SECONDS))
+                        .setRedirectsEnabled(true)
+                        .setMaxRedirects(MAX_REDIRECTS)
+                        .build())
+                .build();
+    }
 
     public static HttpResult sendRequest(String url, Map<String, String> headers, String method) throws IOException {
         return sendRequest(url, headers, method, null);
@@ -160,11 +190,16 @@ public class HttpUtil {
     }
 
     public static StreamResult openStream(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
+        return openStream(url, headers, method, body, options, HTTP_CLIENT);
+    }
+
+    private static StreamResult openStream(String url, Map<String, String> headers, String method, String body,
+                                           RequestOptions options, CloseableHttpClient client) throws IOException {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
         HttpClientContext context = HttpClientContext.create();
         AutoCloseable deadline = ReloadRequestScope.watch(request);
         try {
-            CloseableHttpResponse response = HTTP_CLIENT.execute(request, context);
+            CloseableHttpResponse response = client.execute(request, context);
             HttpEntity entity = response.getEntity();
             InputStream bodyStream = entity == null ? InputStream.nullInputStream() : entity.getContent();
             StreamResult stream = new StreamResult(
@@ -185,6 +220,21 @@ public class HttpUtil {
             if (error instanceof IOException io) throw io;
             if (error instanceof RuntimeException runtime) throw runtime;
             throw new IOException(error);
+        }
+    }
+
+    /** Open a request using the exact addresses that the caller has just validated. */
+    public static StreamResult openStreamPinned(String url, Map<String, String> headers, String method,
+                                                String body, RequestOptions options,
+                                                InetAddress[] validatedAddresses) throws IOException {
+        URI uri = URI.create(url);
+        if (uri.getHost() == null || validatedAddresses == null || validatedAddresses.length == 0)
+            throw new IOException("No validated destination address is available.");
+        PINNED_DNS.set(Map.of(uri.getHost().toLowerCase(Locale.ROOT), validatedAddresses.clone()));
+        try {
+            return openStream(url, headers, method, body, options, PROXY_HTTP_CLIENT);
+        } finally {
+            PINNED_DNS.remove();
         }
     }
 

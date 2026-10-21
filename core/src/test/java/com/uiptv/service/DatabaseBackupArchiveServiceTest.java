@@ -19,10 +19,14 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
+import java.io.OutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class DatabaseBackupArchiveServiceTest {
     @TempDir
@@ -99,6 +103,41 @@ class DatabaseBackupArchiveServiceTest {
 
         assertEquals(1, countAccounts(target));
         assertEquals("legacy-account", firstAccountName(target));
+    }
+
+    @Test
+    void failedRestoreValidationLeavesExistingDatabaseUntouched() throws Exception {
+        Path target = tempDir.resolve("preserved-target.db");
+        Path invalidArchive = tempDir.resolve("invalid-database.zip");
+        createReadyDatabase(target);
+        seedAccount(target, 7, "keep-this-account");
+        try (OutputStream output = Files.newOutputStream(invalidArchive);
+             ZipOutputStream zip = new ZipOutputStream(output)) {
+            zip.putNextEntry(new ZipEntry(DatabaseBackupArchiveService.DATABASE_ENTRY));
+            zip.write("not a SQLite database".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        assertThrows(Exception.class, () -> fixedClockService().restoreBackupArchive(
+                invalidArchive.toString(), target.toString()));
+
+        assertEquals(1, countAccounts(target));
+        assertEquals("keep-this-account", firstAccountName(target));
+    }
+
+    @Test
+    void archiveExpansionLimitStopsAndDeletesPartialDatabase() throws Exception {
+        Path archive = tempDir.resolve("expanded.zip");
+        Path staged = tempDir.resolve("partial.db");
+        try (OutputStream output = Files.newOutputStream(archive);
+             ZipOutputStream zip = new ZipOutputStream(output)) {
+            zip.putNextEntry(new ZipEntry(DatabaseBackupArchiveService.DATABASE_ENTRY));
+            zip.write(new byte[16 * 1024]);
+            zip.closeEntry();
+        }
+
+        assertThrows(Exception.class, () -> fixedClockService().extractDatabaseEntry(archive, staged, 512));
+        assertFalse(Files.exists(staged));
     }
 
     @Test

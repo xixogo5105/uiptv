@@ -91,6 +91,7 @@ public class UIptvServer {
     private static void configureServer(ServletContextHandler context) {
         Filter loggingFilter = new WebRequestActivityLoggingFilter();
         context.addFilter(new FilterHolder(loggingFilter), "/*", null);
+        context.addFilter(new FilterHolder(new LocalRequestOriginFilter()), "/*", null);
 
         // SPA routes
         addServlet(context, "/", new HttpSpaHtmlServer());
