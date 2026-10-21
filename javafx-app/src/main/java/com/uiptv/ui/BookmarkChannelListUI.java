@@ -190,7 +190,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             publishRecentBookmarks(generation, accountByName);
             List<BookmarkCategory> categories = loadBookmarkCategories();
             List<BookmarkItem> allLoadedItems = loadAllBookmarkItems(generation, accountByName);
-            if (allLoadedItems == null) {
+            if (generation != reloadGeneration.get()) {
                 return;
             }
 
@@ -242,14 +242,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
             List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context, items);
             if (generation != reloadGeneration.get()) {
-                return null;
+                return List.of();
             }
             if (batchItems.isEmpty()) {
                 return items;
             }
             offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
         }
-        return null;
+        return List.of();
     }
 
     private List<BookmarkItem> buildLoadedBookmarkItems(long generation,
