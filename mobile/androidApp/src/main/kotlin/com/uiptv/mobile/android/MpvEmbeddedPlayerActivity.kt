@@ -43,9 +43,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
@@ -452,10 +450,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun resolvePlayerPalette(): PlayerPalette {
-        val dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val dynamicScheme: ColorScheme? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val dynamicScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             runCatching {
-                if (dark) dynamicDarkColorScheme(this) else dynamicLightColorScheme(this)
+                dynamicDarkColorScheme(this)
             }.getOrNull()
         } else null
         if (dynamicScheme != null) {
@@ -466,34 +463,21 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 onAccentContainer = dynamicScheme.onPrimaryContainer.toArgb(),
                 onSurface = dynamicScheme.onSurface.toArgb(),
                 onSurfaceVariant = dynamicScheme.onSurfaceVariant.toArgb(),
-                outline = withAlpha(dynamicScheme.outlineVariant.toArgb(), if (dark) 58 else 96),
+                outline = withAlpha(dynamicScheme.outlineVariant.toArgb(), 58),
                 primary = dynamicScheme.primary.toArgb(),
             )
         }
 
-        return if (dark) {
-            PlayerPalette(
-                controlSurface = Color.argb(244, 28, 27, 31),
-                buttonSurface = Color.rgb(55, 58, 63),
-                accentContainer = Color.rgb(79, 216, 235),
-                onAccentContainer = Color.rgb(0, 35, 40),
-                onSurface = Color.rgb(241, 240, 245),
-                onSurfaceVariant = Color.rgb(202, 197, 208),
-                outline = Color.argb(58, 255, 255, 255),
-                primary = Color.rgb(79, 216, 235)
-            )
-        } else {
-            PlayerPalette(
-                controlSurface = Color.argb(248, 250, 248, 255),
-                buttonSurface = Color.rgb(232, 228, 237),
-                accentContainer = Color.rgb(190, 234, 241),
-                onAccentContainer = Color.rgb(0, 35, 40),
-                onSurface = Color.rgb(28, 27, 31),
-                onSurfaceVariant = Color.rgb(72, 70, 78),
-                outline = Color.argb(72, 40, 40, 50),
-                primary = Color.rgb(0, 105, 120)
-            )
-        }
+        return PlayerPalette(
+            controlSurface = Color.argb(244, 28, 27, 31),
+            buttonSurface = Color.rgb(55, 58, 63),
+            accentContainer = Color.rgb(79, 216, 235),
+            onAccentContainer = Color.rgb(0, 35, 40),
+            onSurface = Color.rgb(241, 240, 245),
+            onSurfaceVariant = Color.rgb(202, 197, 208),
+            outline = Color.argb(58, 255, 255, 255),
+            primary = Color.rgb(79, 216, 235)
+        )
     }
 
     private fun withAlpha(color: Int, alpha: Int): Int =

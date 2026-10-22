@@ -2,7 +2,7 @@
 
 ## Interface And Appearance
 
-The Android app uses Material Design 3 components and adapts its colors to the device's light or dark theme. Navigation is icon-only; on wide screens it can be hidden to give the current page more room. Search and add actions sit in the page header, and forms and settings use Material text fields, switches, and selection controls.
+The Android app uses Material Design 3 components and adapts its colors to the device's light or dark theme. Navigation is icon-only; on wide screens it can be hidden to give the current page more room. Search and add actions sit in the page header, and forms and settings use Material text fields, switches, and selection controls. The embedded player keeps its dark controls and lock screen in either device theme.
 
 ## Pair With Desktop
 
@@ -36,7 +36,7 @@ Failed refreshes preserve the existing local cache.
 
 Native playback uses Media3 and can handle HLS/DASH plus license-URL Widevine/ClearKey metadata. External players receive a normal Android `ACTION_VIEW` stream handoff.
 
-The embedded mpv player follows the Android light/dark theme and uses compact Material-style controls. Its video scale menu offers:
+The embedded mpv player uses compact Material-style controls on a dark surface, regardless of the Android light/dark theme. Its video scale menu offers:
 
 - **Fit** — preserve the picture's proportions and show the full frame.
 - **Crop** — preserve proportions while filling the display; the edges may be cropped.
