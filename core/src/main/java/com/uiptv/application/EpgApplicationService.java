@@ -22,11 +22,19 @@ public class EpgApplicationService {
     private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 10, 10, 20);
 
     public void clearCache() {
-        SOURCE_LOAD_LOCK.lock();
-        try { synchronized (SOURCES_LOCK) { SOURCES.clear(); } }
-        finally { SOURCE_LOAD_LOCK.unlock(); }
-        new NativeEpgApplicationService().clearCache();
-        EpgCacheRefreshService.invalidate();
+        clearCache(_ -> { });
+    }
+
+    /** Clears saved guide data off the UI thread; progress values are i18n keys. */
+    public void clearCache(java.util.function.Consumer<String> progress) {
+        try (var pause = EpgCacheRefreshService.pauseForCatalogueReload()) {
+            EpgCacheRefreshService.invalidate(progress);
+            progress.accept("epgClearPreparing");
+            SOURCE_LOAD_LOCK.lock();
+            try { synchronized (SOURCES_LOCK) { SOURCES.clear(); } }
+            finally { SOURCE_LOAD_LOCK.unlock(); }
+            new NativeEpgApplicationService().clearCache();
+        }
     }
     public String globalWarning() {
         if (!isEnabled()) return "";
@@ -127,8 +135,14 @@ public class EpgApplicationService {
     /** Same bounded importer, with phase updates for a user-visible refresh job. */
     XmltvGuide downloadSource(String source, java.util.function.Consumer<String> phase)
             throws IOException, javax.xml.stream.XMLStreamException, InterruptedException {
+        return downloadSource(source, phase, _ -> { });
+    }
+
+    XmltvGuide downloadSource(String source, java.util.function.Consumer<String> phase,
+                              java.util.function.LongConsumer bytesRead)
+            throws IOException, javax.xml.stream.XMLStreamException, InterruptedException {
         phase.accept("Downloading");
-        try (InputStream raw=open(source); BufferedInputStream buffered=new BufferedInputStream(raw)) {
+        try (BufferedInputStream buffered=new BufferedInputStream(new CountingInputStream(open(source), bytesRead))) {
             buffered.mark(2);
             int first=buffered.read();
             int second=buffered.read();
@@ -138,6 +152,43 @@ public class EpgApplicationService {
             XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit()),Instant.now());
             return new XmltvGuide(guide.programmes(), guide.names(), guide.qualityNames(),
                     resolveArtwork(guide.icons(), sourceUri(source)));
+        }
+    }
+
+    private static final class CountingInputStream extends FilterInputStream {
+        private final java.util.function.LongConsumer progress;
+        private long count;
+        private long reported;
+
+        CountingInputStream(InputStream input, java.util.function.LongConsumer progress) {
+            super(input);
+            this.progress = progress;
+        }
+
+        private void counted(int bytes) {
+            if (bytes <= 0) return;
+            count += bytes;
+            if (count - reported >= 256 * 1024) {
+                reported = count;
+                progress.accept(count);
+            }
+        }
+
+        @Override public int read() throws IOException {
+            int value = in.read();
+            counted(value < 0 ? 0 : 1);
+            return value;
+        }
+
+        @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+            int result = in.read(bytes, offset, length);
+            counted(result);
+            return result;
+        }
+
+        @Override public void close() throws IOException {
+            try { if (count > reported) progress.accept(count); }
+            finally { super.close(); }
         }
     }
 

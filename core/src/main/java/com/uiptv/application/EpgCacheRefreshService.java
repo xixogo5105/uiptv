@@ -20,6 +20,7 @@ public class EpgCacheRefreshService {
     private static final Object COMMIT_LOCK=new Object();
     /** Serializes scheduled and user-requested imports without discarding persisted data. */
     static final java.util.concurrent.locks.ReentrantLock REFRESH_LOCK = new java.util.concurrent.locks.ReentrantLock();
+    private static final AtomicReference<Thread> SCHEDULED_WORKER = new AtomicReference<>();
     private static final java.util.concurrent.ConcurrentMap<String, java.util.concurrent.locks.ReentrantLock> NATIVE_REQUEST_LOCKS = new ConcurrentHashMap<>();
     private static final AtomicLong EPOCH=new AtomicLong();
     private static final Map<Runnable,EpgChangeNotifications.Subscription> LEGACY_LISTENERS=new ConcurrentHashMap<>();
@@ -233,16 +234,20 @@ public class EpgCacheRefreshService {
         scheduler.execute(() -> { QUEUED.set(false); runScheduled(); });
     }
     static void invalidate() {
-        synchronized(COMMIT_LOCK) {
+        invalidate(_ -> { });
+    }
+    static void invalidate(java.util.function.Consumer<String> progress) {
+        try (var pause = pauseForCatalogueReload()) {
             EPOCH.incrementAndGet();
-            WORKERS.forEach(thread -> { if(thread!=Thread.currentThread()) thread.interrupt(); });
-            new EpgCacheDb().clear();
+            progress.accept("epgClearStopping");
+            synchronized(COMMIT_LOCK) { new EpgCacheDb().clear(progress); }
         }
     }
     private static void runScheduled() {
         synchronized (EpgCacheRefreshService.class) {
             if (!lifecycleStarted || CATALOGUE_RELOADS.get() > 0 || Thread.currentThread().isInterrupted()
                     || !REFRESH_LOCK.tryLock()) return;
+            SCHEDULED_WORKER.set(Thread.currentThread());
             WORKERS.add(Thread.currentThread());
         }
         try {
@@ -251,7 +256,18 @@ public class EpgCacheRefreshService {
             new EpgCacheRefreshService().refreshDue();
         } catch(Exception _) {
             if(!Thread.currentThread().isInterrupted()) AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG background refresh failed; existing guide remains available.");
-        } finally { WORKERS.remove(Thread.currentThread()); Thread.interrupted(); REFRESH_LOCK.unlock(); }
+        } finally {
+            SCHEDULED_WORKER.compareAndSet(Thread.currentThread(), null);
+            WORKERS.remove(Thread.currentThread());
+            Thread.interrupted();
+            REFRESH_LOCK.unlock();
+        }
+    }
+
+    /** Let a user-requested import take the lock after the current background operation stops. */
+    static void prioritizeManualRefresh() {
+        Thread scheduled = SCHEDULED_WORKER.get();
+        if (scheduled != null) scheduled.interrupt();
     }
 
     public void refreshDue() {

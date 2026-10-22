@@ -272,7 +272,11 @@ class EpgPersistentCacheTest extends DbBackedTest {
                 p("Duplicate two", now - 1000, now + 1000));
         assertThrows(DatabaseAccessException.class, () -> source("source", "guide", duplicateProgrammes, now));
         assertEquals("Good",title(id,now));
-        new EpgApplicationService().clearCache(); assertTrue(db.summaries(List.of(id),now).get(id).isEmpty()); assertEquals(0,db.sourceState("source").refreshedAt());
+        List<String> clearSteps = new ArrayList<>();
+        new EpgApplicationService().clearCache(clearSteps::add);
+        assertEquals(List.of("epgClearStopping", "epgClearMapping", "epgClearProgrammes",
+                "epgClearFinishing", "epgClearPreparing"), clearSteps);
+        assertTrue(db.summaries(List.of(id),now).get(id).isEmpty()); assertEquals(0,db.sourceState("source").refreshedAt());
         assertTrue(Files.exists(testDbFile.toPath()));
     }
     @Test void clearDuringDownloadCannotRepopulateCacheFromObsoleteImport() throws Exception {
@@ -371,19 +375,44 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals(0, snapshot.total(), "A configured account without an EPG source should finish without source work.");
     }
 
+    @Test void sourceImportReportsBytesReadAndProgrammesProcessed() throws Exception {
+        Path file = xml("progress.xml", "Progress title");
+        List<String> phases = new ArrayList<>();
+        List<Long> bytesRead = new ArrayList<>();
+        XmltvGuide guide = new EpgApplicationService().downloadSource(file.toString(), phases::add, bytesRead::add);
+        assertEquals(List.of("Downloading", "Parsing"), phases);
+        assertFalse(bytesRead.isEmpty());
+        assertEquals(Files.size(file), bytesRead.getLast());
+
+        long now = System.currentTimeMillis();
+        List<EpgProgramme> programmes = new ArrayList<>();
+        for (int index = 0; index < 501; index++) {
+            long start = now + index * 60_000L;
+            programmes.add(p("Programme " + index, start, start + 60_000L));
+        }
+        List<Long> processed = new ArrayList<>();
+        db.replaceSource("progress-source", Map.of("station", programmes), Map.of(), Map.of(), Map.of(),
+                now, now + 7_200_000L, Set.of(), processed::add);
+        assertEquals(List.of(500L, 501L), processed);
+        List<Long> matched = new ArrayList<>();
+        db.mapChannels(List.of(match(new EpgCacheDb.Identity("account", "station", "signature"),
+                "station", List.of("progress-source"))), now, false, matched::add);
+        assertEquals(List.of(1L), matched);
+    }
+
     @Test void manualRefreshShowsAndCanCancelWhileWaitingForAnotherRefresh() {
         EpgCacheRefreshService.REFRESH_LOCK.lock();
         try {
             var started = EpgRefreshJobService.start();
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
             var snapshot = EpgRefreshJobService.get(started.id());
-            while (snapshot != null && !snapshot.stage().equals("Waiting for active refresh")
+            while (snapshot != null && !snapshot.stage().equals("Waiting for another EPG refresh to stop")
                     && System.nanoTime() < deadline) {
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
                 snapshot = EpgRefreshJobService.get(started.id());
             }
             assertNotNull(snapshot);
-            assertEquals("Waiting for active refresh", snapshot.stage());
+            assertEquals("Waiting for another EPG refresh to stop", snapshot.stage());
             assertTrue(snapshot.startedAt() > 0);
             assertTrue(EpgRefreshJobService.cancel(started.id()));
 

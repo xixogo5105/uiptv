@@ -48,16 +48,23 @@ public final class EpgCacheDb {
     @SuppressWarnings("java:S107")
     public void replaceSource(String sourceId,Map<String,List<EpgProgramme>> programmes,
                               Map<String,String> aliases,Map<String,String> qualityAliases,Map<String,String> icons,long now,long retryAt) {
-        replaceSource(sourceId, programmes, aliases, qualityAliases, icons, now, retryAt, Set.of());
+        replaceSource(sourceId, programmes, aliases, qualityAliases, icons, now, retryAt, Set.of(), _ -> { });
     }
     @SuppressWarnings("java:S107")
     public void replaceSource(String sourceId,Map<String,List<EpgProgramme>> programmes,
                               Map<String,String> aliases,Map<String,String> qualityAliases,Map<String,String> icons,
                               long now,long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities) {
+        replaceSource(sourceId, programmes, aliases, qualityAliases, icons, now, retryAt, identities, _ -> { });
+    }
+    @SuppressWarnings("java:S107")
+    public void replaceSource(String sourceId,Map<String,List<EpgProgramme>> programmes,
+                              Map<String,String> aliases,Map<String,String> qualityAliases,Map<String,String> icons,
+                              long now,long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities,
+                              java.util.function.LongConsumer processed) {
         EpgChangeNotifications.Notification notification;
         try (Connection c = open(true)) {
             notification = replaceSourceTransaction(c, sourceId, programmes, aliases, qualityAliases, icons,
-                    now, retryAt, identities);
+                    now, retryAt, identities, processed);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw failure(error);
@@ -71,11 +78,12 @@ public final class EpgCacheDb {
     private EpgChangeNotifications.Notification replaceSourceTransaction(
             Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
             Map<String,String> aliases, Map<String,String> qualityAliases, Map<String,String> icons,
-            long now, long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities)
+            long now, long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities,
+            java.util.function.LongConsumer processed)
             throws SQLException, InterruptedException, java.io.IOException {
         c.setAutoCommit(false);
         try {
-            replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt);
+            replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt, processed);
             EpgChangeNotifications.Notification notification = EpgChangeNotifications.create(c,
                     EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(sourceId), programmes.keySet(), identities);
             c.commit();
@@ -89,12 +97,13 @@ public final class EpgCacheDb {
     @SuppressWarnings("java:S107")
     private void replaceSource(Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
                        Map<String,String> aliases, Map<String,String> qualityAliases,
-                       Map<String,String> icons, long now, long retryAt)
+                       Map<String,String> icons, long now, long retryAt,
+                       java.util.function.LongConsumer processed)
             throws SQLException, InterruptedException, java.io.IOException {
         deleteSourceRows(c,"epg_programme",sourceId);
         deleteSourceRows(c,"epg_alias",sourceId);
         deleteSourceRows(c,"epg_channel_icon",sourceId);
-        insertProgrammes(c, sourceId, programmes, now);
+        insertProgrammes(c, sourceId, programmes, now, processed);
         insertAliases(c, sourceId, aliases, qualityAliases);
         insertIcons(c, sourceId, icons);
         state(c, sourceId, now, retryAt, "");
@@ -102,12 +111,17 @@ public final class EpgCacheDb {
 
     @SuppressWarnings("java:S6909")
     private void insertProgrammes(Connection c, String sourceId, Map<String, List<EpgProgramme>> programmes,
-                                  long now) throws SQLException, InterruptedException, java.io.IOException {
-        try (var insert = c.prepareStatement("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)")) {
+                                  long now, java.util.function.LongConsumer processed)
+            throws SQLException, InterruptedException {
+        try (var insert = c.prepareStatement("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)");
+             var compressor = new DescriptionCompressor()) {
             int batch = 0;
+            long scanned = 0;
             for (var entry : programmes.entrySet()) {
                 for (var programme : entry.getValue()) {
                     if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+                    scanned++;
+                    if (scanned % 500 == 0) processed.accept(scanned);
                     if (programme.stop() <= programme.start() || programme.title().isBlank()
                             || programme.stop() <= now - 6 * 3_600_000L
                             || programme.start() >= now + 7 * 86_400_000L) continue;
@@ -117,12 +131,13 @@ public final class EpgCacheDb {
                     insert.setLong(3, programme.start());
                     insert.setLong(4, programme.stop());
                     insert.setString(5, programme.title());
-                    insert.setBytes(6, compress(programme.description()));
+                    insert.setBytes(6, compressor.compress(programme.description()));
                     insert.addBatch();
                     if (++batch % 500 == 0) insert.executeBatch();
                 }
             }
             insert.executeBatch();
+            processed.accept(scanned);
         }
     }
 
@@ -184,6 +199,10 @@ public final class EpgCacheDb {
                                   Map<String,String> declaredCountries, Map<String,Aliases> indexes, long now) { }
     public boolean mapChannels(List<Match> matches,long now) { return mapChannels(matches,now,false); }
     public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings) {
+        return mapChannels(matches, now, preserveExistingMappings, _ -> { });
+    }
+    public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings,
+                               java.util.function.LongConsumer processed) {
         // A provider channel may be cached in multiple categories. Queue just one
         // mapping per logical channel, or deferred inserts collide at batch commit
         // and roll back every channel in the account after a signature change.
@@ -191,12 +210,13 @@ public final class EpgCacheDb {
         Map<ChannelKey,Match> unique=new LinkedHashMap<>();
         for (Match match:matches) unique.putIfAbsent(new ChannelKey(match.identity().accountId(),match.identity().providerId()),match);
         try (Connection c = open(true)) {
-            return mapChannelsTransaction(c, unique.values(), now, preserveExistingMappings);
+            return mapChannelsTransaction(c, unique.values(), now, preserveExistingMappings, processed);
         } catch (SQLException error) { throw failure(error); }
     }
 
     private boolean mapChannelsTransaction(Connection c, Collection<Match> matches, long now,
-                                           boolean preserveExistingMappings)
+                                           boolean preserveExistingMappings,
+                                           java.util.function.LongConsumer processed)
             throws SQLException {
         c.setAutoCommit(false);
         boolean changed = false;
@@ -209,7 +229,9 @@ public final class EpgCacheDb {
             var rules = new EpgNameRulesDb().read(c);
             MappingQueries queries = new MappingQueries(c, direct, alias, existing, rules,
                     readDeclaredCountries(c), new HashMap<>(), now);
+            long scanned = 0;
             for (Match match : matches) {
+                if (Thread.currentThread().isInterrupted()) throw new SQLException("EPG mapping interrupted");
                 List<Link> previous = readPreviousMappings(match, queries);
                 boolean sameSignature = preserveExistingMappings
                         && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()));
@@ -233,9 +255,12 @@ public final class EpgCacheDb {
                         }
                     }
                 }
+                scanned++;
+                if (scanned % 100 == 0) processed.accept(scanned);
             }
             delete.executeBatch();
             insert.executeBatch();
+            processed.accept(scanned);
             EpgChangeNotifications.Notification notification = changed
                     ? EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.MAPPING, Set.of(), Set.of(), changedIdentities) : null;
             c.commit();
@@ -458,20 +483,47 @@ public final class EpgCacheDb {
         catch(Exception error) { throw failure(error); }
     }
     public void clear() {
+        clear(_ -> { });
+    }
+    public void clear(java.util.function.Consumer<String> progress) {
         EpgChangeNotifications.Notification notification;
         try(Connection c=open(true); var statement=c.createStatement()) {
             c.setAutoCommit(false);
-            for(String table:List.of("epg_channel_mapping","epg_programme","epg_alias","epg_channel_icon","epg_shared_source","epg_source")) statement.executeUpdate("DELETE FROM " + table);
+            progress.accept("epgClearMapping");
+            statement.executeUpdate("DELETE FROM epg_channel_mapping");
+            progress.accept("epgClearProgrammes");
+            statement.executeUpdate("DELETE FROM epg_programme");
+            progress.accept("epgClearFinishing");
+            for(String table:List.of("epg_alias","epg_channel_icon","epg_shared_source","epg_source"))
+                statement.executeUpdate("DELETE FROM " + table);
             notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.CACHE_CLEARED, Set.of(), Set.of(), Set.of());
             c.commit();
         } catch(Exception error) { throw failure(error); }
         EpgChangeNotifications.publish(notification);
     }
-    private byte[] compress(String description) throws java.io.IOException {
-        String bounded=description==null ? "" : description.substring(0,Math.min(description.length(),2048));
-        var bytes=new java.io.ByteArrayOutputStream();
-        try(var output=new java.util.zip.DeflaterOutputStream(bytes)) { output.write(bounded.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
-        return bytes.toByteArray();
+    private static final class DescriptionCompressor implements AutoCloseable {
+        private final java.util.zip.Deflater deflater = new java.util.zip.Deflater(java.util.zip.Deflater.BEST_SPEED);
+        private final byte[] buffer = new byte[4096];
+        private byte[] empty;
+
+        byte[] compress(String description) {
+            String bounded = description == null ? "" : description.substring(0, Math.min(description.length(), 2048));
+            if (bounded.isEmpty() && empty != null) return empty;
+            byte[] input = bounded.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            deflater.reset();
+            deflater.setInput(input);
+            deflater.finish();
+            var bytes = new java.io.ByteArrayOutputStream(Math.min(input.length + 32, 4096));
+            while (!deflater.finished()) {
+                int size = deflater.deflate(buffer);
+                bytes.write(buffer, 0, size);
+            }
+            byte[] result = bytes.toByteArray();
+            if (bounded.isEmpty()) empty = result;
+            return result;
+        }
+
+        @Override public void close() { deflater.end(); }
     }
     private String expand(byte[] bytes) throws java.io.IOException {
         try(var input=new java.util.zip.InflaterInputStream(new java.io.ByteArrayInputStream(bytes))) {

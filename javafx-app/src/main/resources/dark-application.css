@@ -613,6 +613,20 @@
     -fx-font-weight: bold;
 }
 
+.epg-refresh-source-icon {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.epg-refresh-source-icon.success {
+    -fx-text-fill: #6fd07a;
+}
+
+.epg-refresh-source-icon.failure {
+    -fx-text-fill: #ff8a80;
+}
+
 .epg-refresh-source-status {
     -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: bold;

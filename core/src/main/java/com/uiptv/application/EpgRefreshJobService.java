@@ -45,26 +45,28 @@ public final class EpgRefreshJobService {
         volatile long finishedAt;
         volatile Thread worker;
 
-        synchronized void stage(String value) { stage = value; }
+        synchronized void stage(String value) {
+            stage = value;
+        }
         synchronized void waitingForRefresh() {
-            stage = "Waiting for active refresh";
-            message = "";
+            stage("Waiting for another EPG refresh to stop");
+            message = "The current refresh is stopping so this one can begin.";
         }
         synchronized void beginPreparation(int accounts) {
             preparationCompleted = 0;
             preparationTotal = accounts;
-            stage = "Preparing accounts";
+            stage("Reading accounts");
             currentAccount = "";
             message = "";
         }
         synchronized void checkingAccount(Account account) {
-            stage = "Preparing accounts";
+            stage("Checking account sources");
             currentAccount = Objects.toString(account.getAccountName(), "");
-            message = "";
+            message = "Checking configured guide sources for " + currentAccount + ".";
         }
         synchronized void accountPrepared() { preparationCompleted++; }
         synchronized void checkingGlobalSources() {
-            stage = "Preparing global sources";
+            stage("Checking global sources");
             currentAccount = "";
             message = "";
         }
@@ -72,7 +74,7 @@ public final class EpgRefreshJobService {
             total = work.size();
             work.forEach(item -> sources.put(item.id, new SourceProgress(item.id, item.name, "Pending", "")));
             status = "RUNNING";
-            stage = work.isEmpty() ? "Completed" : "Ready";
+            stage(work.isEmpty() ? "Completed" : "Ready");
             currentAccount = "";
             message = work.isEmpty() ? "No EPG sources are configured." : "";
         }
@@ -80,13 +82,13 @@ public final class EpgRefreshJobService {
             currentSource = source.name;
             currentAccount = "";
             sources.put(source.id, new SourceProgress(source.id, source.name, state, Objects.toString(detail, "")));
-            stage = state;
+            stage(state);
         }
         synchronized void sourceFinished(SourceWork source, boolean succeeded, String detail) {
             sources.put(source.id, new SourceProgress(source.id, source.name,
                     succeeded ? "Completed" : "Failed", Objects.toString(detail, "")));
             completed++;
-            stage = succeeded ? "Saved" : "Source unavailable";
+            stage(succeeded ? "Saved" : "Source unavailable");
         }
         synchronized Snapshot snapshot() {
             return new Snapshot(id, status, stage, completed, total, currentSource, message,
@@ -95,7 +97,7 @@ public final class EpgRefreshJobService {
         }
         synchronized void finish(String result, String detail) {
             status = result;
-            stage = result.equals("COMPLETED") || result.equals("COMPLETED_WITH_WARNINGS") ? "Completed" : result;
+            stage(result.equals("COMPLETED") || result.equals("COMPLETED_WITH_WARNINGS") ? "Completed" : result);
             message = Objects.toString(detail, "");
             finishedAt = System.currentTimeMillis();
         }
@@ -117,6 +119,7 @@ public final class EpgRefreshJobService {
             JOBS.put(job.id, job);
             while (JOBS.size() > 20) JOBS.remove(JOBS.keySet().iterator().next());
             ACTIVE.set(job);
+            EpgCacheRefreshService.prioritizeManualRefresh();
             Thread worker = Thread.ofVirtual().name("epg-manual-refresh-" + job.id).unstarted(() -> run(job));
             job.worker = worker;
             worker.start();
@@ -149,7 +152,8 @@ public final class EpgRefreshJobService {
         try {
             job.waitingForRefresh();
             while (!EpgCacheRefreshService.REFRESH_LOCK.tryLock(1, TimeUnit.SECONDS)) {
-                // Timed acquisition keeps the wait cancellable and lets the dialog show elapsed time.
+                // A scheduled import can still be in database I/O; keep asking it to yield.
+                EpgCacheRefreshService.prioritizeManualRefresh();
             }
             locked = true;
             job.stage("Preparing");
@@ -168,7 +172,9 @@ public final class EpgRefreshJobService {
                 if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                 try {
                     XmltvGuide guide = epg.downloadSource(source.source,
-                            phase -> job.update(source, phase, ""));
+                            phase -> job.update(source, phase,
+                                    "Downloading".equals(phase) ? "Connecting to guide source." : "Reading guide data."),
+                            bytes -> job.update(source, "Parsing", "Read " + readableBytes(bytes) + " from guide."));
                     if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                     job.update(source, "Matching", "Applying configured account and guide identities.");
                     List<EpgCacheDb.Match> mappings = new ArrayList<>();
@@ -182,14 +188,24 @@ public final class EpgRefreshJobService {
                     }
                     long now = System.currentTimeMillis();
                     long retryAt = now + EpgCacheRefreshService.refreshMillis();
-                    job.update(source, "Saving", "Publishing this source while preserving other sources.");
+                    java.util.concurrent.atomic.AtomicLong programmes = new java.util.concurrent.atomic.AtomicLong();
+                    job.update(source, "Saving", "Processing guide programmes.");
                     EpgCacheRefreshService.commit(token, () -> {
                         new EpgCacheDb().replaceSource(source.id, guide.programmes(), guide.names(),
-                                guide.qualityNames(), guide.icons(), now, retryAt);
-                        if (!mappings.isEmpty()) new EpgCacheDb().mapChannels(mappings, now);
+                                guide.qualityNames(), guide.icons(), now, retryAt, Set.of(),
+                                scanned -> {
+                                    programmes.set(scanned);
+                                    job.update(source, "Saving", "Processed " + scanned + " programmes.");
+                                });
+                        if (!mappings.isEmpty()) {
+                            job.update(source, "Linking channels", "Matching " + mappings.size() + " cached channels.");
+                            new EpgCacheDb().mapChannels(mappings, now, false,
+                                    scanned -> job.update(source, "Linking channels",
+                                            "Matched " + scanned + " cached channels."));
+                        }
                     });
                     if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
-                    job.sourceFinished(source, true, "Imported " + programmeCount(guide) + " programmes.");
+                    job.sourceFinished(source, true, "Imported " + programmes.get() + " programmes.");
                 } catch (InterruptedException cancelled) {
                     throw cancelled;
                 } catch (Exception error) {
@@ -227,7 +243,7 @@ public final class EpgRefreshJobService {
 
     private static Map<String, SourceWork> prepareSources(Job job, EpgApplicationService epg,
                                                           EpgCacheRefreshService.Token token) {
-        job.stage("Preparing sources");
+        job.stage("Reading accounts");
         Map<String, SourceWork> result = new LinkedHashMap<>();
         List<Account> accounts = new ArrayList<>(AccountService.getInstance().getAllById().values());
         accounts.sort(Comparator.comparing(account -> Objects.toString(account.getAccountName(), ""), String.CASE_INSENSITIVE_ORDER));
@@ -255,8 +271,9 @@ public final class EpgRefreshJobService {
         return result;
     }
 
-    private static int programmeCount(XmltvGuide guide) {
-        return guide.programmes().values().stream().mapToInt(List::size).sum();
+    private static String readableBytes(long bytes) {
+        if (bytes < 1_048_576) return (bytes / 1_024) + " KB";
+        return "%.1f MB".formatted(bytes / 1_048_576.0);
     }
 
     private static String sourceLabel(String source) {

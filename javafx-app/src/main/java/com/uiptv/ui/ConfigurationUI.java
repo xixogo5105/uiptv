@@ -169,6 +169,8 @@ public class ConfigurationUI extends VBox {
     private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
     private final Button refreshEpgButton = new Button(I18n.tr("epgRefreshGuide"));
     private final Button clearEpgCacheButton = new Button(I18n.tr("configClearCache"));
+    private final ProgressIndicator clearEpgActivity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
+    private final Label clearEpgStatus = new Label();
     private final MenuButton clearDataMenuButton = new MenuButton(I18n.tr("configClearMenu"));
     private final MenuItem clearCacheMenuItem = new MenuItem(I18n.tr("configClearCache"));
     private final MenuItem clearWatchingNowMenuItem = new MenuItem(I18n.tr("configClearWatchingNow"));
@@ -393,12 +395,22 @@ public class ConfigurationUI extends VBox {
         });
         clearEpgCacheButton.setOnAction(_ -> {
             if (!UIptvAlert.showConfirmationAlert(I18n.tr("epgClearCacheConfirm"))) return;
-            try {
-                new com.uiptv.application.EpgApplicationService().clearCache();
-                showMessageAlert(I18n.tr("configCacheCleared"));
-            } catch (RuntimeException error) {
-                showMessageAlert(I18n.tr("configCacheClearFailed"));
-            }
+            clearEpgCacheButton.setDisable(true);
+            clearEpgActivity.setVisible(true);
+            clearEpgActivity.setManaged(true);
+            clearEpgStatus.setVisible(true);
+            clearEpgStatus.setManaged(true);
+            Task<Void> clearing = new Task<>() {
+                @Override protected Void call() {
+                    new com.uiptv.application.EpgApplicationService().clearCache(
+                            key -> updateMessage(I18n.tr(key)));
+                    return null;
+                }
+            };
+            clearEpgStatus.textProperty().bind(clearing.messageProperty());
+            clearing.setOnSucceeded(_ -> finishEpgClear(I18n.tr("configCacheCleared")));
+            clearing.setOnFailed(_ -> finishEpgClear(I18n.tr("configCacheClearFailed")));
+            Thread.ofVirtual().name("epg-clear-cache").start(clearing);
         });
         clearDataMenuButton.getItems().setAll(clearCacheMenuItem, clearWatchingNowMenuItem, clearRecentMenuItem);
         clearDataMenuButton.getStyleClass().add("settings-clear-menu-button");
@@ -904,11 +916,22 @@ public class ConfigurationUI extends VBox {
         epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP)));
         refreshEpgButton.setDisable(!epgEnabledSwitch.isSelected());
         epgEnabledSwitch.selectedProperty().addListener((_, _, enabled) -> refreshEpgButton.setDisable(!enabled));
+        clearEpgActivity.setMinSize(22, 22);
+        clearEpgActivity.setPrefSize(22, 22);
+        clearEpgActivity.setMaxSize(22, 22);
+        clearEpgActivity.setVisible(false);
+        clearEpgActivity.setManaged(false);
+        clearEpgStatus.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
+        clearEpgStatus.setWrapText(true);
+        clearEpgStatus.setVisible(false);
+        clearEpgStatus.setManaged(false);
+        HBox clearEpgRow = new HBox(10, clearEpgCacheButton, clearEpgActivity);
+        clearEpgRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox advancedOptions = new VBox(10,
                 createSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch),
                 createStackedSettingControlRow("configEpgSchedulerInterval", epgSchedulerIntervalComboBox),
-                clearEpgCacheButton);
+                clearEpgRow, clearEpgStatus);
         TitledPane advanced = new TitledPane(I18n.tr("epgAdvancedSettings"), advancedOptions);
         advanced.setExpanded(false);
         advanced.setCollapsible(true);
@@ -919,6 +942,14 @@ public class ConfigurationUI extends VBox {
                 buildEpgSourceRow(), actions, advanced);
         group.setFillWidth(true);
         return group;
+    }
+
+    private void finishEpgClear(String result) {
+        clearEpgStatus.textProperty().unbind();
+        clearEpgStatus.setText(result);
+        clearEpgActivity.setVisible(false);
+        clearEpgActivity.setManaged(false);
+        clearEpgCacheButton.setDisable(false);
     }
 
     private Node buildEpgSourceRow() {

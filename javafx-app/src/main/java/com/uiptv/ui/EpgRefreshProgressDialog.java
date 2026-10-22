@@ -13,6 +13,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -54,10 +55,14 @@ final class EpgRefreshProgressDialog {
         Label count = new Label();
         count.getStyleClass().add("verification-progress-summary");
         count.setMinWidth(Region.USE_PREF_SIZE);
+        ProgressIndicator activity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
+        activity.setMinSize(22, 22);
+        activity.setPrefSize(22, 22);
+        activity.setMaxSize(22, 22);
         SegmentedProgressBar progress = new SegmentedProgressBar();
         progress.setMinWidth(0);
         HBox.setHgrow(progress, Priority.ALWAYS);
-        HBox progressRow = new HBox(14, count, progress);
+        HBox progressRow = new HBox(14, activity, count, progress);
         progressRow.setAlignment(Pos.CENTER_LEFT);
         progressRow.getStyleClass().add("verification-progress-row");
         Label current = new Label();
@@ -65,7 +70,9 @@ final class EpgRefreshProgressDialog {
         current.setWrapText(true);
         Label elapsed = new Label();
         elapsed.getStyleClass().add("management-popup-subtitle");
-        HBox progressDetails = new HBox(12, current, spacer(), elapsed);
+        Label phaseElapsed = new Label();
+        phaseElapsed.getStyleClass().add("management-popup-subtitle");
+        HBox progressDetails = new HBox(12, current, spacer(), phaseElapsed, elapsed);
         progressDetails.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(current, Priority.ALWAYS);
         VBox progressCard = new VBox(12, progressRow, progressDetails);
@@ -127,6 +134,9 @@ final class EpgRefreshProgressDialog {
         String[] renderedProgressPhase = {""};
         int[] renderedProgressTotal = {-1};
         int[] renderedPreparationCompleted = {0};
+        String[] previousStage = {""};
+        String[] previousSource = {""};
+        long[] phaseStartedAt = {initial.startedAt()};
         action.setOnAction(_ -> {
             var latest = EpgRefreshJobService.get(initial.id());
             if (latest == null || terminal(latest.status())) stage.close();
@@ -140,12 +150,17 @@ final class EpgRefreshProgressDialog {
             var snapshot = EpgRefreshJobService.get(initial.id());
             if (snapshot == null) return;
             phase.setText(snapshot.stage());
+            if (!snapshot.stage().equals(previousStage[0]) || !snapshot.currentSource().equals(previousSource[0])) {
+                previousStage[0] = snapshot.stage();
+                previousSource[0] = snapshot.currentSource();
+                phaseStartedAt[0] = System.currentTimeMillis();
+            }
             boolean preparingAccounts = snapshot.total() < 0;
             if (preparingAccounts) {
                 count.setText(snapshot.preparationTotal() > 0
                         ? I18n.tr("epgRefreshAccountsChecked", snapshot.preparationCompleted(), snapshot.preparationTotal())
                         : I18n.tr("epgRefreshPreparing"));
-                boolean progressPhaseChanged = configureProgress(progress, renderedProgressPhase, renderedProgressTotal,
+                configureProgress(progress, renderedProgressPhase, renderedProgressTotal,
                         snapshot.preparationTotal() > 0 ? "accounts" : "waiting",
                         snapshot.preparationTotal() > 0 ? snapshot.preparationTotal() : 1);
                 if (snapshot.preparationTotal() > 0) {
@@ -153,8 +168,6 @@ final class EpgRefreshProgressDialog {
                         progress.updateSegment(i, SegmentStatus.SUCCESS);
                     }
                     renderedPreparationCompleted[0] = snapshot.preparationCompleted();
-                } else if (progressPhaseChanged) {
-                    progress.updateSegment(0, SegmentStatus.WARNING);
                 }
                 current.setText(snapshot.currentAccount().isBlank() ? ""
                         : I18n.tr("epgRefreshCurrentAccount", snapshot.currentAccount()));
@@ -178,6 +191,10 @@ final class EpgRefreshProgressDialog {
             long elapsedMillis = Math.max(0, (snapshot.finishedAt() == 0
                     ? System.currentTimeMillis() : snapshot.finishedAt()) - snapshot.startedAt());
             elapsed.setText(I18n.tr("epgRefreshElapsed", formatElapsed(elapsedMillis)));
+            phaseElapsed.setText(terminal(snapshot.status()) ? ""
+                    : snapshot.stage() + " · " + formatElapsed(System.currentTimeMillis() - phaseStartedAt[0]));
+            activity.setVisible(!terminal(snapshot.status()));
+            activity.setManaged(!terminal(snapshot.status()));
             message.setText(snapshot.message());
             message.setVisible(!snapshot.message().isBlank());
             message.setManaged(!snapshot.message().isBlank());
@@ -248,27 +265,39 @@ final class EpgRefreshProgressDialog {
             }
             Label name = new Label(item.name());
             name.getStyleClass().add("epg-refresh-source-name");
-            name.setMinWidth(230);
-            name.setPrefWidth(300);
+            name.setWrapText(true);
+            name.setMinWidth(0);
             name.setMaxWidth(Double.MAX_VALUE);
-            name.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+
+            boolean completed = "Completed".equals(item.status());
+            boolean failed = "Failed".equals(item.status());
+            Label icon = new Label(completed ? "✓" : failed ? "✕" : "•");
+            icon.getStyleClass().add("epg-refresh-source-icon");
+            icon.getStyleClass().add(completed ? "success" : failed ? "failure" : "pending");
+            icon.setMinWidth(24);
+            icon.setAlignment(Pos.TOP_CENTER);
 
             Label status = new Label(item.status());
             status.getStyleClass().add("epg-refresh-source-status");
-            if ("Completed".equals(item.status())) status.getStyleClass().add("success");
-            else if ("Failed".equals(item.status())) status.getStyleClass().add("failure");
-            status.setMinWidth(125);
-            status.setPrefWidth(150);
+            if (completed) status.getStyleClass().add("success");
+            else if (failed) status.getStyleClass().add("failure");
 
             Label detail = new Label(item.detail());
             detail.getStyleClass().add("management-popup-subtitle");
             detail.setWrapText(true);
-            detail.setMaxWidth(Double.MAX_VALUE);
-            HBox row = new HBox(14, name, status, detail);
+            detail.setAlignment(Pos.CENTER_RIGHT);
+            detail.setMaxWidth(680);
+            HBox metadata = new HBox(12, status, spacer(), detail);
+            metadata.setAlignment(Pos.CENTER_LEFT);
+            VBox content = new VBox(5, name, metadata);
+            content.setMinWidth(0);
+            content.setMaxWidth(Double.MAX_VALUE);
+            HBox row = new HBox(10, icon, content);
             row.getStyleClass().add("epg-refresh-source-row");
-            row.setAlignment(Pos.CENTER_LEFT);
+            row.setAlignment(Pos.TOP_LEFT);
             row.setFillHeight(true);
-            HBox.setHgrow(detail, Priority.ALWAYS);
+            HBox.setHgrow(content, Priority.ALWAYS);
+            row.prefWidthProperty().bind(widthProperty().subtract(20));
             setGraphic(row);
             setText(null);
         }
