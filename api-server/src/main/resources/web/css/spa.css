@@ -2806,7 +2806,7 @@ body {
 
 .epg-column-header {
     display: grid;
-    grid-template-columns: minmax(0, 36%) minmax(0, 32%) minmax(0, 32%);
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
     align-items: center;
     padding: 4px 14px 8px;
@@ -2819,7 +2819,7 @@ body {
 
 .epg-row-card {
     display: grid;
-    grid-template-columns: minmax(0, 36%) minmax(0, 32%) minmax(0, 32%);
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
     align-items: stretch;
     gap: 12px;
     min-height: 74px;
@@ -2944,7 +2944,7 @@ body {
 @media (max-width: 760px) {
     .epg-column-header,
     .epg-row-card {
-        grid-template-columns: minmax(0, 42%) minmax(0, 58%);
+        grid-template-columns: minmax(0, .8fr) minmax(0, 1fr);
     }
 
     .epg-column-header > :nth-child(3),
@@ -2954,7 +2954,9 @@ body {
 }
 
 @media (max-width: 480px) {
-    .epg-row-card { gap: 8px; padding-inline: 9px; }
+    .epg-column-header,
+    .epg-row-card { gap: 8px; }
+    .epg-row-card { padding-inline: 9px; }
     .epg-row-card > .epg-channel-column { gap: 7px; }
     .epg-row-card .epg-channel-column > .logo-img,
     .epg-row-card .epg-channel-column > .logo-box { width: 36px; height: 36px; flex-basis: 36px; }

@@ -226,7 +226,8 @@ public class PlayerEpgUI extends VBox {
         String statusText = switch (Objects.toString(result.guideStatus(), "")) {
             case "STALE" -> I18n.tr("epgSourceStale");
             case "UNAVAILABLE" -> I18n.tr("epgSourceUnavailable");
-            case "NO_MATCH" -> I18n.tr("epgNoGuide");
+            // Keep the player detail area clean when a channel simply has no matching guide entry.
+            case "NO_MATCH" -> "";
             default -> "";
         };
         sourceStatus.setText(statusText);

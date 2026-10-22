@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -57,6 +58,36 @@ val baselineFile = file("$repoRoot/core/src/main/resources/db/migrations/0000_ba
 val migrationsList = file("$repoRoot/core/src/main/resources/db/migrations/migrations.txt")
 val generatedSchemaFile =
     layout.projectDirectory.file("src/commonMain/kotlin/com/uiptv/mobile/shared/db/UiptvGeneratedSchema.kt")
+val generatedMobileMessagesDir = layout.buildDirectory.dir("generated/mobileMessages/commonMain/kotlin")
+val generatedMobileMessagesFile = generatedMobileMessagesDir.map {
+    it.file("com/uiptv/mobile/shared/i18n/MobileMessages.kt")
+}
+val mobileMessageKeys = listOf(
+    "mobileAccountsTitle", "mobileAccountsSubtitle", "mobileAccountTypeStalkerPortal",
+    "mobileAccountStalkerDescription", "mobileAccountTypeXtremeApi", "mobileAccountXtremeDescription",
+    "mobileAccountTypeM3uPlaylist", "mobileAccountM3uDescription", "mobileAccountNoCatalogue",
+    "mobileAccountTypeLabel", "mobileAccountNoMacAddresses", "mobileAccountMacAddress",
+    "mobileAccountSelectMacAddress", "mobileAccountNoCredentials", "mobileAccountCredentialsLabel",
+    "mobileAccountSelectCredentials", "mobileAccountNoMatchingTimezones", "mobileAddAccount",
+    "mobileCountLiveCategorySingular", "mobileCountLiveCategoryPlural",
+    "mobileCountChannelSingular", "mobileCountChannelPlural",
+    "mobileCountMovieCategorySingular", "mobileCountMovieCategoryPlural",
+    "mobileCountMovieSingular", "mobileCountMoviePlural",
+    "mobileCountSeriesCategorySingular", "mobileCountSeriesCategoryPlural",
+    "mobileCountSeriesSingular", "mobileCountSeriesPlural",
+    "mobileCountEpisodeSingular", "mobileCountEpisodePlural", "epgMobileNoGuide",
+    "epgMobileSourceUnavailable",
+    "autoWatching", "commonSearch", "autoManageMACAddresses",
+    "configEnableEpg", "epgEnablePlaybackOnly", "epgMobilePlaybackOnlyNeedsEpg",
+    "configGlobalEpgSource", "epgMobileSourcesSyncHelp", "epgMobileSourcesLoadFailed",
+    "epgMobileSettingSaveFailed", "epgMobileModeSaveFailed", "epgMobileSourcesSaved",
+    "epgMobileSourcesSaveFailed", "epgMobileSaveSources", "epgAdvancedSettings",
+    "epgMobileHideAdvanced", "epgMobileMaintenance", "epgMobileCacheDescription",
+    "configClearCache", "epgMobileCacheCleared", "epgMobileCacheClearFailed", "epgLoading",
+    "epgNow", "epgNext", "epgSourceStale", "epgSourceUnavailable", "epgNoGuide",
+    "epgProgrammeDetails", "epgMobileProgrammeGuide", "commonClose", "epgMobileNoProgrammeNow",
+    "epgMobileMemoryPressure", "epgSourceTooLarge", "epgSourceProgrammeLimit", "epgSourceInvalid"
+)
 
 val generateUiptvSchemaMirror by tasks.registering {
     description = "Generates UiptvGeneratedSchema.kt from core/src/main/resources/db/migrations/0000_baseline.sql"
@@ -177,9 +208,95 @@ val generateUiptvSchemaMirror by tasks.registering {
         }
     }
 
+val generateMobileMessages by tasks.registering {
+    description = "Generates mobile UI messages from the shared translated property bundles"
+    group = "build"
+
+    val messagesDirectory = file("$repoRoot/core/src/main/resources/i18n")
+    inputs.files(fileTree(messagesDirectory) { include("messages*.properties") })
+    inputs.property("messageKeys", mobileMessageKeys)
+    outputs.file(generatedMobileMessagesFile)
+
+    doLast {
+        val bundles = fileTree(messagesDirectory) { include("messages*.properties") }
+            .files.sortedBy { it.name }
+            .associate { file ->
+                val locale = if (file.name == "messages.properties") "en"
+                    else file.name.removePrefix("messages_").removeSuffix(".properties")
+                val properties = Properties().also { values ->
+                    file.reader(Charsets.UTF_8).use { reader -> values.load(reader) }
+                }
+                locale to properties
+            }
+        for (locale in bundles.keys) {
+            val missing = mobileMessageKeys.filterNot(bundles.getValue(locale)::containsKey)
+            require(missing.isEmpty()) { "$locale is missing mobile UI translations: $missing" }
+        }
+
+        fun kotlinString(value: String): String = "\"" + value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n") + "\""
+
+        val generated = buildString {
+            appendLine("package com.uiptv.mobile.shared.i18n")
+            appendLine()
+            appendLine("import java.util.Locale")
+            appendLine()
+            appendLine("/** Generated from core/src/main/resources/i18n/messages_*.properties. */")
+            appendLine("internal object MobileMessages {")
+            appendLine("    private val bundles: Map<String, Map<String, String>> = mapOf(")
+            bundles.forEach { (locale, properties) ->
+                appendLine("        ${kotlinString(locale)} to mapOf(")
+                mobileMessageKeys.forEach { key ->
+                    appendLine("            ${kotlinString(key)} to ${kotlinString(properties.getProperty(key))},")
+                }
+                appendLine("        ),")
+            }
+            appendLine("    )")
+            appendLine()
+            appendLine("    private val languageFallbacks = mapOf(")
+            appendLine("        \"ar\" to \"ar_SA\", \"bn\" to \"bn_BD\", \"de\" to \"de_DE\",")
+            appendLine("        \"es\" to \"es_ES\", \"fr\" to \"fr_FR\", \"hi\" to \"hi_IN\",")
+            appendLine("        \"id\" to \"id_ID\", \"it\" to \"it_IT\", \"ja\" to \"ja_JP\",")
+            appendLine("        \"ko\" to \"ko_KR\", \"ml\" to \"ml_IN\", \"pa\" to \"pa_IN\",")
+            appendLine("        \"pt\" to \"pt_PT\", \"ru\" to \"ru_RU\", \"ta\" to \"ta_IN\",")
+            appendLine("        \"te\" to \"te_IN\", \"th\" to \"th_TH\", \"tr\" to \"tr_TR\",")
+            appendLine("        \"uk\" to \"uk_UA\", \"ur\" to \"ur_PK\", \"vi\" to \"vi_VN\",")
+            appendLine("        \"zh\" to \"zh_CN\"")
+            appendLine("    )")
+            appendLine()
+            appendLine("    fun text(key: String, vararg arguments: Any?): String {")
+            appendLine("        val locale = Locale.getDefault()")
+            appendLine("        val exact = locale.toLanguageTag().replace('-', '_')")
+            appendLine("        val languageFallback = when {")
+            appendLine("            locale.language == \"zh\" && (locale.script == \"Hant\" || locale.country in setOf(\"TW\", \"HK\", \"MO\")) -> \"zh_TW\"")
+            appendLine("            locale.language == \"pt\" && locale.country == \"BR\" -> \"pt_BR\"")
+            appendLine("            else -> languageFallbacks[locale.language] ?: locale.language")
+            appendLine("        }")
+            appendLine("        val bundle = bundles[exact] ?: bundles[languageFallback] ?: bundles.getValue(\"en_US\")")
+            appendLine("        var value = bundle[key] ?: key")
+            appendLine("        arguments.forEachIndexed { index, argument -> value = value.replace(\"{${'$'}index}\", argument?.toString().orEmpty()) }")
+            appendLine("        return value")
+            appendLine("    }")
+            appendLine("}")
+        }
+        generatedMobileMessagesFile.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(generated)
+        }
+        logger.lifecycle("Generated mobile UI messages from ${bundles.size} locale bundles")
+    }
+}
+
+sourceSets.named("commonMain") {
+    kotlin.srcDir(generatedMobileMessagesDir)
+}
+
     // Consumers depend on the generated mirror, so a baseline change regenerates it before compiling.
     tasks.matching { it.name.startsWith("compile") }.configureEach {
-        dependsOn(generateUiptvSchemaMirror)
+        dependsOn(generateUiptvSchemaMirror, generateMobileMessages)
     }
 
     sourceSets {

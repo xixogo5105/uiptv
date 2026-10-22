@@ -598,18 +598,56 @@
     -fx-background-color: transparent;
 }
 
-.epg-refresh-source-row {
+.epg-refresh-source-card {
+    -fx-spacing: 0;
+    -fx-min-height: 48;
+}
+
+.epg-refresh-source-header {
     -fx-background-color: -uiptv-surface-muted;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
     -fx-background-radius: 14;
     -fx-border-radius: 14;
-    -fx-padding: 10 12 10 12;
-    -fx-min-height: 48;
+    -fx-padding: 9 11 9 11;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.epg-refresh-source-header:hover,
+.epg-refresh-source-header:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.epg-refresh-source-body {
+    -fx-padding: 2 12 10 45;
 }
 
 .epg-refresh-source-name {
     -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
+.epg-refresh-source-filename {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-family: "Monospaced";
+    -fx-font-size: 0.96em;
+}
+
+.epg-refresh-source-summary {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.96em;
+}
+
+.epg-refresh-source-detail {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 1.02em;
+}
+
+.epg-refresh-source-chevron {
+    -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: bold;
 }
 
@@ -625,6 +663,16 @@
 
 .epg-refresh-source-icon.failure {
     -fx-text-fill: #ff8a80;
+}
+
+.epg-refresh-source-icon.warning,
+.epg-refresh-source-status.warning {
+    -fx-text-fill: #facc15;
+}
+
+.epg-refresh-source-icon.active,
+.epg-refresh-source-status.active {
+    -fx-text-fill: -uiptv-accent;
 }
 
 .epg-refresh-source-status {
@@ -756,6 +804,10 @@
 
 .channel-bookmark-icon {
     -fx-fill: -uiptv-text-primary;
+}
+
+.channel-bookmark-icon .channel-bookmark-glyph {
+    -fx-fill: #ffffff;
 }
 
 .channel-bookmark-chip {
@@ -3019,6 +3071,13 @@
 .uiptv-responsive-card.selected .channel-bookmark-icon,
 .bookmark-card:selected .channel-bookmark-icon,
 .bookmark-card.selected .channel-bookmark-icon {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .channel-bookmark-icon .channel-bookmark-glyph,
+.uiptv-responsive-card.selected .channel-bookmark-icon .channel-bookmark-glyph,
+.bookmark-card:selected .channel-bookmark-icon .channel-bookmark-glyph,
+.bookmark-card.selected .channel-bookmark-icon .channel-bookmark-glyph {
     -fx-fill: -uiptv-selected-card-fg;
 }
 

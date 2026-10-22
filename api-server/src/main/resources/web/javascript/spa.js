@@ -22,7 +22,8 @@ createApp({
         const epgEnabled = ref(false);
         const epgPlaybackOnly = ref(false);
         const webPlaybackProxyEnabled = ref(true);
-        const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
+        const epgLabels = ref({});
+        const epgLabel = key => epgLabels.value?.[key] || '';
         const epgTime = ref(Date.now());
         const cardProgramme = (item, slot) => item?.[slot] || null;
         const cardProgrammeTime = programme => {
@@ -40,21 +41,23 @@ createApp({
         const cardEpgKey = (item, bookmark) => `${bookmark ? 'bookmark' : 'channel'}:${item?.accountId || selectedAccountId.value || ''}:${item?.dbId || item?.channelId || ''}`;
         const isCardEpgExpanded = (item, bookmark = false) => cardEpgExpandedKey.value === cardEpgKey(item, bookmark);
         const cardEpgHasData = item => Boolean(cardProgramme(item, 'epgNow') || cardProgramme(item, 'epgNext'));
+        const cardEpgIsStale = item => item?.epgSourceStatus === 'STALE' || item?.epgStale
+            || ((item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) && cardEpgHasData(item));
         const cardEpgStatus = item => {
-            if (item?.epgSourceStatus === 'STALE' || item?.epgStale
+            if (cardEpgIsStale(item)
                 || ((item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) && cardEpgHasData(item))) {
-                return 'Showing saved guide data';
+                return epgLabel('epgSourceStale');
             }
-            if (item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) return 'Guide source unavailable';
-            if (item?.epgLoading) return 'Loading guide…';
-            if (!item?.epgLoaded) return 'Guide data loads as this row appears';
-            return cardEpgHasData(item) ? '' : 'No guide available';
+            if (item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) return epgLabel('epgSourceUnavailable');
+            if (item?.epgLoading) return epgLabel('epgLoading');
+            if (!item?.epgLoaded) return epgLabel('epgWebRowLoading');
+            return cardEpgHasData(item) ? '' : epgLabel('epgNoGuide');
         };
         const cardNowStatus = item => {
             if (cardProgramme(item, 'epgNow')) return '';
             const status = cardEpgStatus(item);
             if (status) return status;
-            return cardProgramme(item, 'epgNext') ? '—' : 'No guide available';
+            return cardProgramme(item, 'epgNext') ? '—' : epgLabel('epgNoGuide');
         };
         const clearCardEpgDetails = () => {
             cardEpgDetailsController?.abort();
@@ -5197,8 +5200,8 @@ createApp({
         }, {immediate: true});
 
         return {
-            observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels,
-            cardProgramme, cardProgrammeTime, cardProgrammeProgress, cardEpgStatus, isLiveBookmark, cardEpgDetails,
+            observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels, epgLabel,
+            cardProgramme, cardProgrammeTime, cardProgrammeProgress, cardEpgStatus, cardEpgIsStale, isLiveBookmark, cardEpgDetails,
             isCardEpgExpanded, toggleCardEpgDetails,
             thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,

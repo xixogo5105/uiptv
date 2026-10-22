@@ -11,6 +11,10 @@ The EPG and channel UI are implemented in the Java/Compose application modules. 
 
 The shared mobile interface uses Material 3 Compose controls. Account forms use outlined fields and exposed dropdowns; account preferences use spaced Material switches. On Android, Stalker account creation and editing provide a searchable timezone dropdown populated with the device's available timezone IDs.
 
+## EPG behavior
+
+Android EPG is enabled separately on the device and stays off until enabled in Settings. Full EPG mode keeps schedules in the channel browsing flow: selecting a live channel opens its programme schedule in a Material 3 bottom sheet; there is no separate Live Guide screen. Playback-only mode limits guide lookups to the channel being played and requires EPG to be enabled. The Android cache-clear action is under advanced EPG maintenance. Desktop's **Refresh EPG** action is a separate job that downloads configured XMLTV feeds and mappings; it does not force a refresh request for every Xtream or Stalker channel. Provider-native schedules continue through the normal bounded cache and playback lifecycle.
+
 ## Local Requirements
 
 - End users installing a built APK do not need Android SDK, Gradle, or any other build tools. The APK packages the required libmpv and FFmpeg native libraries.

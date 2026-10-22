@@ -6,6 +6,7 @@ import android.net.Uri
 import com.uiptv.mobile.shared.accounts.*
 import com.uiptv.mobile.shared.cache.*
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -249,11 +250,11 @@ class AndroidEpgRepository(
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             val message = when (error) {
-                is OutOfMemoryError -> "Out of memory reading EPG guide. Clear the cache and use a smaller regional feed."
+                is OutOfMemoryError -> MobileMessages.text("epgMobileMemoryPressure")
                 else -> when (error.message) {
-                    "Guide exceeds size limit" -> "XMLTV exceeds the 200 MiB decompressed limit. Use a smaller regional feed."
-                    "Programme limit exceeded" -> "XMLTV exceeds the programme limit. Use a smaller regional feed."
-                    else -> "Guide source unavailable or invalid."
+                    "Guide exceeds size limit" -> MobileMessages.text("epgSourceTooLarge")
+                    "Programme limit exceeded" -> MobileMessages.text("epgSourceProgrammeLimit")
+                    else -> MobileMessages.text("epgSourceInvalid")
                 }
             }
             val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true) else null

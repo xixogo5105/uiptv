@@ -9,6 +9,8 @@ import javafx.scene.*;
 import javafx.scene.control.*;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.SVGPath;
 import org.junit.jupiter.api.*;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.*;
@@ -31,6 +33,24 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
         assertFalse(runOnFxThread(EpgModeUI::isFeatureEnabled));
     }
 
+    @Test void programmeProgressUsesTheSuppliedClock() throws Exception {
+        runOnFxThread(() -> {
+            long start = 1_000_000L;
+            var current = new EpgProgramme("Fixed-clock programme", "", start, start + 4_000L);
+            VBox panel = new VBox(5);
+            CardEpgSupport.display(panel, current, null, start + 1_000L);
+            ProgressBar progress = (ProgressBar) panel.lookup(".progress-bar");
+            assertNotNull(progress);
+            assertEquals(.25, progress.getProgress(), .001);
+            HBox compact = new HBox(12);
+            CardEpgSupport.display(compact, current, null, start + 1_000, true);
+            assertEquals(1, compact.getChildren().size(), "Narrow programme rows keep the channel and current programme columns aligned.");
+            CardEpgSupport.display(compact, current, null, start + 1_000, false);
+            assertEquals(2, compact.getChildren().size(), "Wide programme rows restore the Next column.");
+            return null;
+        });
+    }
+
     @Test void cardsAndMenusUseExistingGridInBothModesAndKeepChannelsWithoutGuide() throws Exception {
         runOnFxThread(() -> {
             try (var mode = mockStatic(EpgModeUI.class)) {
@@ -38,10 +58,21 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                     mode.when(EpgModeUI::isFeatureEnabled).thenReturn(enabled);
                     Channel channel = new Channel(); channel.setName("Cinema"); channel.setChannelId("provider-id");
                     var item = new ChannelListUI.ChannelItem(new SimpleStringProperty("Cinema"), new SimpleStringProperty("provider-id"),
-                            new SimpleStringProperty("http://example.test/live"), false, new SimpleStringProperty(""), channel);
+                            new SimpleStringProperty("http://example.test/live"), true, new SimpleStringProperty(""), channel);
                     Account account = new Account(); account.setDbId("local-account");
                     ChannelListUI channels = new ChannelListUI(account, "All", "all", Account.AccountAction.itv);
                     BookmarkChannelListUI bookmarks = new BookmarkChannelListUI(null, null);
+                    if (enabled) {
+                        invoke(channels, "updateResponsiveEpgLayout", new Class<?>[]{double.class}, 640.0);
+                        GridPane header = (GridPane) field(channels, "epgColumnHeader").get(channels);
+                        assertEquals(4, header.getColumnConstraints().size());
+                        assertFalse(header.getChildren().get(2).isManaged());
+                        assertEquals(8, header.getColumnConstraints().get(3).getPercentWidth());
+                        invoke(channels, "updateResponsiveEpgLayout", new Class<?>[]{double.class}, 900.0);
+                        assertEquals(4, header.getColumnConstraints().size());
+                        assertTrue(header.getChildren().get(2).isManaged());
+                        assertEquals(8, header.getColumnConstraints().get(3).getPercentWidth());
+                    }
                     var bookmark = new BookmarkChannelListUI.BookmarkItem(new SimpleStringProperty("bookmark"), new SimpleStringProperty("Cinema"),
                             new SimpleStringProperty("provider-id"), new SimpleStringProperty("cmd"), new SimpleStringProperty("Account"),
                             new SimpleStringProperty("All"), new SimpleStringProperty(""), new SimpleStringProperty("Cinema (Account)"),
@@ -55,6 +86,24 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                             assertNotNull(card); assertNotNull(saved);
                             assertEquals(enabled, card.lookup(".virtual-card-epg") != null);
                             assertEquals(enabled, saved.lookup(".virtual-card-epg") != null);
+                            assertEquals(enabled, saved.getStyleClass().contains("epg-programme-aware-row"),
+                                    "Live bookmarks use the programme-aware row only in full EPG mode.");
+                            if (enabled) assertNotNull(saved.lookup(".epg-programme-columns"));
+                            if (enabled) {
+                                assertEquals(4, ((GridPane) card).getColumnConstraints().size());
+                                Node bookmarkGlyph = card.lookup(".channel-bookmark-glyph");
+                                assertNotNull(bookmarkGlyph, "Bookmarked EPG channels keep their bookmark indicator.");
+                                Node bookmarkCell = bookmarkGlyph;
+                                while (bookmarkCell.getParent() != null && bookmarkCell.getParent() != card) {
+                                    bookmarkCell = bookmarkCell.getParent();
+                                }
+                                assertSame(card, bookmarkCell.getParent(),
+                                        "The bookmark action is a direct child of its EPG row.");
+                                assertEquals(3, GridPane.getColumnIndex(bookmarkCell),
+                                        "The bookmark indicator sits in the trailing row column.");
+                                assertEquals(2, GridPane.getColumnSpan(card.lookup(".virtual-card-epg")),
+                                        "Now and Next occupy the two guide columns.");
+                            }
                             ContextMenu menu = (ContextMenu) invoke(channels, "createChannelContextMenu",
                                     new Class<?>[]{ChannelListUI.ChannelItem.class, List.class, Node.class}, item, List.of(item), card);
                             ContextMenu savedMenu = (ContextMenu) invoke(bookmarks, "createBookmarkContextMenu",
@@ -88,6 +137,10 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                                 StackPane preview = new StackPane(card); Scene scene = new Scene(preview, 320, 190);
                                 scene.getStylesheets().add(getClass().getResource("/dark-application.css").toExternalForm());
                                 preview.resize(320, 190); preview.applyCss(); preview.layout();
+                                if (card.getStyleClass().contains("epg-programme-aware-row")) {
+                                    assertEquals(Color.WHITE, ((SVGPath) card.lookup(".channel-bookmark-glyph")).getFill(),
+                                            "Bookmark glyphs are white on dark cards.");
+                                }
                                 if (card.getStyleClass().contains("epg-programme-aware-row")) {
                                     assertNotNull(card.lookup(".epg-programme-columns"));
                                     assertEquals(2, panel.getChildren().size());

@@ -55,27 +55,10 @@ bounded allocation and recovered capacity, late reload cancellation, immediate
 loading/error visibility, and startup deadline handling. Provider identity remains
 covered by `ProviderIdentityContractTest`.
 
-The opt-in `VlcNetworkRecoveryTest` uses installed VLC and a visible JavaFX window.
-Its local HTTP server accepts three requests without returning response headers,
-then serves a playable MPEG-TS and a 404 response. It checks responsive close,
-a decoded frame from the good stream, and a visible inline error for the 404.
-The initial macOS run recovered to a frame in 1,420 ms after the three stalled
-streams; a second run took 1,511 ms, without first releasing the server-side stalls.
-A final run checking non-black rendered pixels recovered in 1,568 ms.
-The full desktop reactor passed 1,110 tests, with only this opt-in native test
-skipped in that run; the native test passed separately.
-
-Reproduce with VLC 3.x and ffmpeg installed:
-
-```sh
-ffmpeg -hide_banner -loglevel error -y -f lavfi \
-  -i testsrc2=size=320x180:rate=15 -t 12 -c:v mpeg2video \
-  -f mpegts /tmp/uiptv-vlc-fixture.ts
-./mvnw -pl javafx-app -am -Dtest=VlcNetworkRecoveryTest \
-  -Duiptv.vlc.fixture=/tmp/uiptv-vlc-fixture.ts \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-```
-
-The synthetic network test does not establish compatibility with every provider,
-RTSP/UDP source, platform, or native VLC build. A previously failing provider account
-should still be exercised in the normal application.
+Native VLC network recovery is checked manually in the application. It is not an
+automated test because exercising the native player opens a visible JavaFX window;
+automated tests must remain headless. Lifecycle regression coverage remains in
+`VlcPlaybackLifecycleTest`. Manual validation with one VLC build does not establish
+compatibility with every provider, RTSP/UDP source, platform, or native VLC build.
+A previously failing provider account should still be exercised in the normal
+application.

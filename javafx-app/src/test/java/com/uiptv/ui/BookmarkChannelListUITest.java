@@ -18,6 +18,7 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.Region;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mockStatic;
 
 class BookmarkChannelListUITest extends DbBackedUiTest {
     @BeforeAll
@@ -244,6 +246,29 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
+    void fullEpgLiveBookmarksUseWideRowsAndRestoreTheResponsiveCardGridAfterward() throws Exception {
+        List<Boolean> layoutModes = runOnFxThread(() -> {
+            try (MockedStatic<EpgModeUI> epgMode = mockStatic(EpgModeUI.class)) {
+                epgMode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                epgMode.when(EpgModeUI::isPlaybackOnly).thenReturn(false);
+
+                BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+                filteredItems(ui).add(bookmarkItem("live-1", "News Channel", "Account"));
+                invokeBookmarkGridDisplayMode(ui);
+                ResponsiveCardGrid<?> grid = bookmarkGridOf(ui);
+                boolean fullEpgUsesOneColumn = booleanField(grid, "singleColumn");
+
+                epgMode.when(EpgModeUI::isPlaybackOnly).thenReturn(true);
+                invokeBookmarkGridDisplayMode(ui);
+                boolean playbackOnlyRestoresCards = !booleanField(grid, "singleColumn");
+                return List.of(fullEpgUsesOneColumn, playbackOnlyRestoresCards);
+            }
+        });
+
+        assertEquals(List.of(true, true), layoutModes);
+    }
+
+    @Test
     void plainTextFavoriteCardKeepsDrmBadgeVisible() throws Exception {
         BadgeSnapshot badge = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
@@ -310,6 +335,12 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         Method method = BookmarkChannelListUI.class.getDeclaredMethod("filterView");
         method.setAccessible(true);
         method.invoke(ui);
+    }
+
+    private static void invokeBookmarkGridDisplayMode(BookmarkChannelListUI ui) throws Exception {
+        Method method = BookmarkChannelListUI.class.getDeclaredMethod("applyBookmarkGridDisplayMode", boolean.class);
+        method.setAccessible(true);
+        method.invoke(ui, true);
     }
 
     private static void populateCategoryPills(BookmarkChannelListUI ui, List<BookmarkCategory> categories) throws Exception {

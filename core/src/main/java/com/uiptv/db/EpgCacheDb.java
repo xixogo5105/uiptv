@@ -74,6 +74,48 @@ public final class EpgCacheDb {
         EpgChangeNotifications.publish(notification);
     }
 
+    /** Publish a source and all mappings derived from it as one SQLite transaction. */
+    @SuppressWarnings("java:S107")
+    public int replaceSourceAndMap(String sourceId, Map<String, List<EpgProgramme>> programmes,
+                                   Map<String, String> aliases, Map<String, String> qualityAliases,
+                                   Map<String, String> icons, long now, long retryAt,
+                                   Set<EpgChangeNotifications.ProviderIdentity> identities,
+                                   Collection<Match> matches,
+                                   java.util.function.LongConsumer processedProgrammes,
+                                   java.util.function.LongConsumer processedMappings) {
+        List<Match> uniqueMatches = uniqueMatches(matches);
+        List<EpgChangeNotifications.Notification> notifications = new ArrayList<>(2);
+        int mappedChannels;
+        try (Connection c = open(true)) {
+            c.setAutoCommit(false);
+            try {
+                replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt,
+                        processedProgrammes);
+                EpgChangeNotifications.Notification sourceNotification = EpgChangeNotifications.create(c,
+                        EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(sourceId), programmes.keySet(), identities);
+                MappingResult mapping = mapChannelsInTransaction(c, uniqueMatches, now, false, processedMappings);
+                mappedChannels = mapping.mappedChannels();
+                notifications.add(sourceNotification);
+                if (mapping.notification() != null) notifications.add(mapping.notification());
+                c.commit();
+            } catch (Exception error) {
+                c.rollback();
+                throw error;
+            }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw failure(error);
+        } catch (SQLException | java.io.IOException error) {
+            throw failure(error);
+        } catch (RuntimeException error) {
+            throw error;
+        } catch (Exception error) {
+            throw failure(error);
+        }
+        notifications.forEach(EpgChangeNotifications::publish);
+        return mappedChannels;
+    }
+
     @SuppressWarnings("java:S107")
     private EpgChangeNotifications.Notification replaceSourceTransaction(
             Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
@@ -203,29 +245,49 @@ public final class EpgCacheDb {
     }
     public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings,
                                java.util.function.LongConsumer processed) {
-        // A provider channel may be cached in multiple categories. Queue just one
-        // mapping per logical channel, or deferred inserts collide at batch commit
-        // and roll back every channel in the account after a signature change.
-        record ChannelKey(String account,String provider) { }
-        Map<ChannelKey,Match> unique=new LinkedHashMap<>();
-        for (Match match:matches) unique.putIfAbsent(new ChannelKey(match.identity().accountId(),match.identity().providerId()),match);
+        List<Match> unique = uniqueMatches(matches);
+        MappingResult result;
         try (Connection c = open(true)) {
-            return mapChannelsTransaction(c, unique.values(), now, preserveExistingMappings, processed);
-        } catch (SQLException error) { throw failure(error); }
+            c.setAutoCommit(false);
+            try {
+                result = mapChannelsInTransaction(c, unique, now, preserveExistingMappings, processed);
+                c.commit();
+            } catch (Exception error) {
+                c.rollback();
+                throw error;
+            }
+        } catch (Exception error) { throw failure(error); }
+        if (result.notification() != null) EpgChangeNotifications.publish(result.notification());
+        return result.changed();
     }
 
-    private boolean mapChannelsTransaction(Connection c, Collection<Match> matches, long now,
-                                           boolean preserveExistingMappings,
-                                           java.util.function.LongConsumer processed)
+    private record MappingResult(boolean changed, int mappedChannels,
+                                 EpgChangeNotifications.Notification notification) { }
+
+    private static List<Match> uniqueMatches(Collection<Match> matches) {
+        // A provider channel may be cached in multiple categories. Queue just one
+        // mapping per logical channel, or deferred inserts collide at batch commit.
+        record ChannelKey(String account, String provider) { }
+        Map<ChannelKey, Match> unique = new LinkedHashMap<>();
+        if (matches != null) for (Match match : matches) {
+            unique.putIfAbsent(new ChannelKey(match.identity().accountId(), match.identity().providerId()), match);
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private MappingResult mapChannelsInTransaction(Connection c, Collection<Match> matches, long now,
+                                                    boolean preserveExistingMappings,
+                                                    java.util.function.LongConsumer processed)
             throws SQLException {
-        c.setAutoCommit(false);
         boolean changed = false;
+        int mappedChannels = 0;
         Set<EpgChangeNotifications.ProviderIdentity> changedIdentities = new LinkedHashSet<>();
         try (var direct = c.prepareStatement("WITH target(source,id,now) AS (VALUES(?,?,?)) SELECT id FROM target t WHERE EXISTS(SELECT 1 FROM epg_programme WHERE source_id=t.source AND guide_channel_id=t.id AND stops_at>t.now) OR EXISTS(SELECT 1 FROM epg_channel_icon WHERE source_id=t.source AND guide_channel_id=t.id) LIMIT 1");
              var alias = c.prepareStatement("SELECT guide_channel_id FROM epg_alias WHERE source_id=? AND kind=? AND name=?");
              var existing = c.prepareStatement("SELECT signature,source_id,guide_channel_id,priority FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? ORDER BY priority");
              var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=?");
-             var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
+             var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)");
+             var usable = c.prepareStatement("SELECT 1 FROM epg_programme WHERE source_id=? AND guide_channel_id=? AND stops_at>? LIMIT 1")) {
             var rules = new EpgNameRulesDb().read(c);
             MappingQueries queries = new MappingQueries(c, direct, alias, existing, rules,
                     readDeclaredCountries(c), new HashMap<>(), now);
@@ -235,8 +297,9 @@ public final class EpgCacheDb {
                 List<Link> previous = readPreviousMappings(match, queries);
                 boolean sameSignature = preserveExistingMappings
                         && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()));
+                List<Link> links = previous;
                 if (!sameSignature) {
-                    List<Link> links = resolveLinks(match, previous, queries);
+                    links = resolveLinks(match, previous, queries);
                     if (!previous.equals(links)) {
                         changed = true;
                         changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
@@ -255,6 +318,7 @@ public final class EpgCacheDb {
                         }
                     }
                 }
+                if (hasUsableProgramme(usable, links, now)) mappedChannels++;
                 scanned++;
                 if (scanned % 100 == 0) processed.accept(scanned);
             }
@@ -263,13 +327,21 @@ public final class EpgCacheDb {
             processed.accept(scanned);
             EpgChangeNotifications.Notification notification = changed
                     ? EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.MAPPING, Set.of(), Set.of(), changedIdentities) : null;
-            c.commit();
-            if (notification != null) EpgChangeNotifications.publish(notification);
-            return changed;
-        } catch (Exception error) {
-            c.rollback();
-            throw error;
+            return new MappingResult(changed, mappedChannels, notification);
         }
+    }
+
+    private static boolean hasUsableProgramme(PreparedStatement query, List<Link> links, long now)
+            throws SQLException {
+        for (Link link : links) {
+            query.setString(1, link.source());
+            query.setString(2, link.guide());
+            query.setLong(3, now);
+            try (var rows = query.executeQuery()) {
+                if (rows.next()) return true;
+            }
+        }
+        return false;
     }
 
     private Map<String, String> readDeclaredCountries(Connection c) throws SQLException {

@@ -7,13 +7,14 @@ const functionSource = (start, end) => source.slice(source.indexOf(start), sourc
 function harness() {
   const calls = [], tasks = [];
   const ref = value => ({value});
+  const englishEpgLabels = JSON.parse(fs.readFileSync('api-server/src/main/resources/web/epg-labels.json', 'utf8')).en;
   const context = {
     ref,
     window: {location: {origin: 'http://fixture'}}, navigator: {language: 'en'},
     URLSearchParams, AbortController, Date, WeakMap, Map, clearTimeout(){}, setTimeout(){return 1;},
     nextTick(fn){if(fn) tasks.push(Promise.resolve().then(fn));},
     IntersectionObserver: class {constructor(callback){this.callback=callback;} observe(element){this.callback([{target:element,isIntersecting:true}]);} disconnect(){} unobserve(){}},
-    epgEnabled: ref(false), epgPlaybackOnly: ref(false), thumbnailsEnabled: ref(false), webPlaybackProxyEnabled: ref(true), epgLabels: ref({}), playerEpg: ref({old: true}),
+    epgEnabled: ref(false), epgPlaybackOnly: ref(false), thumbnailsEnabled: ref(false), webPlaybackProxyEnabled: ref(true), epgLabels: ref(englishEpgLabels), playerEpg: ref({old: true}),
     currentChannel: ref({accountId: 'account', dbId: 'local-row', categoryId: 'category', mode: 'itv'}),
     liveGuideLoading: ref(false), liveGuideError: ref(''), liveGuideAccountId: ref('account'), selectedGuideProgramme:ref(null),
     liveGuideStart: ref(0), liveGuideRows: ref([]), epgGuideVisible: ref(false),
@@ -23,19 +24,37 @@ function harness() {
     fetch: async (url, options={}) => {
       calls.push({url:String(url),options});
       if (String(url).endsWith('/config')) return {ok:true,json: async () => ({epgEnabled: context.nextEnabled, enableThumbnails: true})};
-      if (String(url).endsWith('/epg-labels.json')) return {ok:true,json: async () => ({en: {guide: 'View Guide'}})};
+      if (String(url).endsWith('/epg-labels.json')) return {ok:true,json: async () => ({en: englishEpgLabels})};
       return {ok: true, json: async () => String(url).includes('/playerEpg') ? {now: {title: 'Current'}, next:{title:'Next'}} : []};
     }, nextEnabled: false
   };
   vm.createContext(context);
   vm.runInContext(`let playerEpgRequest = 0, playerEpgController = null, liveGuideRequest = 0, liveGuideController = null, nativeGuideController = null;
+    const epgLabels = this.epgLabels, epgLabel = key => epgLabels.value?.[key] || '';
     ${functionSource('const cardProgramme =', 'const isLiveBookmark =')}
     ${functionSource('const refreshPlayerEpg =', 'watch(currentChannel,')}
     ${functionSource('let cardEpgObserver =', 'watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode]')}
     ${functionSource('const applyDesktopEpgSetting =', 'const findBookmarkForChannel =')}
-    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,cardEpgStatus,cardNowStatus});`, context);
+    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,cardEpgStatus,cardEpgIsStale,cardNowStatus});`, context);
   return {context, calls, async flush(){await Promise.all(tasks.splice(0));}};
 }
+test('web EPG labels are translated for every shipped non-English locale', () => {
+  const labels = JSON.parse(fs.readFileSync('api-server/src/main/resources/web/epg-labels.json', 'utf8'));
+  const english = labels.en;
+  const keys = [
+    'epgRefreshGuide', 'epgSourceTooLarge', 'epgSourceProgrammeLimit', 'epgSourceInvalid',
+    'epgSourceUnavailable', 'epgSourceXmlLimit', 'epgNow', 'epgNext', 'epgNoProgrammeDetails',
+    'epgWebChannel', 'epgWebRowLoading', 'epgWebShowDetails', 'epgWebHideDetails',
+    'epgWebNoUpcoming', 'epgWebScheduleFailed', 'epgWebPlayerNowNext'
+  ];
+  for (const [locale, bundle] of Object.entries(labels)) {
+    if (locale.startsWith('en')) continue;
+    for (const key of keys) {
+      assert.equal(typeof bundle[key], 'string', `${locale} is missing ${key}`);
+      assert.notEqual(bundle[key], english[key], `${locale} contains an English placeholder for ${key}`);
+    }
+  }
+});
 test('disabled desktop setting suppresses guide requests and clears stale EPG everywhere', async () => {
   const {context, calls} = harness();
   context.channels.value=[{epgNow:{title:'old'}}];context.bookmarks.value=[{epgNext:{title:'old'}}];
@@ -62,6 +81,26 @@ test('web EPG is read-only from desktop settings with no header status or toggle
   }
   assert.match(source, /fetch\(window\.location\.origin \+ '\/config', \{cache: 'no-store'\}\)/);
   assert.ok(html.includes("cardProgramme(bookmark, 'epgNow')"));assert.ok(html.includes("cardProgramme(channel, 'epgNext')"));assert.ok(html.includes('cardProgrammeProgress'));
+});
+test('full-EPG web headers and rows use matching fractional tracks that leave room for gaps', () => {
+  const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
+  const header = css.match(/\.epg-column-header\s*\{[^}]*grid-template-columns:\s*([^;]+);/s)?.[1];
+  const row = css.match(/\.epg-row-card\s*\{[^}]*grid-template-columns:\s*([^;]+);/s)?.[1];
+  assert.ok(header); assert.ok(row);
+  assert.equal(header, row, 'the header labels must align with every EPG row');
+  assert.match(header, /minmax\(0,\s*1\.1fr\)\s+minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/);
+  assert.doesNotMatch(header, /%/, 'percentage tracks plus grid gaps can exceed the content width');
+  const narrow = css.match(/@media\s*\(max-width:\s*760px\)\s*\{[^}]*\.epg-column-header,[^}]*\.epg-row-card\s*\{[^}]*grid-template-columns:\s*([^;]+);/s)?.[1];
+  assert.ok(narrow);
+  assert.match(narrow, /minmax\(0,\s*\.8fr\)\s+minmax\(0,\s*1fr\)/);
+  assert.doesNotMatch(narrow, /%/);
+  assert.match(css, /\.epg-column-header,\s*\.epg-row-card\s*\{\s*gap:\s*8px;/,
+    'the narrowest breakpoint must keep header and row gaps aligned');
+  const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
+  assert.match(html, /class="epg-column-header"/);
+  assert.match(html, /class="epg-now-column"/);
+  assert.match(html, /class="epg-next-column"/);
+  assert.match(html, /class="epg-info-button"/);
 });
 test('switching EPG off invalidates an already completed but unread player response',async()=>{
   const {context}=harness();context.applyDesktopEpgSetting(true);
@@ -144,9 +183,9 @@ test('card summaries use only real programme data and never synthesize guide tex
 test('EPG row cells distinguish missing current data from a missing guide and keep Next aligned',()=>{
  const {context}=harness();
  assert.equal(context.cardNowStatus({epgLoaded:true,epgNext:{title:'Upcoming'}}),'—');
- assert.equal(context.cardNowStatus({epgLoaded:true}),'No guide available');
- assert.equal(context.cardNowStatus({epgLoaded:true,epgUnavailable:true}),'Guide source unavailable');
- assert.equal(context.cardNowStatus({epgLoaded:true,epgSourceStatus:'STALE',epgNext:{title:'Upcoming'}}),'Showing saved guide data');
+ assert.equal(context.cardNowStatus({epgLoaded:true}),context.epgLabels.value.epgNoGuide);
+ assert.equal(context.cardNowStatus({epgLoaded:true,epgUnavailable:true}),context.epgLabels.value.epgSourceUnavailable);
+ assert.equal(context.cardNowStatus({epgLoaded:true,epgSourceStatus:'STALE',epgNext:{title:'Upcoming'}}),context.epgLabels.value.epgSourceStale);
  const html=fs.readFileSync('api-server/src/main/resources/web/index.html','utf8');
  const css=fs.readFileSync('api-server/src/main/resources/web/css/spa.css','utf8');
  assert.equal((html.match(/epg-next-column epg-next-empty/g)||[]).length,2);

@@ -38,6 +38,55 @@ class EpgPersistentCacheTest extends DbBackedTest {
         return path;
     }
 
+    @Test void sourceAndMappingsRollbackTogetherWhenMappingPublicationFails() throws Exception {
+        long now = System.currentTimeMillis();
+        var previousIdentity = new EpgCacheDb.Identity("atomic-account", "atomic-channel", "old-signature");
+        var updatedIdentity = new EpgCacheDb.Identity("atomic-account", "atomic-channel", "new-signature");
+        source("atomic-source", "old-guide", List.of(p("Last good programme", now - 60_000, now + 3_600_000)), now);
+        assertTrue(db.mapChannels(List.of(match(previousIdentity, "old-guide", List.of("atomic-source"))), now));
+        var originalState = db.sourceState("atomic-source");
+        var originalRevision = EpgChangeNotifications.snapshot();
+        try (Connection connection = SQLConnection.connect(); Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TRIGGER fail_atomic_mapping BEFORE INSERT ON epg_channel_mapping "
+                    + "WHEN NEW.account_id='atomic-account' BEGIN SELECT RAISE(ABORT,'forced mapping failure'); END");
+        }
+
+        try {
+            assertThrows(RuntimeException.class, () -> db.replaceSourceAndMap("atomic-source",
+                    Map.of("new-guide", List.of(p("Uncommitted programme", now - 60_000, now + 3_600_000))),
+                    Map.of(), Map.of(), Map.of(), now + 1, now + 7_200_000, Set.of(),
+                    List.of(match(updatedIdentity, "new-guide", List.of("atomic-source"))), _ -> { }, _ -> { }));
+        } finally {
+            try (Connection connection = SQLConnection.connect(); Statement statement = connection.createStatement()) {
+                statement.execute("DROP TRIGGER IF EXISTS fail_atomic_mapping");
+            }
+        }
+
+        assertEquals("Last good programme", title(previousIdentity, now));
+        assertEquals(originalState, db.sourceState("atomic-source"));
+        assertEquals(originalRevision.revision(), EpgChangeNotifications.snapshot().revision(),
+                "A rolled-back source and mapping pair must not emit a change notification.");
+    }
+
+    @Test void sourceAndMappingsCommitTogetherAndPublishBothChanges() {
+        long now = System.currentTimeMillis();
+        var identity = new EpgCacheDb.Identity("atomic-success-account", "atomic-success-channel", "signature");
+        var before = EpgChangeNotifications.snapshot();
+        int matched = db.replaceSourceAndMap("atomic-success-source",
+                Map.of("guide-id", List.of(p("Published programme", now - 60_000, now + 3_600_000))),
+                Map.of(), Map.of(), Map.of(), now, now + 7_200_000, Set.of(),
+                List.of(match(identity, "guide-id", List.of("atomic-success-source"))), _ -> { }, _ -> { });
+
+        assertEquals(1, matched);
+        assertEquals("Published programme", title(identity, now));
+        var events = EpgChangeNotifications.replay(before.revision(), before.databaseGeneration());
+        assertTrue(events.stream().anyMatch(event -> event.kind() == EpgChangeNotifications.Kind.SOURCE_IMPORT
+                && event.sourceIds().contains("atomic-success-source")));
+        assertTrue(events.stream().anyMatch(event -> event.kind() == EpgChangeNotifications.Kind.MAPPING
+                && event.accountProviders().contains(new EpgChangeNotifications.ProviderIdentity(
+                        "atomic-success-account", "atomic-success-channel"))));
+    }
+
     @Test void oldSpacedAliasesMatchAnnotatedChannelsWithoutDownloadingAgain() {
         long now = System.currentTimeMillis();
         var identity = new EpgCacheDb.Identity("account", "BBCTwo.uk", "signature");
@@ -369,10 +418,70 @@ class EpgPersistentCacheTest extends DbBackedTest {
             snapshot = EpgRefreshJobService.get(started.id());
         }
         assertNotNull(snapshot);
-        assertEquals("COMPLETED", snapshot.status(), snapshot.message());
+        assertEquals("NO_SOURCES", snapshot.status(), snapshot.message());
         assertEquals(1, snapshot.preparationTotal());
         assertEquals(1, snapshot.preparationCompleted());
         assertEquals(0, snapshot.total(), "A configured account without an EPG source should finish without source work.");
+        assertTrue(snapshot.message().contains("No XMLTV sources"));
+        assertTrue(snapshot.message().contains("Provider-native schedules"));
+    }
+
+    @Test void refreshWithNoAccountsOrGlobalSourcesReportsNoSources() throws Exception {
+        var started = EpgRefreshJobService.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        var snapshot = EpgRefreshJobService.get(started.id());
+        while (snapshot != null && !Set.of("NO_SOURCES", "FAILED", "CANCELLED").contains(snapshot.status())
+                && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+            snapshot = EpgRefreshJobService.get(started.id());
+        }
+        assertNotNull(snapshot);
+        assertEquals("NO_SOURCES", snapshot.status(), snapshot.message());
+        assertEquals(0, snapshot.preparationTotal());
+        assertEquals(0, snapshot.total());
+    }
+
+    @Test void refreshSourceLabelsDoNotExposeUrlsOrLocalPaths() {
+        String remote = EpgRefreshJobService.sourceLabel(
+                "https://private-user:private-pass@guide.example/private/secret-token.xml.gz?token=query-secret");
+        String local = EpgRefreshJobService.sourceLabel("/Users/private-user/Downloads/private-guide.xml.gz");
+        assertEquals("guide.example", remote);
+        assertEquals("Local XMLTV file", local);
+        assertFalse(remote.contains("private"));
+        assertFalse(remote.contains("secret"));
+        assertFalse(local.contains("/Users"));
+        assertFalse(local.contains("private-guide"));
+    }
+
+    @Test void successfullyParsedFeedWithNoCatalogueMatchesIsReportedAsWarning() throws Exception {
+        Path file = xml("unmatched-feed.xml", "Unrelated programme");
+        Files.writeString(file, Files.readString(file)
+                .replace("id='station'", "id='unrelated'")
+                .replace(">Station</display-name>", ">Unrelated channel</display-name>")
+                .replace("channel='station'", "channel='unrelated'"));
+        Account account = account("unmatched-feed-account");
+        account.setEpg(file.toString());
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("unmatched-feed-account");
+        var category = new Category("unmatched-category", "Live", "Live", false, 0);
+        CategoryDb.get().saveAll(List.of(category), account);
+        category = CategoryDb.get().getCategories(account).getFirst();
+        ChannelDb.get().saveAll(List.of(channel("local-station", "Local station")), category.getDbId(), account);
+
+        var started = EpgRefreshJobService.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        var snapshot = EpgRefreshJobService.get(started.id());
+        while (snapshot != null && !Set.of("COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "CANCELLED", "NO_SOURCES")
+                .contains(snapshot.status()) && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+            snapshot = EpgRefreshJobService.get(started.id());
+        }
+        assertNotNull(snapshot);
+        assertEquals("COMPLETED_WITH_WARNINGS", snapshot.status(), snapshot.message());
+        assertEquals(1, snapshot.sources().size());
+        assertEquals("No matches", snapshot.sources().getFirst().status());
+        assertTrue(snapshot.sources().getFirst().detail().contains("none matched"));
+        assertTrue(snapshot.message().contains("no matching channels"));
     }
 
     @Test void sourceImportReportsBytesReadAndProgrammesProcessed() throws Exception {
@@ -402,8 +511,11 @@ class EpgPersistentCacheTest extends DbBackedTest {
 
     @Test void manualRefreshShowsAndCanCancelWhileWaitingForAnotherRefresh() {
         EpgCacheRefreshService.REFRESH_LOCK.lock();
+        EpgRefreshJobService.Snapshot started;
         try {
-            var started = EpgRefreshJobService.start();
+            started = EpgRefreshJobService.start();
+            var joined = EpgRefreshJobService.start();
+            assertEquals(started.id(), joined.id(), "Concurrent manual refresh requests join the active job.");
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
             var snapshot = EpgRefreshJobService.get(started.id());
             while (snapshot != null && !snapshot.stage().equals("Waiting for another EPG refresh to stop")
@@ -426,6 +538,18 @@ class EpgPersistentCacheTest extends DbBackedTest {
         } finally {
             EpgCacheRefreshService.REFRESH_LOCK.unlock();
         }
+
+        var restarted = EpgRefreshJobService.start();
+        assertNotEquals(started.id(), restarted.id(), "A new refresh can start after the previous job is terminal.");
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        var snapshot = EpgRefreshJobService.get(restarted.id());
+        while (snapshot != null && !Set.of("NO_SOURCES", "FAILED", "CANCELLED", "SKIPPED").contains(snapshot.status())
+                && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+            snapshot = EpgRefreshJobService.get(restarted.id());
+        }
+        assertNotNull(snapshot);
+        assertEquals("NO_SOURCES", snapshot.status(), snapshot.message());
     }
 
     @Test void uniqueNormalizedAliasesMatchButConflictingAliasesRemainUnmatched() throws Exception {

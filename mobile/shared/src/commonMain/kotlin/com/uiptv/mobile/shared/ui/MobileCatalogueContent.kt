@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
+import com.uiptv.mobile.shared.i18n.MobileMessages
 
 internal val LocalShowNavigation = staticCompositionLocalOf<(() -> Unit)?> { null }
 
@@ -88,7 +89,9 @@ internal fun MobileScreenHeader(
                         onClick = {
                             if (addMenuActions.isNotEmpty()) addMenuExpanded = true else onAdd?.invoke()
                         },
-                        modifier = Modifier.semantics { contentDescription = "Add account" }
+                        modifier = Modifier.semantics {
+                            contentDescription = MobileMessages.text("mobileAddAccount")
+                        }
                     ) {
                         Icon(Icons.Outlined.Add, contentDescription = null)
                     }

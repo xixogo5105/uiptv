@@ -135,6 +135,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.accounts.XtremeCredential
 import com.uiptv.mobile.shared.accounts.withXtremeCredentialSelection
 import com.uiptv.mobile.shared.accounts.xtremeCredentialOptions
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.browse.BrowseAccountOption
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileCategoryCacheRemovalResult
@@ -2280,7 +2281,7 @@ private fun WatchingNowEpisodeRow(
                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                             ) {
                                 Text(
-                                    "WATCHING",
+                                    MobileMessages.text("autoWatching"),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
@@ -2351,7 +2352,7 @@ private fun WatchingNowEpisodeRow(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                         ) {
                             Text(
-                                "WATCHING",
+                                MobileMessages.text("autoWatching"),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
@@ -3760,17 +3761,17 @@ private fun AccountsScreen(
         val accountListState = rememberLazyListState()
         Column(modifier.fillMaxSize().padding(horizontal = 12.dp)) {
             MobileScreenHeader(
-                "Accounts",
-                "Your sources, ready to browse",
+                MobileMessages.text("mobileAccountsTitle"),
+                MobileMessages.text("mobileAccountsSubtitle"),
                 searchVisible = accountSearchVisible,
                 searchQuery = accountSearchQuery,
-                searchLabel = "Search accounts",
+                searchLabel = MobileMessages.text("commonSearch"),
                 onSearchToggle = { accountSearchVisible = !accountSearchVisible },
                 onSearchQueryChange = { accountSearchQuery = it },
                 addMenuActions = listOf(
                     MobileHeaderAddAction(
-                        "Stalker Portal",
-                        "Portal URL and MAC addresses",
+                        MobileMessages.text("mobileAccountTypeStalkerPortal"),
+                        MobileMessages.text("mobileAccountStalkerDescription"),
                         Icons.Outlined.LiveTv
                     ) {
                         editing = MobileAccount()
@@ -3778,8 +3779,8 @@ private fun AccountsScreen(
                         editorVisible = true
                     },
                     MobileHeaderAddAction(
-                        "Xtreme API",
-                        "Provider URL and login details",
+                        MobileMessages.text("mobileAccountTypeXtremeApi"),
+                        MobileMessages.text("mobileAccountXtremeDescription"),
                         Icons.Outlined.PlayCircle
                     ) {
                         editing = MobileAccount()
@@ -3787,8 +3788,8 @@ private fun AccountsScreen(
                         editorVisible = true
                     },
                     MobileHeaderAddAction(
-                        "M3U Playlist",
-                        "Playlist URL or local file",
+                        MobileMessages.text("mobileAccountTypeM3uPlaylist"),
+                        MobileMessages.text("mobileAccountM3uDescription"),
                         Icons.AutoMirrored.Outlined.PlaylistPlay
                     ) {
                         editing = MobileAccount()
@@ -4235,20 +4236,31 @@ private fun AccountRow(
 internal fun AccountCacheSummary.accountRowLabel(): String {
     val content = buildList {
         if (liveCategories > 0 || liveChannels > 0) {
-            add("${countText(liveCategories, "live category", "live categories")} · ${countText(liveChannels, "channel", "channels")}")
+            add(listOf(
+                mobileCountPhrase(liveCategories, "mobileCountLiveCategorySingular", "mobileCountLiveCategoryPlural"),
+                mobileCountPhrase(liveChannels, "mobileCountChannelSingular", "mobileCountChannelPlural")
+            ).joinToString(" · "))
         }
         if (vodCategories > 0 || vodChannels > 0) {
-            add("${countText(vodCategories, "movie category", "movie categories")} · ${countText(vodChannels, "movie", "movies")}")
+            add(listOf(
+                mobileCountPhrase(vodCategories, "mobileCountMovieCategorySingular", "mobileCountMovieCategoryPlural"),
+                mobileCountPhrase(vodChannels, "mobileCountMovieSingular", "mobileCountMoviePlural")
+            ).joinToString(" · "))
         }
         if (seriesCategories > 0 || seriesChannels > 0 || seriesEpisodes > 0) {
-            add("${countText(seriesCategories, "series category", "series categories")} · ${countText(seriesChannels, "series", "series")} · ${countText(seriesEpisodes, "episode", "episodes")}")
+            add(listOf(
+                mobileCountPhrase(seriesCategories, "mobileCountSeriesCategorySingular", "mobileCountSeriesCategoryPlural"),
+                mobileCountPhrase(seriesChannels, "mobileCountSeriesSingular", "mobileCountSeriesPlural"),
+                mobileCountPhrase(seriesEpisodes, "mobileCountEpisodeSingular", "mobileCountEpisodePlural")
+            ).joinToString(" · "))
         }
     }
-    return content.takeIf { it.isNotEmpty() }?.joinToString("  •  ") ?: "No catalogue cached"
+    return content.takeIf { it.isNotEmpty() }?.joinToString("  •  ")
+        ?: MobileMessages.text("mobileAccountNoCatalogue")
 }
 
-private fun countText(count: Int, singular: String, plural: String): String =
-    "$count ${if (count == 1) singular else plural}"
+private fun mobileCountPhrase(count: Int, singularKey: String, pluralKey: String): String =
+    MobileMessages.text(if (count == 1) singularKey else pluralKey, count)
 
 @Composable
 private fun CacheRefreshDialog(
@@ -4722,12 +4734,12 @@ private fun AccountTypeDropdown(
             value = selectedLabel,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Account type") },
+            label = { Text(MobileMessages.text("mobileAccountTypeLabel")) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
-                .semantics { contentDescription = "Choose account type" },
+                .semantics { contentDescription = MobileMessages.text("mobileAccountTypeLabel") },
             colors = mobileOutlinedTextFieldColors()
         )
         ExposedDropdownMenu(
@@ -4759,9 +4771,9 @@ private fun StalkerMacSelector(
         ?: selectedMac.normalizedMacEntry()
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         MobileAccountChoiceDropdown(
-            value = selected.ifBlank { "No MAC addresses" },
-            label = "MAC address",
-            accessibilityLabel = "Select Stalker MAC address",
+            value = selected.ifBlank { MobileMessages.text("mobileAccountNoMacAddresses") },
+            label = MobileMessages.text("mobileAccountMacAddress"),
+            accessibilityLabel = MobileMessages.text("mobileAccountSelectMacAddress"),
             options = macOptions,
             onSelected = onMacSelected
         )
@@ -4769,7 +4781,7 @@ private fun StalkerMacSelector(
             modifier = Modifier.align(Alignment.End),
             onClick = onManage
         ) {
-            Text("Manage MAC addresses")
+            Text(MobileMessages.text("autoManageMACAddresses"))
         }
     }
 }
@@ -4787,9 +4799,10 @@ private fun XtremeCredentialSelector(
         ?: credentials.firstOrNull { it.isDefault }
         ?: credentials.firstOrNull()
     MobileAccountChoiceDropdown(
-        value = selected?.displayLabel(credentials).orEmpty().ifBlank { "No credentials" },
-        label = "Credentials",
-        accessibilityLabel = "Select Xtreme username and password",
+        value = selected?.displayLabel(credentials).orEmpty()
+            .ifBlank { MobileMessages.text("mobileAccountNoCredentials") },
+        label = MobileMessages.text("mobileAccountCredentialsLabel"),
+        accessibilityLabel = MobileMessages.text("mobileAccountSelectCredentials"),
         options = credentials.map { it.displayLabel(credentials) },
         onSelected = { label ->
             credentials.firstOrNull { it.displayLabel(credentials) == label }?.let(onCredentialSelected)
@@ -4851,7 +4864,7 @@ private fun MobileAccountChoiceDropdown(
         ) {
             if (visibleOptions.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("No matching timezones") },
+                    text = { Text(MobileMessages.text("mobileAccountNoMatchingTimezones")) },
                     enabled = false,
                     onClick = {}
                 )
@@ -5060,7 +5073,12 @@ private fun MobileAccount.canSaveForType(type: MobileAccountType): Boolean =
     }
 
 private fun MobileAccountType.choiceLabel(): String =
-    if (isM3uPlaylistType()) "M3U Playlist" else name.shortAccountType()
+    when (this) {
+        MobileAccountType.STALKER_PORTAL -> MobileMessages.text("mobileAccountTypeStalkerPortal")
+        MobileAccountType.XTREME_API -> MobileMessages.text("mobileAccountTypeXtremeApi")
+        MobileAccountType.M3U8_URL, MobileAccountType.M3U8_LOCAL ->
+            MobileMessages.text("mobileAccountTypeM3uPlaylist")
+    }
 
 private fun MobileAccountType.isM3uPlaylistType(): Boolean =
     this == MobileAccountType.M3U8_URL || this == MobileAccountType.M3U8_LOCAL

@@ -7,6 +7,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.I18n;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
@@ -15,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** A cancellable, source-coalesced manual EPG refresh that keeps last-good data. */
 public final class EpgRefreshJobService {
-    public record SourceProgress(String id, String name, String status, String detail) { }
+    public record SourceProgress(String id, String name, String fileName, String status, String detail) { }
     public record Snapshot(String id, String status, String stage, int completed, int total,
                            String currentSource, String message, List<SourceProgress> sources,
                            int preparationCompleted, int preparationTotal, String currentAccount,
@@ -26,8 +27,14 @@ public final class EpgRefreshJobService {
         final String id;
         final String source;
         final String name;
+        final String fileName;
         final LinkedHashMap<String, MappingContext> mappings = new LinkedHashMap<>();
-        SourceWork(String id, String source, String name) { this.id = id; this.source = source; this.name = name; }
+        SourceWork(String id, String source, String name, String fileName) {
+            this.id = id;
+            this.source = source;
+            this.name = name;
+            this.fileName = fileName;
+        }
     }
     private static final class Job {
         final String id = UUID.randomUUID().toString();
@@ -44,13 +51,14 @@ public final class EpgRefreshJobService {
         volatile String message = "";
         volatile long finishedAt;
         volatile Thread worker;
+        int warnings;
 
         synchronized void stage(String value) {
             stage = value;
         }
         synchronized void waitingForRefresh() {
             stage("Waiting for another EPG refresh to stop");
-            message = "The current refresh is stopping so this one can begin.";
+            message = "";
         }
         synchronized void beginPreparation(int accounts) {
             preparationCompleted = 0;
@@ -62,7 +70,7 @@ public final class EpgRefreshJobService {
         synchronized void checkingAccount(Account account) {
             stage("Checking account sources");
             currentAccount = Objects.toString(account.getAccountName(), "");
-            message = "Checking configured guide sources for " + currentAccount + ".";
+            message = "";
         }
         synchronized void accountPrepared() { preparationCompleted++; }
         synchronized void checkingGlobalSources() {
@@ -72,23 +80,29 @@ public final class EpgRefreshJobService {
         }
         synchronized void prepare(Collection<SourceWork> work) {
             total = work.size();
-            work.forEach(item -> sources.put(item.id, new SourceProgress(item.id, item.name, "Pending", "")));
+            work.forEach(item -> sources.put(item.id,
+                    new SourceProgress(item.id, item.name, item.fileName, "Pending", "")));
             status = "RUNNING";
-            stage(work.isEmpty() ? "Completed" : "Ready");
+            stage(work.isEmpty() ? "No sources configured" : "Ready");
             currentAccount = "";
-            message = work.isEmpty() ? "No EPG sources are configured." : "";
+            message = work.isEmpty() ? I18n.tr("epgRefreshNoSourcesMessage") : "";
         }
         synchronized void update(SourceWork source, String state, String detail) {
-            currentSource = source.name;
+            currentSource = sourceDisplayName(source);
             currentAccount = "";
-            sources.put(source.id, new SourceProgress(source.id, source.name, state, Objects.toString(detail, "")));
+            sources.put(source.id, new SourceProgress(source.id, source.name, source.fileName, state,
+                    Objects.toString(detail, "")));
             stage(state);
         }
         synchronized void sourceFinished(SourceWork source, boolean succeeded, String detail) {
-            sources.put(source.id, new SourceProgress(source.id, source.name,
-                    succeeded ? "Completed" : "Failed", Objects.toString(detail, "")));
+            sourceFinished(source, succeeded ? "Completed" : "Failed", detail);
+        }
+        synchronized void sourceFinished(SourceWork source, String result, String detail) {
+            sources.put(source.id, new SourceProgress(source.id, source.name, source.fileName, result,
+                    Objects.toString(detail, "")));
             completed++;
-            stage(succeeded ? "Saved" : "Source unavailable");
+            if ("No matches".equals(result) || "Failed".equals(result)) warnings++;
+            stage("Failed".equals(result) ? "Source unavailable" : "Saved");
         }
         synchronized Snapshot snapshot() {
             return new Snapshot(id, status, stage, completed, total, currentSource, message,
@@ -97,7 +111,14 @@ public final class EpgRefreshJobService {
         }
         synchronized void finish(String result, String detail) {
             status = result;
-            stage(result.equals("COMPLETED") || result.equals("COMPLETED_WITH_WARNINGS") ? "Completed" : result);
+            stage(switch (result) {
+                case "COMPLETED", "COMPLETED_WITH_WARNINGS" -> "Completed";
+                case "NO_SOURCES" -> "No sources configured";
+                case "CANCELLED" -> "Cancelled";
+                case "SKIPPED" -> "Skipped";
+                case "FAILED" -> "Failed";
+                default -> result;
+            });
             message = Objects.toString(detail, "");
             finishedAt = System.currentTimeMillis();
         }
@@ -138,7 +159,7 @@ public final class EpgRefreshJobService {
         synchronized (JOBS_LOCK) {
             Job job = JOBS.get(id);
             if (job == null || job.terminal()) return false;
-            job.message = "Stop requested. The last saved guide data is being kept.";
+            job.message = I18n.tr("epgRefreshStopRequestedMessage");
             Thread worker = job.worker;
             if (worker != null) worker.interrupt();
             return true;
@@ -160,28 +181,31 @@ public final class EpgRefreshJobService {
             EpgCacheRefreshService.Token token = EpgCacheRefreshService.token();
             EpgApplicationService epg = new EpgApplicationService();
             if (!epg.isEnabled()) {
-                job.finish("SKIPPED", "Enable EPG before refreshing guide sources.");
+                job.finish("SKIPPED", I18n.tr("epgRefreshEnableFirstMessage"));
                 return;
             }
 
             Map<String, SourceWork> sources = prepareSources(job, epg, token);
             if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("EPG settings changed");
             job.prepare(sources.values());
+            if (sources.isEmpty()) {
+                job.finish("NO_SOURCES", I18n.tr("epgRefreshNoSourcesMessage"));
+                return;
+            }
             int failures = 0;
             for (SourceWork source : sources.values()) {
                 if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                 try {
                     XmltvGuide guide = epg.downloadSource(source.source,
-                            phase -> job.update(source, phase,
-                                    "Downloading".equals(phase) ? "Connecting to guide source." : "Reading guide data."),
-                            bytes -> job.update(source, "Parsing", "Read " + readableBytes(bytes) + " from guide."));
+                            phase -> job.update(source, phase, ""),
+                            bytes -> job.update(source, "Parsing", I18n.tr("epgRefreshReadBytesDetail", readableBytes(bytes))));
                     if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
-                    job.update(source, "Matching", "Applying configured account and guide identities.");
+                    job.update(source, "Matching", "");
                     List<EpgCacheDb.Match> mappings = new ArrayList<>();
                     for (MappingContext context : source.mappings.values()) {
                         if (context.account().getDbId() == null) continue;
                         job.update(source, "Loading cached channels",
-                                Objects.toString(context.account().getAccountName(), ""));
+                                I18n.tr("epgRefreshCurrentAccount", Objects.toString(context.account().getAccountName(), "")));
                         List<Channel> channels = ChannelDb.get().getCachedLiveChannels(context.account().getDbId());
                         if (!channels.isEmpty()) mappings.addAll(EpgCacheApplicationService.matches(
                                 context.account(), channels, context.sources()));
@@ -189,23 +213,27 @@ public final class EpgRefreshJobService {
                     long now = System.currentTimeMillis();
                     long retryAt = now + EpgCacheRefreshService.refreshMillis();
                     java.util.concurrent.atomic.AtomicLong programmes = new java.util.concurrent.atomic.AtomicLong();
-                    job.update(source, "Saving", "Processing guide programmes.");
+                    int[] mappedChannels = {0};
+                    job.update(source, "Saving", "");
                     EpgCacheRefreshService.commit(token, () -> {
-                        new EpgCacheDb().replaceSource(source.id, guide.programmes(), guide.names(),
-                                guide.qualityNames(), guide.icons(), now, retryAt, Set.of(),
+                        job.update(source, "Linking channels", I18n.tr("epgRefreshMatchingChannelsDetail", mappings.size()));
+                        mappedChannels[0] = new EpgCacheDb().replaceSourceAndMap(source.id,
+                                guide.programmes(), guide.names(), guide.qualityNames(), guide.icons(), now, retryAt,
+                                Set.of(), mappings,
                                 scanned -> {
                                     programmes.set(scanned);
-                                    job.update(source, "Saving", "Processed " + scanned + " programmes.");
-                                });
-                        if (!mappings.isEmpty()) {
-                            job.update(source, "Linking channels", "Matching " + mappings.size() + " cached channels.");
-                            new EpgCacheDb().mapChannels(mappings, now, false,
-                                    scanned -> job.update(source, "Linking channels",
-                                            "Matched " + scanned + " cached channels."));
-                        }
+                                    job.update(source, "Saving", I18n.tr("epgRefreshProcessedProgrammesDetail", scanned));
+                                },
+                                scanned -> job.update(source, "Linking channels",
+                        I18n.tr("epgRefreshMatchedChannelsDetail", scanned)));
                     });
                     if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
-                    job.sourceFinished(source, true, "Imported " + programmes.get() + " programmes.");
+                    if (mappedChannels[0] == 0) {
+                        job.sourceFinished(source, "No matches", I18n.tr("epgRefreshNoMatchesDetail", programmes.get()));
+                    } else {
+                        job.sourceFinished(source, true,
+                                I18n.tr("epgRefreshImportedDetail", programmes.get(), mappedChannels[0]));
+                    }
                 } catch (InterruptedException cancelled) {
                     throw cancelled;
                 } catch (Exception error) {
@@ -223,20 +251,23 @@ public final class EpgRefreshJobService {
                 }
             }
             if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
-            job.finish(failures == 0 ? "COMPLETED" : "COMPLETED_WITH_WARNINGS",
-                    failures == 0 ? "All configured XMLTV sources were refreshed."
-                            : failures + " source(s) failed. Existing guide data was retained for those sources.");
+            int noMatches = job.warnings - failures;
+            boolean hasWarnings = failures > 0 || noMatches > 0;
+            String detail = hasWarnings
+                    ? I18n.tr("epgRefreshWarningsMessage", failures, noMatches)
+                    : I18n.tr("epgRefreshCompleteMessage");
+            job.finish(hasWarnings ? "COMPLETED_WITH_WARNINGS" : "COMPLETED", detail);
         } catch (InterruptedException cancelled) {
             Thread.currentThread().interrupt();
-            job.finish("CANCELLED", "Refresh stopped. Completed source imports are kept; uncompleted sources retain their previous data.");
+            job.finish("CANCELLED", I18n.tr("epgRefreshCancelledMessage"));
         } catch (RuntimeException error) {
             AppLog.addWarningLog(EpgRefreshJobService.class, "Manual EPG refresh could not be prepared; existing guide data remains available.");
-            job.finish("FAILED", "Unable to prepare EPG sources. Existing guide data remains available.");
+            job.finish("FAILED", I18n.tr("epgRefreshFailedMessage"));
         } finally {
             if (locked) EpgCacheRefreshService.REFRESH_LOCK.unlock();
             EpgCacheRefreshService.WORKERS.remove(worker);
             Thread.interrupted();
-            if (job.finishedAt == 0) job.finish("FAILED", "Refresh ended before completion.");
+            if (job.finishedAt == 0) job.finish("FAILED", I18n.tr("epgRefreshFailedMessage"));
             ACTIVE.compareAndSet(job, null);
         }
     }
@@ -256,7 +287,8 @@ public final class EpgRefreshJobService {
             MappingContext context = new MappingContext(account, List.copyOf(configured));
             for (String source : configured) {
                 String id = EpgCacheApplicationService.sourceId(source);
-                SourceWork work = result.computeIfAbsent(id, _ -> new SourceWork(id, source, sourceLabel(source)));
+                SourceWork work = result.computeIfAbsent(id, _ -> new SourceWork(id, source,
+                        sourceLabel(source), sourceFileName(source)));
                 if (account.getDbId() != null) work.mappings.putIfAbsent(account.getDbId(), context);
             }
             job.accountPrepared();
@@ -265,7 +297,8 @@ public final class EpgRefreshJobService {
         for (String source : EpgApplicationService.globalSources(
                 ConfigurationService.getInstance().read().getGlobalEpgSource())) {
             String id = EpgCacheApplicationService.sourceId(source);
-            result.computeIfAbsent(id, _ -> new SourceWork(id, source, sourceLabel(source)));
+            result.computeIfAbsent(id, _ -> new SourceWork(id, source,
+                    sourceLabel(source), sourceFileName(source)));
         }
         job.stage("Preparing sources");
         return result;
@@ -276,13 +309,36 @@ public final class EpgRefreshJobService {
         return "%.1f MB".formatted(bytes / 1_048_576.0);
     }
 
-    private static String sourceLabel(String source) {
+    static String sourceLabel(String source) {
         try {
             URI uri = URI.create(source);
-            if (uri.getHost() != null) return uri.getHost() + Objects.toString(uri.getPath(), "");
-            if ("file".equalsIgnoreCase(uri.getScheme())) return Path.of(uri).getFileName().toString();
+            if (uri.getHost() != null) return uri.getHost();
+            if ("file".equalsIgnoreCase(uri.getScheme())) return I18n.tr("epgSourceLocalFile");
         } catch (RuntimeException ignored) { }
-        try { return Path.of(source).getFileName().toString(); }
-        catch (RuntimeException ignored) { return "XMLTV source"; }
+        return I18n.tr("epgSourceLocalFile");
+    }
+
+    static String sourceFileName(String source) {
+        if (source == null || source.isBlank()) return "";
+        String value = source.strip();
+        try {
+            URI uri = URI.create(value.replace(" ", "%20"));
+            String path = uri.getScheme() == null ? value : uri.getPath();
+            if (path == null || path.isBlank()) return "";
+            Path fileName = Path.of(path).getFileName();
+            return fileName == null ? "" : fileName.toString();
+        } catch (RuntimeException ignored) {
+            if (value.contains("://")) return "";
+            try {
+                Path fileName = Path.of(value).getFileName();
+                return fileName == null ? "" : fileName.toString();
+            } catch (RuntimeException ignoredPath) {
+                return "";
+            }
+        }
+    }
+
+    private static String sourceDisplayName(SourceWork source) {
+        return source.fileName.isBlank() ? source.name : source.name + " · " + source.fileName;
     }
 }

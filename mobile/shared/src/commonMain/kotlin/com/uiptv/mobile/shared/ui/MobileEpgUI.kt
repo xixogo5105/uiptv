@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.uiptv.mobile.shared.epg.*
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -132,68 +133,69 @@ internal fun MobileEpgSettings() {
     var advancedExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(state.actions) {
         runCatching { state.actions.globalSource() }.onSuccess { source = it }
-            .onFailure { status = "Unable to load EPG sources. Try reopening Settings." }
+            .onFailure { status = MobileMessages.text("epgMobileSourcesLoadFailed") }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MobilePreferenceSwitchRow(
-            title = "Enable EPG on this device",
+            title = MobileMessages.text("configEnableEpg"),
             checked = state.enabled,
-            accessibilityLabel = "Enable EPG on this device",
+            accessibilityLabel = MobileMessages.text("configEnableEpg"),
             onCheckedChange = { value ->
                 scope.launch {
                     runCatching { state.actions.saveEnabled(value) }
                         .onSuccess { state.onEnabled(value) }
-                        .onFailure { status = "Unable to save EPG setting" }
+                        .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
                 }
             }
         )
         var playbackOnly by remember { mutableStateOf(false) }
         LaunchedEffect(state.actions) { playbackOnly = state.actions.loadPlaybackOnly() }
         MobilePreferenceSwitchRow(
-            title = "Load EPG only for the channel being played",
+            title = MobileMessages.text("epgEnablePlaybackOnly"),
             checked = playbackOnly && state.enabled,
             enabled = state.enabled && !busy,
-            accessibilityLabel = "Load EPG only for the channel being played",
+            accessibilityLabel = MobileMessages.text("epgEnablePlaybackOnly"),
             onCheckedChange = { value ->
                 scope.launch {
                     runCatching { state.actions.savePlaybackOnly(value) }
                         .onSuccess { playbackOnly = value; state.onPlaybackOnly(value) }
-                        .onFailure { status = "Unable to save EPG display mode" }
+                        .onFailure { status = MobileMessages.text("epgMobileModeSaveFailed") }
                 }
             }
         )
-        if (!state.enabled) Text("Enable EPG to use playback-only mode.", style = MaterialTheme.typography.bodySmall)
+        if (!state.enabled) Text(MobileMessages.text("epgMobilePlaybackOnlyNeedsEpg"), style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(
             value = source,
             onValueChange = { source = it },
-            label = { Text("Global EPG sources") },
+            label = { Text(MobileMessages.text("configGlobalEpgSource")) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 4,
             colors = mobileOutlinedTextFieldColors()
         )
-        Text("Shared through database sync. Used after provider and account guides. One XMLTV URL or local file per line, in priority order. Gzip is supported.",
+        Text(MobileMessages.text("epgMobileSourcesSyncHelp"),
             style = MaterialTheme.typography.bodySmall)
         TextButton(enabled = !busy, onClick = { scope.launch {
             busy = true
-            runCatching { state.actions.saveGlobalSource(source) }.onSuccess { status = "EPG sources saved" }
-                .onFailure { status = "Unable to save sources. Check each XMLTV URL or local file and try again." }
+            runCatching { state.actions.saveGlobalSource(source) }
+                .onSuccess { status = MobileMessages.text("epgMobileSourcesSaved") }
+                .onFailure { status = MobileMessages.text("epgMobileSourcesSaveFailed") }
             busy = false
-        } }) { Text("Save EPG sources") }
+        } }) { Text(MobileMessages.text("epgMobileSaveSources")) }
         TextButton(onClick = { advancedExpanded = !advancedExpanded }) {
-            Text(if (advancedExpanded) "Hide advanced EPG settings" else "Advanced EPG settings")
+            Text(MobileMessages.text(if (advancedExpanded) "epgMobileHideAdvanced" else "epgAdvancedSettings"))
         }
         if (advancedExpanded) {
             HorizontalDivider()
-            Text("Maintenance", style = MaterialTheme.typography.titleSmall)
-            Text("Clearing the local guide cache is only needed for troubleshooting. Normal guide refresh keeps saved data available.",
+            Text(MobileMessages.text("epgMobileMaintenance"), style = MaterialTheme.typography.titleSmall)
+            Text(MobileMessages.text("epgMobileCacheDescription"),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(enabled = !busy, onClick = { scope.launch {
                 busy = true
                 runCatching { state.actions.clearCache() }
-                    .onSuccess { status = "EPG cache cleared. Guides reload when you next open a channel." }
-                    .onFailure { status = "Unable to clear EPG cache. Please try again." }
+                    .onSuccess { status = MobileMessages.text("epgMobileCacheCleared") }
+                    .onFailure { status = MobileMessages.text("epgMobileCacheClearFailed") }
                 busy = false
-            } }) { Text("Clear EPG cache") }
+            } }) { Text(MobileMessages.text("configClearCache")) }
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
@@ -226,7 +228,7 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             when {
                 now != null -> {
-                    Text("Now · ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    Text("${MobileMessages.text("epgNow")} · ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium)
                     Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -235,7 +237,7 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
                 }
                 result == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                    Text("Loading guide…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(MobileMessages.text("epgLoading"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 else -> Text(nowStatus.orEmpty(), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -243,12 +245,12 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
             mobileEpgSourceStatus(result, now, next)?.let { status ->
                 Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (next != null) Text("Next · ${next.title} · ${programmeTime(next.start)}", maxLines = 1,
+            if (next != null) Text("${MobileMessages.text("epgNext")} · ${next.title} · ${programmeTime(next.start)}", maxLines = 1,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         IconButton(onClick = { details = true }, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Outlined.Info, contentDescription = "Programme details for $name",
+            Icon(Icons.Outlined.Info, contentDescription = MobileMessages.text("epgProgrammeDetails"),
                 tint = MaterialTheme.colorScheme.primary)
         }
     }
@@ -259,10 +261,10 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(name, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text("Programme guide", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(MobileMessages.text("epgMobileProgrammeGuide"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     IconButton(onClick = { details = false }) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Close programme guide")
+                        Icon(Icons.Outlined.Close, contentDescription = MobileMessages.text("commonClose"))
                     }
                 }
                 ProgrammeSchedule(result, Modifier.weight(1f).padding(top = 12.dp))
@@ -289,11 +291,11 @@ internal fun mobileEpgNowStatus(
     next: MobileEpgProgramme?
 ): String? = when {
     now != null -> null
-    result == null -> "Loading guide…"
-    result.status == MobileEpgStatus.UNAVAILABLE && next == null -> "Guide source unavailable"
-    next != null -> "No programme airing now"
-    result.status == MobileEpgStatus.UNAVAILABLE -> "Guide source unavailable"
-    else -> "No guide available"
+    result == null -> MobileMessages.text("epgLoading")
+    result.status == MobileEpgStatus.UNAVAILABLE && next == null -> MobileMessages.text("epgMobileSourceUnavailable")
+    next != null -> MobileMessages.text("epgMobileNoProgrammeNow")
+    result.status == MobileEpgStatus.UNAVAILABLE -> MobileMessages.text("epgMobileSourceUnavailable")
+    else -> MobileMessages.text("epgMobileNoGuide")
 }
 
 internal fun mobileEpgSourceStatus(
@@ -301,8 +303,8 @@ internal fun mobileEpgSourceStatus(
     now: MobileEpgProgramme?,
     next: MobileEpgProgramme?
 ): String? = when {
-    result?.status == MobileEpgStatus.STALE -> "Showing saved guide data"
-    result?.status == MobileEpgStatus.UNAVAILABLE && (now != null || next != null) -> "Showing saved guide data"
+    result?.status == MobileEpgStatus.STALE -> MobileMessages.text("epgSourceStale")
+    result?.status == MobileEpgStatus.UNAVAILABLE && (now != null || next != null) -> MobileMessages.text("epgSourceStale")
     else -> null
 }
 
@@ -310,11 +312,11 @@ internal fun mobileEpgSourceStatus(
 private fun ProgrammeSchedule(result: MobileEpgResult?, modifier: Modifier = Modifier) {
     val programmes = remember(result) { result?.programmes.orEmpty().filter { it.hasProgrammeInformation() }.distinctBy { "${it.start}:${it.stop}:${it.title}" } }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (result == null) item { Text("Loading guide…"); LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        if (result?.status == MobileEpgStatus.STALE) item { Text("Showing a saved schedule. It may be out of date.") }
-        if (result?.status == MobileEpgStatus.UNAVAILABLE) item { Text("Guide source unavailable. Saved data is retained when available.") }
+        if (result == null) item { Text(MobileMessages.text("epgLoading")); LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        if (result?.status == MobileEpgStatus.STALE) item { Text(MobileMessages.text("epgSourceStale")) }
+        if (result?.status == MobileEpgStatus.UNAVAILABLE) item { Text(MobileMessages.text("epgMobileSourceUnavailable")) }
         if (result != null && programmes.isEmpty() && result.status != MobileEpgStatus.UNAVAILABLE) item {
-            Text("No guide available. Check the EPG sources in Settings.")
+            Text(MobileMessages.text("epgMobileNoGuide"))
         }
         items(programmes, key = { "${it.start}:${it.stop}:${it.title}" }, contentType = { "programme" }) { p ->
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
