@@ -1,0 +1,5 @@
+<resources>
+    <item name="player_theme_text_role" type="id" />
+    <item name="player_theme_button_role" type="id" />
+    <item name="player_theme_row_index" type="id" />
+</resources>

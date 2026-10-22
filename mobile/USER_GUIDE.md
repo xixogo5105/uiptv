@@ -1,5 +1,9 @@
 # UIPTV Android User Guide
 
+## Interface And Appearance
+
+The Android app uses Material Design 3 components and adapts its colors to the device's light or dark theme. Navigation is icon-only; on wide screens it can be hidden to give the current page more room. Search and add actions sit in the page header, and forms and settings use Material text fields, switches, and selection controls.
+
 ## Pair With Desktop
 
 1. Open the desktop UIPTV app on the same network.
@@ -25,11 +29,20 @@ Failed refreshes preserve the existing local cache.
 
 - Channels has account, Live/VOD/Series, category, and search filters.
 - Bookmarks contains saved channels and VOD/Series entries.
-- Watching Now shows VOD and Series entries after playback has started.
+- Watching Now contains VOD and Series entries after playback has started and opens on Series by default.
+- Series details and episode lists scroll together so the poster and summary do not take up a fixed portion of the episode view.
 - On first playback, choose Native, a detected external player, or the system chooser.
 - Use Remember to make that player the default. Configuration can clear it later.
 
 Native playback uses Media3 and can handle HLS/DASH plus license-URL Widevine/ClearKey metadata. External players receive a normal Android `ACTION_VIEW` stream handoff.
+
+The embedded mpv player follows the Android light/dark theme and uses compact Material-style controls. Its video scale menu offers:
+
+- **Fit** — preserve the picture's proportions and show the full frame.
+- **Crop** — preserve proportions while filling the display; the edges may be cropped.
+- **Stretch** — fill the display without preserving proportions.
+
+Live streams show a full, non-seekable progress track. On-demand video keeps its seekable timeline.
 
 ## Current Limits
 

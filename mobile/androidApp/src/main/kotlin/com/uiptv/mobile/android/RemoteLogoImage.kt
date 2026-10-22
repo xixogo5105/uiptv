@@ -41,12 +41,12 @@ fun RemoteLogoImage(
     val loadedBitmap = bitmap?.asImageBitmap()
     if (loadedBitmap == null) {
         Box(
-            modifier = modifier.background(Color(0xFF24313C)),
+            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = fallbackInitials(contentDescription),
-                color = Color(0xFFD1E4FF),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -57,7 +57,7 @@ fun RemoteLogoImage(
         Image(
             bitmap = loadedBitmap,
             contentDescription = contentDescription,
-            modifier = modifier.background(Color(0xFF24313C)),
+            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
             contentScale = ContentScale.Fit
         )
     }

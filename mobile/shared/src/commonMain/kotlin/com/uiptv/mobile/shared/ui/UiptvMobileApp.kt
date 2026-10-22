@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -23,9 +24,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,11 +42,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -56,12 +61,12 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldColors
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
@@ -71,12 +76,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Android
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.FilterAlt
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -89,6 +106,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -148,6 +167,7 @@ import com.uiptv.mobile.shared.sync.RemoteSyncProgressStep
 import com.uiptv.mobile.shared.sync.RemoteSyncPullResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 typealias LocalPlaylistPicker = (onSelected: (String) -> Unit) -> Unit
 typealias BackupFileCreator = (suggestedName: String, onSelected: (String?) -> Unit) -> Unit
@@ -174,6 +194,13 @@ private data class UiptvPalette(
     val text: Color,
     val mutedText: Color,
     val background: Color
+)
+
+private data class MobileSettingsDestination(
+    val id: String,
+    val title: String,
+    val description: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
 
 private val DarkUiptvPalette = UiptvPalette(
@@ -221,13 +248,11 @@ private enum class UiptvLayoutMode {
 }
 
 private enum class WatchingNowFilter(val label: String) {
-    ALL("All"),
     VOD("VOD"),
     SERIES("Series");
 
     fun matches(item: MobileWatchingNowItem): Boolean =
         when (this) {
-            ALL -> true
             VOD -> item.mode == BrowseMode.VOD
             SERIES -> item.mode == BrowseMode.SERIES
         }
@@ -307,7 +332,8 @@ fun UiptvMobileApp(
     restoreFilePicker: RestoreFilePicker? = null,
     logoRenderer: LogoRenderer = { _, _, _ -> },
     playerIconRenderer: PlayerIconRenderer = { choice, modifier -> DefaultPlayerIcon(choice, modifier) },
-    backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> }
+    backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> },
+    colorScheme: ColorScheme? = null
 ) {
     var epgEnabled by remember { mutableStateOf(false) }
     var epgPlaybackOnly by remember { mutableStateOf(false) }
@@ -316,18 +342,19 @@ fun UiptvMobileApp(
         epgEnabled = epgActions.loadEnabled()
         epgPlaybackOnly = epgActions.loadPlaybackOnly()
     }
-    LaunchedEffect(epgEnabled, isForeground) {
+    LaunchedEffect(epgEnabled, epgPlaybackOnly, isForeground) {
         while (epgEnabled && !epgPlaybackOnly && isForeground) { epgTime = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
     }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var selectedBrowseAccount by remember { mutableStateOf<MobileAccount?>(null) }
     var showThumbnails by remember { mutableStateOf(false) }
     var wideSearchVisible by rememberSaveable { mutableStateOf(false) }
+    var wideNavigationVisible by rememberSaveable { mutableStateOf(false) }
     var panelVisibilityPreference by remember { mutableStateOf(PanelVisibilityPreference()) }
     val appScope = rememberCoroutineScope()
+    val screenStates = rememberSaveableStateHolder()
     fun selectTab(index: Int) {
         selectedTab = index
-        selectedBrowseAccount = null
         wideSearchVisible = false
     }
     fun updatePanelVisibility(preference: PanelVisibilityPreference) {
@@ -336,7 +363,7 @@ fun UiptvMobileApp(
             runCatching { panelVisibilityActions.save(preference) }
         }
     }
-    backHandler(selectedBrowseAccount != null) {
+    backHandler(selectedTab == 1 && selectedBrowseAccount != null) {
         selectedBrowseAccount = null
     }
     LaunchedEffect(filterActions) {
@@ -349,11 +376,21 @@ fun UiptvMobileApp(
     }
 
     val useDarkTheme = isSystemInDarkTheme()
-    val palette = if (useDarkTheme) DarkUiptvPalette else LightUiptvPalette
+    val activeColorScheme = colorScheme ?: if (useDarkTheme) UiptvDarkColorScheme else UiptvLightColorScheme
+    val palette = UiptvPalette(
+        primary = activeColorScheme.primary,
+        surface = activeColorScheme.surface,
+        surfaceHigh = activeColorScheme.surfaceVariant,
+        surfaceHighest = activeColorScheme.surfaceVariant,
+        accent = activeColorScheme.secondary,
+        text = activeColorScheme.onSurface,
+        mutedText = activeColorScheme.onSurfaceVariant,
+        background = activeColorScheme.background
+    )
     CompositionLocalProvider(LocalUiptvPalette provides palette,
         LocalEpgState provides EpgUiState(epgEnabled && isForeground, epgPlaybackOnly, epgTime, epgActions,
             { epgEnabled = it }, { epgPlaybackOnly = it })) {
-        MaterialTheme(colorScheme = if (useDarkTheme) UiptvDarkColorScheme else UiptvLightColorScheme) {
+        MaterialTheme(colorScheme = activeColorScheme) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val layoutMode = remember(maxWidth, maxHeight) {
                     val largeWideLayout = maxWidth >= 840.dp && maxHeight >= 480.dp
@@ -368,7 +405,8 @@ fun UiptvMobileApp(
                     }
                 }
                 val wideLayout = layoutMode != UiptvLayoutMode.Compact
-                CompositionLocalProvider(LocalWidePhoneLayout provides (layoutMode == UiptvLayoutMode.WidePhone)) {
+                CompositionLocalProvider(LocalWidePhoneLayout provides (layoutMode == UiptvLayoutMode.WidePhone),
+                    LocalShowNavigation provides if (wideLayout && !wideNavigationVisible) ({ wideNavigationVisible = true }) else null) {
                     if (wideLayout) {
                         val wideSearchEnabled = selectedTab != 3
                         Row(
@@ -377,7 +415,7 @@ fun UiptvMobileApp(
                                 .background(palette.background)
                                 .safeDrawingPadding()
                         ) {
-                            AppTabs(
+                            if (wideNavigationVisible) AppTabs(
                                 selectedTab = selectedTab,
                                 onSelect = ::selectTab,
                                 vertical = true,
@@ -388,9 +426,10 @@ fun UiptvMobileApp(
                                     if (wideSearchEnabled) {
                                         wideSearchVisible = !wideSearchVisible
                                     }
-                                }
+                                }, onHideNavigation = { wideNavigationVisible = false }
                             )
                             CurrentTab(
+                                screenStates = screenStates,
                                 selectedTab = selectedTab,
                                 resumeSignal = resumeSignal,
                                 syncActions = syncActions,
@@ -428,6 +467,7 @@ fun UiptvMobileApp(
                             bottomBar = { AppTabs(selectedTab = selectedTab, onSelect = ::selectTab) }
                         ) { padding ->
                             CurrentTab(
+                                screenStates = screenStates,
                                 selectedTab = selectedTab,
                                 resumeSignal = resumeSignal,
                                 syncActions = syncActions,
@@ -467,6 +507,7 @@ fun UiptvMobileApp(
 
 @Composable
 private fun CurrentTab(
+    screenStates: SaveableStateHolder,
     selectedTab: Int,
     resumeSignal: Int,
     syncActions: RemoteSyncUiActions,
@@ -492,11 +533,11 @@ private fun CurrentTab(
     wideSearchVisible: Boolean,
     modifier: Modifier = Modifier
 ) {
-    AnimatedContent(
-        targetState = selectedTab to (selectedBrowseAccount != null),
-        modifier = modifier.fillMaxSize(),
-        label = "main-content"
-    ) { (tab, hasBrowseAccount) ->
+    val tab = selectedTab
+    val hasBrowseAccount = selectedBrowseAccount != null
+    val routeKey = if (tab == 1 && hasBrowseAccount) "account:${selectedBrowseAccount?.id}" else "tab:$tab"
+    Box(modifier.fillMaxSize()) {
+    screenStates.SaveableStateProvider(routeKey) {
         when (tab) {
             0 -> {
                 BookmarksScreen(
@@ -516,6 +557,7 @@ private fun CurrentTab(
                 if (account == null) {
                     AccountsScreen(
                         accountActions,
+                        backHandler,
                         onOpenAccountChannels,
                         localPlaylistPicker,
                         wideLayout,
@@ -553,6 +595,7 @@ private fun CurrentTab(
                     resumeSignal,
                     wideLayout,
                     wideSearchVisible,
+                    backHandler,
                     panelVisibilityPreference.watchingNowDetailsPanelVisible,
                     { visible ->
                         onPanelVisibilityPreferenceChange(
@@ -579,6 +622,7 @@ private fun CurrentTab(
             }
         }
     }
+}
 }
 
 @Composable
@@ -618,9 +662,14 @@ private fun ChannelsScreen(
     var selectedCategoryIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var pendingCategoryRemoval by remember { mutableStateOf(false) }
 
-    fun activeSearchVisible(): Boolean = if (wideLayout) wideSearchVisible else searchVisible
-    fun activeCategoryQuery(): String = if (activeSearchVisible()) categoryQuery else ""
-    fun activeChannelQuery(): String = if (activeSearchVisible()) channelQuery else ""
+    val categoryListState = rememberSaveable(mode, saver = LazyListState.Saver) { LazyListState() }
+    var itemQueries by rememberSaveable { mutableStateOf(hashMapOf<String, String>()) }
+    var categoryQueries by rememberSaveable { mutableStateOf(hashMapOf<String, String>()) }
+    val itemScreenStates = rememberSaveableStateHolder()
+    var browseLoad by remember { mutableStateOf<Job?>(null) }
+
+    fun activeCategoryQuery(): String = categoryQuery
+    fun activeChannelQuery(): String = channelQuery
 
     fun reload(
         accountId: Long? = requestedAccountId ?: snapshot.selectedAccountId,
@@ -630,7 +679,11 @@ private fun ChannelsScreen(
     ) {
         val generation = reloadGeneration + 1
         reloadGeneration = generation
-        scope.launch {
+        browseLoad?.cancel()
+        if (snapshot.selectedCategoryRowId != categoryRowId || snapshot.mode != browseMode) {
+            snapshot = snapshot.copy(items = emptyList())
+        }
+        browseLoad = scope.launch {
             if (generation != reloadGeneration) {
                 return@launch
             }
@@ -650,21 +703,11 @@ private fun ChannelsScreen(
                         else -> "${it.items.size} ${browseMode.displayLabel()} items"
                     }
                 }
-                .onFailure { statusText = it.message ?: "Unable to load channels" }
+                .onFailure {
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    statusText = "Unable to load catalogue. Please try again."
+                }
             running = false
-        }
-    }
-
-    fun toggleCompactSearch() {
-        val nextVisible = !searchVisible
-        searchVisible = nextVisible
-        if (!nextVisible) {
-            if (selectedCategoryRowId == null) {
-                categoryQuery = ""
-            } else if (channelQuery.isNotBlank()) {
-                channelQuery = ""
-                reload(snapshot.selectedAccountId, selectedCategoryRowId, "")
-            }
         }
     }
 
@@ -678,7 +721,6 @@ private fun ChannelsScreen(
     val showingChannelList = selectedCategoryRowId != null
     fun backToCategories() {
         selectedCategoryRowId = null
-        channelQuery = ""
         reload(snapshot.selectedAccountId, null, "", mode)
     }
     LaunchedEffect(browseActions, requestedAccountId, selectedAccountType, refreshSignal) {
@@ -690,33 +732,15 @@ private fun ChannelsScreen(
         categorySelectionMode = false
         selectedCategoryIds = emptySet()
         pendingCategoryRemoval = false
-        if (activeCategoryRowId == null) {
-            channelQuery = ""
-        }
         reload(requestedAccountId, activeCategoryRowId, activeChannelQuery(), activeMode)
-    }
-    LaunchedEffect(wideLayout, wideSearchVisible) {
-        if (wideLayout && !wideSearchVisible && (categoryQuery.isNotBlank() || channelQuery.isNotBlank())) {
-            categoryQuery = ""
-            if (channelQuery.isNotBlank()) {
-                channelQuery = ""
-                if (selectedCategoryRowId != null) {
-                    reload(snapshot.selectedAccountId, selectedCategoryRowId, "")
-                }
-            }
-        }
     }
     val visibleCategories = snapshot.categories.filter { category ->
         val query = activeCategoryQuery()
         query.isBlank() || category.title.contains(query.trim(), ignoreCase = true)
     }
-    val currentTitle = selectedCategory?.title ?: "${mode.displayLabel()} Categories"
-    val screenTitle = "$selectedAccountName - $currentTitle"
     val browseSeries = selectedBrowseSeries
     val selectedCategoryCount = selectedCategoryIds.count { id -> snapshot.categories.any { it.rowId == id } }
-    val singleCategory = snapshot.categories.singleOrNull()
-    val bypassSingleCategory = singleCategory != null && !categorySelectionMode
-    val canNavigateBackToCategories = showingChannelList && !bypassSingleCategory
+    val canNavigateBackToCategories = showingChannelList
 
     fun clearCategorySelection() {
         categorySelectionMode = false
@@ -763,17 +787,8 @@ private fun ChannelsScreen(
                     }
                     reload(accountId, if (removedActiveCategory) null else selectedCategoryRowId, activeChannelQuery(), mode)
                 }
-                .onFailure { statusText = it.message ?: "Unable to remove categories" }
+                .onFailure { statusText = "Unable to remove categories" }
             running = false
-        }
-    }
-
-    LaunchedEffect(snapshot.selectedAccountId, snapshot.mode, singleCategory?.rowId, categorySelectionMode) {
-        val onlyCategory = singleCategory
-        if (!categorySelectionMode && selectedCategoryRowId == null && onlyCategory != null) {
-            selectedCategoryRowId = onlyCategory.rowId
-            channelQuery = ""
-            reload(snapshot.selectedAccountId, onlyCategory.rowId, "", snapshot.mode)
         }
     }
 
@@ -793,13 +808,13 @@ private fun ChannelsScreen(
                                 browseSeriesEpisodes = details.episodes
                             }
                     }
-                    .onFailure { statusText = it.message ?: "Unable to open series" }
+                    .onFailure { statusText = "Unable to open series" }
             } else if (!forcePlayerPicker) {
                 val preference = playbackActions.loadPlayerPreference()
                 if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
                     runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
                         .onSuccess { statusText = it.message }
-                        .onFailure { statusText = it.message ?: "Unable to open stream" }
+                        .onFailure { statusText = "Unable to open stream" }
                 } else {
                     playerChoices = playbackActions.playerChoices()
                     pendingPlayback = PendingPlayback.Browse(item)
@@ -840,7 +855,7 @@ private fun ChannelsScreen(
                                     browseSeriesEpisodes = browseSeriesEpisodes.withWatchingFlag(episode)
                                 }
                             }
-                            .onFailure { statusText = it.message ?: "Unable to open episode" }
+                            .onFailure { statusText = "Unable to open episode" }
                     } else {
                         playerChoices = playbackActions.playerChoices()
                         pendingPlayback = PendingPlayback.WatchingEpisode(episode)
@@ -866,7 +881,7 @@ private fun ChannelsScreen(
                                     browseSeriesEpisodes = browseSeriesEpisodes.withBingeStartFlag(seasonKey)
                                 }
                             }
-                            .onFailure { statusText = it.message ?: "Unable to start binge watch" }
+                            .onFailure { statusText = "Unable to start binge watch" }
                     } else {
                         playerChoices = playbackActions.playerChoices().bingeWatchChoices()
                         pendingPlayback = PendingPlayback.Binge(browseSeries, browseSeriesEpisodes, seasonKey)
@@ -906,7 +921,7 @@ private fun ChannelsScreen(
                             browseSeriesEpisodes = browseSeriesEpisodes.withWatchingFlag(episode)
                             statusText = "Marked ${episode.title} as Watching Now"
                         }
-                        .onFailure { statusText = it.message ?: "Unable to mark Watching Now" }
+                        .onFailure { statusText = "Unable to mark Watching Now" }
                     running = false
                 }
             },
@@ -919,7 +934,7 @@ private fun ChannelsScreen(
                             browseSeriesEpisodes = browseSeriesEpisodes.clearWatchingFlag(episode)
                             statusText = "Removed Watching Now flag"
                         }
-                        .onFailure { statusText = it.message ?: "Unable to remove Watching Now flag" }
+                        .onFailure { statusText = "Unable to remove Watching Now flag" }
                     running = false
                 }
             },
@@ -929,7 +944,7 @@ private fun ChannelsScreen(
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
                         .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                        .onFailure { statusText = "Unable to open Google Play" }
                     running = false
                 }
             },
@@ -944,7 +959,7 @@ private fun ChannelsScreen(
                                 browseSeriesEpisodes = browseSeriesEpisodes.withWatchingFlag(episode)
                             }
                         }
-                        .onFailure { statusText = it.message ?: "Unable to open episode" }
+                        .onFailure { statusText = "Unable to open episode" }
                     running = false
                 }
             }
@@ -961,7 +976,7 @@ private fun ChannelsScreen(
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
                         .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                        .onFailure { statusText = "Unable to open Google Play" }
                     running = false
                 }
             },
@@ -989,7 +1004,7 @@ private fun ChannelsScreen(
                                 }
                             }
                         }
-                        .onFailure { statusText = it.message ?: "Unable to open episode" }
+                        .onFailure { statusText = "Unable to open episode" }
                     running = false
                 }
             }
@@ -1032,407 +1047,89 @@ private fun ChannelsScreen(
         )
     }
 
-    if (wideLayout) {
-        WideChannelsContent(
-            snapshot = snapshot,
-            visibleCategories = visibleCategories,
-            visibleModes = visibleModes,
-            mode = mode,
-            selectedCategoryRowId = selectedCategoryRowId,
-            screenTitle = screenTitle,
-            categoryQuery = categoryQuery,
-            channelQuery = channelQuery,
-            showAccountSelector = showAccountSelector,
-            showThumbnails = showThumbnails,
-            running = running,
-            statusText = statusText,
-            logoRenderer = logoRenderer,
-            searchVisible = wideSearchVisible,
-            categorySelectionMode = categorySelectionMode,
-            selectedCategoryIds = selectedCategoryIds,
-            selectedCategoryCount = selectedCategoryCount,
-            showCategoryPane = !bypassSingleCategory,
-            onBack = {
-                if (canNavigateBackToCategories) {
-                    backToCategories()
-                } else {
-                    onBackToAccounts?.invoke()
-                }
-            },
-            showBack = canNavigateBackToCategories || onBackToAccounts != null,
-            onCategoryQueryChange = { categoryQuery = it },
-            onChannelQueryChange = {
+    CatalogueContent(
+        title = selectedCategory?.title ?: selectedAccountName,
+        subtitle = if (showingChannelList) selectedAccountName else "Choose a category",
+        mode = mode,
+        modes = visibleModes,
+        showingItems = showingChannelList,
+        query = if (showingChannelList) channelQuery else categoryQuery,
+        searchVisible = searchVisible,
+        onSearch = { searchVisible = !searchVisible },
+        onQueryChange = {
+            if (showingChannelList) {
                 channelQuery = it
-                if (selectedCategoryRowId != null) {
-                    reload(snapshot.selectedAccountId, selectedCategoryRowId, it)
+                itemQueries = HashMap(itemQueries).apply { put("${mode.name}:$selectedCategoryRowId", it) }
+                reload(snapshot.selectedAccountId, selectedCategoryRowId, it)
+            } else {
+                categoryQuery = it
+                categoryQueries = HashMap(categoryQueries).apply { put(mode.name, it) }
+            }
+        },
+        onBack = {
+            when {
+                categorySelectionMode -> clearCategorySelection()
+                canNavigateBackToCategories -> backToCategories()
+                else -> onBackToAccounts?.invoke()
+            }
+        },
+        onModeChange = {
+            clearCategorySelection()
+            mode = it
+            selectedCategoryRowId = null
+            categoryQuery = categoryQueries[it.name].orEmpty()
+            channelQuery = ""
+            reload(snapshot.selectedAccountId, null, "", it)
+        },
+        running = running,
+        status = statusText,
+        onRetry = { reload() },
+        modifier = modifier
+    ) {
+        if (!showingChannelList) {
+            if (categorySelectionMode) CategorySelectionToolbar(selectedCategoryCount, { requestCategoryRemoval() }, { clearCategorySelection() })
+            LazyColumn(state = categoryListState, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (visibleCategories.isEmpty() && !running) item {
+                    EmptyState(if (categoryQuery.isNotBlank()) "No matches" else "No cached categories",
+                        if (categoryQuery.isNotBlank()) "Clear search to see all categories." else "Return to Accounts and refresh this account to load its catalogue.")
                 }
-            },
-            onAccountSelect = { account ->
-                clearCategorySelection()
-                selectedCategoryRowId = null
-                channelQuery = ""
-                val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
-                mode = nextMode
-                reload(account.id, null, "", nextMode)
-            },
-            onModeSelect = { entry ->
-                clearCategorySelection()
-                mode = entry
-                selectedCategoryRowId = null
-                channelQuery = ""
-                reload(snapshot.selectedAccountId, null, "", entry)
-            },
-            onCategorySelect = { category ->
-                if (categorySelectionMode) {
-                    toggleCategorySelection(category)
-                } else {
-                    selectedCategoryRowId = category.rowId
-                    channelQuery = ""
-                    reload(snapshot.selectedAccountId, category.rowId, "")
-                }
-            },
-            onCategoryLongPress = { category -> beginCategorySelection(category) },
-            onClearCategorySelection = { clearCategorySelection() },
-            onRemoveSelectedCategories = { requestCategoryRemoval() },
-            onPlayItem = { item -> openBrowseItem(item) },
-            onChooseItemPlayer = { item -> openBrowseItem(item, forcePlayerPicker = true) },
-            onToggleBookmark = { item ->
-                scope.launch {
-                    running = true
-                    runCatching { browseActions.toggleBookmark(item) }
-                        .onSuccess { bookmarked ->
-                            statusText = if (bookmarked) "Bookmarked ${item.name}" else "Removed bookmark"
-                            reload()
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to update bookmark" }
-                    running = false
-                }
-            },
-            modifier = modifier
-        )
-        PlaybackPickerDialog(
-            pendingPlayback = pendingPlayback,
-            playerChoices = playerChoices,
-            playerIconRenderer = playerIconRenderer,
-            wideLayout = true,
-            onDismiss = { pendingPlayback = null },
-            onInstall = { choice ->
-                pendingPlayback = null
-                scope.launch {
-                    running = true
-                    runCatching { playbackActions.openPlayerInstall(choice) }
-                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
-                    running = false
-                }
-            },
-            onSelect = { player, remember ->
-                val pending = pendingPlayback ?: return@PlaybackPickerDialog
-                pendingPlayback = null
-                scope.launch {
-                    running = true
-                    runCatching {
-                        when (pending) {
-                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
-                            is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
-                        }
-                    }
-                        .onSuccess {
-                            statusText = it.message
-                            if (it.launched) {
-                                browseSeriesEpisodes = when (pending) {
-                                    is PendingPlayback.WatchingEpisode -> browseSeriesEpisodes.withWatchingFlag(pending.episode)
-                                    is PendingPlayback.Binge -> browseSeriesEpisodes.withBingeStartFlag(pending.seasonKey)
-                                    else -> browseSeriesEpisodes
-                                }
+                items(visibleCategories, key = { "${mode.name}:${it.rowId}" }) { category ->
+                    CategoryListRow(category, category.rowId in selectedCategoryIds, categorySelectionMode,
+                        onClick = {
+                            if (categorySelectionMode) toggleCategorySelection(category)
+                            else {
+                                selectedCategoryRowId = category.rowId
+                                channelQuery = itemQueries["${mode.name}:${category.rowId}"].orEmpty()
+                                reload(snapshot.selectedAccountId, category.rowId, channelQuery)
                             }
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to open stream" }
-                    running = false
+                        }, onLongClick = { beginCategorySelection(category) })
                 }
             }
-        )
-        return
-    }
-
-        BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-            val compactChrome = maxWidth > maxHeight
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = DeepNightBackground,
-                topBar = {
-                    if (!compactChrome) {
-                        CenterAlignedTopAppBar(
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = DeepNightSurface,
-                                titleContentColor = DeepNightText,
-                                navigationIconContentColor = DeepNightPrimary,
-                                actionIconContentColor = DeepNightPrimary
-                            ),
-                            navigationIcon = {
-                                if (canNavigateBackToCategories || onBackToAccounts != null) {
-                                    IconButton(
-                                        modifier = Modifier.semantics {
-                                            contentDescription = if (canNavigateBackToCategories) "Back to categories" else "Back to accounts"
-                                        },
-                                        onClick = {
-                                            if (canNavigateBackToCategories) {
-                                                backToCategories()
-                                            } else {
-                                                onBackToAccounts?.invoke()
-                                            }
-                                        }
-                                    ) {
-                                        Text("←", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        } else {
+            itemScreenStates.SaveableStateProvider("${mode.name}:$selectedCategoryRowId") {
+                Column(Modifier.fillMaxSize()) {
+                    MobileLiveGuideButton(snapshot.items) { openBrowseItem(it) }
+                    CatalogueItems(
+                        items = snapshot.items,
+                        mode = mode,
+                        loading = running,
+                        searching = channelQuery.isNotBlank(),
+                        showThumbnails = showThumbnails,
+                        logoRenderer = logoRenderer,
+                        onPlay = { openBrowseItem(it) },
+                        onChoosePlayer = { openBrowseItem(it, forcePlayerPicker = true) },
+                        onToggleBookmark = { item ->
+                            scope.launch {
+                                runCatching { browseActions.toggleBookmark(item) }
+                                    .onSuccess { bookmarked ->
+                                        snapshot = snapshot.copy(items = snapshot.items.map {
+                                            if (it.rowId == item.rowId) it.copy(isBookmarked = bookmarked) else it
+                                        })
                                     }
-                                }
-                            },
-                            title = {
-                                Text(
-                                    screenTitle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            },
-                            actions = {
-                                val searchDescription = if (selectedCategoryRowId == null) "Search categories" else "Search channels"
-                                IconButton(
-                                    modifier = Modifier.semantics { contentDescription = searchDescription },
-                                    onClick = { toggleCompactSearch() }
-                                ) {
-                                    Text(if (searchVisible) "X" else "⌕", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        )
-                    }
-                }
-            ) { padding ->
-                val contentPadding = if (compactChrome) 4.dp else 12.dp
-                val verticalGap = if (compactChrome) 4.dp else 10.dp
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(contentPadding),
-                    verticalArrangement = Arrangement.spacedBy(verticalGap)
-                ) {
-                    if (compactChrome) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (canNavigateBackToCategories || onBackToAccounts != null) {
-                                item {
-                                    CompactChromeIcon("←", if (canNavigateBackToCategories) "Back to categories" else "Back to accounts") {
-                                        if (canNavigateBackToCategories) {
-                                            backToCategories()
-                                        } else {
-                                            onBackToAccounts?.invoke()
-                                        }
-                                    }
-                                }
-                            }
-                            item {
-                                CompactChromeIcon(
-                                    if (searchVisible) "X" else "⌕",
-                                    if (selectedCategoryRowId == null) "Search categories" else "Search channels"
-                                ) {
-                                    toggleCompactSearch()
-                                }
-                            }
-                            if (showAccountSelector) {
-                                items(snapshot.accounts, key = { it.id }) { account ->
-                                    FilterChip(
-                                        selected = snapshot.selectedAccountId == account.id,
-                                        onClick = {
-                                            clearCategorySelection()
-                                            selectedCategoryRowId = null
-                                            channelQuery = ""
-                                            val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
-                                            mode = nextMode
-                                            reload(account.id, null, "", nextMode)
-                                        },
-                                        label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                    )
-                                }
-                            }
-                            if ((!showingChannelList || bypassSingleCategory) && visibleModes.size > 1) {
-                                items(visibleModes, key = { it.name }) { entry ->
-                                    FilterChip(
-                                        selected = mode == entry,
-                                        onClick = {
-                                            clearCategorySelection()
-                                            mode = entry
-                                            selectedCategoryRowId = null
-                                            channelQuery = ""
-                                            reload(snapshot.selectedAccountId, null, "", entry)
-                                        },
-                                        label = { Text(entry.displayLabel()) }
-                                    )
-                                }
+                                    .onFailure { statusText = "Unable to update bookmark. Please try again." }
                             }
                         }
-                } else {
-                    if (showAccountSelector) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(snapshot.accounts, key = { it.id }) { account ->
-                                FilterChip(
-                                    selected = snapshot.selectedAccountId == account.id,
-                                    onClick = {
-                                        clearCategorySelection()
-                                        selectedCategoryRowId = null
-                                        channelQuery = ""
-                                        val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
-                                        mode = nextMode
-                                        reload(account.id, null, "", nextMode)
-                                    },
-                                    label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                )
-                            }
-                        }
-                    }
-                    if ((!showingChannelList || bypassSingleCategory) && visibleModes.size > 1) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(visibleModes, key = { it.name }) { entry ->
-                                FilterChip(
-                                    selected = mode == entry,
-                                    onClick = {
-                                        clearCategorySelection()
-                                        mode = entry
-                                        selectedCategoryRowId = null
-                                        channelQuery = ""
-                                        reload(snapshot.selectedAccountId, null, "", entry)
-                                    },
-                                    label = { Text(entry.displayLabel()) }
-                                )
-                            }
-                        }
-                    }
-                }
-                MobileLiveGuideButton(snapshot.items) { openBrowseItem(it) }
-                if (searchVisible) {
-                    CompactOutlinedTextField(
-                        value = if (selectedCategoryRowId == null) categoryQuery else channelQuery,
-                        onValueChange = {
-                            if (selectedCategoryRowId == null) {
-                                categoryQuery = it
-                            } else {
-                                channelQuery = it
-                                reload(snapshot.selectedAccountId, selectedCategoryRowId, it)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = if (selectedCategoryRowId == null) "Search categories" else "Search channels"
                     )
-                }
-                AnimatedContent(
-                    targetState = selectedCategoryRowId,
-                    modifier = Modifier.weight(1f),
-                    label = "channel-list"
-                ) { categoryId ->
-                    if (categoryId == null) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (categorySelectionMode) {
-                                item {
-                                    CategorySelectionToolbar(
-                                        selectedCount = selectedCategoryCount,
-                                        onRemove = { requestCategoryRemoval() },
-                                        onCancel = { clearCategorySelection() }
-                                    )
-                                }
-                            }
-                            if (visibleCategories.isEmpty()) {
-                                item {
-                                    EmptyState(
-                                        title = when {
-                                            snapshot.accounts.isEmpty() -> "No accounts"
-                                            snapshot.categories.isEmpty() -> "No ${mode.displayLabel()} categories"
-                                            categoryQuery.isNotBlank() -> "No categories match"
-                                            else -> "No ${mode.displayLabel()} categories"
-                                        },
-                                        detail = when {
-                                            snapshot.accounts.isEmpty() -> "Add an account or pull data from desktop sync."
-                                            snapshot.categories.isEmpty() -> "Refresh this account cache after adding or syncing it."
-                                            else -> "Try a shorter search term."
-                                        }
-                                    )
-                                }
-                            }
-                            items(visibleCategories, key = { it.rowId }) { category ->
-                                CategoryListRow(
-                                    category = category,
-                                    selected = category.rowId in selectedCategoryIds,
-                                    selectionMode = categorySelectionMode,
-                                    onClick = {
-                                        if (categorySelectionMode) {
-                                            toggleCategorySelection(category)
-                                        } else {
-                                            selectedCategoryRowId = category.rowId
-                                            channelQuery = ""
-                                            reload(snapshot.selectedAccountId, category.rowId, "")
-                                        }
-                                    },
-                                    onLongClick = { beginCategorySelection(category) }
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (snapshot.items.isEmpty()) {
-                                item {
-                                    EmptyState(
-                                        title = when {
-                                            snapshot.accounts.isEmpty() -> "No accounts"
-                                            snapshot.categories.isEmpty() -> "No ${mode.displayLabel()} categories"
-                                            channelQuery.isNotBlank() -> "No channel matches"
-                                            else -> "No ${mode.displayLabel()} items"
-                                        },
-                                        detail = when {
-                                            snapshot.accounts.isEmpty() -> "Add an account or pull data from desktop sync."
-                                            snapshot.categories.isEmpty() -> "Refresh this account cache after adding or syncing it."
-                                            channelQuery.isNotBlank() -> "Try a shorter search term."
-                                            else -> "This category has no cached items."
-                                        }
-                                    )
-                                }
-                            }
-                            items(snapshot.items, key = { "${it.mode}-${it.rowId}-${it.categoryRowId}" }) { item ->
-                                BrowseItemRow(
-                                    item = item,
-                                    showThumbnail = showThumbnails,
-                                    logoRenderer = logoRenderer,
-                                    onPlay = { openBrowseItem(item) },
-                                    onChoosePlayer = { openBrowseItem(item, forcePlayerPicker = true) },
-                                    onToggleBookmark = {
-                                        scope.launch {
-                                            running = true
-                                            runCatching { browseActions.toggleBookmark(item) }
-                                                .onSuccess { bookmarked ->
-                                                    statusText = if (bookmarked) "Bookmarked ${item.name}" else "Removed bookmark"
-                                                    reload()
-                                                }
-                                                .onFailure { statusText = it.message ?: "Unable to update bookmark" }
-                                            running = false
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                if (running) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                if (!compactChrome) {
-                    Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -1442,7 +1139,7 @@ private fun ChannelsScreen(
         pendingPlayback = pendingPlayback,
         playerChoices = playerChoices,
         playerIconRenderer = playerIconRenderer,
-        wideLayout = false,
+        wideLayout = wideLayout,
         onDismiss = { pendingPlayback = null },
         onInstall = { choice ->
             pendingPlayback = null
@@ -1450,7 +1147,7 @@ private fun ChannelsScreen(
                 running = true
                 runCatching { playbackActions.openPlayerInstall(choice) }
                     .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                    .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    .onFailure { statusText = "Unable to open Google Play" }
                 running = false
             }
         },
@@ -1478,284 +1175,11 @@ private fun ChannelsScreen(
                             }
                         }
                     }
-                    .onFailure { statusText = it.message ?: "Unable to open stream" }
+                    .onFailure { statusText = "Unable to open stream" }
                 running = false
             }
         }
     )
-}
-
-@Composable
-private fun WideChannelsContent(
-    snapshot: MobileBrowseSnapshot,
-    visibleCategories: List<MobileBrowseCategory>,
-    visibleModes: List<BrowseMode>,
-    mode: BrowseMode,
-    selectedCategoryRowId: Long?,
-    screenTitle: String,
-    categoryQuery: String,
-    channelQuery: String,
-    showAccountSelector: Boolean,
-    showThumbnails: Boolean,
-    running: Boolean,
-    statusText: String,
-    logoRenderer: LogoRenderer,
-    searchVisible: Boolean,
-    categorySelectionMode: Boolean,
-    selectedCategoryIds: Set<Long>,
-    selectedCategoryCount: Int,
-    showCategoryPane: Boolean,
-    showBack: Boolean,
-    onBack: () -> Unit,
-    onCategoryQueryChange: (String) -> Unit,
-    onChannelQueryChange: (String) -> Unit,
-    onAccountSelect: (BrowseAccountOption) -> Unit,
-    onModeSelect: (BrowseMode) -> Unit,
-    onCategorySelect: (MobileBrowseCategory) -> Unit,
-    onCategoryLongPress: (MobileBrowseCategory) -> Unit,
-    onClearCategorySelection: () -> Unit,
-    onRemoveSelectedCategories: () -> Unit,
-    onPlayItem: (MobileBrowseItem) -> Unit,
-    onChooseItemPlayer: (MobileBrowseItem) -> Unit,
-    onToggleBookmark: (MobileBrowseItem) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val compactWide = LocalWidePhoneLayout.current
-    val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 8.dp else 12.dp
-    val sideWidth = if (compactWide) 224.dp else 300.dp
-    val itemColumns = if (compactWide) 1 else if (showCategoryPane) 2 else 3
-    Column(modifier = modifier.fillMaxSize()) {
-        if (!compactWide) {
-            CenterAlignedTopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DeepNightSurface,
-                    titleContentColor = DeepNightText,
-                    navigationIconContentColor = DeepNightPrimary,
-                    actionIconContentColor = DeepNightPrimary
-                ),
-                navigationIcon = {
-                    if (showBack) {
-                        OutlinedButton(onClick = onBack) {
-                            Text("Back")
-                        }
-                    }
-                },
-                title = {
-                    Text(
-                        screenTitle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(outerPadding),
-            horizontalArrangement = Arrangement.spacedBy(gap)
-        ) {
-            if (showCategoryPane) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(sideWidth),
-                    shape = RoundedCornerShape(14.dp),
-                    color = DeepNightSurface,
-                    contentColor = DeepNightText
-                ) {
-                    Column(
-                        modifier = Modifier.padding(if (compactWide) 8.dp else 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-                    ) {
-                        if (compactWide) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                if (showBack) {
-                                    OutlinedButton(onClick = onBack) {
-                                        Text("Back")
-                                    }
-                                }
-                                Text(
-                                    screenTitle,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        if (showAccountSelector) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(snapshot.accounts, key = { it.id }) { account ->
-                                    FilterChip(
-                                        selected = snapshot.selectedAccountId == account.id,
-                                        onClick = { onAccountSelect(account) },
-                                        label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                    )
-                                }
-                            }
-                        }
-                        if (visibleModes.size > 1) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(visibleModes, key = { it.name }) { entry ->
-                                    FilterChip(
-                                        selected = mode == entry,
-                                        onClick = { onModeSelect(entry) },
-                                        label = { Text(entry.displayLabel()) }
-                                    )
-                                }
-                            }
-                        }
-                        MobileLiveGuideButton(snapshot.items, onPlayItem)
-                if (searchVisible) {
-                            CompactOutlinedTextField(
-                                value = categoryQuery,
-                                onValueChange = onCategoryQueryChange,
-                                modifier = Modifier.fillMaxWidth(),
-                                label = "Search categories"
-                            )
-                        }
-                        if (categorySelectionMode) {
-                            CategorySelectionToolbar(
-                                selectedCount = selectedCategoryCount,
-                                onRemove = onRemoveSelectedCategories,
-                                onCancel = onClearCategorySelection
-                            )
-                        }
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (visibleCategories.isEmpty()) {
-                                item {
-                                    EmptyState(
-                                        title = when {
-                                            snapshot.accounts.isEmpty() -> "No accounts"
-                                            snapshot.categories.isEmpty() -> "No ${mode.displayLabel()} categories"
-                                            categoryQuery.isNotBlank() -> "No categories match"
-                                            else -> "No ${mode.displayLabel()} categories"
-                                        },
-                                        detail = when {
-                                            snapshot.accounts.isEmpty() -> "Add an account or pull data from desktop sync."
-                                            snapshot.categories.isEmpty() -> "Refresh this account cache after adding or syncing it."
-                                            else -> "Try a shorter search term."
-                                        }
-                                    )
-                                }
-                            }
-                            items(visibleCategories, key = { it.rowId }) { category ->
-                                CategoryListRow(
-                                    category = category,
-                                    selected = category.rowId in selectedCategoryIds,
-                                    selectionMode = categorySelectionMode,
-                                    onClick = { onCategorySelect(category) },
-                                    onLongClick = { onCategoryLongPress(category) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (!showCategoryPane && (showAccountSelector || visibleModes.size > 1)) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (showAccountSelector) {
-                            items(snapshot.accounts, key = { it.id }) { account ->
-                                FilterChip(
-                                    selected = snapshot.selectedAccountId == account.id,
-                                    onClick = { onAccountSelect(account) },
-                                    label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                )
-                            }
-                        }
-                        if (visibleModes.size > 1) {
-                            items(visibleModes, key = { it.name }) { entry ->
-                                FilterChip(
-                                    selected = mode == entry,
-                                    onClick = { onModeSelect(entry) },
-                                    label = { Text(entry.displayLabel()) }
-                                )
-                            }
-                        }
-                    }
-                }
-                if (searchVisible) {
-                    CompactOutlinedTextField(
-                        value = channelQuery,
-                        onValueChange = onChannelQueryChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = "Search channels"
-                    )
-                }
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (selectedCategoryRowId == null) {
-                        item {
-                            EmptyState(
-                                title = "Select a category",
-                                detail = "Categories stay visible on wide screens while items open here."
-                            )
-                        }
-                    } else if (snapshot.items.isEmpty()) {
-                        item {
-                            EmptyState(
-                                title = when {
-                                    snapshot.accounts.isEmpty() -> "No accounts"
-                                    snapshot.categories.isEmpty() -> "No ${mode.displayLabel()} categories"
-                                    channelQuery.isNotBlank() -> "No channel matches"
-                                    else -> "No ${mode.displayLabel()} items"
-                                },
-                                detail = when {
-                                    snapshot.accounts.isEmpty() -> "Add an account or pull data from desktop sync."
-                                    snapshot.categories.isEmpty() -> "Refresh this account cache after adding or syncing it."
-                                    channelQuery.isNotBlank() -> "Try a shorter search term."
-                                    else -> "This category has no cached items."
-                                }
-                            )
-                        }
-                    }
-                    items(snapshot.items.chunked(itemColumns)) { rowItems ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            rowItems.forEach { item ->
-                                Box(modifier = Modifier.weight(1f)) {
-                                    BrowseItemRow(
-                                        item = item,
-                                        showThumbnail = showThumbnails,
-                                        logoRenderer = logoRenderer,
-                                        onPlay = { onPlayItem(item) },
-                                        onChoosePlayer = { onChooseItemPlayer(item) },
-                                        onToggleBookmark = { onToggleBookmark(item) }
-                                    )
-                                }
-                            }
-                            repeat(itemColumns - rowItems.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-                if (running) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
 }
 
 @Composable
@@ -1859,14 +1283,15 @@ private fun CategoryListRow(
     onLongClick: () -> Unit = {}
 ) {
     val backgroundColor = if (selected) {
-        DeepNightPrimary.copy(alpha = 0.24f)
+        MaterialTheme.colorScheme.secondaryContainer
     } else {
-        DeepNightSurfaceHigh
+        MaterialTheme.colorScheme.surfaceContainerLow
     }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 56.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(backgroundColor)
             .combinedClickable(
                 onClick = onClick,
@@ -1876,7 +1301,7 @@ private fun CategoryListRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (selectionMode) {
-            Checkbox(
+            MobileM3Switch(
                 checked = selected,
                 onCheckedChange = { onClick() }
             )
@@ -1884,6 +1309,7 @@ private fun CategoryListRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 category.title,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
@@ -1895,6 +1321,7 @@ private fun CategoryListRow(
                 style = MaterialTheme.typography.bodySmall
             )
         }
+        if (!selectionMode) Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DeepNightMutedText)
     }
 }
 
@@ -1945,7 +1372,7 @@ private fun CategoryPill(name: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BrowseItemRow(
+internal fun BrowseItemRow(
     item: MobileBrowseItem,
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
@@ -2083,23 +1510,11 @@ private fun FavouriteStar(
     onClick: () -> Unit,
     compact: Boolean = false
 ) {
-    val touchModifier = if (compact) {
-        Modifier.size(28.dp)
-    } else {
-        Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(if (selected) androidx.compose.material.icons.Icons.Outlined.Bookmark else androidx.compose.material.icons.Icons.Outlined.BookmarkBorder,
+            contentDescription = contentDescription,
+            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    Text(
-        text = if (selected) "★" else "☆",
-        modifier = touchModifier
-            .clickable(onClick = onClick)
-            .semantics { this.contentDescription = contentDescription }
-            .padding(end = if (compact) 2.dp else 0.dp)
-            .padding(horizontal = if (compact) 0.dp else 10.dp, vertical = if (compact) 0.dp else 6.dp),
-        color = if (selected) Color(0xFFFFD54F) else DeepNightText,
-        fontSize = if (compact) 14.sp else 28.sp,
-        fontWeight = FontWeight.Bold,
-        maxLines = 1
-    )
 }
 
 @Composable
@@ -2116,17 +1531,16 @@ private fun BookmarksScreen(
 ) {
     val scope = rememberCoroutineScope()
     var categories by remember { mutableStateOf<List<MobileBookmarkCategory>>(emptyList()) }
-    var selectedCategoryId by remember { mutableStateOf<String?>(RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID) }
+    var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID) }
     var bookmarks by remember { mutableStateOf<List<MobileBookmark>>(emptyList()) }
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     var searchVisible by rememberSaveable { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Loading") }
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
 
-    fun activeSearchVisible(): Boolean = if (wideLayout) wideSearchVisible else searchVisible
-    fun activeBookmarkQuery(): String = if (activeSearchVisible()) query else ""
+    fun activeBookmarkQuery(): String = query
     fun removeBookmarkFromActiveList(bookmark: MobileBookmark) {
         scope.launch {
             val clearingRecent = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
@@ -2154,8 +1568,10 @@ private fun BookmarksScreen(
         }
     }
 
+    var listLoad by remember { mutableStateOf<Job?>(null) }
     fun reload(categoryId: String? = selectedCategoryId, search: String = activeBookmarkQuery()) {
-        scope.launch {
+        listLoad?.cancel()
+        listLoad = scope.launch {
             running = true
             runCatching {
                 categories = browseActions.listBookmarkCategories()
@@ -2165,7 +1581,7 @@ private fun BookmarksScreen(
                     bookmarks = it
                     statusText = if (it.isEmpty()) "No bookmarks" else "${it.size} bookmarks"
                 }
-                .onFailure { statusText = it.message ?: "Unable to load bookmarks" }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; statusText = "Unable to load bookmarks" }
             running = false
         }
     }
@@ -2181,7 +1597,7 @@ private fun BookmarksScreen(
                             statusText = it.message
                             if (it.launched) reload()
                         }
-                        .onFailure { statusText = it.message ?: "Unable to open bookmark" }
+                        .onFailure { statusText = "Unable to open bookmark" }
                     running = false
                     return@launch
                 }
@@ -2195,162 +1611,16 @@ private fun BookmarksScreen(
     LaunchedEffect(browseActions, refreshSignal) {
         reload()
     }
-    LaunchedEffect(wideLayout, wideSearchVisible, searchVisible) {
-        if (!activeSearchVisible() && query.isNotBlank()) {
-            query = ""
-            reload(search = "")
-        }
-    }
 
-    if (wideLayout) {
-        WideBookmarksContent(
-            categories = categories,
-            selectedCategoryId = selectedCategoryId,
-            bookmarks = bookmarks,
-            query = query,
-            running = running,
-            statusText = statusText,
-            showThumbnails = showThumbnails,
-            logoRenderer = logoRenderer,
-            searchVisible = wideSearchVisible,
-            onQueryChange = {
-                query = it
-                reload(search = it)
-            },
-            onCategorySelect = { category ->
-                selectedCategoryId = category.id
-                reload(category.id)
-            },
-            onPlay = { bookmark -> openBookmark(bookmark) },
-            onChoosePlayer = { bookmark -> openBookmark(bookmark, forcePlayerPicker = true) },
-            onRemove = { bookmark ->
-                removeBookmarkFromActiveList(bookmark)
-            },
-            modifier = modifier
-        )
-        PlaybackPickerDialog(
-            pendingPlayback = pendingPlayback,
-            playerChoices = playerChoices,
-            playerIconRenderer = playerIconRenderer,
-            wideLayout = true,
-            onDismiss = { pendingPlayback = null },
-            onInstall = { choice ->
-                pendingPlayback = null
-                scope.launch {
-                    running = true
-                    runCatching { playbackActions.openPlayerInstall(choice) }
-                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
-                    running = false
-                }
-            },
-            onSelect = { player, remember ->
-                val pending = pendingPlayback ?: return@PlaybackPickerDialog
-                pendingPlayback = null
-                scope.launch {
-                    running = true
-                    runCatching {
-                        when (pending) {
-                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
-                            is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
-                        }
-                    }
-                        .onSuccess {
-                            statusText = it.message
-                            if (it.launched && pending is PendingPlayback.Bookmark) reload()
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to open bookmark" }
-                    running = false
-                }
-            }
-        )
-        return
-    }
-
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item(key = "bookmark-search-toggle") {
-                    IconButton(
-                        modifier = Modifier.semantics {
-                            contentDescription = if (searchVisible) "Hide bookmark search" else "Show bookmark search"
-                        },
-                        onClick = {
-                            searchVisible = !searchVisible
-                            if (!searchVisible && query.isNotBlank()) {
-                                query = ""
-                                reload(search = "")
-                            }
-                        }
-                    ) {
-                        Icon(
-                            Icons.Outlined.Search,
-                            contentDescription = null,
-                            tint = if (searchVisible) DeepNightAccent else DeepNightPrimary
-                        )
-                    }
-                }
-                items(categories, key = { it.id ?: it.name }) { category ->
-                    FilterChip(
-                        selected = selectedCategoryId == category.id,
-                        onClick = {
-                            selectedCategoryId = category.id
-                            reload(category.id)
-                        },
-                        label = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    )
-                }
-            }
-        }
-        if (searchVisible) {
-            item(key = "bookmark-search-field") {
-                CompactOutlinedTextField(
-                    value = query,
-                    onValueChange = {
-                        query = it
-                        reload(search = it)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = "Search bookmarks"
-                )
-            }
-        }
-        if (bookmarks.isEmpty()) {
-            item {
-                EmptyState(
-                    title = bookmarkEmptyTitle(query, selectedCategoryId),
-                    detail = bookmarkEmptyDetail(query, selectedCategoryId)
-                )
-            }
-        }
-        items(bookmarks, key = { it.rowId }) { bookmark ->
-            BookmarkRow(
-                bookmark = bookmark,
-                recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
-                showThumbnail = showThumbnails,
-                logoRenderer = logoRenderer,
-                onPlay = { openBookmark(bookmark) },
-                onChoosePlayer = { openBookmark(bookmark, forcePlayerPicker = true) },
-                onRemove = {
-                    removeBookmarkFromActiveList(bookmark)
-                }
-            )
-        }
-        item {
-            if (running) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-        }
-    }
+    BookmarkLibrary(
+        categories, selectedCategoryId, bookmarks, query, searchVisible, running, statusText,
+        showThumbnails, logoRenderer,
+        onSearch = { searchVisible = !searchVisible },
+        onQueryChange = { query = it; reload(search = it) },
+        onCategorySelect = { selectedCategoryId = it.id; reload(it.id) },
+        onPlay = { openBookmark(it) }, onChoosePlayer = { openBookmark(it, forcePlayerPicker = true) },
+        onRemove = { removeBookmarkFromActiveList(it) }, modifier = modifier
+    )
 
     PlaybackPickerDialog(
         pendingPlayback = pendingPlayback,
@@ -2364,7 +1634,7 @@ private fun BookmarksScreen(
                 running = true
                 runCatching { playbackActions.openPlayerInstall(choice) }
                     .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                    .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    .onFailure { statusText = "Unable to open Google Play" }
                 running = false
             }
         },
@@ -2386,7 +1656,7 @@ private fun BookmarksScreen(
                         statusText = it.message
                         if (it.launched && pending is PendingPlayback.Bookmark) reload()
                     }
-                    .onFailure { statusText = it.message ?: "Unable to open bookmark" }
+                    .onFailure { statusText = "Unable to open bookmark" }
                 running = false
             }
         }
@@ -2408,7 +1678,7 @@ private fun bookmarkEmptyDetail(query: String, selectedCategoryId: String?): Str
     }
 
 @Composable
-private fun BookmarkRow(
+internal fun BookmarkRow(
     bookmark: MobileBookmark,
     recentlyPlayed: Boolean,
     showThumbnail: Boolean,
@@ -2443,43 +1713,6 @@ private fun BookmarkRow(
             },
             headlineContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (recentlyPlayed) {
-                        IconButton(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .semantics { contentDescription = "Clear recently played ${bookmark.channelName}" },
-                            onClick = onRemove
-                        ) {
-                            Icon(
-                                Icons.Outlined.DeleteSweep,
-                                contentDescription = null,
-                                tint = DeepNightAccent
-                            )
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .combinedClickable(
-                                    enabled = bookmark.command.isNotBlank(),
-                                    onClick = onPlay,
-                                    onLongClick = onRemove
-                                )
-                                .semantics {
-                                    contentDescription =
-                                        "Play ${bookmark.channelName}; long press to remove favourite"
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "★",
-                                color = Color(0xFFFFD54F),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-                    }
                     Text(
                         bookmark.channelName,
                         modifier = Modifier.weight(1f),
@@ -2494,6 +1727,10 @@ private fun BookmarkRow(
                         DrmBadge(Modifier.padding(start = 8.dp))
                     }
                 }
+            },
+            trailingContent = {
+                ItemActionsMenu(bookmark.channelName, onChoosePlayer, onRemove,
+                    if (recentlyPlayed) "Remove from Recent" else "Remove bookmark")
             },
             supportingContent = {
                 Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -2525,167 +1762,7 @@ private fun DrmBadge(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun WideBookmarksContent(
-    categories: List<MobileBookmarkCategory>,
-    selectedCategoryId: String?,
-    bookmarks: List<MobileBookmark>,
-    query: String,
-    running: Boolean,
-    statusText: String,
-    showThumbnails: Boolean,
-    logoRenderer: LogoRenderer,
-    searchVisible: Boolean,
-    onQueryChange: (String) -> Unit,
-    onCategorySelect: (MobileBookmarkCategory) -> Unit,
-    onPlay: (MobileBookmark) -> Unit,
-    onChoosePlayer: (MobileBookmark) -> Unit,
-    onRemove: (MobileBookmark) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val compactWide = LocalWidePhoneLayout.current
-    val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 8.dp else 10.dp
-    val itemColumns = if (compactWide) 2 else 3
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(outerPadding),
-        verticalArrangement = Arrangement.spacedBy(gap)
-    ) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(categories, key = { it.id ?: it.name }) { category ->
-                FilterChip(
-                    selected = selectedCategoryId == category.id,
-                    onClick = { onCategorySelect(category) },
-                    label = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                )
-            }
-        }
-        if (searchVisible) {
-            CompactOutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = "Search bookmarks"
-            )
-        }
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(gap)
-        ) {
-            if (bookmarks.isEmpty()) {
-                item {
-                    EmptyState(
-                        title = bookmarkEmptyTitle(query, selectedCategoryId),
-                        detail = bookmarkEmptyDetail(query, selectedCategoryId)
-                    )
-                }
-            }
-            items(bookmarks.chunked(itemColumns)) { rowBookmarks ->
-                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                    rowBookmarks.forEach { bookmark ->
-                        Box(modifier = Modifier.weight(1f)) {
-                            BookmarkRow(
-                                bookmark = bookmark,
-                                recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
-                                showThumbnail = showThumbnails,
-                                logoRenderer = logoRenderer,
-                                onPlay = { onPlay(bookmark) },
-                                onChoosePlayer = { onChoosePlayer(bookmark) },
-                                onRemove = { onRemove(bookmark) }
-                            )
-                        }
-                    }
-                    repeat(itemColumns - rowBookmarks.size) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-        if (running) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-        Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-    }
-}
 
-@Composable
-private fun WideWatchingNowContent(
-    items: List<MobileWatchingNowItem>,
-    query: String,
-    filter: WatchingNowFilter,
-    running: Boolean,
-    statusText: String,
-    showThumbnails: Boolean,
-    logoRenderer: LogoRenderer,
-    searchVisible: Boolean,
-    onQueryChange: (String) -> Unit,
-    onFilterSelect: (WatchingNowFilter) -> Unit,
-    onOpen: (MobileWatchingNowItem) -> Unit,
-    onRemove: (MobileWatchingNowItem) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val compactWide = LocalWidePhoneLayout.current
-    val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 6.dp else 8.dp
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(outerPadding),
-        verticalArrangement = Arrangement.spacedBy(gap)
-    ) {
-        if (searchVisible) {
-            CompactOutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = "Search watching now"
-            )
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(WatchingNowFilter.entries, key = { it.name }) { entry ->
-                FilterChip(
-                    selected = filter == entry,
-                    onClick = { onFilterSelect(entry) },
-                    label = { Text(entry.label) }
-                )
-            }
-        }
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(gap)
-        ) {
-            if (items.isEmpty()) {
-                item {
-                    val filtered = filter != WatchingNowFilter.ALL
-                    EmptyState(
-                        title = when {
-                            filtered -> "No ${filter.label} entries"
-                            query.isBlank() -> "Nothing to resume"
-                            else -> "No resume matches"
-                        },
-                        detail = if (query.isBlank()) "VOD and series appear here after playback starts." else "Try a shorter search term."
-                    )
-                }
-            }
-            items(items, key = { it.stableWatchingNowKey() }) { item ->
-                WatchingNowRow(
-                    item = item,
-                    showThumbnail = showThumbnails,
-                    logoRenderer = logoRenderer,
-                    wideLayout = true,
-                    onOpen = { onOpen(item) },
-                    onRemove = { onRemove(item) }
-                )
-            }
-        }
-        if (running) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-        Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-    }
-}
 
 @Composable
 private fun WatchingNowScreen(
@@ -2697,13 +1774,15 @@ private fun WatchingNowScreen(
     resumeSignal: Int,
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
+    backHandler: @Composable (Boolean, () -> Unit) -> Unit,
     detailsPanelVisible: Boolean,
     onDetailsPanelVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     var items by remember { mutableStateOf<List<MobileWatchingNowItem>>(emptyList()) }
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchVisible by rememberSaveable { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Loading") }
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
@@ -2712,23 +1791,22 @@ private fun WatchingNowScreen(
     var seriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingRemoveWatchingNow by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
-    var wideWatchingFilter by rememberSaveable { mutableStateOf(WatchingNowFilter.ALL) }
+    var wideWatchingFilter by rememberSaveable { mutableStateOf(WatchingNowFilter.SERIES) }
 
-    fun activeWatchingQuery(): String = if (!wideLayout || wideSearchVisible) query else ""
+    fun activeWatchingQuery(): String = query
 
+    var listLoad by remember { mutableStateOf<Job?>(null) }
     fun reload(search: String = activeWatchingQuery()) {
-        scope.launch {
+        listLoad?.cancel()
+        listLoad = scope.launch {
             running = true
             runCatching { browseActions.listWatchingNow(search) }
                 .onSuccess { loaded ->
                     items = loaded
                     statusText = if (loaded.isEmpty()) "Nothing to resume" else "${loaded.size} resume entries"
-                    val enriched = loaded.map { item ->
-                        runCatching { browseActions.enrichWatchingNowItem(item) }.getOrDefault(item)
-                    }
-                    items = enriched
+
                 }
-                .onFailure { statusText = it.message ?: "Unable to load watching-now" }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; statusText = "Unable to load watching-now" }
             running = false
         }
     }
@@ -2761,7 +1839,7 @@ private fun WatchingNowScreen(
                             }
                         }
                     }
-                    .onFailure { statusText = it.message ?: "Unable to resume" }
+                    .onFailure { statusText = "Unable to resume" }
             } else {
                 playerChoices = playbackActions.playerChoices().choicesFor(pending)
                 pendingPlayback = pending
@@ -2788,7 +1866,7 @@ private fun WatchingNowScreen(
                             seriesEpisodes = details.episodes
                         }
                 }
-                .onFailure { statusText = it.message ?: "Unable to open series" }
+                .onFailure { statusText = "Unable to open series" }
             running = false
         }
     }
@@ -2805,7 +1883,7 @@ private fun WatchingNowScreen(
                     }
                     statusText = "Removed ${item.title}"
                 }
-                .onFailure { statusText = it.message ?: "Unable to remove item" }
+                .onFailure { statusText = "Unable to remove item" }
             running = false
         }
     }
@@ -2813,12 +1891,7 @@ private fun WatchingNowScreen(
     LaunchedEffect(browseActions) {
         reload()
     }
-    LaunchedEffect(wideLayout, wideSearchVisible) {
-        if (wideLayout && !wideSearchVisible && query.isNotBlank()) {
-            query = ""
-            reload("")
-        }
-    }
+
     LaunchedEffect(resumeSignal) {
         val currentSeries = selectedSeries
         if (currentSeries != null) {
@@ -2828,6 +1901,7 @@ private fun WatchingNowScreen(
         }
     }
 
+    backHandler(selectedSeries != null) { selectedSeries = null; seriesEpisodes = emptyList() }
     val series = selectedSeries
     if (series != null) {
         WatchingNowSeriesDetail(
@@ -2871,7 +1945,7 @@ private fun WatchingNowScreen(
                             seriesEpisodes = seriesEpisodes.withWatchingFlag(episode)
                             statusText = "Marked ${episode.title} as Watching Now"
                         }
-                        .onFailure { statusText = it.message ?: "Unable to mark Watching Now" }
+                        .onFailure { statusText = "Unable to mark Watching Now" }
                     running = false
                 }
             },
@@ -2890,7 +1964,7 @@ private fun WatchingNowScreen(
                             }
                             statusText = "Removed Watching Now flag"
                         }
-                        .onFailure { statusText = it.message ?: "Unable to remove Watching Now flag" }
+                        .onFailure { statusText = "Unable to remove Watching Now flag" }
                     running = false
                 }
             },
@@ -2900,7 +1974,7 @@ private fun WatchingNowScreen(
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
                         .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                        .onFailure { statusText = "Unable to open Google Play" }
                     running = false
                 }
             },
@@ -2915,7 +1989,7 @@ private fun WatchingNowScreen(
                                 seriesEpisodes = seriesEpisodes.withWatchingFlag(episode)
                             }
                         }
-                        .onFailure { statusText = it.message ?: "Unable to open episode" }
+                        .onFailure { statusText = "Unable to open episode" }
                     running = false
                 }
             }
@@ -2940,7 +2014,7 @@ private fun WatchingNowScreen(
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
                         .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                        .onFailure { statusText = "Unable to open Google Play" }
                     running = false
                 }
             },
@@ -2968,7 +2042,7 @@ private fun WatchingNowScreen(
                                 }
                             }
                         }
-                        .onFailure { statusText = it.message ?: "Unable to resume" }
+                        .onFailure { statusText = "Unable to resume" }
                     running = false
                 }
             }
@@ -2976,127 +2050,53 @@ private fun WatchingNowScreen(
         return
     }
 
-    if (wideLayout) {
-        val visibleItems = remember(items, wideWatchingFilter) {
-            items.filter(wideWatchingFilter::matches)
-        }
-        WideWatchingNowContent(
-            items = visibleItems,
-            query = query,
-            filter = wideWatchingFilter,
-            running = running,
-            statusText = if (wideWatchingFilter == WatchingNowFilter.ALL) {
-                statusText
-            } else {
-                "${visibleItems.size} ${wideWatchingFilter.label} resume entries"
-            },
-            showThumbnails = showThumbnails,
-            logoRenderer = logoRenderer,
-            searchVisible = wideSearchVisible,
-            onQueryChange = {
-                query = it
-                reload(it)
-            },
-            onFilterSelect = { wideWatchingFilter = it },
-            onOpen = { openWatchingNow(it) },
-            onRemove = { pendingRemoveWatchingNow = it },
-            modifier = modifier
-        )
-        PlaybackPickerDialog(
-            pendingPlayback = pendingPlayback,
-            playerChoices = playerChoices,
-            playerIconRenderer = playerIconRenderer,
-            wideLayout = true,
-            onDismiss = { pendingPlayback = null },
-            onInstall = { choice ->
-                pendingPlayback = null
-                scope.launch {
-                    running = true
-                    runCatching { playbackActions.openPlayerInstall(choice) }
-                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
-                    running = false
-                }
-            },
-            onSelect = { player, remember ->
-                val pending = pendingPlayback ?: return@PlaybackPickerDialog
-                pendingPlayback = null
-                scope.launch {
-                    running = true
-                    runCatching {
-                        when (pending) {
-                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
-                            is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
-                        }
-                    }
-                        .onSuccess {
-                            statusText = it.message
-                            if (it.launched) {
-                                seriesEpisodes = when (pending) {
-                                    is PendingPlayback.WatchingEpisode -> seriesEpisodes.withWatchingFlag(pending.episode)
-                                    is PendingPlayback.Binge -> seriesEpisodes.withBingeStartFlag(pending.seasonKey)
-                                    else -> seriesEpisodes
-                                }
-                            }
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to resume" }
-                    running = false
-                }
-            }
-        )
-        ConfirmRemoveWatchingNowDialog(
-            item = pendingRemoveWatchingNow,
-            onDismiss = { pendingRemoveWatchingNow = null },
-            onConfirm = { item ->
-                pendingRemoveWatchingNow = null
-                removeWatchingNow(item)
-            }
-        )
-        return
-    }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item {
-            CompactOutlinedTextField(
-                value = query,
-                onValueChange = {
-                    query = it
-                    reload(it)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = "Search watching now"
-            )
+
+    val watchingListState = rememberLazyListState()
+    Column(modifier.fillMaxSize()) {
+        MobileScreenHeader("Continue Watching", "Pick up a movie or series", searchVisible = searchVisible,
+            searchQuery = query, searchLabel = "Search movies and series", onSearchToggle = {
+                searchVisible = !searchVisible
+                if (!searchVisible) { query = ""; reload("") }
+            }, onSearchQueryChange = { query = it; reload(it) })
+        LazyRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(WatchingNowFilter.entries, key = { it.name }) { filter ->
+                FilterChip(selected = wideWatchingFilter == filter, onClick = { wideWatchingFilter = filter }, label = { Text(filter.label) })
+            }
         }
-        if (items.isEmpty()) {
-            item {
-                EmptyState(
-                    title = if (query.isBlank()) "Nothing to resume" else "No resume matches",
-                    detail = if (query.isBlank()) "VOD and series appear here after playback starts." else "Try a shorter search term."
+        LazyColumn(
+            state = watchingListState,
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 10.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (items.none(wideWatchingFilter::matches)) {
+                item {
+                    EmptyState(
+                        title = if (query.isBlank()) "Nothing to resume" else "No resume matches",
+                        detail = if (query.isBlank()) "VOD and series appear here after playback starts." else "Try a shorter search term."
+                    )
+                }
+            }
+            items(items.filter(wideWatchingFilter::matches), key = { it.stableWatchingNowKey() }) { item ->
+                var enriched by remember(item) { mutableStateOf(item) }
+                LaunchedEffect(item) {
+                    try { enriched = browseActions.enrichWatchingNowItem(item) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { /* Keep the cached row when optional metadata is unavailable. */ }
+                }
+                WatchingNowRow(
+                    item = enriched,
+                    showThumbnail = showThumbnails,
+                    logoRenderer = logoRenderer,
+                    onOpen = { openWatchingNow(enriched) },
+                    onRemove = { pendingRemoveWatchingNow = item }
                 )
             }
-        }
-        items(items, key = { it.stableWatchingNowKey() }) { item ->
-            WatchingNowRow(
-                item = item,
-                showThumbnail = showThumbnails,
-                logoRenderer = logoRenderer,
-                onOpen = { openWatchingNow(item) },
-                onRemove = { pendingRemoveWatchingNow = item }
-            )
-        }
-        item {
-            if (running) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            item {
+                if (running) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
             }
-            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -3112,7 +2112,7 @@ private fun WatchingNowScreen(
                 running = true
                 runCatching { playbackActions.openPlayerInstall(choice) }
                     .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                    .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    .onFailure { statusText = "Unable to open Google Play" }
                 running = false
             }
         },
@@ -3140,7 +2140,7 @@ private fun WatchingNowScreen(
                             }
                         }
                     }
-                    .onFailure { statusText = it.message ?: "Unable to resume" }
+                    .onFailure { statusText = "Unable to resume" }
                 running = false
             }
         }
@@ -3181,332 +2181,28 @@ private fun ConfirmRemoveWatchingNowDialog(
 
 @Composable
 private fun WatchingNowRow(
-    item: MobileWatchingNowItem,
-    showThumbnail: Boolean,
-    logoRenderer: LogoRenderer,
-    wideLayout: Boolean = false,
-    onOpen: () -> Unit,
-    onRemove: () -> Unit
+    item: MobileWatchingNowItem, showThumbnail: Boolean, logoRenderer: LogoRenderer,
+    wideLayout: Boolean = false, onOpen: () -> Unit, onRemove: () -> Unit
 ) {
-    if (wideLayout) {
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 56.dp)
-                .clickable(enabled = item.mode == BrowseMode.SERIES || item.command.isNotBlank(), onClick = onOpen),
-            shape = RoundedCornerShape(10.dp),
-            colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ChannelLogo(
-                        label = item.title.take(2).uppercase(),
-                        logo = item.logo,
-                        showThumbnail = showThumbnail,
-                        contentDescription = "Logo ${item.title}",
-                        logoRenderer = logoRenderer
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            FavouriteStar(
-                                selected = true,
-                                contentDescription = "Remove watching now ${item.title}",
-                                compact = true,
-                                onClick = onRemove
-                            )
-                            Text(
-                                item.title,
-                                modifier = Modifier.weight(1f),
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Text(
-                            listOf(item.mode.displayLabel(), item.subtitle).filter { it.isNotBlank() }.joinToString(" - "),
-                            color = DeepNightMutedText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val metadata = item.metadataLine()
-                        if (metadata.isNotBlank()) {
-                            Text(metadata, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-                if (item.plot.isNotBlank()) {
-                    Text(
-                        item.plot,
-                        color = DeepNightMutedText,
-                        maxLines = 4,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+    var menu by remember { mutableStateOf(false) }
+    Surface(Modifier.fillMaxWidth().clickable(enabled = item.mode == BrowseMode.SERIES || item.command.isNotBlank(), onClick = onOpen),
+        shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(72.dp).height(108.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.PlayCircle, contentDescription = null)
+                if (showThumbnail && item.logo.isNotBlank()) logoRenderer(item.logo, item.title, Modifier.fillMaxSize())
             }
-        }
-        return
-    }
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 64.dp)
-            .clickable(enabled = item.mode == BrowseMode.SERIES || item.command.isNotBlank(), onClick = onOpen),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
-    ) {
-        ListItem(
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            leadingContent = {
-                ChannelLogo(
-                    label = item.title.take(2).uppercase(),
-                    logo = item.logo,
-                    showThumbnail = showThumbnail,
-                    contentDescription = "Logo ${item.title}",
-                    logoRenderer = logoRenderer
-                )
-            },
-            headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FavouriteStar(
-                        selected = true,
-                        contentDescription = "Remove watching now ${item.title}",
-                        compact = true,
-                        onClick = onRemove
-                    )
-                    Text(
-                        item.title,
-                        modifier = Modifier.weight(1f),
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            },
-            supportingContent = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        listOf(item.mode.displayLabel(), item.subtitle).filter { it.isNotBlank() }.joinToString(" - "),
-                        color = DeepNightMutedText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    val metadata = item.metadataLine()
-                    if (metadata.isNotBlank()) {
-                        Text(metadata, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (item.plot.isNotBlank()) {
-                        Text(item.plot, color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(item.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(item.accountName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (item.mode == BrowseMode.SERIES) "Choose an episode" else "Watch again", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             }
-        )
-    }
-}
-
-@Composable
-private fun WideWatchingNowSeriesDetailContent(
-    series: MobileWatchingNowItem,
-    episodes: List<MobileWatchingNowEpisode>,
-    visibleEpisodes: List<MobileWatchingNowEpisode>,
-    seasonTabs: List<MobileSeriesSeasonTab>,
-    activeSeasonKey: String,
-    episodeQuery: String,
-    searchVisible: Boolean,
-    posterPanelVisible: Boolean,
-    listState: LazyListState,
-    running: Boolean,
-    statusText: String,
-    showThumbnail: Boolean,
-    logoRenderer: LogoRenderer,
-    showRemove: Boolean,
-    emptyTitle: String,
-    emptyDetail: String,
-    onBack: () -> Unit,
-    onRemoveSeries: () -> Unit,
-    onEpisodeQueryChange: (String) -> Unit,
-    onTogglePosterPanel: () -> Unit,
-    onSeasonSelect: (MobileSeriesSeasonTab) -> Unit,
-    onBingeSeason: (String) -> Unit,
-    onPlayEpisode: (MobileWatchingNowEpisode) -> Unit,
-    onEpisodeMenu: (MobileWatchingNowEpisode) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val compactWide = LocalWidePhoneLayout.current
-    val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 8.dp else 12.dp
-    val sideWidth = if (compactWide) 236.dp else 340.dp
-    val summaryScrollState = rememberScrollState()
-    val seasonTitle = seasonTabs.firstOrNull { it.key == activeSeasonKey }?.label.orEmpty()
-    val activeSeasonHasEpisodes = activeSeasonKey.isNotBlank() &&
-        episodes.any { it.seasonTab().key == activeSeasonKey }
-    Row(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(outerPadding),
-        horizontalArrangement = Arrangement.spacedBy(gap)
-    ) {
-        if (posterPanelVisible) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(sideWidth),
-                shape = RoundedCornerShape(14.dp),
-                color = DeepNightSurface,
-                contentColor = DeepNightText
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(if (compactWide) 8.dp else 12.dp)
-                        .then(if (compactWide) Modifier.verticalScroll(summaryScrollState) else Modifier),
-                    verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "Details",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        TextButton(onClick = onTogglePosterPanel) {
-                            Text("Hide")
-                        }
-                    }
-                    SeriesMetadataHeader(
-                        series = series,
-                        logoRenderer = logoRenderer,
-                        plotBelowPoster = true
-                    )
-                    Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "Actions for ${item.title}") }
+                DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("Remove from Watching", color = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; onRemove() })
                 }
-            }
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(if (compactWide) 6.dp else 8.dp)
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(if (compactWide) 6.dp else 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            modifier = Modifier.semantics { contentDescription = "Back to series list" },
-                            onClick = onBack
-                        ) {
-                            Text("Back to list")
-                        }
-                        Text(
-                            series.title,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (showRemove) {
-                            FavouriteStar(
-                                selected = true,
-                                contentDescription = "Remove watching now ${series.title}",
-                                compact = true,
-                                onClick = onRemoveSeries
-                            )
-                        }
-                        OutlinedButton(onClick = onTogglePosterPanel) {
-                            Text(if (posterPanelVisible) "Hide details" else "Details")
-                        }
-                    }
-                    if (searchVisible) {
-                        CompactOutlinedTextField(
-                            value = episodeQuery,
-                            onValueChange = onEpisodeQueryChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = "Search episodes"
-                        )
-                    }
-                    if (seasonTabs.isNotEmpty()) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(seasonTabs, key = { it.key }) { tab ->
-                                FilterChip(
-                                    selected = tab.key == activeSeasonKey,
-                                    onClick = { onSeasonSelect(tab) },
-                                    label = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                )
-                            }
-                        }
-                    }
-                    if (activeSeasonHasEpisodes) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { onBingeSeason(activeSeasonKey) }
-                        ) {
-                            Text("Binge Watch")
-                        }
-                    }
-                    Text(
-                        "Season $seasonTitle episodes",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            if (episodes.isEmpty()) {
-                item {
-                    EmptyState(
-                        title = emptyTitle,
-                        detail = emptyDetail
-                    )
-                }
-            }
-            if (visibleEpisodes.isEmpty() && episodes.isNotEmpty()) {
-                item {
-                    EmptyState(
-                        title = "No episodes",
-                        detail = if (episodeQuery.isBlank()) "This season has no cached episodes." else "No episode matches this search."
-                    )
-                }
-            }
-            items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
-                WatchingNowEpisodeRow(
-                    episode = episode,
-                    showThumbnail = showThumbnail,
-                    logoRenderer = logoRenderer,
-                    wideLayout = true,
-                    onPlay = { onPlayEpisode(episode) },
-                    onMenu = { onEpisodeMenu(episode) }
-                )
-            }
-            item {
-                if (running) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Text(
-                    "Episodes stay beside series metadata on wide screens.",
-                    color = DeepNightMutedText,
-                    style = MaterialTheme.typography.bodySmall
-                )
             }
         }
     }
@@ -3535,207 +2231,66 @@ private fun WatchingNowSeriesDetail(
     modifier: Modifier = Modifier
 ) {
     val seasonTabs = remember(episodes) { episodes.seasonTabs() }
-    val watchedSeasonKey = remember(episodes) {
-        episodes.firstOrNull { it.isWatched }?.seasonTab()?.key.orEmpty()
-    }
-    var selectedSeasonKey by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
-        mutableStateOf(watchedSeasonKey)
-    }
-    var seasonPickedByUser by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
-        mutableStateOf(false)
-    }
-    var episodeQuery by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
-        mutableStateOf("")
-    }
+    val watchedSeasonKey = remember(episodes) { episodes.firstOrNull { it.isWatched }?.seasonTab()?.key.orEmpty() }
+    var selectedSeasonKey by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) { mutableStateOf(watchedSeasonKey) }
+    var seasonPickedByUser by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) { mutableStateOf(false) }
     val activeSeasonKey = seasonTabs.firstOrNull { it.key == selectedSeasonKey }?.key
         ?: seasonTabs.firstOrNull { it.key == watchedSeasonKey }?.key
         ?: seasonTabs.firstOrNull()?.key.orEmpty()
     LaunchedEffect(seasonTabs, watchedSeasonKey, activeSeasonKey, seasonPickedByUser) {
-        val preferredSeasonKey = if (!seasonPickedByUser && watchedSeasonKey.isNotBlank()) watchedSeasonKey else activeSeasonKey
-        if (preferredSeasonKey != selectedSeasonKey) {
-            selectedSeasonKey = preferredSeasonKey
-        }
+        val preferred = if (!seasonPickedByUser && watchedSeasonKey.isNotBlank()) watchedSeasonKey else activeSeasonKey
+        if (preferred != selectedSeasonKey) selectedSeasonKey = preferred
     }
-    LaunchedEffect(wideLayout, wideSearchVisible) {
-        if (wideLayout && !wideSearchVisible && episodeQuery.isNotBlank()) {
-            episodeQuery = ""
-        }
-    }
-    val seasonEpisodes = remember(episodes, activeSeasonKey) {
+    val visibleEpisodes = remember(episodes, activeSeasonKey) {
         if (activeSeasonKey.isBlank()) episodes else episodes.filter { it.seasonTab().key == activeSeasonKey }
     }
-    val effectiveEpisodeQuery = if (wideLayout && !wideSearchVisible) "" else episodeQuery
-    val visibleEpisodes = remember(seasonEpisodes, effectiveEpisodeQuery) {
-        val query = effectiveEpisodeQuery.trim()
-        if (query.isBlank()) {
-            seasonEpisodes
-        } else {
-            seasonEpisodes.filter { episode ->
-                episode.title.contains(query, ignoreCase = true) ||
-                    episode.seriesTitle.contains(query, ignoreCase = true) ||
-                    episode.plot.contains(query, ignoreCase = true)
-            }
-        }
-    }
     val listState = rememberLazyListState()
-    var lastAutoScrollKey by remember(series.accountId, series.categoryProviderId, series.contentId) {
-        mutableStateOf("")
-    }
-    val hasSeriesMetadata = series.logo.isNotBlank() || series.metadataLine().isNotBlank() || series.plot.isNotBlank() || series.imdbUrl.isNotBlank()
+    val hasMetadata = series.logo.isNotBlank() || series.metadataLine().isNotBlank() || series.plot.isNotBlank() || series.imdbUrl.isNotBlank()
+    val headerItems = 1 + (if (hasMetadata) 1 else 0) + (if (seasonTabs.isNotEmpty()) 1 else 0) +
+        (if (activeSeasonKey.isNotBlank() && visibleEpisodes.isNotEmpty()) 1 else 0)
     LaunchedEffect(activeSeasonKey, visibleEpisodes) {
-        if (visibleEpisodes.isEmpty() || activeSeasonKey.isBlank()) {
-            return@LaunchedEffect
-        }
-        val targetIndex = visibleEpisodes.indexOfFirst { it.isWatched }.takeIf { it >= 0 } ?: 0
-        val target = visibleEpisodes[targetIndex]
-        val scrollKey = "$activeSeasonKey-${target.stableWatchingNowEpisodeKey()}-${visibleEpisodes.size}"
-        if (scrollKey != lastAutoScrollKey) {
-            lastAutoScrollKey = scrollKey
-            listState.scrollToItem(targetIndex)
+        if (visibleEpisodes.isNotEmpty()) {
+            val episodeIndex = visibleEpisodes.indexOfFirst { it.isWatched }.takeIf { it >= 0 } ?: 0
+            listState.scrollToItem(headerItems + episodeIndex)
         }
     }
 
-    if (wideLayout) {
-        WideWatchingNowSeriesDetailContent(
-            series = series,
-            episodes = episodes,
-            visibleEpisodes = visibleEpisodes,
-            seasonTabs = seasonTabs,
-            activeSeasonKey = activeSeasonKey,
-            episodeQuery = episodeQuery,
-            searchVisible = wideSearchVisible,
-            posterPanelVisible = detailsPanelVisible,
-            listState = listState,
-            running = running,
-            statusText = statusText,
-            showThumbnail = showThumbnail,
-            logoRenderer = logoRenderer,
-            showRemove = showRemove,
-            emptyTitle = emptyTitle,
-            emptyDetail = emptyDetail,
-            onBack = onBack,
-            onRemoveSeries = onRemoveSeries,
-            onEpisodeQueryChange = { episodeQuery = it },
-            onTogglePosterPanel = { onDetailsPanelVisibleChange(!detailsPanelVisible) },
-            onSeasonSelect = { tab ->
-                seasonPickedByUser = true
-                selectedSeasonKey = tab.key
-            },
-            onBingeSeason = onBingeSeason,
-            onPlayEpisode = onPlayEpisode,
-            onEpisodeMenu = onEpisodeMenu,
-            modifier = modifier
-        )
-        return
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(12.dp),
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize().padding(horizontal = 12.dp),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(onClick = onBack) {
-                Text("Back")
-            }
-            Text(
-                series.title,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (showRemove) {
-                FavouriteStar(
-                    selected = true,
-                    contentDescription = "Remove watching now ${series.title}",
-                    compact = true,
-                    onClick = onRemoveSeries
-                )
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MobileBackButton(onBack)
+                Text(series.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (showRemove) FavouriteStar(true, "Remove watching now ${series.title}", onClick = onRemoveSeries, compact = true)
             }
         }
-        if (hasSeriesMetadata) {
-            SeriesMetadataHeader(
-                series = series,
-                logoRenderer = logoRenderer
-            )
-        }
-        if (seasonTabs.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+        if (hasMetadata) item { SeriesMetadataHeader(series, logoRenderer) }
+        if (seasonTabs.isNotEmpty()) item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(seasonTabs, key = { it.key }) { tab ->
-                    FilterChip(
-                        selected = tab.key == activeSeasonKey,
-                        onClick = {
-                            seasonPickedByUser = true
-                            selectedSeasonKey = tab.key
-                        },
-                        label = {
-                            Text(
-                                tab.label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    )
+                    FilterChip(selected = tab.key == activeSeasonKey,
+                        onClick = { seasonPickedByUser = true; selectedSeasonKey = tab.key },
+                        label = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) })
                 }
             }
         }
-        if (activeSeasonKey.isNotBlank() && visibleEpisodes.isNotEmpty()) {
-            OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { onBingeSeason(activeSeasonKey) }
-            ) {
-                Text("Binge Watch")
-            }
+        if (activeSeasonKey.isNotBlank() && visibleEpisodes.isNotEmpty()) item {
+            OutlinedButton(onClick = { onBingeSeason(activeSeasonKey) }, modifier = Modifier.fillMaxWidth()) { Text("Binge Watch") }
         }
-
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (episodes.isEmpty()) {
-                item {
-                    EmptyState(
-                        title = emptyTitle,
-                        detail = emptyDetail
-                    )
-                }
-            }
-            if (visibleEpisodes.isEmpty() && episodes.isNotEmpty()) {
-                item {
-                    EmptyState(
-                        title = "No episodes",
-                        detail = "This season has no cached episodes."
-                    )
-                }
-            }
-            items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
-                WatchingNowEpisodeRow(
-                    episode = episode,
-                    showThumbnail = showThumbnail,
-                    logoRenderer = logoRenderer,
-                    onPlay = { onPlayEpisode(episode) },
-                    onMenu = { onEpisodeMenu(episode) }
-                )
-            }
-            item {
-                if (running) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-            }
+        if (episodes.isEmpty()) item { EmptyState(emptyTitle, emptyDetail) }
+        items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
+            WatchingNowEpisodeRow(episode, showThumbnail, logoRenderer, wideLayout = wideLayout,
+                onPlay = { onPlayEpisode(episode) }, onMenu = { onEpisodeMenu(episode) })
+        }
+        item {
+            if (running) LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -4144,7 +2699,7 @@ private fun PlaybackPickerDialog(
             )
             if (pendingPlayback !is PendingPlayback.Binge) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
+                MobileM3Switch(
                     modifier = Modifier.semantics { contentDescription = "Remember player choice" },
                     checked = rememberChoice,
                     onCheckedChange = { rememberChoice = it }
@@ -4432,6 +2987,21 @@ private fun RemoteSyncScreen(
     var channelFilterText by remember { mutableStateOf("") }
     var filterEditorVisible by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
+    var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsQuery by rememberSaveable { mutableStateOf("") }
+    val settingsDestinations = remember {
+        listOf(
+            MobileSettingsDestination("sync", "Desktop sync", "Connect to UIPTV Desktop and sync your library", Icons.Outlined.CloudSync),
+            MobileSettingsDestination("backup", "Backup and restore", "Protect or restore your mobile data", Icons.Outlined.Backup),
+            MobileSettingsDestination("appearance", "Appearance and browsing", "Artwork and catalogue presentation", Icons.Outlined.Palette),
+            MobileSettingsDestination("playback", "Playback", "Choose the player used for streams", Icons.Outlined.PlayCircle),
+            MobileSettingsDestination("guide", "Programme guide", "EPG sources and guide loading", Icons.Outlined.LiveTv),
+            MobileSettingsDestination("history", "Playback history", "Manage recently played channels", Icons.Outlined.History),
+            MobileSettingsDestination("filters", "Content filters", "Hide categories and channels by rule", Icons.Outlined.FilterAlt),
+            MobileSettingsDestination("about", "About and data", "App information and local data", Icons.Outlined.Info)
+        )
+    }
+    val activeSettingsDestination = settingsDestinations.firstOrNull { it.id == settingsPage }
 
     LaunchedEffect(syncActions) {
         val snapshot = syncActions.loadPreferences()
@@ -4504,7 +3074,7 @@ private fun RemoteSyncScreen(
                 statusText = "Creating backup"
                 runCatching { backupRestoreActions.backupToUri(uri) }
                     .onSuccess { statusText = it.message }
-                    .onFailure { statusText = it.message ?: "Backup failed" }
+                    .onFailure { statusText = "Backup failed" }
                 running = false
             }
         }
@@ -4529,7 +3099,7 @@ private fun RemoteSyncScreen(
                         reloadFiltersFromDatabase()
                         statusText = it.message
                     }
-                    .onFailure { statusText = it.message ?: "Restore failed" }
+                    .onFailure { statusText = "Restore failed" }
                 running = false
             }
         }
@@ -4540,7 +3110,7 @@ private fun RemoteSyncScreen(
             running = true
             runCatching { browseActions.clearRecentlyPlayedBookmarks() }
                 .onSuccess { statusText = "Recent cleared" }
-                .onFailure { statusText = it.message ?: "Unable to clear recently played channels" }
+                .onFailure { statusText = "Unable to clear recently played channels" }
             running = false
         }
     }
@@ -4551,131 +3121,34 @@ private fun RemoteSyncScreen(
             ?: PlayerChoice(selectedPlayer, selectedPlayer.playerLabel())
     }
 
-    if (wideLayout) {
-        WideRemoteSyncContent(
-            host = host,
-            portText = portText,
-            verificationCode = verificationCode,
-            statusText = statusText,
-            running = running,
-            lastSyncText = lastSyncText,
-            filters = filters,
-            categoryFilterText = categoryFilterText,
-            channelFilterText = channelFilterText,
-            filterEditorVisible = filterEditorVisible,
-            selectedPlayerChoice = selectedPlayerChoice,
-            selectedPlayer = selectedPlayer,
-            playerIconRenderer = playerIconRenderer,
-            useHttps = useHttps,
-            onHostChange = ::updateHost,
-            onPortChange = { portText = it.filter(Char::isDigit).take(5) },
-            onUseHttpsChange = { useHttps = it },
-            onTest = {
-                scope.launch {
-                    val port = parsedPort() ?: return@launch
-                    running = true
-                    statusText = "Connecting"
-                    runCatching {
-                        syncActions.checkConnection(requestHost(), port)
-                    }.onSuccess {
-                        statusText = "Connected"
-                    }.onFailure { ex ->
-                        statusText = ex.message ?: "Connection failed"
-                    }
-                    running = false
+
+    Column(modifier.fillMaxSize()) {
+        if (activeSettingsDestination == null) {
+            MobileScreenHeader("Settings", "Make UIPTV work for you")
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MobileSearchField(settingsQuery, "Search settings", { settingsQuery = it })
+                SettingsWelcomeCard()
+                Text("All settings", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 8.dp))
+                settingsDestinations.filter { destination ->
+                    settingsQuery.isBlank() || sequenceOf(destination.title, destination.description)
+                        .any { it.contains(settingsQuery, ignoreCase = true) }
+                }.forEach { destination ->
+                    SettingsDestinationRow(destination) { settingsPage = destination.id }
                 }
-            },
-            onPull = {
-                scope.launch {
-                    val port = parsedPort() ?: return@launch
-                    running = true
-                    statusText = "Starting"
-                    verificationCode = ""
-                    runCatching {
-                        syncActions.pullFromDesktop(
-                            requestHost(),
-                            port
-                        ) { progress ->
-                            verificationCode = progress.verificationCode
-                            statusText = progress.label()
-                        }
-                    }.onSuccess { result ->
-                        reloadFiltersFromDatabase()
-                        statusText = "Finished: ${result.report.totalRowsSynced} rows"
-                        lastSyncText = "Last sync: now"
-                    }.onFailure { ex ->
-                        statusText = ex.message ?: "Sync failed"
-                    }
-                    running = false
-                }
-            },
-            onBackup = ::launchBackup,
-            onRestore = { confirmRestore = true },
-            onClearRecentlyPlayedBookmarks = ::clearRecentlyPlayedBookmarks,
-            onThumbnailChange = { enabled ->
-                scope.launch {
-                    running = true
-                    runCatching { filterActions.setEnableThumbnails(enabled) }
-                        .onSuccess {
-                            filters = filters.copy(enableThumbnails = enabled)
-                            onThumbnailSettingChanged(enabled)
-                            statusText = if (enabled) "Thumbnails enabled" else "Thumbnails disabled"
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to update thumbnails" }
-                    running = false
-                }
-            },
-            onPlayerClick = { playerSelectorVisible = true },
-            onPausedToggle = {
-                scope.launch {
-                    val paused = !filters.paused
-                    running = true
-                    runCatching { filterActions.setPaused(paused) }
-                        .onSuccess {
-                            filters = filters.copy(paused = paused)
-                            statusText = if (paused) "Filtering paused" else "Filtering active"
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to update filters" }
-                    running = false
-                }
-            },
-            onFilterEditorToggle = {
-                if (!filterEditorVisible) {
-                    categoryFilterText = filters.categoryFilters
-                    channelFilterText = filters.channelFilters
-                }
-                filterEditorVisible = !filterEditorVisible
-            },
-            onCategoryFiltersChange = { categoryFilterText = it },
-            onChannelFiltersChange = { channelFilterText = it },
-            onSaveFilters = {
-                scope.launch {
-                    running = true
-                    val updated = filters.copy(
-                        categoryFilters = categoryFilterText,
-                        channelFilters = channelFilterText
-                    )
-                    runCatching { filterActions.save(updated) }
-                        .onSuccess {
-                            filters = updated
-                            statusText = "Filters saved"
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to save filters" }
-                    running = false
-                }
-            },
-            onReset = { confirmReset = true },
-            modifier = modifier
-        )
-    } else {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            MobileScreenHeader(activeSettingsDestination.title, activeSettingsDestination.description,
+                onBack = { settingsPage = null })
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+        if (settingsPage == "sync") {
+        SettingsPanel {
         ConfigurationIntro()
         CompactOutlinedTextField(
             value = host,
@@ -4692,15 +3165,14 @@ private fun RemoteSyncScreen(
             placeholder = "Desktop sync port",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                modifier = Modifier.semantics { contentDescription = "Use HTTPS for desktop sync" },
-                checked = useHttps,
-                enabled = !running,
-                onCheckedChange = { useHttps = it }
-            )
-            Text("Use HTTPS")
-        }
+        SettingsSwitchRow(
+            title = "Use a secure connection",
+            description = "Connect to the desktop sync server over HTTPS.",
+            checked = useHttps,
+            enabled = !running,
+            contentDescription = "Use HTTPS for desktop sync",
+            onCheckedChange = { useHttps = it }
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 modifier = Modifier.semantics { contentDescription = "Test desktop sync connection" },
@@ -4715,13 +3187,13 @@ private fun RemoteSyncScreen(
                         }.onSuccess {
                             statusText = "Connected"
                         }.onFailure { ex ->
-                            statusText = ex.message ?: "Connection failed"
+                            statusText = "Connection failed"
                         }
                         running = false
                     }
                 }
             ) {
-                Text("Test")
+                Text("Test connection")
             }
             Button(
                 modifier = Modifier.semantics { contentDescription = "Pull data from desktop" },
@@ -4745,13 +3217,13 @@ private fun RemoteSyncScreen(
                             statusText = "Finished: ${result.report.totalRowsSynced} rows"
                             lastSyncText = "Last sync: now"
                         }.onFailure { ex ->
-                            statusText = ex.message ?: "Sync failed"
+                            statusText = "Sync failed"
                         }
                         running = false
                     }
                 }
             ) {
-                Text("Pull")
+                Text("Sync now")
             }
         }
         if (running) {
@@ -4762,17 +3234,10 @@ private fun RemoteSyncScreen(
         }
         Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodyMedium)
         Text(lastSyncText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-        Text("Backup & Restore", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
-            color = DeepNightSurfaceHigh,
-            contentColor = DeepNightText
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+        }
+        }
+        if (settingsPage == "backup") {
+        SettingsPanel {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         modifier = Modifier.weight(1f).semantics { contentDescription = "Back up mobile data" },
@@ -4789,14 +3254,16 @@ private fun RemoteSyncScreen(
                         Text("Restore")
                     }
                 }
-            }
         }
-        Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                modifier = Modifier.semantics { contentDescription = "Enable thumbnails" },
+        }
+        if (settingsPage == "appearance") {
+        SettingsPanel {
+            SettingsSwitchRow(
+                title = if (filters.enableThumbnails) "Thumbnail Mode is enabled" else "Plaintext mode is enabled",
+                description = "Show channel and title artwork.",
                 checked = filters.enableThumbnails,
                 enabled = !running,
+                contentDescription = if (filters.enableThumbnails) "Thumbnail Mode is enabled" else "Plaintext mode is enabled",
                 onCheckedChange = { enabled ->
                     scope.launch {
                         running = true
@@ -4804,27 +3271,27 @@ private fun RemoteSyncScreen(
                             .onSuccess {
                                 filters = filters.copy(enableThumbnails = enabled)
                                 onThumbnailSettingChanged(enabled)
-                                statusText = if (enabled) "Thumbnails enabled" else "Thumbnails disabled"
+                                statusText = if (enabled) "Thumbnail Mode is enabled" else "Plaintext mode is enabled"
                             }
-                            .onFailure { statusText = it.message ?: "Unable to update thumbnails" }
+                            .onFailure { statusText = "Unable to update thumbnails" }
                         running = false
                     }
                 }
             )
-            Text("Enable thumbnails")
         }
-        Text("Default Player", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        }
+        if (settingsPage == "playback") {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(enabled = !running) { playerSelectorVisible = true }
                 .semantics { contentDescription = "Change default player" },
-            shape = RoundedCornerShape(10.dp),
-            color = DeepNightSurfaceHigh,
-            contentColor = DeepNightText
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurface
         ) {
             Row(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 84.dp).padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 playerIconRenderer(selectedPlayerChoice, Modifier.size(40.dp))
@@ -4834,90 +3301,78 @@ private fun RemoteSyncScreen(
                         .padding(horizontal = 12.dp)
                 ) {
                     Text(selectedPlayer.playerLabel(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Selected default player", color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+                    Text("Selected default player", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
-                Text("Change", color = DeepNightPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        MobileEpgSettings()
-        Text("Playback History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        OutlinedButton(
-            modifier = Modifier.semantics { contentDescription = "Clear recently played bookmark channels" },
-            enabled = !running,
-            onClick = ::clearRecentlyPlayedBookmarks
-        ) {
-            Text("Clear Recent")
         }
-        Text("Filters", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text(
-            if (filters.paused) {
-                "Current state: filtering is paused. Matching categories and channels are visible."
-            } else {
-                "Current state: filtering is active. Matching categories and channels are hidden."
-            },
-            color = DeepNightMutedText,
-            style = MaterialTheme.typography.bodySmall
-        )
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                modifier = Modifier.semantics { contentDescription = if (filters.paused) "Resume content filters" else "Pause content filters" },
-                enabled = !running,
-                onClick = {
-                    scope.launch {
-                        val paused = !filters.paused
-                        running = true
-                        runCatching { filterActions.setPaused(paused) }
-                            .onSuccess {
-                                filters = filters.copy(paused = paused)
-                                statusText = if (paused) "Filtering paused" else "Filtering active"
-                            }
-                            .onFailure { statusText = it.message ?: "Unable to update filters" }
-                        running = false
-                    }
-                }
-            ) {
-                Text(if (filters.paused) "Resume Filtering" else "Pause Filtering")
-            }
+        if (settingsPage == "guide") {
+        SettingsPanel { MobileEpgSettings() }
+        }
+        if (settingsPage == "history") {
+        SettingsPanel {
+            Text("Remove your locally stored recently played channels.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedButton(
-                modifier = Modifier.semantics { contentDescription = if (filterEditorVisible) "Hide content filters" else "View or edit content filters" },
+                modifier = Modifier.semantics { contentDescription = "Clear recently played bookmark channels" },
                 enabled = !running,
-                onClick = {
-                    if (!filterEditorVisible) {
-                        categoryFilterText = filters.categoryFilters
-                        channelFilterText = filters.channelFilters
-                    }
-                    filterEditorVisible = !filterEditorVisible
-                }
-            ) {
-                Text(if (filterEditorVisible) "Hide Filters" else "View / Edit Filters")
-            }
+                onClick = ::clearRecentlyPlayedBookmarks
+            ) { Text("Clear recent history") }
         }
-        Text(
-            "Loaded filters: ${filters.categoryFilters.filterTermCount()} category terms, ${filters.channelFilters.filterTermCount()} channel terms.",
-            color = DeepNightMutedText,
-            style = MaterialTheme.typography.bodySmall
+        }
+        if (settingsPage == "filters") {
+        SettingsPanel {
+        SettingsSwitchRow(
+            title = if (filters.paused) "Filtering is paused" else "Filtering is active",
+            description = if (filters.paused) "Matching categories and channels are visible." else "Matching categories and channels are hidden.",
+            checked = !filters.paused,
+            enabled = !running,
+            contentDescription = if (filters.paused) "Resume content filters" else "Pause content filters",
+            onCheckedChange = { enabled ->
+                scope.launch {
+                    running = true
+                    runCatching { filterActions.setPaused(!enabled) }
+                        .onSuccess {
+                            filters = filters.copy(paused = !enabled)
+                            statusText = if (!enabled) "Filtering paused" else "Filtering active"
+                        }
+                        .onFailure { statusText = "Unable to update filters" }
+                    running = false
+                }
+            }
         )
+        Text("${filters.categoryFilters.filterTermCount()} category terms · ${filters.channelFilters.filterTermCount()} channel terms",
+            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        TextButton(
+            modifier = Modifier.semantics { contentDescription = if (filterEditorVisible) "Hide content filters" else "View or edit content filters" },
+            enabled = !running,
+            onClick = {
+                if (!filterEditorVisible) {
+                    categoryFilterText = filters.categoryFilters
+                    channelFilterText = filters.channelFilters
+                }
+                filterEditorVisible = !filterEditorVisible
+            }
+        ) { Text(if (filterEditorVisible) "Close filter editor" else "Edit filter rules") }
         if (filterEditorVisible) {
-            OutlinedTextField(
+            TextField(
                 value = categoryFilterText,
                 onValueChange = { categoryFilterText = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Category filters") },
                 placeholder = { Text("adult, xxx") },
                 minLines = 3,
-                colors = darkTextFieldColors()
+                colors = mobileTextFieldColors()
             )
-            OutlinedTextField(
+            TextField(
                 value = channelFilterText,
                 onValueChange = { channelFilterText = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Channel filters") },
                 placeholder = { Text("adult, xxx") },
                 minLines = 3,
-                colors = darkTextFieldColors()
+                colors = mobileTextFieldColors()
             )
             Button(
                 modifier = Modifier.semantics { contentDescription = "Save content filters" },
@@ -4934,7 +3389,7 @@ private fun RemoteSyncScreen(
                                 filters = updated
                                 statusText = "Filters saved"
                             }
-                            .onFailure { statusText = it.message ?: "Unable to save filters" }
+                            .onFailure { statusText = "Unable to save filters" }
                         running = false
                     }
                 }
@@ -4942,22 +3397,24 @@ private fun RemoteSyncScreen(
                 Text("Save Filters")
             }
         }
-        Button(
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = "Reset local UIPTV database" },
-            enabled = !running,
-            onClick = { confirmReset = true }
-        ) {
-            Text("Reset Local Data")
         }
+        }
+        if (settingsPage == "about") {
+            Button(
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Reset local UIPTV database" },
+                enabled = !running,
+                onClick = { confirmReset = true }
+            ) { Text("Reset Local Data") }
         val appVersion = LocalAppVersion.current
         if (appVersion != AppVersionInfo.EMPTY) {
             Spacer(Modifier.height(8.dp))
             AboutSection(versionInfo = appVersion)
         }
+        }
+        }
+        }
     }
-    }
+
 
     if (playerSelectorVisible) {
         PlayerSelectionSheet(
@@ -4973,7 +3430,7 @@ private fun RemoteSyncScreen(
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
                         .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
-                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                        .onFailure { statusText = "Unable to open Google Play" }
                     running = false
                 }
             },
@@ -4996,7 +3453,7 @@ private fun RemoteSyncScreen(
                             }
                             playerSelectorVisible = false
                         }
-                        .onFailure { statusText = it.message ?: "Unable to save player preference" }
+                        .onFailure { statusText = "Unable to save player preference" }
                     running = false
                 }
             }
@@ -5022,7 +3479,7 @@ private fun RemoteSyncScreen(
                                     lastSyncText = "Never synced"
                                     statusText = "Local data reset and database optimized"
                                 }
-                                .onFailure { statusText = it.message ?: "Unable to reset local data" }
+                                .onFailure { statusText = "Unable to reset local data" }
                             running = false
                         }
                     }
@@ -5064,310 +3521,6 @@ private fun RemoteSyncScreen(
     }
 }
 
-@Composable
-private fun WideRemoteSyncContent(
-    host: String,
-    portText: String,
-    verificationCode: String,
-    statusText: String,
-    running: Boolean,
-    lastSyncText: String,
-    filters: AndroidFilterSettings,
-    categoryFilterText: String,
-    channelFilterText: String,
-    filterEditorVisible: Boolean,
-    selectedPlayerChoice: PlayerChoice,
-    selectedPlayer: AndroidPlayerPreference,
-    playerIconRenderer: PlayerIconRenderer,
-    useHttps: Boolean,
-    onHostChange: (String) -> Unit,
-    onPortChange: (String) -> Unit,
-    onUseHttpsChange: (Boolean) -> Unit,
-    onTest: () -> Unit,
-    onPull: () -> Unit,
-    onBackup: () -> Unit,
-    onRestore: () -> Unit,
-    onClearRecentlyPlayedBookmarks: () -> Unit,
-    onThumbnailChange: (Boolean) -> Unit,
-    onPlayerClick: () -> Unit,
-    onPausedToggle: () -> Unit,
-    onFilterEditorToggle: () -> Unit,
-    onCategoryFiltersChange: (String) -> Unit,
-    onChannelFiltersChange: (String) -> Unit,
-    onSaveFilters: () -> Unit,
-    onReset: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val compactWide = LocalWidePhoneLayout.current
-    val rowScrollState = rememberScrollState()
-    val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 8.dp else 12.dp
-    Row(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(outerPadding)
-            .then(if (compactWide) Modifier.horizontalScroll(rowScrollState) else Modifier),
-        horizontalArrangement = Arrangement.spacedBy(gap)
-    ) {
-        Surface(
-            modifier = if (compactWide) {
-                Modifier
-                    .width(260.dp)
-                    .fillMaxHeight()
-            } else {
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            },
-            shape = RoundedCornerShape(14.dp),
-            color = DeepNightSurface,
-            contentColor = DeepNightText
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(if (compactWide) 8.dp else 12.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-            ) {
-                Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                ConfigurationIntro(compact = compactWide)
-                CompactOutlinedTextField(
-                    value = host,
-                    onValueChange = onHostChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = "Host",
-                    placeholder = "Desktop IP or hostname"
-                )
-                CompactOutlinedTextField(
-                    value = portText,
-                    onValueChange = onPortChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = "Port",
-                    placeholder = "Desktop sync port",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        modifier = Modifier.semantics { contentDescription = "Use HTTPS for desktop sync" },
-                        checked = useHttps,
-                        enabled = !running,
-                        onCheckedChange = onUseHttpsChange
-                    )
-                    Text("Use HTTPS")
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        modifier = Modifier.weight(1f).semantics { contentDescription = "Test desktop sync connection" },
-                        enabled = !running && host.isNotBlank() && portText.isNotBlank(),
-                        onClick = onTest
-                    ) {
-                        Text("Test")
-                    }
-                    Button(
-                        modifier = Modifier.weight(1f).semantics { contentDescription = "Pull data from desktop" },
-                        enabled = !running && host.isNotBlank() && portText.isNotBlank(),
-                        onClick = onPull
-                    ) {
-                        Text("Pull")
-                    }
-                }
-                if (running) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                if (verificationCode.isNotBlank()) {
-                    Text("Code $verificationCode", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                }
-                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodyMedium)
-                Text(lastSyncText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        Surface(
-            modifier = if (compactWide) {
-                Modifier
-                    .width(260.dp)
-                    .fillMaxHeight()
-            } else {
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            },
-            shape = RoundedCornerShape(14.dp),
-            color = DeepNightSurface,
-            contentColor = DeepNightText
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(if (compactWide) 8.dp else 12.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-            ) {
-                Text("Backup & Restore", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        modifier = Modifier.weight(1f).semantics { contentDescription = "Back up mobile data" },
-                        enabled = !running,
-                        onClick = onBackup
-                    ) {
-                        Text("Back up")
-                    }
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f).semantics { contentDescription = "Restore mobile data" },
-                        enabled = !running,
-                        onClick = onRestore
-                    ) {
-                        Text("Restore")
-                    }
-                }
-                Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        modifier = Modifier.semantics { contentDescription = "Enable thumbnails" },
-                        checked = filters.enableThumbnails,
-                        enabled = !running,
-                        onCheckedChange = onThumbnailChange
-                    )
-                    Text("Enable thumbnails")
-                }
-                Text("Default Player", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = !running, onClick = onPlayerClick)
-                        .semantics { contentDescription = "Change default player" },
-                    shape = RoundedCornerShape(10.dp),
-                    color = DeepNightSurfaceHigh,
-                    contentColor = DeepNightText
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        playerIconRenderer(selectedPlayerChoice, Modifier.size(40.dp))
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 12.dp)
-                        ) {
-                            Text(selectedPlayer.playerLabel(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Selected default player", color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text("Change", color = DeepNightPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-                MobileEpgSettings()
-                Text("Playback History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                OutlinedButton(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = "Clear recently played bookmark channels" },
-                    enabled = !running,
-                    onClick = onClearRecentlyPlayedBookmarks
-                ) {
-                    Text("Clear Recent")
-                }
-                Text("Reset", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Button(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = "Reset local UIPTV database" },
-                    enabled = !running,
-                    onClick = onReset
-                ) {
-                    Text("Reset Local Data")
-                }
-                val appVersionWide = LocalAppVersion.current
-                if (appVersionWide != AppVersionInfo.EMPTY) {
-                    Spacer(Modifier.height(8.dp))
-                    AboutSection(versionInfo = appVersionWide)
-                }
-            }
-        }
-        Surface(
-            modifier = if (compactWide) {
-                Modifier
-                    .width(300.dp)
-                    .fillMaxHeight()
-            } else {
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            },
-            shape = RoundedCornerShape(14.dp),
-            color = DeepNightSurface,
-            contentColor = DeepNightText
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(if (compactWide) 8.dp else 12.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-            ) {
-                Text("Filters", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (filters.paused) {
-                        "Current state: filtering is paused. Matching categories and channels are visible."
-                    } else {
-                        "Current state: filtering is active. Matching categories and channels are hidden."
-                    },
-                    color = DeepNightMutedText,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = if (filters.paused) "Resume content filters" else "Pause content filters" },
-                        enabled = !running,
-                        onClick = onPausedToggle
-                    ) {
-                        Text(if (filters.paused) "Resume Filtering" else "Pause Filtering")
-                    }
-                    OutlinedButton(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = if (filterEditorVisible) "Hide content filters" else "View or edit content filters" },
-                        enabled = !running,
-                        onClick = onFilterEditorToggle
-                    ) {
-                        Text(if (filterEditorVisible) "Hide Filters" else "View / Edit Filters")
-                    }
-                }
-                Text(
-                    "Loaded filters: ${filters.categoryFilters.filterTermCount()} category terms, ${filters.channelFilters.filterTermCount()} channel terms.",
-                    color = DeepNightMutedText,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                if (filterEditorVisible) {
-                    OutlinedTextField(
-                        value = categoryFilterText,
-                        onValueChange = onCategoryFiltersChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Category filters") },
-                        placeholder = { Text("adult, xxx") },
-                        minLines = 3,
-                        colors = darkTextFieldColors()
-                    )
-                    OutlinedTextField(
-                        value = channelFilterText,
-                        onValueChange = onChannelFiltersChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Channel filters") },
-                        placeholder = { Text("adult, xxx") },
-                        minLines = 3,
-                        colors = darkTextFieldColors()
-                    )
-                    Button(
-                        modifier = Modifier.semantics { contentDescription = "Save content filters" },
-                        enabled = !running,
-                        onClick = onSaveFilters
-                    ) {
-                        Text("Save Filters")
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun ConfigurationIntro(
@@ -5428,8 +3581,117 @@ private fun AboutSection(versionInfo: AppVersionInfo) {
 }
 
 @Composable
+private fun SettingsPanel(content: @Composable ColumnScope.() -> Unit) {
+    androidx.compose.material3.Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    enabled: Boolean,
+    contentDescription: String,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 64.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        MobileM3Switch(
+            modifier = Modifier.semantics { this.contentDescription = contentDescription },
+            checked = checked,
+            enabled = enabled,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun SettingsWelcomeCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                modifier = Modifier.size(52.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Settings, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(26.dp))
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Make UIPTV yours", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                Text("Manage syncing, playback, artwork and your library.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDestinationRow(destination: MobileSettingsDestination, onClick: () -> Unit) {
+    androidx.compose.material3.Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 84.dp).padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(destination.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(destination.title, style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                Text(destination.description, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
 private fun AccountsScreen(
     accountActions: AccountUiActions,
+    backHandler: @Composable (Boolean, () -> Unit) -> Unit,
     onOpenAccountChannels: (MobileAccount) -> Unit,
     localPlaylistPicker: LocalPlaylistPicker?,
     wideLayout: Boolean,
@@ -5441,16 +3703,16 @@ private fun AccountsScreen(
     var accounts by remember { mutableStateOf<List<MobileAccount>>(emptyList()) }
     var editing by remember { mutableStateOf(MobileAccount()) }
     var selectedType by remember { mutableStateOf(MobileAccountType.STALKER_PORTAL) }
-    var statusText by remember { mutableStateOf("Idle") }
+    var statusText by remember { mutableStateOf("") }
     var running by remember { mutableStateOf(false) }
     var cacheDialogJob by remember { mutableStateOf<CacheRefreshJobState?>(null) }
     var accountFeedback by remember { mutableStateOf<AccountFeedback?>(null) }
     var pendingDelete by remember { mutableStateOf<MobileAccount?>(null) }
     var pendingDeleteFailedAccounts by remember { mutableStateOf<List<FailedRefreshAccount>>(emptyList()) }
     var editorVisible by remember { mutableStateOf(false) }
-    var accountFilter by remember { mutableStateOf(AccountFilter.ALL) }
-    var accountSearchVisible by remember { mutableStateOf(false) }
-    var accountSearchQuery by remember { mutableStateOf("") }
+    var accountFilter by rememberSaveable { mutableStateOf(AccountFilter.ALL) }
+    var accountSearchVisible by rememberSaveable { mutableStateOf(false) }
+    var accountSearchQuery by rememberSaveable { mutableStateOf("") }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
 
     fun reload() {
@@ -5458,7 +3720,7 @@ private fun AccountsScreen(
             running = true
             runCatching { accountActions.loadAccounts() }
                 .onSuccess { accounts = it }
-                .onFailure { statusText = it.message ?: "Unable to load accounts" }
+                .onFailure { statusText = "Unable to load accounts" }
             running = false
         }
     }
@@ -5478,7 +3740,7 @@ private fun AccountsScreen(
                     )
                 }
                 .onFailure {
-                    val messageText = it.message ?: "Unable to queue cache job"
+                    val messageText = "Unable to queue cache job"
                     statusText = messageText
                     accountFeedback = AccountFeedback("Cache Refresh", messageText, false)
                 }
@@ -5489,7 +3751,7 @@ private fun AccountsScreen(
     LaunchedEffect(accountActions, refreshSignal) {
         runCatching { accountActions.loadAccounts() }
             .onSuccess { accounts = it }
-            .onFailure { statusText = it.message ?: "Unable to load accounts" }
+            .onFailure { statusText = "Unable to load accounts" }
     }
 
     val activeCacheJobId = cacheDialogJob?.jobId
@@ -5506,7 +3768,7 @@ private fun AccountsScreen(
                     if (latest.status == CacheRefreshJobStatus.SUCCEEDED) {
                         runCatching { accountActions.loadAccounts() }
                             .onSuccess { accounts = it }
-                            .onFailure { statusText = it.message ?: "Unable to load accounts" }
+                            .onFailure { statusText = "Unable to load accounts" }
                     }
                     break
                 }
@@ -5515,6 +3777,7 @@ private fun AccountsScreen(
         }
     }
 
+    backHandler(cacheDialogJob?.action == CacheRefreshAction.REFRESH_ALL) { cacheDialogJob = null }
     val refreshAllJob = cacheDialogJob?.takeIf { it.action == CacheRefreshAction.REFRESH_ALL }
     if (refreshAllJob != null) {
         val failedRefreshAccounts = failedRefreshAccounts(accounts, refreshAllJob.failedAccountIds)
@@ -5531,7 +3794,7 @@ private fun AccountsScreen(
                             statusText = "Stop requested"
                         }
                         .onFailure {
-                            val message = it.message ?: "Unable to stop cache job"
+                            val message = "Unable to stop cache job"
                             statusText = message
                             accountFeedback = AccountFeedback("Stop Failed", message, false)
                         }
@@ -5542,7 +3805,7 @@ private fun AccountsScreen(
             }
         )
     } else {
-        val effectiveAccountSearchVisible = if (wideLayout) wideSearchVisible else accountSearchVisible
+        val effectiveAccountSearchVisible = accountSearchVisible
         val visibleAccounts = accounts
             .filter(accountFilter::matches)
             .filter { account ->
@@ -5553,79 +3816,16 @@ private fun AccountsScreen(
                     account.username.contains(query, ignoreCase = true) ||
                     account.macAddress.contains(query, ignoreCase = true)
             }
-        if (wideLayout) {
-            WideAccountsContent(
-                accounts = accounts,
-                visibleAccounts = visibleAccounts,
-                accountFilter = accountFilter,
-                accountSearchVisible = effectiveAccountSearchVisible,
-                accountSearchQuery = accountSearchQuery,
-                running = running,
-                statusText = statusText,
-                onFilterSelect = { accountFilter = it },
-                onSearchChange = { accountSearchQuery = it },
-                onNewAccount = {
-                    editing = MobileAccount()
-                    selectedType = MobileAccountType.STALKER_PORTAL
-                    statusText = "New account"
-                    editorVisible = true
-                },
-                onReload = { reload() },
-                onClearAllCache = {
-                    enqueueCacheJob(
-                        CacheRefreshJobRequest(CacheRefreshAction.CLEAR_ALL_CACHE),
-                        "Queued clear all cache"
-                    )
-                },
-                onRefreshAllCaches = {
-                    enqueueCacheJob(
-                        CacheRefreshJobRequest(CacheRefreshAction.REFRESH_ALL),
-                        "Queued refresh all"
-                    )
-                },
-                onOpen = { account ->
-                    if (account.id != null) {
-                        onOpenAccountChannels(account)
-                    }
-                },
-                onEdit = { account ->
-                    editing = account
-                    selectedType = account.type
-                    statusText = "Editing ${account.accountName}"
-                    editorVisible = true
-                },
-                onClearCache = { account ->
-                    val accountId = account.id
-                    if (accountId != null) {
-                        enqueueCacheJob(
-                            CacheRefreshJobRequest(CacheRefreshAction.CLEAR_ACCOUNT_CACHE, accountId),
-                            "Queued clear ${account.accountName}"
-                        )
-                    }
-                },
-                onRefreshCache = { account ->
-                    val accountId = account.id
-                    if (accountId != null) {
-                        enqueueCacheJob(
-                            CacheRefreshJobRequest(CacheRefreshAction.REFRESH_ACCOUNT, accountId),
-                            "Queued ${account.accountName}"
-                        )
-                    }
-                },
-                onDelete = { account ->
-                    pendingDelete = account.takeIf { it.id != null }
-                },
-                modifier = modifier
-            )
-        } else {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                Row(
+
+        val accountListState = rememberLazyListState()
+        Column(modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+            MobileScreenHeader("Accounts", "Your sources, ready to browse",
+                    searchVisible = accountSearchVisible, searchQuery = accountSearchQuery,
+                    searchLabel = "Search accounts", onSearchToggle = { accountSearchVisible = !accountSearchVisible },
+                    onSearchQueryChange = { accountSearchQuery = it }, onAdd = {
+                        editing = MobileAccount(); selectedType = MobileAccountType.STALKER_PORTAL; editorVisible = true
+                    })
+            Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -5652,13 +3852,6 @@ private fun AccountsScreen(
                             )
                         }
                     }
-                    IconButton(
-                        modifier = Modifier.semantics { contentDescription = "Search accounts" },
-                        enabled = !running,
-                        onClick = { accountSearchVisible = !accountSearchVisible }
-                    ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null)
-                    }
                     Box {
                         IconButton(
                             modifier = Modifier.semantics { contentDescription = "Account page actions" },
@@ -5671,29 +3864,6 @@ private fun AccountsScreen(
                             expanded = actionsMenuExpanded,
                             onDismissRequest = { actionsMenuExpanded = false }
                         ) {
-                            DropdownMenuItem(
-                                leadingIcon = {
-                                    Icon(Icons.Outlined.Add, contentDescription = null)
-                                },
-                                text = { Text("New account") },
-                                onClick = {
-                                    actionsMenuExpanded = false
-                                    editing = MobileAccount()
-                                    selectedType = MobileAccountType.STALKER_PORTAL
-                                    statusText = "New account"
-                                    editorVisible = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                leadingIcon = {
-                                    Icon(Icons.Outlined.Refresh, contentDescription = null)
-                                },
-                                text = { Text("Reload accounts") },
-                                onClick = {
-                                    actionsMenuExpanded = false
-                                    reload()
-                                }
-                            )
                             DropdownMenuItem(
                                 leadingIcon = {
                                     Icon(Icons.Outlined.DeleteSweep, contentDescription = null)
@@ -5711,29 +3881,23 @@ private fun AccountsScreen(
                                 leadingIcon = {
                                     Icon(Icons.Outlined.Sync, contentDescription = null)
                                 },
-                                text = { Text("Refresh all caches") },
+                                text = { Text("Refresh all account catalogues") },
                                 onClick = {
                                     actionsMenuExpanded = false
                                     enqueueCacheJob(
                                         CacheRefreshJobRequest(CacheRefreshAction.REFRESH_ALL),
-                                        "Queued refresh all"
+                                        "Refreshing all account catalogues"
                                     )
                                 }
                             )
                         }
                     }
                 }
-            }
-            if (accountSearchVisible) {
-                item {
-                    CompactOutlinedTextField(
-                        value = accountSearchQuery,
-                        onValueChange = { accountSearchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = "Search accounts"
-                    )
-                }
-            }
+            LazyColumn(
+                state = accountListState,
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
             if (visibleAccounts.isEmpty()) {
                 val searchingAccounts = accountSearchVisible && accountSearchQuery.isNotBlank()
                 item {
@@ -5792,8 +3956,9 @@ private fun AccountsScreen(
                 }
                 Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
             }
+            }
         }
-        }
+
     }
 
     if (editorVisible) {
@@ -5813,19 +3978,14 @@ private fun AccountsScreen(
                     runCatching { accountActions.saveAccount(editing.copy(type = selectedType)) }
                         .onSuccess {
                             statusText = "Saved ${it.accountName}"
-                            accountFeedback = AccountFeedback(
-                                title = "Account Saved",
-                                message = "${it.accountName} was saved successfully.",
-                                success = true
-                            )
                             editing = it
                             editorVisible = false
                             runCatching { accountActions.loadAccounts() }
                                 .onSuccess { loaded -> accounts = loaded }
-                                .onFailure { error -> statusText = error.message ?: "Unable to load accounts" }
+                                .onFailure { error -> statusText = "Unable to load accounts" }
                         }
                         .onFailure {
-                            val message = it.message ?: "Unable to save account"
+                            val message = "Unable to save account"
                             statusText = message
                             accountFeedback = AccountFeedback("Account Save Failed", message, false)
                         }
@@ -5861,10 +4021,10 @@ private fun AccountsScreen(
                                     selectedType = MobileAccountType.STALKER_PORTAL
                                     runCatching { accountActions.loadAccounts() }
                                         .onSuccess { loaded -> accounts = loaded }
-                                        .onFailure { error -> statusText = error.message ?: "Unable to load accounts" }
+                                        .onFailure { error -> statusText = "Unable to load accounts" }
                                 }
                                 .onFailure {
-                                    val message = it.message ?: "Unable to delete account"
+                                    val message = "Unable to delete account"
                                     statusText = message
                                     accountFeedback = AccountFeedback("Delete Failed", message, false)
                                 }
@@ -5930,7 +4090,7 @@ private fun AccountsScreen(
                                     failedAccountIds = cacheDialogJob?.failedAccountIds.orEmpty().filterNot { it in ids }
                                 )
                             }.onFailure {
-                                val message = it.message ?: "Unable to delete failed accounts"
+                                val message = "Unable to delete failed accounts"
                                 statusText = message
                                 accountFeedback = AccountFeedback("Delete Failed", message, false)
                             }
@@ -5962,7 +4122,7 @@ private fun AccountsScreen(
                             statusText = "Stop requested"
                         }
                         .onFailure {
-                            val message = it.message ?: "Unable to stop cache job"
+                            val message = "Unable to stop cache job"
                             statusText = message
                             accountFeedback = AccountFeedback("Stop Failed", message, false)
                         }
@@ -5976,181 +4136,6 @@ private fun AccountsScreen(
     }
 }
 
-@Composable
-private fun WideAccountsContent(
-    accounts: List<MobileAccount>,
-    visibleAccounts: List<MobileAccount>,
-    accountFilter: AccountFilter,
-    accountSearchVisible: Boolean,
-    accountSearchQuery: String,
-    running: Boolean,
-    statusText: String,
-    onFilterSelect: (AccountFilter) -> Unit,
-    onSearchChange: (String) -> Unit,
-    onNewAccount: () -> Unit,
-    onReload: () -> Unit,
-    onClearAllCache: () -> Unit,
-    onRefreshAllCaches: () -> Unit,
-    onOpen: (MobileAccount) -> Unit,
-    onEdit: (MobileAccount) -> Unit,
-    onClearCache: (MobileAccount) -> Unit,
-    onRefreshCache: (MobileAccount) -> Unit,
-    onDelete: (MobileAccount) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val compactWide = LocalWidePhoneLayout.current
-    var actionsMenuExpanded by remember { mutableStateOf(false) }
-    val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 8.dp else 12.dp
-    val accountColumns = 2
-    Row(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(outerPadding),
-        horizontalArrangement = Arrangement.spacedBy(gap)
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                LazyRow(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(AccountFilter.entries, key = { it.name }) { filter ->
-                        FilterChip(
-                            selected = accountFilter == filter,
-                            onClick = { onFilterSelect(filter) },
-                            leadingIcon = if (filter == AccountFilter.PINNED) {
-                                {
-                                    Icon(
-                                        Icons.Outlined.PushPin,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            label = { Text(filter.label) }
-                        )
-                    }
-                }
-                Box {
-                    IconButton(
-                        modifier = Modifier.semantics { contentDescription = "Account page actions" },
-                        enabled = !running,
-                        onClick = { actionsMenuExpanded = true }
-                    ) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = null)
-                    }
-                    DropdownMenu(
-                        expanded = actionsMenuExpanded,
-                        onDismissRequest = { actionsMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            leadingIcon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                            text = { Text("New account") },
-                            onClick = {
-                                actionsMenuExpanded = false
-                                onNewAccount()
-                            }
-                        )
-                        DropdownMenuItem(
-                            leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
-                            text = { Text("Reload accounts") },
-                            onClick = {
-                                actionsMenuExpanded = false
-                                onReload()
-                            }
-                        )
-                        DropdownMenuItem(
-                            leadingIcon = { Icon(Icons.Outlined.DeleteSweep, contentDescription = null) },
-                            text = { Text("Clear all cache") },
-                            onClick = {
-                                actionsMenuExpanded = false
-                                onClearAllCache()
-                            }
-                        )
-                        DropdownMenuItem(
-                            leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
-                            text = { Text("Refresh all caches") },
-                            onClick = {
-                                actionsMenuExpanded = false
-                                onRefreshAllCaches()
-                            }
-                        )
-                    }
-                }
-            }
-            if (accountSearchVisible) {
-                CompactOutlinedTextField(
-                    value = accountSearchQuery,
-                    onValueChange = onSearchChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = "Search accounts"
-                )
-            }
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (visibleAccounts.isEmpty()) {
-                    val searchingAccounts = accountSearchVisible && accountSearchQuery.isNotBlank()
-                    item {
-                        EmptyState(
-                            title = when {
-                                accounts.isEmpty() -> "No accounts"
-                                searchingAccounts -> "No account matches"
-                                else -> "No ${accountFilter.emptyLabel} accounts"
-                            },
-                            detail = if (accounts.isEmpty()) {
-                                "Create an account here or pull accounts from desktop sync."
-                            } else if (searchingAccounts) {
-                                "Try a shorter search term."
-                            } else {
-                                "Change the account filter or edit account details."
-                            }
-                        )
-                    }
-                }
-                items(visibleAccounts.chunked(accountColumns)) { rowAccounts ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-                    ) {
-                        rowAccounts.forEach { account ->
-                            Box(modifier = Modifier.weight(1f)) {
-                                AccountRow(
-                                    account = account,
-                                    dense = compactWide,
-                                    onOpen = { onOpen(account) },
-                                    onEdit = { onEdit(account) },
-                                    onClearCache = { onClearCache(account) },
-                                    onRefreshCache = { onRefreshCache(account) },
-                                    onDelete = { onDelete(account) }
-                                )
-                            }
-                        }
-                        repeat(accountColumns - rowAccounts.size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-            if (running) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
 
 @Composable
 private fun AccountRow(
@@ -6163,15 +4148,24 @@ private fun AccountRow(
     dense: Boolean = false
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = if (dense) 58.dp else 64.dp)
-            .background(DeepNightSurfaceHigh)
-            .clickable(onClick = onOpen)
-            .padding(horizontal = if (dense) 8.dp else 12.dp, vertical = if (dense) 6.dp else 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 1.dp
     ) {
+      Row(
+        modifier = Modifier.fillMaxWidth()
+            .defaultMinSize(minHeight = if (dense) 68.dp else 76.dp)
+            .padding(
+                start = if (dense) 12.dp else 16.dp,
+                end = if (dense) 4.dp else 8.dp,
+                top = if (dense) 8.dp else 12.dp,
+                bottom = if (dense) 8.dp else 12.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (account.pinToTop) {
@@ -6199,7 +4193,7 @@ private fun AccountRow(
         Box {
             IconButton(
                 modifier = Modifier
-                    .size(if (dense) 40.dp else 48.dp)
+                    .size(48.dp)
                     .semantics { contentDescription = "Account actions for ${account.accountName}" },
                 onClick = { menuExpanded = true }
             ) {
@@ -6240,7 +4234,7 @@ private fun AccountRow(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Delete") },
+                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
                     enabled = account.id != null,
                     onClick = {
                         menuExpanded = false
@@ -6248,7 +4242,8 @@ private fun AccountRow(
                     }
                 )
             }
-        }
+      }
+    }
     }
 }
 
@@ -6413,7 +4408,7 @@ private fun CacheRefreshProgressScreen(
                                 .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Checkbox(
+                            MobileM3Switch(
                                 checked = selected,
                                 onCheckedChange = { checked ->
                                     selectedFailedAccountIds = if (checked) {
@@ -6495,34 +4490,39 @@ private fun AccountEditorDialog(
     onSave: () -> Unit,
     onDelete: () -> Unit
 ) {
-    AlertDialog(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (account.id == null) "New Account" else "Edit Account") },
-        text = {
-            Column(
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            val popup = maxWidth >= 840.dp
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 520.dp)
-                    .verticalScroll(rememberScrollState())
+                    .then(if (popup) Modifier.widthIn(max = 760.dp).heightIn(max = maxHeight) else Modifier.fillMaxHeight()),
+                shape = if (popup) MaterialTheme.shapes.extraLarge else androidx.compose.ui.graphics.RectangleShape,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = if (popup) 6.dp else 0.dp
             ) {
-                AccountEditor(
-                    account = account,
-                    selectedType = selectedType,
-                    onTypeChange = onTypeChange,
-                    onAccountChange = onAccountChange,
-                    onBrowseLocalPlaylist = onBrowseLocalPlaylist,
-                    onSave = onSave,
-                    onDelete = onDelete
-                )
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
+                Column(Modifier.fillMaxSize()) {
+                    MobileScreenHeader(if (account.id == null) "Add account" else "Edit account", onBack = onDismiss)
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                        AccountEditor(account, selectedType, onTypeChange, onAccountChange, onBrowseLocalPlaylist, onSave, onDelete)
+                    }
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (account.id != null) TextButton(onClick = onDelete) {
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Button(onClick = onSave, enabled = account.canSaveForType(selectedType)) { Text("Save account") }
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -6554,15 +4554,12 @@ private fun AccountEditor(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            if (isNewAccount) "Create account" else "Edit account",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
             accountEditorHelpText(selectedType, isNewAccount),
             color = DeepNightMutedText,
             style = MaterialTheme.typography.bodySmall
         )
+        AccountTextField("Account name", account.accountName) { onAccountChange(account.copy(accountName = it)) }
+        if (account.accountName.isBlank()) Text("Choose a name to recognise this source.", style = MaterialTheme.typography.bodySmall)
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -6578,7 +4575,6 @@ private fun AccountEditor(
                 )
             }
         }
-        AccountTextField("Account name", account.accountName) { onAccountChange(account.copy(accountName = it)) }
         when (selectedType) {
             MobileAccountType.STALKER_PORTAL -> {
                 AccountTextField("Portal URL", account.url) { onAccountChange(account.copy(url = it)) }
@@ -6625,13 +4621,7 @@ private fun AccountEditor(
                         credentials = xtremeCredentialOptions,
                         onCredentialSelected = { onAccountChange(account.withXtremeCredentialSelection(it)) }
                     )
-                    CompactOutlinedTextField(
-                        value = account.password,
-                        onValueChange = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        label = "Password",
-                        enabled = false
-                    )
+                    AccountTextField("Password", account.password) {}
                     Text(
                         "Select the username/password pair to use for cache refresh and playback.",
                         color = DeepNightMutedText,
@@ -6675,36 +4665,22 @@ private fun AccountEditor(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
+            MobileM3Switch(
                 modifier = Modifier.semantics { contentDescription = "Pin account to top" },
                 checked = account.pinToTop,
                 onCheckedChange = { onAccountChange(account.copy(pinToTop = it)) }
             )
             Text("Pin to top")
-            Spacer(Modifier.width(12.dp))
-            Checkbox(
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MobileM3Switch(
                 modifier = Modifier.semantics { contentDescription = "Resolve redirects for account" },
                 checked = account.resolveChainAndDeepRedirects,
                 onCheckedChange = { onAccountChange(account.copy(resolveChainAndDeepRedirects = it)) }
             )
             Text("Resolve redirects")
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                modifier = Modifier.semantics { contentDescription = "Save account" },
-                onClick = onSave,
-                enabled = account.canSaveForType(selectedType)
-            ) {
-                Text("Save")
-            }
-            Button(
-                modifier = Modifier.semantics { contentDescription = "Delete account" },
-                onClick = onDelete,
-                enabled = account.id != null
-            ) {
-                Text("Delete")
-            }
-        }
+
     }
     if (macManagerVisible) {
         MacAddressManagerDialog(
@@ -7103,11 +5079,17 @@ private fun String.normalizedMacEntry(): String =
 
 @Composable
 private fun AccountTextField(label: String, value: String, onValueChange: (String) -> Unit) {
-    CompactOutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        label = label
+    val secret = label.contains("Password", ignoreCase = true)
+    TextField(
+        value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) }, singleLine = true,
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = when {
+            secret -> KeyboardType.Password
+            label.contains("URL") -> KeyboardType.Uri
+            else -> KeyboardType.Text
+        }),
+        colors = mobileTextFieldColors()
     )
 }
 
@@ -7118,7 +5100,7 @@ private fun AccountMultilineTextField(
     onValueChange: (String) -> Unit,
     placeholder: String? = null
 ) {
-    OutlinedTextField(
+    TextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier
@@ -7142,7 +5124,7 @@ private fun AccountMultilineTextField(
                 )
             }
         },
-        colors = darkTextFieldColors()
+        colors = mobileTextFieldColors()
     )
 }
 
@@ -7157,7 +5139,7 @@ private fun CompactOutlinedTextField(
     enabled: Boolean = true,
     readOnly: Boolean = false
 ) {
-    OutlinedTextField(
+    TextField(
         value = value,
         onValueChange = onValueChange,
         enabled = enabled,
@@ -7184,13 +5166,13 @@ private fun CompactOutlinedTextField(
             }
         },
         keyboardOptions = keyboardOptions,
-        colors = darkTextFieldColors()
+        colors = mobileTextFieldColors()
     )
 }
 
 @Composable
-private fun darkTextFieldColors(): TextFieldColors =
-    OutlinedTextFieldDefaults.colors(
+internal fun mobileTextFieldColors(): TextFieldColors =
+    TextFieldDefaults.colors(
         focusedTextColor = DeepNightText,
         unfocusedTextColor = DeepNightText,
         disabledTextColor = DeepNightMutedText,
@@ -7202,14 +5184,18 @@ private fun darkTextFieldColors(): TextFieldColors =
         errorLabelColor = Color(0xFFFFB4AB),
         focusedPlaceholderColor = DeepNightMutedText,
         unfocusedPlaceholderColor = DeepNightMutedText,
-        focusedBorderColor = DeepNightAccent,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-        disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-        errorBorderColor = Color(0xFFFFB4AB),
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent,
-        disabledContainerColor = Color.Transparent,
-        errorContainerColor = Color.Transparent
+        focusedIndicatorColor = Color.Transparent,
+        unfocusedIndicatorColor = Color.Transparent,
+        disabledIndicatorColor = Color.Transparent,
+        errorIndicatorColor = Color.Transparent,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.55f),
+        errorContainerColor = MaterialTheme.colorScheme.errorContainer,
+        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedTrailingIconColor = MaterialTheme.colorScheme.primary,
+        unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
 @Composable
@@ -7220,176 +5206,35 @@ private fun AppTabs(
     compact: Boolean = false,
     searchEnabled: Boolean = false,
     searchActive: Boolean = false,
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {},
+    onHideNavigation: () -> Unit = {}
 ) {
     val tabs = listOf(
         BottomTab("Bookmarks", Icons.Outlined.Bookmarks),
         BottomTab("Accounts", Icons.Outlined.AccountCircle),
         BottomTab("Watching", Icons.Outlined.PlayCircle),
-        BottomTab("Config", Icons.Outlined.Settings)
+        BottomTab("Settings", Icons.Outlined.Settings)
     )
     if (vertical) {
-        val railWidth = if (compact) 64.dp else 78.dp
-        val railPadding = if (compact) 6.dp else 10.dp
-        val itemHeight = if (compact) 58.dp else 72.dp
-        val iconWidth = if (compact) 30.dp else 34.dp
-        val iconHeight = if (compact) 24.dp else 26.dp
-        val iconSize = if (compact) 15.dp else 16.dp
-        Surface(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(railWidth),
-            color = DeepNightSurface,
-            contentColor = DeepNightText
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = railPadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp)
-            ) {
-                IconButton(
-                    modifier = Modifier.semantics {
-                        contentDescription = if (searchEnabled) {
-                            if (searchActive) "Hide search" else "Show search"
-                        } else {
-                            "Search unavailable"
-                        }
-                    },
-                    enabled = searchEnabled,
-                    onClick = onSearchClick
-                ) {
-                    Surface(
-                        modifier = Modifier
-                            .width(iconWidth)
-                            .height(iconHeight),
-                        shape = RoundedCornerShape(999.dp),
-                        color = if (searchActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        contentColor = when {
-                            searchActive -> DeepNightPrimary
-                            searchEnabled -> DeepNightMutedText
-                            else -> DeepNightMutedText.copy(alpha = 0.42f)
-                        }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Outlined.Search,
-                                contentDescription = null,
-                                modifier = Modifier.size(iconSize)
-                            )
-                        }
-                    }
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = if (compact) Arrangement.SpaceEvenly else Arrangement.Center
-                ) {
-                    tabs.forEachIndexed { index, tab ->
-                        val selected = index == selectedTab
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(itemHeight)
-                                .clickable { onSelect(index) }
-                                .semantics { contentDescription = "Open ${tab.label}" },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Surface(
-                                modifier = Modifier
-                                    .width(iconWidth)
-                                    .height(iconHeight),
-                                shape = RoundedCornerShape(999.dp),
-                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                contentColor = if (selected) DeepNightPrimary else DeepNightMutedText
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(iconSize)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(if (compact) 1.dp else 2.dp))
-                            Text(
-                                tab.label,
-                                color = if (selected) DeepNightAccent else DeepNightMutedText,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = if (compact) 8.sp else 9.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
+        androidx.compose.material3.NavigationRail {
+            IconButton(onClick = onHideNavigation) { Icon(Icons.Outlined.ChevronLeft, contentDescription = "Hide navigation") }
+            tabs.forEachIndexed { index, tab ->
+                androidx.compose.material3.NavigationRailItem(
+                    selected = selectedTab == index, onClick = { onSelect(index) },
+                    icon = { Icon(tab.icon, contentDescription = tab.label) },
+                    alwaysShowLabel = false
+                )
             }
         }
-        return
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(DeepNightSurface)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
-            color = DeepNightSurface,
-            contentColor = DeepNightText
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    val selected = index == selectedTab
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxSize()
-                            .clickable { onSelect(index) }
-                            .semantics { contentDescription = "Open ${tab.label}" },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .width(36.dp)
-                                .height(24.dp),
-                            shape = RoundedCornerShape(999.dp),
-                            color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            contentColor = if (selected) DeepNightPrimary else DeepNightMutedText
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(17.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            tab.label,
-                            color = if (selected) DeepNightAccent else DeepNightMutedText,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
+    } else {
+        androidx.compose.material3.NavigationBar {
+            tabs.forEachIndexed { index, tab ->
+                NavigationBarItem(
+                    selected = selectedTab == index, onClick = { onSelect(index) },
+                    icon = { Icon(tab.icon, contentDescription = tab.label) }
+                )
             }
         }
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-        )
     }
 }
 
@@ -7399,11 +5244,12 @@ private data class BottomTab(
 )
 
 @Composable
-private fun EmptyState(title: String, detail: String, modifier: Modifier = Modifier) {
+internal fun EmptyState(title: String, detail: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 96.dp)
+            .defaultMinSize(minHeight = 120.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(DeepNightSurfaceHigh)
             .padding(14.dp),
         verticalArrangement = Arrangement.Center

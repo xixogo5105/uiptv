@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Matrix
@@ -42,6 +43,9 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
@@ -55,11 +59,32 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.graphics.toArgb
 import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MpvEmbeddedPlayerActivity : Activity() {
+    private data class PlayerPalette(
+        val controlSurface: Int,
+        val buttonSurface: Int,
+        val accentContainer: Int,
+        val onAccentContainer: Int,
+        val onSurface: Int,
+        val onSurfaceVariant: Int,
+        val outline: Int,
+        val primary: Int
+    )
+
+    private lateinit var playerPalette: PlayerPalette
+    private val M3ControlSurface: Int get() = playerPalette.controlSurface
+    private val M3ButtonSurface: Int get() = playerPalette.buttonSurface
+    private val M3AccentContainer: Int get() = playerPalette.accentContainer
+    private val M3OnAccent: Int get() = playerPalette.onAccentContainer
+    private val M3OnSurface: Int get() = playerPalette.onSurface
+    private val M3OnSurfaceVariant: Int get() = playerPalette.onSurfaceVariant
+    private val M3SurfaceOutline: Int get() = playerPalette.outline
+
     private var mpv: MPVLib? = null
     @Volatile
     private var activityDestroyed = false
@@ -73,11 +98,13 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var messageView: TextView
     private lateinit var playPauseButton: ImageButton
     private lateinit var progressSeekBar: SeekBar
+    private var progressSeekBarPresentationIsLive: Boolean? = null
     private lateinit var streamInfoLabel: TextView
     private lateinit var epgLabel: TextView
     private lateinit var epgPanel: ScrollView
     private lateinit var epgScrim: View
     private lateinit var epgDetails: LinearLayout
+    private lateinit var epgPanelContent: LinearLayout
     private lateinit var epgGuideButton: TextView
     private lateinit var recordingDot: View
     private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
@@ -99,11 +126,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var subtitleTrackButton: ImageButton
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
-        ZoomMode("Default", keepAspect = true, aspectOverride = "no", unscaled = false, R.drawable.aspect_ratio),
-        ZoomMode("Fill", keepAspect = false, aspectOverride = "no", unscaled = false, R.drawable.aspect_ratio_fill),
-        ZoomMode("16:9", keepAspect = true, aspectOverride = "16:9", unscaled = false, R.drawable.aspect_ratio),
-        ZoomMode("4:3", keepAspect = true, aspectOverride = "4:3", unscaled = false, R.drawable.aspect_ratio),
-        ZoomMode("Original", keepAspect = true, aspectOverride = "no", unscaled = true, R.drawable.aspect_ratio_stretch)
+        ZoomMode("Fit", keepAspect = true, cropToFill = false, R.drawable.video_scale_fit),
+        ZoomMode("Crop", keepAspect = true, cropToFill = true, R.drawable.video_scale_crop),
+        ZoomMode("Stretch", keepAspect = false, cropToFill = false, R.drawable.video_scale_stretch)
     )
     private val hideControlsRunnable = Runnable {
         controlsOverlay.visibility = View.GONE
@@ -151,6 +176,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var mpvPaused = false
     private var mpvHwDecoder = ""
     private var mpvVideoOutput = ""
+    private var mpvAudioCodec = ""
     private var lastLoggedVideoDetailsKey = ""
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var currentTarget: PlaybackTarget? = null
@@ -214,6 +240,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        playerPalette = resolvePlayerPalette()
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
@@ -273,6 +300,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             setTypeface(Typeface.DEFAULT, Typeface.BOLD)
             setPadding(dp(18), dp(12), dp(18), dp(12))
             background = roundedBackground(Color.argb(190, 12, 16, 20), dp(18))
+            elevation = dp(12).toFloat()
             gravity = Gravity.CENTER
             visibility = View.GONE
         }
@@ -292,7 +320,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
             )
             addView(
                 controlsOverlay,
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
+                    leftMargin = dp(12)
+                    rightMargin = dp(12)
+                    bottomMargin = dp(12)
+                }
             )
             addView(
                 playlistOverlay,
@@ -318,6 +350,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             )
         }
         setContentView(rootLayout)
+        controlsOverlay.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (feedbackView.visibility == View.VISIBLE) positionFeedbackAboveControls()
+        }
         controlsOverlay.bringToFront()
         playlistOverlay.bringToFront()
         feedbackView.bringToFront()
@@ -333,30 +368,31 @@ class MpvEmbeddedPlayerActivity : Activity() {
         epgPanel.bringToFront()
         unlockButton = ImageButton(this).apply {
             contentDescription = "Unlock"
-            minimumWidth = dp(96)
-            minimumHeight = dp(96)
-            setPadding(dp(24), dp(24), dp(24), dp(24))
-            background = roundedBackground(Color.argb(220, 12, 16, 20), dp(48))
+            minimumWidth = dp(72)
+            minimumHeight = dp(72)
+            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
+            elevation = dp(4).toFloat()
             scaleType = ImageView.ScaleType.FIT_CENTER
-            imageTintList = ColorStateList.valueOf(Color.WHITE)
+            imageTintList = ColorStateList.valueOf(M3OnSurface)
             isClickable = true
             isFocusable = true
             setOnClickListener { handleUnlockTap() }
         }
         lockHelpText = TextView(this).apply {
             contentDescription = "Lock help"
-            setTextColor(Color.WHITE)
-            setTextSize(16f)
-            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+            setTextColor(M3OnSurface)
+            setTextSize(14f)
             gravity = Gravity.CENTER
-            setPadding(dp(16), dp(8), dp(16), dp(10))
-            background = roundedBackground(Color.argb(210, 12, 16, 20), dp(18))
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            background = roundedBackground(M3ControlSurface, dp(18), M3SurfaceOutline)
+            elevation = dp(2).toFloat()
         }
         lockOverlay = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             visibility = View.GONE
-            addView(unlockButton, LinearLayout.LayoutParams(dp(96), dp(96)).apply {
+            addView(unlockButton, LinearLayout.LayoutParams(dp(72), dp(72)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             })
             addView(lockHelpText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -368,11 +404,13 @@ class MpvEmbeddedPlayerActivity : Activity() {
             gravity = Gravity.CENTER
         })
         lockedMuteButton = ImageButton(this).apply {
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            background = roundedBackground(Color.argb(190, 12, 16, 20), dp(22))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = roundedBackground(M3ControlSurface, dp(16), M3SurfaceOutline)
+            elevation = dp(3).toFloat()
             scaleType = ImageView.ScaleType.FIT_CENTER
             imageTintList = ColorStateList.valueOf(Color.WHITE)
             visibility = View.GONE
+            setTag(R.id.player_theme_button_role, "lockedMute")
             setOnClickListener {
                 toggleMute()
                 if (locked) showUnlockButton() else showUnlockedConfirmation()
@@ -381,11 +419,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
         updateLockedMuteButton()
         rootLayout.addView(
             lockedMuteButton,
-            FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END).apply {
+            FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.END).apply {
                 topMargin = dp(12)
                 marginEnd = dp(12)
             }
         )
+        applyPlayerTheme()
         enterImmersiveMode()
 
         val createdMpv = MPVLib.create(this)
@@ -405,6 +444,129 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
         observeMpvProperties(createdMpv)
     }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        playerPalette = resolvePlayerPalette()
+        if (::rootLayout.isInitialized) applyPlayerTheme()
+    }
+
+    private fun resolvePlayerPalette(): PlayerPalette {
+        val dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val dynamicScheme: ColorScheme? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching {
+                if (dark) dynamicDarkColorScheme(this) else dynamicLightColorScheme(this)
+            }.getOrNull()
+        } else null
+        if (dynamicScheme != null) {
+            return PlayerPalette(
+                controlSurface = withAlpha(dynamicScheme.surfaceContainerHigh.toArgb(), 244),
+                buttonSurface = dynamicScheme.surfaceContainerHighest.toArgb(),
+                accentContainer = dynamicScheme.primaryContainer.toArgb(),
+                onAccentContainer = dynamicScheme.onPrimaryContainer.toArgb(),
+                onSurface = dynamicScheme.onSurface.toArgb(),
+                onSurfaceVariant = dynamicScheme.onSurfaceVariant.toArgb(),
+                outline = withAlpha(dynamicScheme.outlineVariant.toArgb(), if (dark) 58 else 96),
+                primary = dynamicScheme.primary.toArgb(),
+            )
+        }
+
+        return if (dark) {
+            PlayerPalette(
+                controlSurface = Color.argb(244, 28, 27, 31),
+                buttonSurface = Color.rgb(55, 58, 63),
+                accentContainer = Color.rgb(79, 216, 235),
+                onAccentContainer = Color.rgb(0, 35, 40),
+                onSurface = Color.rgb(241, 240, 245),
+                onSurfaceVariant = Color.rgb(202, 197, 208),
+                outline = Color.argb(58, 255, 255, 255),
+                primary = Color.rgb(79, 216, 235)
+            )
+        } else {
+            PlayerPalette(
+                controlSurface = Color.argb(248, 250, 248, 255),
+                buttonSurface = Color.rgb(232, 228, 237),
+                accentContainer = Color.rgb(190, 234, 241),
+                onAccentContainer = Color.rgb(0, 35, 40),
+                onSurface = Color.rgb(28, 27, 31),
+                onSurfaceVariant = Color.rgb(72, 70, 78),
+                outline = Color.argb(72, 40, 40, 50),
+                primary = Color.rgb(0, 105, 120)
+            )
+        }
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+
+    private fun applyPlayerTheme() {
+        if (::controlsOverlay.isInitialized) {
+            controlsOverlay.background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
+        }
+        if (::feedbackView.isInitialized) {
+            feedbackView.setTextColor(M3OnSurface)
+            feedbackView.background = roundedBackground(M3ControlSurface, dp(18), M3SurfaceOutline)
+        }
+        if (::messageView.isInitialized) {
+            messageView.setTextColor(M3OnSurface)
+            messageView.background = roundedBackground(M3ControlSurface, dp(18), M3SurfaceOutline)
+        }
+        if (::loadingSpinner.isInitialized) {
+            loadingSpinner.indeterminateTintList = ColorStateList.valueOf(playerPalette.primary)
+        }
+        if (::progressSeekBar.isInitialized) {
+            updateProgressSeekBarAppearance()
+        }
+        if (::playlistOverlay.isInitialized) {
+            playlistOverlay.background = roundedBackground(M3ControlSurface, dp(12), M3SurfaceOutline)
+        }
+        if (::epgPanelContent.isInitialized) epgPanelContent.setBackgroundColor(M3ControlSurface)
+        if (::unlockButton.isInitialized) {
+            unlockButton.background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
+            unlockButton.imageTintList = ColorStateList.valueOf(M3OnSurface)
+            (unlockButton.drawable)?.mutate()?.setTint(M3OnSurface)
+        }
+        if (::lockHelpText.isInitialized) {
+            lockHelpText.setTextColor(M3OnSurface)
+            lockHelpText.background = roundedBackground(M3ControlSurface, dp(18), M3SurfaceOutline)
+        }
+        if (::lockedMuteButton.isInitialized) {
+            val active = muted
+            lockedMuteButton.background = controlButtonBackground(active)
+            setButtonIcon(lockedMuteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
+        }
+        if (::rootLayout.isInitialized) applyPaletteToViewTree(rootLayout)
+    }
+
+    private fun applyPaletteToViewTree(view: View) {
+        if (view is TextView) {
+            val textRole = view.getTag(R.id.player_theme_text_role) as? String
+            view.setTextColor(if (textRole == "variant") M3OnSurfaceVariant else M3OnSurface)
+            if (view.getTag(R.id.player_theme_button_role) == "button") {
+                view.background = controlButtonBackground(active = false)
+            } else if (view.getTag(R.id.player_theme_button_role) == "playlistRow") {
+                val index = view.getTag(R.id.player_theme_row_index) as? Int ?: -1
+                val selected = index == currentBingeIndex
+                view.background = roundedBackground(
+                    color = if (selected) M3AccentContainer else M3ButtonSurface,
+                    radius = dp(8),
+                    strokeColor = if (selected) M3SurfaceOutline else null
+                )
+            }
+        } else if (view is ImageButton && view.getTag(R.id.player_theme_button_role) == "button") {
+            (view.tag as? Int)?.let { setButtonIcon(view, it) }
+            view.background = controlButtonBackground(isControlButtonActive(view))
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) applyPaletteToViewTree(view.getChildAt(index))
+        }
+    }
+
+    private fun isControlButtonActive(button: ImageButton): Boolean =
+        (::muteButton.isInitialized && button === muteButton && muted) ||
+            (::repeatButton.isInitialized && button === repeatButton && repeatEnabled) ||
+            (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && currentTrackIsEnabled("sid")) ||
+            (::lockButton.isInitialized && button === lockButton && locked)
 
     override fun onResume() {
         super.onResume()
@@ -764,9 +926,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             return
         }
         val targetZoomMode = if (spanDeltaX > 0f) {
-            FillZoomModeIndex
+            CropZoomModeIndex
         } else {
-            DefaultZoomModeIndex
+            FitZoomModeIndex
         }
         if (zoomModeIndex != targetZoomMode) {
             applyZoomMode(targetZoomMode)
@@ -788,6 +950,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
             setTextSize(14f)
             setTypeface(Typeface.DEFAULT, Typeface.BOLD)
             maxLines = 1
+            setHorizontallyScrolling(true)
+            gravity = Gravity.CENTER_VERTICAL
         }
         epgLabel = TextView(this).apply {
             setTextColor(Color.WHITE); setTextSize(11f); maxLines = 2; visibility = View.GONE
@@ -809,45 +973,101 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 setMargins(dp(8), 0, dp(8), 0)
             }
         }
+        streamInfoLabel = TextView(this).apply {
+            text = buildStreamInfoLabel()
+            setTextColor(M3OnSurfaceVariant)
+            setTag(R.id.player_theme_text_role, "variant")
+            setTextSize(9f)
+            maxLines = 1
+            setHorizontallyScrolling(true)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 0)
+            background = null
+        }
+        val titleScroller = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+            clipToPadding = false
+            addView(titleLabel, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        val codecScroller = object : HorizontalScrollView(this) {
+        }.apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+            clipToPadding = false
+            addView(streamInfoLabel, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        val titleAndCodecRow = object : LinearLayout(this) {
+            init {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(titleScroller, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(ControlHeaderHeightDp)))
+                addView(codecScroller, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(ControlHeaderHeightDp)))
+            }
+
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val availableWidth = MeasureSpec.getSize(widthMeasureSpec)
+                if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED || availableWidth <= 0) {
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+                    return
+                }
+
+                val headerHeight = MeasureSpec.makeMeasureSpec(dp(ControlHeaderHeightDp), MeasureSpec.EXACTLY)
+                val codecMaximumWidth = (availableWidth * CodecAreaMaximumFraction).toInt().coerceAtLeast(1)
+                codecScroller.measure(MeasureSpec.makeMeasureSpec(codecMaximumWidth, MeasureSpec.AT_MOST), headerHeight)
+
+                val titleMaximumWidth = (availableWidth - codecScroller.measuredWidth - dp(ControlHeaderGapDp)).coerceAtLeast(0)
+                titleScroller.measure(MeasureSpec.makeMeasureSpec(titleMaximumWidth, MeasureSpec.AT_MOST), headerHeight)
+
+                val contentWidth = titleScroller.measuredWidth + dp(ControlHeaderGapDp) + codecScroller.measuredWidth
+                val contentHeight = maxOf(titleScroller.measuredHeight, codecScroller.measuredHeight, dp(ControlHeaderHeightDp))
+                setMeasuredDimension(resolveSize(contentWidth, widthMeasureSpec), resolveSize(contentHeight, heightMeasureSpec))
+            }
+
+            override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+                val contentHeight = bottom - top
+                val titleTop = (contentHeight - titleScroller.measuredHeight) / 2
+                titleScroller.layout(0, titleTop, titleScroller.measuredWidth, titleTop + titleScroller.measuredHeight)
+                val codecLeft = titleScroller.measuredWidth + dp(ControlHeaderGapDp)
+                val codecTop = (contentHeight - codecScroller.measuredHeight) / 2
+                codecScroller.layout(codecLeft, codecTop, codecLeft + codecScroller.measuredWidth, codecTop + codecScroller.measuredHeight)
+            }
+        }
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             recordingDot = FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
                 contentDescription = "Live broadcast"
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.rgb(28, 31, 35))
-                }
                 addView(FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
                     contentDescription = "Live broadcast indicator"
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.rgb(28, 31, 35))
+                    }
                     addView(View(this@MpvEmbeddedPlayerActivity).apply {
                         background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
                             setColor(Color.rgb(229, 57, 53))
                         }
                     }, FrameLayout.LayoutParams(dp(8), dp(8), Gravity.CENTER))
-                }, FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER))
+                }, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))
                 visibility = if (isLiveStream()) View.VISIBLE else View.GONE
             }
-            addView(recordingDot, LinearLayout.LayoutParams(dp(28), dp(28)).apply {
-                rightMargin = dp(8)
+            addView(recordingDot, LinearLayout.LayoutParams(dp(RecordingDotSlotWidthDp), dp(ControlHeaderHeightDp)).apply {
+                rightMargin = dp(RecordingDotTitleGapDp)
             })
-            addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(epgGuideButton)
-            addView(closeButton)
-        }
-        streamInfoLabel = TextView(this).apply {
-            text = buildStreamInfoLabel()
-            setTextColor(Color.rgb(174, 184, 194))
-            setTextSize(11f)
-            maxLines = 1
+            addView(titleAndCodecRow, LinearLayout.LayoutParams(0, dp(ControlHeaderHeightDp), 1f))
+            addView(LinearLayout(this@MpvEmbeddedPlayerActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(epgGuideButton)
+                addView(closeButton)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(ControlHeaderHeightDp)))
         }
         progressSeekBar = SeekBar(this).apply {
             max = ProgressBarMax
-            progress = 0
-            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 216, 235))
-            thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
-            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(150, 90, 102, 114))
+            progress = if (isLiveStream()) ProgressBarMax else 0
+            scaleY = 0.75f
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = Unit
 
@@ -867,12 +1087,14 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 }
             })
         }
+        updateProgressSeekBarAppearance()
         timeLabel = TextView(this).apply {
             text = LiveTimeLabel
-            setTextColor(Color.rgb(209, 228, 255))
-            setTextSize(11f)
+            setTextColor(M3OnSurfaceVariant)
+            setTag(R.id.player_theme_text_role, "variant")
+            setTextSize(10f)
             gravity = Gravity.CENTER
-            minWidth = dp(76)
+            minWidth = dp(48)
         }
         val progressRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -905,7 +1127,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             repeatButton = iconControlButton(R.drawable.repeat_off, "Repeat") { toggleRepeat() }
             updateRepeatButton()
             addView(repeatButton, compactControlLayoutParams())
-            zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Zoom ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
+            zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Video scale: ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
             addView(zoomButton, compactControlLayoutParams())
             if (isPictureInPictureAvailable()) {
                 addView(iconControlButton(R.drawable.picture_in_picture, "Picture in picture") { enterPictureInPicture() }, compactControlLayoutParams())
@@ -915,23 +1137,22 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         val controlsScroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            clipToPadding = false
             addView(buttonRow)
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(12))
-            background = roundedBackground(Color.argb(175, 12, 16, 20), dp(0))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
+            elevation = dp(6).toFloat()
             visibility = View.GONE
             addView(epgLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            addView(streamInfoLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = dp(2)
-            })
             addView(progressRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(6)
             })
             addView(controlsScroller, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = dp(4)
+                topMargin = dp(10)
             })
         }
     }
@@ -965,7 +1186,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(Color.argb(205, 12, 16, 20), dp(12), Color.argb(100, 79, 216, 235))
+            background = roundedBackground(M3ControlSurface, dp(12), M3SurfaceOutline)
             visibility = View.GONE
             addView(scroller, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)))
         }
@@ -975,6 +1196,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         TextView(this).apply {
             text = playlistRowLabel(index, target)
             setTextColor(Color.WHITE)
+            setTag(R.id.player_theme_button_role, "playlistRow")
+            setTag(R.id.player_theme_row_index, index)
             setTextSize(13f)
             maxLines = 2
             gravity = Gravity.CENTER_VERTICAL
@@ -1063,6 +1286,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         TextView(this).apply {
             text = label
             setTextColor(Color.WHITE)
+            setTag(R.id.player_theme_button_role, "button")
             setTextSize(14f)
             setTypeface(Typeface.DEFAULT, Typeface.BOLD)
             gravity = Gravity.CENTER
@@ -1081,6 +1305,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun iconControlButton(drawableRes: Int, description: String, onClick: () -> Unit): ImageButton =
         ImageButton(this).apply {
             contentDescription = description
+            setTag(R.id.player_theme_button_role, "button")
             background = controlButtonBackground(active = false)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(ControlIconPaddingDp), dp(ControlIconPaddingDp), dp(ControlIconPaddingDp), dp(ControlIconPaddingDp))
@@ -1097,9 +1322,14 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun setButtonIcon(button: ImageButton, drawableRes: Int) {
         val drawable = resources.getDrawable(drawableRes, theme).mutate()
-        drawable.setTint(Color.WHITE)
+        val active = (::muteButton.isInitialized && button === muteButton && muted) ||
+            (::lockedMuteButton.isInitialized && button === lockedMuteButton && muted) ||
+            (::repeatButton.isInitialized && button === repeatButton && repeatEnabled) ||
+            (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && currentTrackIsEnabled("sid")) ||
+            (::lockButton.isInitialized && button === lockButton && locked)
+        drawable.setTint(if (active) M3OnAccent else M3OnSurface)
         button.setImageDrawable(drawable)
-        button.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        button.imageTintList = ColorStateList.valueOf(if (active) M3OnAccent else M3OnSurface)
         button.tag = drawableRes
         button.minimumWidth = dp(ControlButtonSizeDp)
         button.minimumHeight = dp(ControlButtonSizeDp)
@@ -1113,9 +1343,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun controlButtonBackground(active: Boolean): GradientDrawable =
         roundedBackground(
-            color = if (active) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
-            radius = dp(ControlButtonSizeDp / 2),
-            strokeColor = if (active) Color.rgb(79, 216, 235) else Color.argb(120, 79, 216, 235)
+            color = if (active) M3AccentContainer else M3ButtonSurface,
+            radius = dp(16),
+            strokeColor = null
         )
 
     private fun togglePlayPause() {
@@ -1212,9 +1442,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun updateTrackButtons() {
         if (::audioTrackButton.isInitialized) {
+            setButtonIcon(audioTrackButton, R.drawable.audio_track)
             audioTrackButton.background = controlButtonBackground(active = false)
         }
         if (::subtitleTrackButton.isInitialized) {
+            setButtonIcon(subtitleTrackButton, R.drawable.subtitle_track)
             subtitleTrackButton.background = controlButtonBackground(active = currentTrackIsEnabled("sid"))
         }
     }
@@ -1273,6 +1505,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
                     locked = false
                     updateRepeatButton()
                     updateMuteButton()
+                    updateLockedMuteButton()
                     updateLockButton()
                     applyDesiredAudioState()
                     showControlsTemporarily()
@@ -1330,9 +1563,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun setCenterLockState(iconRes: Int, description: String, helpText: String) {
         val drawable = resources.getDrawable(iconRes, theme).mutate()
-        drawable.setTint(Color.WHITE)
+        drawable.setTint(M3OnSurface)
         unlockButton.setImageDrawable(drawable)
-        unlockButton.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        unlockButton.imageTintList = ColorStateList.valueOf(M3OnSurface)
         unlockButton.tag = iconRes
         unlockButton.contentDescription = description
         lockHelpText.text = helpText
@@ -1378,8 +1611,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun updateLockButton() {
         if (!::lockButton.isInitialized) return
-        setButtonIcon(lockButton, R.drawable.unlock_icon)
-        lockButton.contentDescription = "Lock"
+        setButtonIcon(lockButton, if (locked) R.drawable.lock_icon else R.drawable.unlock_icon)
+        lockButton.background = controlButtonBackground(active = locked)
+        lockButton.contentDescription = if (locked) "Unlock screen" else "Lock screen"
     }
 
     private fun updateRepeatButton() {
@@ -1413,6 +1647,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (!::progressSeekBar.isInitialized || !::timeLabel.isInitialized) {
             return
         }
+        updateProgressSeekBarAppearance()
         refreshMpvPlaybackState()
         val length = playbackLengthMs
         val current = playbackTimeMs.coerceAtLeast(0L)
@@ -1425,9 +1660,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             timeLabel.text = "${formatTime(current)} / ${formatTime(length)}"
         } else {
-            progressSeekBar.isEnabled = false
+            progressSeekBar.isEnabled = true
             if (!userSeeking) {
-                progressSeekBar.progress = 0
+                // Live streams have no finite duration, so show the timeline as a
+                // fully occupied live bar instead of an empty seek track.
+                progressSeekBar.progress = if (isLiveStream()) ProgressBarMax else 0
             }
             timeLabel.text = LiveTimeLabel
         }
@@ -1661,14 +1898,19 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val mode = zoomModes[zoomModeIndex]
         mpv?.let { player ->
             runCatching { player.setPropertyBoolean("keepaspect", mode.keepAspect) }
-            runCatching { player.setPropertyString("video-aspect-override", mode.aspectOverride) }
-            runCatching { player.setPropertyString("video-unscaled", if (mode.unscaled) "yes" else "no") }
+            runCatching { player.setPropertyString("video-aspect-override", "no") }
+            runCatching { player.setPropertyString("video-unscaled", "no") }
+            val usesTextureViewCrop = mode.cropToFill && mpvVideoOutput.equals("mediacodec_embed", ignoreCase = true)
+            runCatching { player.setPropertyDouble("panscan", if (mode.cropToFill && !usesTextureViewCrop) 1.0 else 0.0) }
+            runCatching { player.setPropertyDouble("video-zoom", 0.0) }
+            runCatching { player.setPropertyDouble("video-pan-x", 0.0) }
+            runCatching { player.setPropertyDouble("video-pan-y", 0.0) }
         }
         updateVideoSurfaceTransform()
         setButtonIcon(zoomButton, mode.iconRes)
-        zoomButton.contentDescription = "Zoom ${mode.label}"
+        zoomButton.contentDescription = "Video scale: ${mode.label}. Tap to change"
         if (showFeedback) {
-            showFeedback("Zoom ${mode.label}")
+            showFeedback("Video scale: ${mode.label}")
         }
     }
 
@@ -1690,22 +1932,19 @@ class MpvEmbeddedPlayerActivity : Activity() {
             videoSurface.setTransform(Matrix())
             return
         }
-        val sourceSize = mode.aspectOverride
-            .takeIf { it != "no" }
-            ?.split(":")
-            ?.takeIf { it.size == 2 }
-            ?.mapNotNull { it.toFloatOrNull() }
-            ?.takeIf { it.size == 2 && it[0] > 0f && it[1] > 0f }
-            ?: mpvVideoDetails
-                ?.takeIf { it.hasResolution() }
-                ?.let { listOf(it.displayWidth.toFloat(), it.displayHeight.toFloat()) }
-            ?: return
-        val sourceWidth = sourceSize[0]
-        val sourceHeight = sourceSize[1]
-        val scale = if (mode.unscaled) {
-            1f
+        val source = mpvVideoDetails
+            ?.takeIf { it.hasResolution() }
+            ?: run {
+                videoSurface.setTransform(Matrix())
+                return
+            }
+        val sourceWidth = source.displayWidth.toFloat()
+        val sourceHeight = source.displayHeight.toFloat()
+        val fitScale = minOf(viewWidth / sourceWidth, viewHeight / sourceHeight)
+        val scale = if (mode.cropToFill) {
+            maxOf(viewWidth / sourceWidth, viewHeight / sourceHeight)
         } else {
-            minOf(viewWidth / sourceWidth, viewHeight / sourceHeight)
+            fitScale
         }
         val scaledWidth = sourceWidth * scale
         val scaledHeight = sourceHeight * scale
@@ -1751,17 +1990,17 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun createEpgPanel(): ScrollView {
-        val content = LinearLayout(this).apply {
+        epgPanelContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(24))
             setBackgroundColor(Color.argb(242, 18, 22, 30))
         }
-        content.addView(controlButton("Close guide") { hideEpgPanel() }.apply { contentDescription = "Close programme guide" })
+        epgPanelContent.addView(controlButton("Close guide") { hideEpgPanel() }.apply { contentDescription = "Close programme guide" })
         epgDetails = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(epgDetails)
+        epgPanelContent.addView(epgDetails)
         return ScrollView(this).apply {
             contentDescription = "Programme details panel"
-            visibility = View.GONE; isFillViewport = true; addView(content)
+            visibility = View.GONE; isFillViewport = true; addView(epgPanelContent)
             setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { panelTouchX = event.x; panelTouchY = event.y; false }
@@ -1941,14 +2180,15 @@ class MpvEmbeddedPlayerActivity : Activity() {
             "hwdec-current" -> mpvHwDecoder = (value as? String).orEmpty()
             "current-vo" -> {
                 mpvVideoOutput = (value as? String).orEmpty()
-                updateVideoSurfaceTransform()
+                applyZoomMode(zoomModeIndex, showFeedback = false)
                 scheduleStreamInfoRefreshes()
             }
             "width",
             "height",
             "dwidth",
             "dheight",
-            "video-codec" -> {
+            "video-codec",
+            "audio-codec-name" -> {
                 refreshMpvTrackDetails()
                 scheduleStreamInfoRefreshes()
             }
@@ -1975,23 +2215,29 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun buildStreamInfoLabel(): String {
-        val video = currentVideoTrackDetails()
-        val resolution = if (video != null) {
-            video.resolutionLabel()
-        } else {
-            "Resolution pending"
+        val videoCodec = currentVideoTrackDetails()?.codec?.mobileCodecLabel()
+        val audioCodec = mpvAudioCodec.mobileCodecLabel()
+        return listOf(videoCodec, audioCodec).filterNot { it.isNullOrBlank() }.distinct().joinToString(" · ")
+            .ifBlank { "Codec info pending" }
+    }
+
+    private fun String.mobileCodecLabel(): String {
+        val codec = trim().lowercase()
+        return when {
+            codec.contains("h.264") || codec.contains("h264") || codec.contains("avc") -> "H.264/AVC"
+            codec.contains("h.265") || codec.contains("h265") || codec.contains("hevc") -> "H.265/HEVC"
+            codec.contains("mpeg2") || codec.contains("mpeg-2") -> "MPEG-2"
+            codec.contains("mpeg4") || codec.contains("mpeg-4") || codec == "mp4v" -> "MPEG-4"
+            codec.contains("av1") || codec.contains("av01") -> "AV1"
+            codec.contains("aac") -> "AAC"
+            codec.contains("eac3") || codec.contains("e-ac-3") -> "E-AC-3"
+            codec.contains("ac3") || codec.contains("ac-3") -> "AC-3"
+            codec.contains("opus") -> "Opus"
+            codec.contains("flac") -> "FLAC"
+            codec.contains("mp3") -> "MP3"
+            codec.contains("truehd") -> "TrueHD"
+            else -> trim().takeIf { it.isNotBlank() }?.uppercase().orEmpty()
         }
-        val codec = video?.codec
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?.uppercase()
-            ?: "codec pending"
-        val videoOutput = mpvVideoOutput
-            .trim()
-            .takeIf { it.isNotBlank() }
-            ?.let { " | VO $it" }
-            .orEmpty()
-        return "$resolution | $codec | ${decoderModeLabel()}$videoOutput"
     }
 
     private fun currentVideoTrackDetails(): VideoTrackDetails? =
@@ -2006,6 +2252,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val displayWidth = player.firstPositiveInt("dwidth", "width", "video-out-params/w", "video-params/w")
         val displayHeight = player.firstPositiveInt("dheight", "height", "video-out-params/h", "video-params/h")
         val codec = player.firstNonBlankString("video-codec", "current-tracks/video/codec", "track-list/0/codec")
+        mpvAudioCodec = player.firstNonBlankString("audio-codec-name", "current-tracks/audio/codec")
         val hwDecoder = player.firstString("hwdec-current")
         val videoOutput = player.firstString("current-vo")
         if (hwDecoder.isNotBlank()) {
@@ -2172,6 +2419,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         player.observe("dwidth", MPVLib.MpvFormat.MPV_FORMAT_INT64)
         player.observe("dheight", MPVLib.MpvFormat.MPV_FORMAT_INT64)
         player.observe("video-codec", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        player.observe("audio-codec-name", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("hwdec-current", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("current-vo", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("aid", MPVLib.MpvFormat.MPV_FORMAT_INT64)
@@ -2243,6 +2491,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (!::timeLabel.isInitialized || !::progressSeekBar.isInitialized) {
             return
         }
+        updateProgressSeekBarAppearance()
         if (!isLiveStream() && playbackLengthMs > 0L) {
             if (!userSeeking) {
                 progressSeekBar.progress = ((playbackTimeMs.coerceAtMost(playbackLengthMs) * ProgressBarMax) / playbackLengthMs).toInt()
@@ -2250,10 +2499,36 @@ class MpvEmbeddedPlayerActivity : Activity() {
             timeLabel.text = "${formatTime(playbackTimeMs)} / ${formatTime(playbackLengthMs)}"
         } else {
             if (!userSeeking) {
-                progressSeekBar.progress = 0
+                progressSeekBar.progress = if (isLiveStream()) ProgressBarMax else 0
             }
             timeLabel.text = LiveTimeLabel
         }
+    }
+
+    private fun updateProgressSeekBarAppearance() {
+        if (!::progressSeekBar.isInitialized) return
+        val live = isLiveStream()
+        progressSeekBar.isEnabled = true
+        if (progressSeekBarPresentationIsLive != live) {
+            progressSeekBarPresentationIsLive = live
+            progressSeekBar.thumb = if (live) {
+                null
+            } else {
+                GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(playerPalette.primary)
+                    setSize(dp(10), dp(10))
+                }
+            }
+            progressSeekBar.isClickable = !live
+            progressSeekBar.isFocusable = !live
+            progressSeekBar.setOnTouchListener { _, _ -> live }
+        }
+        progressSeekBar.progressTintList = ColorStateList.valueOf(playerPalette.primary)
+        progressSeekBar.thumbTintList = ColorStateList.valueOf(playerPalette.primary)
+        progressSeekBar.progressBackgroundTintList = ColorStateList.valueOf(
+            if (live) playerPalette.primary else withAlpha(playerPalette.primary, 80)
+        )
     }
 
     private fun MPVLib.setMpvOption(name: String, value: String) {
@@ -2274,8 +2549,26 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun showFeedback(message: String, durationMs: Long = GestureFeedbackMs) {
         feedbackView.text = message
         feedbackView.visibility = View.VISIBLE
+        feedbackView.bringToFront()
+        positionFeedbackAboveControls()
+        feedbackView.post { positionFeedbackAboveControls() }
         overlayHandler.removeCallbacks(hideFeedbackRunnable)
         overlayHandler.postDelayed(hideFeedbackRunnable, durationMs)
+    }
+
+    private fun positionFeedbackAboveControls() {
+        if (!::feedbackView.isInitialized || !::controlsOverlay.isInitialized || !::rootLayout.isInitialized) return
+        val params = feedbackView.layoutParams as? FrameLayout.LayoutParams ?: return
+        val controlsTop = if (controlsOverlay.visibility == View.VISIBLE) controlsOverlay.top else 0
+        val targetBottomMargin = if (rootLayout.height > 0 && controlsTop > 0) {
+            rootLayout.height - controlsTop + dp(16)
+        } else {
+            dp(120)
+        }
+        if (params.bottomMargin != targetBottomMargin) {
+            params.bottomMargin = targetBottomMargin
+            feedbackView.layoutParams = params
+        }
     }
 
     private fun beginStreamLoading() {
@@ -2366,8 +2659,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private data class ZoomMode(
         val label: String,
         val keepAspect: Boolean,
-        val aspectOverride: String,
-        val unscaled: Boolean,
+        val cropToFill: Boolean,
         val iconRes: Int
     )
 
@@ -2408,10 +2700,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private companion object {
-        private const val DefaultZoomModeIndex = 0
-        private const val FillZoomModeIndex = 1
+        private const val FitZoomModeIndex = 0
+        private const val CropZoomModeIndex = 1
         private const val ControlsAutoHideMs = 3_500L
-        private const val GestureFeedbackMs = 900L
+        private const val GestureFeedbackMs = 1_800L
         private const val ProgressUpdateMs = 1_000L
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
@@ -2423,12 +2715,17 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val TrackFeedbackDelayMs = 120L
         private const val MaxMpvTrackCount = 256
         private const val ProgressBarMax = 1_000
+        private const val CodecAreaMaximumFraction = 0.35f
+        private const val ControlHeaderHeightDp = 48
+        private const val ControlHeaderGapDp = 8
+        private const val RecordingDotSlotWidthDp = 32
+        private const val RecordingDotTitleGapDp = 4
         private const val MpvAudibleVolume = 100.0
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f
         private const val VolumeStep = 0.10f
-        private const val ControlButtonSizeDp = 48
-        private const val ControlIconPaddingDp = 13
+        private const val ControlButtonSizeDp = 44
+        private const val ControlIconPaddingDp = 12
         private const val StartupVolumeFallbackRatio = 0.35f
         private const val DefaultBrightness = 0.50f
         private const val MinimumBrightness = 0.05f

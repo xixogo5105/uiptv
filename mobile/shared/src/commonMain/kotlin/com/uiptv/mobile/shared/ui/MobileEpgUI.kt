@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -37,6 +40,23 @@ internal data class EpgUiState(
     val onEnabled: (Boolean) -> Unit = {},
     val onPlaybackOnly: (Boolean) -> Unit = {}
 )
+
+/** Uses the Material 3 Switch and the current app color-scheme tokens consistently. */
+@Composable
+internal fun MobileM3Switch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    Switch(
+        modifier = modifier,
+        checked = checked,
+        enabled = enabled,
+        onCheckedChange = onCheckedChange,
+        colors = SwitchDefaults.colors()
+    )
+}
 val LocalThumbnailFallback = staticCompositionLocalOf { "" }
 val LocalThumbnailFallbackLoader = staticCompositionLocalOf<(suspend () -> String)?> { null }
 internal val LocalEpgState = staticCompositionLocalOf { EpgUiState() }
@@ -55,118 +75,139 @@ internal fun MobileEpgSettings() {
     val scope = rememberCoroutineScope()
     var source by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
-    LaunchedEffect(state.actions) { source = state.actions.globalSource() }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(state.actions) {
+        runCatching { state.actions.globalSource() }.onSuccess { source = it }
+            .onFailure { status = "Unable to load EPG sources. Try reopening Settings." }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(checked = state.enabled, onCheckedChange = { value ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MobileM3Switch(checked = state.enabled, onCheckedChange = { value ->
                 scope.launch {
                     runCatching { state.actions.saveEnabled(value) }
                         .onSuccess { state.onEnabled(value) }
                         .onFailure { status = "Unable to save EPG setting" }
                 }
             })
-            Text("Enable EPG on this device")
+            Text("Enable EPG on this device", Modifier.weight(1f))
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             var playbackOnly by remember { mutableStateOf(false) }
             LaunchedEffect(state.actions) { playbackOnly = state.actions.loadPlaybackOnly() }
-            Switch(checked = playbackOnly, onCheckedChange = { value ->
+            MobileM3Switch(checked = playbackOnly && state.enabled, enabled = state.enabled && !busy, onCheckedChange = { value ->
                 scope.launch {
                     runCatching { state.actions.savePlaybackOnly(value) }
                         .onSuccess { playbackOnly = value; state.onPlaybackOnly(value) }
                         .onFailure { status = "Unable to save EPG display mode" }
                 }
             })
-            Text("Load EPG only for the channel being played")
+            Text("Load EPG only for the channel being played", Modifier.weight(1f))
         }
-        OutlinedTextField(value = source, onValueChange = { source = it }, label = { Text("Global EPG sources") },
-            modifier = Modifier.fillMaxWidth(), minLines = 4)
+        if (!state.enabled) Text("Enable EPG to use playback-only mode.", style = MaterialTheme.typography.bodySmall)
+        TextField(
+            value = source,
+            onValueChange = { source = it },
+            label = { Text("Global EPG sources") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4,
+            colors = mobileTextFieldColors()
+        )
         Text("Shared through database sync. Used after provider and account guides. One XMLTV URL or local file per line, in priority order. Gzip is supported.",
             style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = { scope.launch {
-            runCatching { state.actions.saveGlobalSource(source) }.onSuccess { status = "EPG source saved" }
-                .onFailure { status = it.message ?: "Unable to save source" }
-        } }) { Text("Save EPG source") }
-        TextButton(onClick = { scope.launch { state.actions.clearCache(); status = "EPG cache cleared" } }) { Text("Clear EPG cache") }
+        TextButton(enabled = !busy, onClick = { scope.launch {
+            busy = true
+            runCatching { state.actions.saveGlobalSource(source) }.onSuccess { status = "EPG sources saved" }
+                .onFailure { status = "Unable to save sources. Check each XMLTV URL or local file and try again." }
+            busy = false
+        } }) { Text("Save EPG sources") }
+        TextButton(enabled = !busy, onClick = { scope.launch {
+            busy = true
+            runCatching { state.actions.clearCache() }
+                .onSuccess { status = "EPG cache cleared. Guides reload when you next open a channel." }
+                .onFailure { status = "Unable to clear EPG cache. Please try again." }
+            busy = false
+        } }) { Text("Clear EPG cache") }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable
-    internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) {
-        val state = LocalEpgState.current
-        if (!state.enabled || state.playbackOnly) return
-        val scope = rememberCoroutineScope()
-        val cacheRevision by MobileEpgCache.revision.collectAsState()
-        var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(MobileEpgCache.peek(accountId, channelId, state.time)) }
-        var details by remember(accountId, channelId) { mutableStateOf(false) }
-        var mapping by remember(accountId, channelId) { mutableStateOf("") }
-        var revision by remember { mutableIntStateOf(0) }
-        var error by remember { mutableStateOf("") }
-        LaunchedEffect(accountId, channelId, state.time / 60_000, revision, cacheRevision) {
-            // Peek first: the cache is shared with the embedded player, so a channel already fetched
-            // elsewhere (or a moment ago) is shown without another XMLTV parse. Only fetch when the
-            // cache is empty or expired.
-            val cached = MobileEpgCache.peek(accountId, channelId, state.time)
-            if (cached?.status == MobileEpgStatus.AVAILABLE || cached?.status == MobileEpgStatus.STALE) { result = cached; return@LaunchedEffect }
-            val fetched = try { state.actions.schedule(accountId, channelId, name) }
-            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (_: Exception) { MobileEpgResult(MobileEpgStatus.UNAVAILABLE) }
-            result = fetched
-            MobileEpgCache.put(accountId, channelId, fetched, state.time)
+internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) {
+    val state = LocalEpgState.current
+    if (!state.enabled || state.playbackOnly) return
+    val cacheRevision by MobileEpgCache.revision.collectAsState()
+    var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(MobileEpgCache.peek(accountId, channelId, state.time)) }
+    var details by remember(accountId, channelId) { mutableStateOf(false) }
+    LaunchedEffect(accountId, channelId, state.time / 60_000, cacheRevision) {
+        val cached = MobileEpgCache.peek(accountId, channelId, state.time)
+        if (cached?.status == MobileEpgStatus.AVAILABLE || cached?.status == MobileEpgStatus.STALE) {
+            result = cached
+            return@LaunchedEffect
         }
-        // Placeholders belong only to presentation, never to the programme cache.
-        val hour = java.time.Instant.ofEpochMilli(state.time).atZone(java.time.ZoneId.systemDefault())
-            .truncatedTo(java.time.temporal.ChronoUnit.HOURS).toInstant().toEpochMilli()
-        val now = result?.now(state.time) ?: MobileEpgProgramme("No programme details available", "", hour, hour + 3_600_000)
-        val next = result?.next(state.time) ?: MobileEpgProgramme("No programme details available", "", now.stop, now.stop + 3_600_000)
-        Column {
-            Text("Now: ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall)
-            Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall)
+        val fetched = loadGuide(state, accountId, channelId, name)
+        result = fetched
+        MobileEpgCache.put(accountId, channelId, fetched, state.time)
+    }
+    val now = result?.now(state.time)?.takeIf { it.hasProgrammeInformation() }
+    val next = result?.next(state.time)?.takeIf { it.hasProgrammeInformation() }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (now != null) {
+            Text("Now: ${now.title}", maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+            Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelMedium)
             LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start).coerceAtLeast(1)).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth())
-            Text("Next: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall)
-            Text("${programmeTime(next.start)} – ${programmeTime(next.stop)}", style = MaterialTheme.typography.labelSmall)
-            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("View Guide") }
-        }
-        if (details) Dialog(onDismissRequest = { details = false }) {
-            Surface(shape = MaterialTheme.shapes.large) {
-                BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(16.dp)) {
-                    val wide = maxWidth >= 600.dp
-                    @Composable fun header() {
-                        Column(Modifier.then(if (wide) Modifier.width(220.dp) else Modifier.fillMaxWidth())) {
-                            Text(name, style = MaterialTheme.typography.titleMedium)
-                            OutlinedTextField(value = mapping, onValueChange = { mapping = it }, singleLine = true,
-                                label = { Text("Guide ID override") }, modifier = Modifier.fillMaxWidth())
-                            Text("Leave empty to use provider mapping.", style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = { scope.launch {
-                                runCatching { state.actions.saveMapping(accountId, channelId, mapping); MobileEpgCache.clear(accountId, channelId) }
-                                    .onSuccess { revision++ }.onFailure { error = "Unable to save mapping" }
-                            } }) { Text("Save mapping") }
-                            if (error.isNotBlank()) Text(error)
-                            TextButton(onClick = { details = false }) { Text("Close") }
-                        }
-                    }
-                    @Composable fun schedule(modifier: Modifier) {
-                        LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(result?.programmes.orEmpty(), key = { "${it.start}:${it.stop}:${it.title}" }, contentType = { "programme" }) { p ->
-                                Column {
-                                    Text(p.title, style = MaterialTheme.typography.titleSmall)
-                                    Text("${programmeTime(p.start)} – ${programmeTime(p.stop)}", style = MaterialTheme.typography.labelMedium)
-                                    if (p.description.isNotBlank()) Text(p.description, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                            if (result?.programmes.isNullOrEmpty()) item { Text("No EPG available for this channel.") }
-                        }
-                    }
-                    if (wide) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { header(); schedule(Modifier.weight(1f)) }
-                    else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { header(); schedule(Modifier.weight(1f, fill = false)) }
+        } else Text(if (result == null) "Loading programme information…" else "Programme information unavailable",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (next != null) Text("Next: ${next.title} · ${programmeTime(next.start)}", maxLines = 2,
+            overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("View Guide") }
+    }
+    if (details) Dialog(onDismissRequest = { details = false }) {
+        Surface(shape = MaterialTheme.shapes.large) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(16.dp)) {
+                MobileScreenHeader(name, "Programme guide") {
+                    IconButton(onClick = { details = false }) { Icon(Icons.Outlined.Close, contentDescription = "Close guide") }
                 }
+                ProgrammeSchedule(result, Modifier.weight(1f, fill = false))
             }
         }
     }
+}
+
+private suspend fun loadGuide(state: EpgUiState, accountId: Long, channelId: String, name: String): MobileEpgResult =
+    try { state.actions.schedule(accountId, channelId, name) }
+    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+    catch (_: Exception) { MobileEpgResult(MobileEpgStatus.UNAVAILABLE) }
+
+/** Suppress upstream missing-data markers without inventing programme titles or times. */
+internal fun MobileEpgProgramme.hasProgrammeInformation(): Boolean =
+    stop > start && title.isNotBlank() && title.trim().lowercase() !in setOf(
+        "no programme details available", "no program details available", "no information available",
+        "programme information unavailable", "no information", "no data", "unknown", "n/a"
+    )
+
+@Composable
+private fun ProgrammeSchedule(result: MobileEpgResult?, modifier: Modifier = Modifier) {
+    val programmes = remember(result) { result?.programmes.orEmpty().filter { it.hasProgrammeInformation() }.distinctBy { "${it.start}:${it.stop}:${it.title}" } }
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (result == null) item { Text("Loading guide…"); LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        if (result?.status == MobileEpgStatus.STALE) item { Text("Showing a saved schedule. It may be out of date.") }
+        if (result != null && programmes.isEmpty()) item {
+            Text("No schedule available. You can check your EPG sources in Settings.")
+        }
+        items(programmes, key = { "${it.start}:${it.stop}:${it.title}" }, contentType = { "programme" }) { p ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(p.title, style = MaterialTheme.typography.titleMedium)
+                Text("${programmeTime(p.start)} – ${programmeTime(p.stop)}", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                if (p.description.isNotBlank()) Text(p.description, style = MaterialTheme.typography.bodyMedium)
+                HorizontalDivider(Modifier.padding(top = 8.dp))
+            }
+        }
+    }
+}
+
 private fun programmeTime(time: Long): String = SimpleDateFormat("EEE HH:mm", Locale.getDefault()).format(Date(time))
 
 @Composable
@@ -177,51 +218,29 @@ internal fun MobileLiveGuideButton(
     val state = LocalEpgState.current
     if (!state.enabled || state.playbackOnly || channels.isEmpty() || channels.first().mode != com.uiptv.mobile.shared.browse.BrowseMode.LIVE) return
     var open by remember { mutableStateOf(false) }
-    var selected by remember(channels) { mutableStateOf(channels.first()) }
+    var selected by remember(channels) { mutableStateOf<com.uiptv.mobile.shared.browse.MobileBrowseItem?>(null) }
     var result by remember { mutableStateOf<MobileEpgResult?>(null) }
-    TextButton(onClick = { open = true }) { Text("Live Guide") }
+    TextButton(onClick = { selected = null; open = true }) { Text("Live Guide") }
     if (!open) return
-    LaunchedEffect(selected.accountId, selected.channelId, state.time / (30 * 60_000)) {
+    LaunchedEffect(selected?.accountId, selected?.channelId, state.time / (30 * 60_000)) {
         result = null
-        result = state.actions.schedule(selected.accountId, selected.channelId, selected.name)
+        selected?.let { result = loadGuide(state, it.accountId, it.channelId, it.name) }
     }
-    Dialog(onDismissRequest = { open = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxWidth().padding(12.dp).widthIn(max = 1000.dp), shape = MaterialTheme.shapes.large) {
-            BoxWithConstraints(Modifier.fillMaxWidth().heightIn(max = 680.dp).padding(12.dp)) {
-                val wide = maxWidth >= 700.dp
-                @Composable fun channelList(modifier: Modifier) {
-                    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(channels, key = { "${it.accountId}:${it.channelId}:${it.rowId}" }, contentType = { "guide-channel" }) { channel ->
-                            Column {
-                                TextButton(onClick = { selected = channel }) { Text(channel.name) }
-                                MobileEpgChannel(channel.accountId, channel.channelId, channel.name)
-                                TextButton(onClick = { onPlay(channel) }) { Text("Play") }
-                            }
-                        }
+    Dialog(onDismissRequest = { if (selected != null) selected = null else open = false }) {
+        Surface(shape = MaterialTheme.shapes.large) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 680.dp).padding(16.dp)) {
+                val channel = selected
+                MobileScreenHeader(channel?.name ?: "Live Guide", onBack = if (channel != null) ({ selected = null }) else null,
+                    actions = {
+                        if (channel == null) IconButton(onClick = { open = false }) { Icon(Icons.Outlined.Close, contentDescription = "Close guide") }
+                    })
+                if (channel == null) LazyColumn(Modifier.weight(1f, fill = false)) {
+                    items(channels, key = { "${it.accountId}:${it.rowId}" }) { item ->
+                        ListItem(headlineContent = { Text(item.name) }, modifier = Modifier.clickable { selected = item })
                     }
-                }
-                @Composable fun programmes(modifier: Modifier) {
-                    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        item { Text(selected.name, style = MaterialTheme.typography.titleMedium) }
-                        if (result == null) item { Text("Loading guide…") }
-                        else if (result?.programmes.isNullOrEmpty()) item { Text("No EPG available") }
-                        items(result?.programmes.orEmpty(), key = { "${it.start}:${it.stop}:${it.title}" }, contentType = { "programme" }) { p ->
-                            Column {
-                                Text(p.title, style = MaterialTheme.typography.titleSmall)
-                                Text("${programmeTime(p.start)} – ${programmeTime(p.stop)}", style = MaterialTheme.typography.labelSmall)
-                                if (p.description.isNotBlank()) Text(p.description, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Live Guide", style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { open = false }) { Text("Close") }
-                    }
-                    if (wide) Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        channelList(Modifier.weight(1f)); programmes(Modifier.weight(1f))
-                    } else channelList(Modifier.weight(1f))
+                } else {
+                    TextButton(onClick = { onPlay(channel) }) { Text("Play channel") }
+                    ProgrammeSchedule(result, Modifier.weight(1f, fill = false))
                 }
             }
         }

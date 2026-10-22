@@ -36,6 +36,10 @@ class AndroidPreferencesRepositoryTest {
     @Test
     fun storesRemoteEndpointAndPlayerPreferenceOutsideSharedDatabase() = runBlocking {
         val repository = AndroidDataStorePreferencesRepository(context)
+        // Other instrumentation classes can initialize the app-scoped DataStore
+        // before this test removes its on-disk file. Reset the values through the
+        // repository as well so this check is independent of test execution order.
+        repository.saveEmbeddedPlayerPreference(EmbeddedPlayerPreference())
         val defaults = repository.load()
         assertFalse(defaults.epgEnabled)
         repository.saveEpgEnabled(true)

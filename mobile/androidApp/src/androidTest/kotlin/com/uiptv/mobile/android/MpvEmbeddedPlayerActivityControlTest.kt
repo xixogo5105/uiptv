@@ -55,8 +55,12 @@ class MpvEmbeddedPlayerActivityControlTest {
         clickControl(player, "Subtitles")
         clickAnyControl(player, "Repeat off", "Repeat on")
         clickAnyControl(player, "Repeat off", "Repeat on")
-        clickControl(player, "Zoom Default")
-        waitForControl(player, "Zoom Fill")
+        clickControl(player, "Video scale: Fit. Tap to change")
+        waitForControl(player, "Video scale: Crop. Tap to change")
+        clickControl(player, "Video scale: Crop. Tap to change")
+        waitForControl(player, "Video scale: Stretch. Tap to change")
+        clickControl(player, "Video scale: Stretch. Tap to change")
+        waitForControl(player, "Video scale: Fit. Tap to change")
         clickControl(player, "Close player")
     }
 
@@ -67,11 +71,11 @@ class MpvEmbeddedPlayerActivityControlTest {
         waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
         val broadcastIndicator = waitForControl(player, "Live broadcast") as android.widget.FrameLayout
         val density = player.resources.displayMetrics.density
-        org.junit.Assert.assertEquals((28 * density).toInt(), broadcastIndicator.layoutParams.width)
-        org.junit.Assert.assertEquals((28 * density).toInt(), broadcastIndicator.layoutParams.height)
+        org.junit.Assert.assertEquals((32 * density).toInt(), broadcastIndicator.layoutParams.width)
+        org.junit.Assert.assertEquals((48 * density).toInt(), broadcastIndicator.layoutParams.height)
         val broadcastIcon = broadcastIndicator.getChildAt(0) as android.widget.FrameLayout
-        org.junit.Assert.assertEquals((16 * density).toInt(), broadcastIcon.layoutParams.width)
-        org.junit.Assert.assertEquals((16 * density).toInt(), broadcastIcon.layoutParams.height)
+        org.junit.Assert.assertEquals((28 * density).toInt(), broadcastIcon.layoutParams.width)
+        org.junit.Assert.assertEquals((28 * density).toInt(), broadcastIcon.layoutParams.height)
         assertNull(findViewByDescription(player.window.decorView, "Rewind 15 seconds"))
         assertNull(findViewByDescription(player.window.decorView, "Fast forward 15 seconds"))
         clickControl(player, "Audio track")
@@ -160,10 +164,12 @@ class MpvEmbeddedPlayerActivityControlTest {
     fun lockButtonTogglesLockState() {
         val player = launchPlayer("VOD")
 
-        val controlBarLock = waitForControl(player, "Lock") as android.widget.ImageButton
+        val controlBarLock = waitForControl(player, "Lock screen") as android.widget.ImageButton
         org.junit.Assert.assertEquals(R.drawable.unlock_icon, controlBarLock.tag)
-        org.junit.Assert.assertEquals(android.graphics.Color.WHITE, controlBarLock.imageTintList?.defaultColor)
-        clickControl(player, "Lock")
+        val palette = player.javaClass.getDeclaredField("playerPalette").apply { isAccessible = true }.get(player)
+        val onSurfaceColor = palette.javaClass.getDeclaredField("onSurface").apply { isAccessible = true }.getInt(palette)
+        org.junit.Assert.assertEquals(onSurfaceColor, controlBarLock.imageTintList?.defaultColor)
+        clickControl(player, "Lock screen")
 
         val centreLock = waitForControl(player, "Unlock") as android.widget.ImageButton
         val cornerMute = player.javaClass.getDeclaredField("lockedMuteButton").apply { isAccessible = true }
@@ -173,7 +179,7 @@ class MpvEmbeddedPlayerActivityControlTest {
         val help = waitForControl(player, "Lock help") as android.widget.TextView
         org.junit.Assert.assertEquals(R.drawable.lock_icon, centreLock.tag)
         org.junit.Assert.assertEquals(View.VISIBLE, cornerMute.visibility)
-        org.junit.Assert.assertEquals(android.graphics.Color.WHITE, centreLock.imageTintList?.defaultColor)
+        org.junit.Assert.assertEquals(onSurfaceColor, centreLock.imageTintList?.defaultColor)
         org.junit.Assert.assertTrue(help.text.toString().contains("Double-tap to unlock"))
         org.junit.Assert.assertTrue("Help text must render below the measured icon", help.top >= centreLock.bottom)
         Thread.sleep(3_400)
@@ -192,7 +198,7 @@ class MpvEmbeddedPlayerActivityControlTest {
         val unlocked = waitForControl(player, "Unlocked") as android.widget.ImageButton
         org.junit.Assert.assertEquals(R.drawable.unlock_icon, unlocked.tag)
         org.junit.Assert.assertEquals("Screen unlocked", (waitForControl(player, "Lock help") as android.widget.TextView).text.toString())
-        waitForAnyControl(player, listOf("Lock"))
+        waitForAnyControl(player, listOf("Lock screen"))
     }
 
     private fun launchPlayer(mode: String): Activity {

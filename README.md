@@ -34,6 +34,7 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 ## Documentation
 
 - User guide: [GUIDE.md](GUIDE.md)
+- Android user guide: [mobile/USER_GUIDE.md](mobile/USER_GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
 - Release notes: [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
 - Desktop memory audit: [docs/EPG_MEMORY_AUDIT.md](docs/EPG_MEMORY_AUDIT.md)

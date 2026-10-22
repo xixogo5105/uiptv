@@ -19,6 +19,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -93,6 +97,13 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            val darkTheme = isSystemInDarkTheme()
+            val deviceColorScheme: ColorScheme? = remember(darkTheme) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (darkTheme) dynamicDarkColorScheme(this@MainActivity)
+                    else dynamicLightColorScheme(this@MainActivity)
+                } else null
+            }
             var pendingLocalPlaylistSelection by remember { mutableStateOf<((String) -> Unit)?>(null) }
             var pendingBackupSelection by remember { mutableStateOf<((String?) -> Unit)?>(null) }
             var pendingRestoreSelection by remember { mutableStateOf<((String?) -> Unit)?>(null) }
@@ -131,6 +142,7 @@ class MainActivity : ComponentActivity() {
                 )
             ) {
                 UiptvMobileApp(
+                    colorScheme = deviceColorScheme,
                     resumeSignal = appResumeSignal,
                     isForeground = appForeground,
                     epgActions = com.uiptv.mobile.shared.ui.EpgUiActions(
