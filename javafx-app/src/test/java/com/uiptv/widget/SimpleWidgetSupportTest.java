@@ -60,22 +60,6 @@ class SimpleWidgetSupportTest {
     }
 
     @Test
-    void dialogAlertReturnsNoInHeadlessMode() {
-        String previous = System.getProperty("uiptv.headless");
-        try {
-            System.setProperty("uiptv.headless", "true");
-            assertEquals(javafx.scene.control.ButtonType.NO, DialogAlert.showDialog("commonClose"));
-            assertEquals(javafx.scene.control.ButtonType.NO, DialogAlert.showDialog("commonConfirm", "commonClose"));
-        } finally {
-            if (previous == null) {
-                System.clearProperty("uiptv.headless");
-            } else {
-                System.setProperty("uiptv.headless", previous);
-            }
-        }
-    }
-
-    @Test
     void textAreaAppliesPromptWrapAndColumnCount() throws Exception {
         UIptvTextArea textArea = runOnFxThread(() -> new UIptvTextArea("notes", "commonClose", 28));
 
@@ -114,54 +98,9 @@ class SimpleWidgetSupportTest {
     }
 
     @Test
-    void uiptvAlertHeadlessMethodsDoNotCreateDialogs() {
-        String previous = System.getProperty("uiptv.headless");
-        try {
-            System.setProperty("uiptv.headless", "true");
-            assertEquals(ButtonBar.ButtonData.OK_DONE, UIptvAlert.okButtonType().getButtonData());
-            assertEquals(ButtonBar.ButtonData.CANCEL_CLOSE, UIptvAlert.closeButtonType().getButtonData());
-            UIptvAlert.showMessageAlert("commonClose");
-            UIptvAlert.showErrorAlert("commonClose");
-            UIptvAlert.showErrorAlert("commonClose", new IllegalStateException("boom"));
-            UIptvAlert.showMessage("plain message");
-            UIptvAlert.showMessageKey("commonClose");
-            UIptvAlert.showError("plain error");
-            UIptvAlert.showError("plain error", new IllegalStateException("boom"));
-            UIptvAlert.showErrorKey("commonClose");
-            UIptvAlert.showErrorKey("commonClose", new IllegalStateException("boom"));
-            assertFalse(UIptvAlert.showConfirmationAlert("commonClose"));
-        } finally {
-            if (previous == null) {
-                System.clearProperty("uiptv.headless");
-            } else {
-                System.setProperty("uiptv.headless", previous);
-            }
-        }
-    }
-
-    @Test
-    void messageAndErrorAlertsDoNotUseInlineNotificationsInHeadlessMode() throws Exception {
-        String previous = System.getProperty("uiptv.headless");
-        try {
-            System.setProperty("uiptv.headless", "true");
-            VBox host = runOnFxThread(AppNotificationCenter::createHost);
-            runOnFxThread(() -> {
-                AppNotificationCenter.install(host);
-                UIptvAlert.showMessageAlert("commonClose");
-                UIptvAlert.showMessageAlert("commonClose");
-                UIptvAlert.showErrorAlert("commonClose");
-                UIptvAlert.showErrorAlert("commonClose");
-                return null;
-            });
-
-            assertEquals(0, runOnFxThread(() -> host.getChildren().size()));
-        } finally {
-            if (previous == null) {
-                System.clearProperty("uiptv.headless");
-            } else {
-                System.setProperty("uiptv.headless", previous);
-            }
-        }
+    void alertButtonsUseExplicitActions() {
+        assertEquals(ButtonBar.ButtonData.OK_DONE, UIptvAlert.okButtonType().getButtonData());
+        assertEquals(ButtonBar.ButtonData.CANCEL_CLOSE, UIptvAlert.closeButtonType().getButtonData());
     }
 
     @Test

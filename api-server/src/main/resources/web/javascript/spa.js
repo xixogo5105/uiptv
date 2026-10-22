@@ -24,19 +24,72 @@ createApp({
         const webPlaybackProxyEnabled = ref(true);
         const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
         const epgTime = ref(Date.now());
-        const cardProgramme = (item, slot) => {
-            if (item[slot]) return item[slot];
-            const hour = new Date(epgTime.value); hour.setMinutes(0, 0, 0);
-            const start = slot === 'epgNext' ? (item.epgNow?.stop || hour.getTime() + 3600000) : hour.getTime();
-            return {title: epgLabels.value.epgNoProgrammeDetails || 'No programme details', start, stop: start + 3600000};
-        };
+        const cardProgramme = (item, slot) => item?.[slot] || null;
         const cardProgrammeTime = programme => {
+            if (!programme || !(programme.stop > programme.start)) return '';
             const time = value => new Date(value).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
             return `${time(programme.start)} – ${time(programme.stop)}`;
         };
         const cardProgrammeProgress = item => {
             const programme = cardProgramme(item, 'epgNow');
-            return programme.stop > programme.start ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : 0;
+            return programme && programme.stop > programme.start ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : 0;
+        };
+        const cardEpgExpandedKey = ref('');
+        const cardEpgDetails = ref({key: '', loading: false, error: false, programmes: []});
+        let cardEpgDetailsController = null;
+        const cardEpgKey = (item, bookmark) => `${bookmark ? 'bookmark' : 'channel'}:${item?.accountId || selectedAccountId.value || ''}:${item?.dbId || item?.channelId || ''}`;
+        const isCardEpgExpanded = (item, bookmark = false) => cardEpgExpandedKey.value === cardEpgKey(item, bookmark);
+        const cardEpgHasData = item => Boolean(cardProgramme(item, 'epgNow') || cardProgramme(item, 'epgNext'));
+        const cardEpgStatus = item => {
+            if (item?.epgSourceStatus === 'STALE' || item?.epgStale
+                || ((item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) && cardEpgHasData(item))) {
+                return 'Showing saved guide data';
+            }
+            if (item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) return 'Guide source unavailable';
+            if (item?.epgLoading) return 'Loading guide…';
+            if (!item?.epgLoaded) return 'Guide data loads as this row appears';
+            return cardEpgHasData(item) ? '' : 'No guide available';
+        };
+        const cardNowStatus = item => {
+            if (cardProgramme(item, 'epgNow')) return '';
+            const status = cardEpgStatus(item);
+            if (status) return status;
+            return cardProgramme(item, 'epgNext') ? '—' : 'No guide available';
+        };
+        const clearCardEpgDetails = () => {
+            cardEpgDetailsController?.abort();
+            cardEpgDetailsController = null;
+            cardEpgExpandedKey.value = '';
+            cardEpgDetails.value = {key: '', loading: false, error: false, programmes: []};
+        };
+        const toggleCardEpgDetails = async (item, bookmark = false) => {
+            const key = cardEpgKey(item, bookmark);
+            if (cardEpgExpandedKey.value === key) {
+                clearCardEpgDetails();
+                return;
+            }
+            clearCardEpgDetails();
+            cardEpgExpandedKey.value = key;
+            const controller = new AbortController();
+            cardEpgDetailsController = controller;
+            cardEpgDetails.value = {key, loading: true, error: false, programmes: []};
+            const params = bookmark
+                ? {bookmarkId: item.dbId, details: '1', limit: '24'}
+                : {accountId: selectedAccountId.value, channelId: item.dbId, categoryId: item.categoryId, details: '1', limit: '24'};
+            try {
+                const response = await fetch(`/playerEpg?${new URLSearchParams(params)}`, {signal: controller.signal});
+                if (!response.ok) throw new Error('guide request failed');
+                const programmes = (await response.json()).programmes || [];
+                if (cardEpgExpandedKey.value === key && cardEpgDetailsController === controller) {
+                    cardEpgDetails.value = {key, loading: false, error: false, programmes};
+                }
+            } catch (_) {
+                if (!controller.signal.aborted && cardEpgExpandedKey.value === key && cardEpgDetailsController === controller) {
+                    cardEpgDetails.value = {key, loading: false, error: true, programmes: []};
+                }
+            } finally {
+                if (cardEpgDetailsController === controller) cardEpgDetailsController = null;
+            }
         };
         const isLiveBookmark = bookmark => String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase() === 'itv';
         const watchingNowDrilldown = ref(false);
@@ -99,7 +152,7 @@ createApp({
                 const response = await fetch(`${window.location.origin}/playerEpg?${params}`, {signal: controller.signal});
                 if (!response.ok) throw new Error('Guide unavailable');
                 const result = await response.json();
-                if (request === playerEpgRequest && epgEnabled.value) playerEpg.value = result.now || result.next ? result : null;
+                if (request === playerEpgRequest && epgEnabled.value) playerEpg.value = result;
             } catch (_) { if (request === playerEpgRequest) playerEpg.value = null; }
         };
         watch(currentChannel, () => { if (!epgPlaybackOnly.value) refreshPlayerEpg(true); });
@@ -4983,14 +5036,40 @@ createApp({
                     if (!cardEpgContext() || generation !== cardEpgGeneration) break;
                     if (!visibleEpgCards.has(key) || Date.now() < record.refreshAt) continue;
                     const controller = new AbortController(); cardEpgController = controller; cardEpgActiveKey = key;
+                    record.item.epgLoading = true;
                     try {
                         const response = await fetch(`/playerEpg?${new URLSearchParams(record.params)}`, {signal: controller.signal});
-                        if (!response.ok) continue;
+                        if (!response.ok) {
+                            record.item.epgLoading = false;
+                            record.refreshAt = Date.now() + 5 * 60000;
+                            if (!record.item.epgNow && !record.item.epgNext) {
+                                record.item.epgUnavailable = true; record.item.epgSourceStatus = 'UNAVAILABLE';
+                            } else {
+                                record.item.epgStale = true; record.item.epgSourceStatus = 'STALE';
+                            }
+                            continue;
+                        }
                         const result = await response.json();
-                        if (!cardEpgContext() || generation !== cardEpgGeneration || visibleEpgCards.get(key) !== record) continue;
+                        if (!cardEpgContext() || generation !== cardEpgGeneration || visibleEpgCards.get(key) !== record) {
+                            record.item.epgLoading = false;
+                            continue;
+                        }
                         record.item.epgNow = result.now || null; record.item.epgNext = result.next || null;
+                        record.item.epgLoaded = true; record.item.epgLoading = false;
+                        record.item.epgUnavailable = false; record.item.epgStale = result.guideStatus === 'STALE';
+                        record.item.epgSourceStatus = result.guideStatus || 'NO_MATCH';
                         record.refreshAt = Date.now() + 30 * 60000;
-                    } catch (_) { /* Retry unavailable summaries on the next visible-card refresh. */ }
+                    } catch (_) {
+                        record.item.epgLoading = false;
+                        if (!controller.signal.aborted) {
+                            record.refreshAt = Date.now() + 5 * 60000;
+                            if (!record.item.epgNow && !record.item.epgNext) {
+                                record.item.epgUnavailable = true; record.item.epgSourceStatus = 'UNAVAILABLE';
+                            } else {
+                                record.item.epgStale = true; record.item.epgSourceStatus = 'STALE';
+                            }
+                        }
+                    }
                 }
             } finally {
                 cardEpgRunning = false; cardEpgActiveKey = '';
@@ -5025,6 +5104,7 @@ createApp({
         const observeChannelEpg = (element, channel) => observeEpgCard(element, channel);
         const observeBookmarkEpg = (element, bookmark) => observeEpgCard(element, bookmark, true);
         watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode], () => {
+            clearCardEpgDetails();
             ++cardEpgGeneration;
             clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
             cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
@@ -5118,7 +5198,8 @@ createApp({
 
         return {
             observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels,
-            cardProgramme, cardProgrammeTime, cardProgrammeProgress, isLiveBookmark,
+            cardProgramme, cardProgrammeTime, cardProgrammeProgress, cardEpgStatus, isLiveBookmark, cardEpgDetails,
+            isCardEpgExpanded, toggleCardEpgDetails,
             thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,
             viewState,

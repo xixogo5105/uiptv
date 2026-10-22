@@ -7,6 +7,10 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 - `shared`: Kotlin Multiplatform module for shared Compose UI, sync contracts, account/cache contracts, and Android database migration support. It targets Android plus deferred iOS framework outputs.
 - `androidApp`: Android APK wrapper that renders the shared Compose UI, packages desktop migration SQL files from `core/src/main/resources` as app assets, and wires Android DataStore, account storage, cache maintenance, and pull-from-desktop remote sync.
 
+The EPG and channel UI are implemented in the Java/Compose application modules. The removed external Python EPG Builder is not required to build, test, package, or run mobile or desktop clients.
+
+The shared mobile interface uses Material 3 Compose controls. Account forms use outlined fields and exposed dropdowns; account preferences use spaced Material switches. On Android, Stalker account creation and editing provide a searchable timezone dropdown populated with the device's available timezone IDs.
+
 ## Local Requirements
 
 - End users installing a built APK do not need Android SDK, Gradle, or any other build tools. The APK packages the required libmpv and FFmpeg native libraries.
@@ -75,6 +79,11 @@ sdk.dir=C:/Users/<you>/AppData/Local/Android/Sdk
 ## Compile And Test
 
 Run all mobile commands from the `mobile/` directory.
+
+Shared tests and build/compile checks are headless. Do not run UI actions that
+open native dialogs or launch other apps in automated tests. Connected Android
+instrumentation tests launch the app on the attached device, so keep them out of
+the headless test run unless a separate device smoke test is explicitly needed.
 
 Check shared Kotlin code, coverage, Android compilation, APK packaging, and Android test compilation:
 

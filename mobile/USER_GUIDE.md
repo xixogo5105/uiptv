@@ -2,12 +2,12 @@
 
 ## Interface And Appearance
 
-The Android app uses Material Design 3 components and adapts its colors to the device's light or dark theme. Navigation is icon-only; on wide screens it can be hidden to give the current page more room. Search and add actions sit in the page header, and forms and settings use Material text fields, switches, and selection controls. The embedded player keeps its dark controls and lock screen in either device theme.
+The Android app uses Material Design 3 components and adapts its colors to the device's light or dark theme. Navigation is icon-only; on wide screens it can be hidden to give the current page more room. Search and add actions sit in the page header. Forms use outlined text fields and Material dropdowns; settings and account options use spaced Material switches. When adding or editing a Stalker account, the timezone field is a searchable dropdown containing the device's available timezone IDs. The embedded player keeps its dark controls and lock screen in either device theme.
 
 ## Pair With Desktop
 
 1. Open the desktop UIPTV app on the same network.
-2. In Android, open Configuration.
+2. In Android, open Settings → Desktop sync.
 3. Enter the desktop host and port. The default port is `8888`.
 4. Tap Test. If it connects, tap Pull.
 5. Confirm the four-digit code on desktop when prompted.
@@ -25,14 +25,18 @@ Remote sync does not copy the full desktop channel cache in v1. After adding or 
 
 Failed refreshes preserve the existing local cache.
 
+Account rows show cached category and content counts. An account with no cached catalogue is labeled **No catalogue cached** instead of showing misleading zero counts.
+
 ## Browse And Play
 
-- Channels has account, Live/VOD/Series, category, and search filters.
+- Accounts opens one catalogue stage at a time: content type, category, then channel or title list.
 - Bookmarks contains saved channels and VOD/Series entries.
 - Watching Now contains VOD and Series entries after playback has started and opens on Series by default.
 - Series details and episode lists scroll together so the poster and summary do not take up a fixed portion of the episode view.
 - On first playback, choose Native, a detected external player, or the system chooser.
-- Use Remember to make that player the default. Configuration can clear it later.
+- Use Remember to make that player the default. Settings can clear it later.
+
+When EPG is enabled, live channel and bookmark rows show compact Now/Next information. Use the row's info action to open the full schedule in a bottom sheet; closing it returns to the same list position. There is no separate Live Guide screen. Loading, an unavailable source, stale saved data, and no matching schedule are shown as distinct states. Android refreshes through its existing guide repository and keeps its last saved data when a source fails.
 
 Native playback uses Media3 and can handle HLS/DASH plus license-URL Widevine/ClearKey metadata. External players receive a normal Android `ACTION_VIEW` stream handoff.
 

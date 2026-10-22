@@ -467,37 +467,19 @@ If you encounter bugs or have feature requests, please visit our [GitHub Reposit
 
 ## Electronic programme guide
 
-Enable **Settings → Enable EPG** on desktop and save. The web automatically follows that setting through its read-only JSON configuration/data APIs; it has no independent EPG status or enable/disable controls. Android has an independent default-off **Config → Enable EPG on this device** switch. Its Live/bookmark rows show Now/Next and open full schedules; **Live Guide** provides a channel-first guide with a two-pane wide layout.
+Enable **Settings → Enable EPG** on desktop and save. The web automatically follows that setting through its read-only JSON configuration/data APIs; it has no independent EPG status or enable/disable controls. Android has an independent default-off **Settings → Enable EPG on this device** switch. Live and bookmark rows show programme summaries, and an information action opens the selected channel's schedule in a contextual bottom sheet.
 
-Guide resolution is **channel/embedded/provider-native → account EPG → global EPG source**. Configure account EPG in account settings and the shared global source in desktop Settings or Android Config. XMLTV HTTP/HTTPS URLs, local files and gzip are supported. Unavailable or unmatched guides fall through without interrupting playback. Local paths must be readable on the device using them.
+Guide resolution is **channel/embedded/provider-native → account EPG → global EPG source**. Configure account EPG in account settings and the shared global source in desktop Settings or Android Settings. XMLTV HTTP/HTTPS URLs, local files and gzip are supported. Unavailable or unmatched guides fall through without interrupting playback. Local paths must be readable on the device using them.
 
-To correct an ID mismatch, right-click a desktop guide channel or open Android **View Guide** and save a **Guide ID override**. It survives cache reloads and database sync; clear it to return to provider matching. No global worldwide feed is bundled. Native support varies by provider. See [EPG.md](EPG.md) for matching, caching, privacy and troubleshooting details.
-
-### Optional standalone EPG Builder
-
-UIPTV desktop builds do not require Python. Platform packaging skips the standalone EPG utility by default:
-
-```sh
-./mvnw clean package -P mac-aarch64
-```
-
-To also build the utility, install Python 3.11+ with venv/pip and opt in explicitly:
-
-```sh
-./mvnw clean package -P mac-aarch64 -Depg.native.skip=false
-```
-
-The same flag applies to the other platform profiles. Build on the matching OS and CPU architecture. Utility archives are written under `python/util/epg_builder/target/dist/`; the packaged utility includes Python and Java runtimes, so users running it do not need either installed separately.
-
-Run the utility as the same OS user as UIPTV. It automatically resolves UIPTV's existing database; no separate database path is configured. Configure source feeds and review a dry-run before using `--apply`. Keep EPG enabled in UIPTV to display imported schedules. See the [utility instructions](python/util/epg_builder/README.md) and [config.toml reference](python/util/epg_builder/CONFIGURATION.md) for setup and scheduling details.
+To correct an ID mismatch, use **Guide ID override** from the desktop channel menu. Android's information sheet is read-only and honors mappings already saved and synced from desktop. The mapping survives cache refreshes and database sync; clear it on desktop to return to provider matching. No global worldwide feed is bundled. Native support varies by provider. See [EPG.md](EPG.md) for matching, caching, privacy and troubleshooting details.
 
 ### Global EPG sources and refresh
 
 Settings accepts multiple global XMLTV sources, one URL or local file per line. Put regional feeds (for example India, UK, USA and Australia) in priority order. Existing single-source settings remain compatible and sync uses the same configuration field. Desktop schedules prefer embedded/provider, account and then global sources; specific titles replace generic placeholders for overlapping intervals. Duplicate names within a feed remain ambiguous. Unique matches can ignore standalone quality labels such as HD or 4K while retaining region names.
 
-The desktop gear and Settings enable controls update the same persistent EPG flag. Refresh EPG clears transient guide, discovery and provider caches and reloads schedules, preserving accounts, bookmarks and saved mappings. Oversized feeds report a warning; use regional feeds instead of an oversized worldwide feed.
+The desktop gear and Settings enable controls update the same persistent EPG flag. Refresh EPG starts a cancellable background job. While it waits for another refresh or checks account playlists, its progress dialog shows elapsed time and the account currently being prepared before reporting per-source download, parse, match and save work. Each successful XMLTV source is validated and atomically replaces only its own rows; failures and cancellation keep last-good guide data and preserve accounts, bookmarks and saved mappings. Oversized feeds report a warning; use regional feeds instead of an oversized worldwide feed.
 
-Desktop EPG records persist in dedicated tables within the existing application database. Set the background refresh interval in Settings. Refresh EPG clears those records and fetches fresh data when EPG is enabled. No separate cache directory or INI TTL setting is required.
+Desktop EPG records persist in dedicated tables within the existing application database. Set the background refresh interval in Settings. Refresh EPG force-fetches configured XMLTV sources without clearing their saved records first. No separate cache directory or INI TTL setting is required.
 
 In the mobile embedded mpv player, swipe inward from the far left or far right edge of the video to open a panel on that side, or tap **Guide** to open it on the right with the on-air programme title, local times, progress and full description, followed by Up next. Swipe outward toward the same edge or tap **Close guide** to close it. The panel uses cached EPG data and respects player locking and the mobile EPG enable switch.
 

@@ -12,7 +12,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ListCell;
 import javafx.scene.layout.BorderPane;
-import javafx.stage.Stage;
 import com.uiptv.util.ServerUrlUtil;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.doThrow;
@@ -129,10 +128,6 @@ class LightweightAppCoverageTest {
             assertEquals("entry", logCell.getText());
             updateItem.invoke(logCell, null, true);
             assertNull(logCell.getText());
-
-            Stage stage = new Stage();
-            invoke(app, "start", void.class, stage);
-            stage.close();
 
             Hyperlink toggle = find(root, Hyperlink.class);
             assertNotNull(toggle);

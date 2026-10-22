@@ -19,6 +19,7 @@ public class PlayerEpgUI extends VBox {
     private static final String PROGRAMME_DESCRIPTION_STYLE = "epg-programme-description";
     private static final String PROGRAMME_CARD_STYLE = "epg-programme-card";
     private final Label heading = new Label();
+    private final Label sourceStatus = new Label();
     private final Label nowTitle = new Label();
     private final Label nowTime = new Label();
     private final Label nowDescription = new Label();
@@ -58,6 +59,7 @@ public class PlayerEpgUI extends VBox {
             label.setMinHeight(Region.USE_PREF_SIZE);
         }
         heading.getStyleClass().add("epg-player-heading");
+        sourceStatus.getStyleClass().add("epg-programme-time");
         nowTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE); nextTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE);
         nowDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE); nextDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE);
         nowTime.getStyleClass().add("epg-programme-time"); nextTime.getStyleClass().add("epg-programme-time");
@@ -80,7 +82,7 @@ public class PlayerEpgUI extends VBox {
         HBox detailsHeader = new HBox(8, expandedTitle, close); HBox.setHgrow(expandedTitle, Priority.ALWAYS);
         expandedDetails.getStyleClass().addAll(PROGRAMME_CARD_STYLE, "epg-inline-details");
         expandedDetails.getChildren().add(detailsHeader); closeDetails();
-        getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
+        getChildren().addAll(heading, sourceStatus, cards, expandedDetails); setVisible(false); setManaged(false);
         cacheRefresh.setOnFinished(_ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false));
         boundaryWake.setOnFinished(_ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false));
         // Keep the existing UI cache-observer contract as a bridge for local cache updates. The typed
@@ -206,17 +208,29 @@ public class PlayerEpgUI extends VBox {
 
     void display(PlayerEpgApplicationService.Result result) {
         if (Objects.equals(displayed, result)) { updateProgress(); return; }
-        boolean available = result != null && (result.now() != null || result.next() != null);
+        boolean hasGuide = result != null && (result.now() != null || result.next() != null);
+        boolean guideStateAvailable = result != null && ("NO_MATCH".equals(result.guideStatus())
+                || "UNAVAILABLE".equals(result.guideStatus()));
+        boolean available = hasGuide || guideStateAvailable;
         setVisible(available); setManaged(available);
         if (!available) {
             boundaryWake.stop();
             displayed = null; heading.setText("");
+            sourceStatus.setText(""); sourceStatus.setManaged(false); sourceStatus.setVisible(false);
             for (Label label : new Label[]{nowTitle, nowTime, nowDescription, nextTitle, nextTime, nextDescription}) label.setText("");
             progress.setProgress(0); closeDetails(); return;
         }
         if (displayed != null && !displayed.equals(result)) closeDetails();
         displayed = result;
         heading.setText(result.channelName());
+        String statusText = switch (Objects.toString(result.guideStatus(), "")) {
+            case "STALE" -> I18n.tr("epgSourceStale");
+            case "UNAVAILABLE" -> I18n.tr("epgSourceUnavailable");
+            case "NO_MATCH" -> I18n.tr("epgNoGuide");
+            default -> "";
+        };
+        sourceStatus.setText(statusText);
+        sourceStatus.setManaged(!statusText.isBlank()); sourceStatus.setVisible(!statusText.isBlank());
         nowCard.setVisible(result.now() != null); nowCard.setManaged(result.now() != null);
         nextCard.setVisible(result.next() != null); nextCard.setManaged(result.next() != null);
         programme(result.now(), nowTitle, nowTime, nowDescription);

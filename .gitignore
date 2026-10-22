@@ -7008,7 +7008,7 @@ mobile/**/compile_commands.json
 /.junie/
 /.mvn/
 
-# Python EPG Builder generated files
+# Local Python utility caches (not app runtime dependencies)
 python/**/__pycache__/
 python/**/.pytest_cache/
 python/**/*.egg-info/

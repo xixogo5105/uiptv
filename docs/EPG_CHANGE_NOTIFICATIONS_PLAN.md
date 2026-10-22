@@ -39,7 +39,7 @@ and account-specific schedules remain scoped appropriately. Suspend subscription
 and local animations while the relevant screen is inactive; reconcile once on
 resume or database restoration.
 
-## 3. Reconcile the external builder
+## 3. Reconcile changes from other database writers
 
 After a successful commit, the writer records a monotonic revision and bounded
 invalidation details in `epg_change_state` and `epg_change_history`. The desktop
@@ -80,7 +80,7 @@ providers push new guide data.
 ## Delivery and validation
 
 1. Revisioned core notifications and desktop subscribers: implemented.
-2. SQLite journal reconciliation for external builder/application changes: implemented.
+2. SQLite journal reconciliation for external database/application changes: implemented.
 3. SSE wake-up stream for the local web client: implemented.
 4. Cached boundary scheduling and coalesced visible/player reads: implemented.
 5. Filesystem marker and watcher: rejected and removed in favour of database revision polling.

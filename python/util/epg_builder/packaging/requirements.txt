@@ -1,2 +1,0 @@
-# Build tool only; application dependencies come from pyproject.toml.
-PyInstaller==6.22.3

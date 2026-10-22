@@ -8,6 +8,7 @@ function harness() {
   const calls = [], tasks = [];
   const ref = value => ({value});
   const context = {
+    ref,
     window: {location: {origin: 'http://fixture'}}, navigator: {language: 'en'},
     URLSearchParams, AbortController, Date, WeakMap, Map, clearTimeout(){}, setTimeout(){return 1;},
     nextTick(fn){if(fn) tasks.push(Promise.resolve().then(fn));},
@@ -28,10 +29,11 @@ function harness() {
   };
   vm.createContext(context);
   vm.runInContext(`let playerEpgRequest = 0, playerEpgController = null, liveGuideRequest = 0, liveGuideController = null, nativeGuideController = null;
+    ${functionSource('const cardProgramme =', 'const isLiveBookmark =')}
     ${functionSource('const refreshPlayerEpg =', 'watch(currentChannel,')}
     ${functionSource('let cardEpgObserver =', 'watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode]')}
     ${functionSource('const applyDesktopEpgSetting =', 'const findBookmarkForChannel =')}
-    Object.assign(this,{loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg});`, context);
+    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,cardEpgStatus,cardNowStatus});`, context);
   return {context, calls, async flush(){await Promise.all(tasks.splice(0));}};
 }
 test('disabled desktop setting suppresses guide requests and clears stale EPG everywhere', async () => {
@@ -81,6 +83,40 @@ test('bookmark cards use bookmark database IDs and skip movies and series',async
   context.observeBookmarkEpg({},live);context.observeBookmarkEpg({},{dbId:'movie',accountAction:'vod'});context.observeBookmarkEpg({},{dbId:'series',accountAction:'series'});
   await context.refreshVisibleCardEpg();assert.equal(calls.length,1);assert.ok(calls[0].url.endsWith('bookmarkId=bookmark-row'));assert.equal(live.epgNext.title,'Next');
 });
+test('web schedule detail is single-open, cancels prior lookups and requests a bounded result',async()=>{
+  const {context,calls}=harness();
+  const pending=[];
+  context.fetch=(url,options={})=>{
+    calls.push({url:String(url),options});
+    return new Promise(resolve=>pending.push({resolve,options}));
+  };
+  const first={dbId:'first-row',categoryId:'cat'};
+  const second={dbId:'second-row',categoryId:'cat'};
+  const firstLookup=context.toggleCardEpgDetails(first);
+  assert.equal(context.isCardEpgExpanded(first),true);
+  const secondLookup=context.toggleCardEpgDetails(second);
+  assert.equal(pending[0].options.signal.aborted,true);
+  assert.equal(context.isCardEpgExpanded(first),false);
+  assert.equal(context.isCardEpgExpanded(second),true);
+  assert.ok(calls[0].url.includes('limit=24'));
+  pending[0].resolve({ok:true,json:async()=>({programmes:[{title:'Stale'}]})});
+  pending[1].resolve({ok:true,json:async()=>({programmes:[{title:'Selected'}]})});
+  await Promise.all([firstLookup,secondLookup]);
+  assert.deepEqual(Array.from(context.cardEpgDetails.value.programmes,programme=>programme.title),['Selected']);
+  await context.toggleCardEpgDetails(second);
+  assert.equal(context.isCardEpgExpanded(second),false);
+  assert.deepEqual(Array.from(context.cardEpgDetails.value.programmes),[]);
+});
+test('visible EPG failures back off instead of retrying on every settings poll',async()=>{
+  const {context,calls}=harness();context.epgEnabled.value=true;
+  context.fetch=async(url,options={})=>{calls.push({url:String(url),options});return {ok:false};};
+  const channel={dbId:'unavailable',categoryId:'cat'};
+  context.observeChannelEpg({},channel);
+  await context.refreshVisibleCardEpg();
+  await context.refreshVisibleCardEpg();
+  assert.equal(calls.length,1);
+  assert.equal(channel.epgSourceStatus,'UNAVAILABLE');
+});
 test('turning EPG off discards in-flight card JSON',async()=>{
   const {context}=harness();context.epgEnabled.value=true;
   const channel={dbId:'row',categoryId:'cat'};context.channels.value=[channel];context.observeChannelEpg({},channel);
@@ -94,13 +130,27 @@ test('HTTP configuration failures keep the last desktop setting',async()=>{
   await context.loadConfig();assert.equal(context.epgEnabled.value,true);
 });
 
-test('card summaries show programme times, bounded progress and display-only placeholders',()=>{
- const context={Vue:{}, createApp(){}, ref:value=>({value}), epgTime:{value:new Date('2026-10-16T12:30:00Z').getTime()}, epgLabels:{value:{epgNoProgrammeDetails:'No details'}}};
+test('card summaries use only real programme data and never synthesize guide text or time',()=>{
+ const context={Vue:{}, createApp(){}, ref:value=>({value}), epgTime:{value:new Date('2026-10-16T12:30:00Z').getTime()}};
  vm.createContext(context);
  vm.runInContext(functionSource('const cardProgramme =','const isLiveBookmark =')+'this.cardProgramme=cardProgramme;this.cardProgrammeProgress=cardProgrammeProgress;this.cardProgrammeTime=cardProgrammeTime;',context);
  const item={epgNow:{title:'Current',start:context.epgTime.value-1800000,stop:context.epgTime.value+1800000}};
  assert.equal(context.cardProgrammeProgress(item),0.5);
- assert.equal(context.cardProgramme({},'epgNow').title,'No details');assert.equal(Object.keys(item).length,1);
+ assert.equal(context.cardProgramme({},'epgNow'),null);assert.equal(context.cardProgrammeTime(null),'');
  assert.ok(context.cardProgrammeTime(item.epgNow).includes(' – '));
- assert.equal(context.cardProgramme(item,'epgNext').start,item.epgNow.stop);
+ assert.equal(context.cardProgramme(item,'epgNext'),null);assert.equal(context.cardProgrammeProgress({}),0);
+});
+
+test('EPG row cells distinguish missing current data from a missing guide and keep Next aligned',()=>{
+ const {context}=harness();
+ assert.equal(context.cardNowStatus({epgLoaded:true,epgNext:{title:'Upcoming'}}),'—');
+ assert.equal(context.cardNowStatus({epgLoaded:true}),'No guide available');
+ assert.equal(context.cardNowStatus({epgLoaded:true,epgUnavailable:true}),'Guide source unavailable');
+ assert.equal(context.cardNowStatus({epgLoaded:true,epgSourceStatus:'STALE',epgNext:{title:'Upcoming'}}),'Showing saved guide data');
+ const html=fs.readFileSync('api-server/src/main/resources/web/index.html','utf8');
+ const css=fs.readFileSync('api-server/src/main/resources/web/css/spa.css','utf8');
+ assert.equal((html.match(/epg-next-column epg-next-empty/g)||[]).length,2);
+ assert.ok(css.includes('.epg-column-header'));
+ assert.ok(css.includes('@media (max-width: 760px)'));
+ assert.ok(css.includes('.epg-row-card .epg-next-column { display: none; }'));
 });

@@ -18,10 +18,6 @@ public class DialogAlert {
     public static ButtonType showDialog(String title, String contents) {
         String message = I18n.tr(contents);
         AppLog.addInfoLog(DialogAlert.class, "Dialog requested: " + message);
-        if (Boolean.getBoolean("uiptv.headless")) {
-            AppLog.addWarningLog(DialogAlert.class, "Dialog skipped in headless mode.");
-            return ButtonType.NO;
-        }
         Alert confirmDialogue = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         if (title != null) {
             String localizedTitle = I18n.tr(title);

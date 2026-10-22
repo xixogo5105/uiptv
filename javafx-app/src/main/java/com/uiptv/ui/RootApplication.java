@@ -73,7 +73,6 @@ public class RootApplication extends Application {
         // is created and caches it, so this has to be set before Jetty, the database layer or any
         // other library can obtain one. Otherwise the level is fixed at INFO for the whole run.
         AppLog.setTerminalLoggingEnabled(showLogsEnabled || headlessMode || syncMode);
-        System.setProperty("uiptv.headless", Boolean.toString(headlessMode));
         ServerUrlUtil.installServerShutdownHook();
 
         if (syncMode) {

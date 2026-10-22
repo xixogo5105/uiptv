@@ -134,11 +134,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v7
 
-      - name: Set up Python for native EPG utility
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.13'
-
       - name: Set up JDK 25
         uses: actions/setup-java@v6
         with:
@@ -147,23 +142,13 @@ jobs:
           cache: maven
 
       - name: Build Windows package
-        run: mvn -B clean package -DskipTests -Depg.native.skip=false -P ${{ matrix.profile }}
+        run: mvn -B clean package -DskipTests -P ${{ matrix.profile }}
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-windows-${{ matrix.arch }}
           path: javafx-app/target/dist/*
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-
-      - name: Upload native EPG utility
-        uses: actions/upload-artifact@v7
-        with:
-          name: UIPTV-epg-windows-${{ matrix.arch }}
-          path: |
-            python/util/epg_builder/target/dist/*.tar.gz
-            python/util/epg_builder/target/dist/*.zip
-          if-no-files-found: error
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_mac:
@@ -184,11 +169,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v7
 
-      - name: Set up Python for native EPG utility
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.13'
-
       - name: Set up JDK 25
         uses: actions/setup-java@v6
         with:
@@ -197,23 +177,13 @@ jobs:
           cache: maven
 
       - name: Build macOS package
-        run: mvn -B clean package -DskipTests -Depg.native.skip=false -P ${{ matrix.profile }}
+        run: mvn -B clean package -DskipTests -P ${{ matrix.profile }}
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-macos-${{ matrix.arch }}
           path: javafx-app/target/dist/*
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-
-      - name: Upload native EPG utility
-        uses: actions/upload-artifact@v7
-        with:
-          name: UIPTV-epg-macos-${{ matrix.arch }}
-          path: |
-            python/util/epg_builder/target/dist/*.tar.gz
-            python/util/epg_builder/target/dist/*.zip
-          if-no-files-found: error
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_linux:
@@ -224,11 +194,6 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
-
-      - name: Set up Python for native EPG utility
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.13'
 
       - name: Set up JDK 25
         uses: actions/setup-java@v6
@@ -253,7 +218,7 @@ jobs:
           fi
 
       - name: Build DEB package
-        run: xvfb-run -a mvn -B clean package -DskipTests -Depg.native.skip=false -P linux-x86_64,pkg-deb
+        run: xvfb-run -a mvn -B clean package -DskipTests -P linux-x86_64,pkg-deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v7
@@ -267,7 +232,7 @@ jobs:
 
       - name: Build RPM package
         if: steps.rpm_support.outputs.supported == 'true'
-        run: xvfb-run -a mvn -B clean package -DskipTests -Depg.native.skip=false -P linux-x86_64,pkg-rpm
+        run: xvfb-run -a mvn -B clean package -DskipTests -P linux-x86_64,pkg-rpm
 
       - name: Upload RPM artifact
         if: steps.rpm_support.outputs.supported == 'true'
@@ -281,7 +246,7 @@ jobs:
         run: rm -rf javafx-app/target/dist/*
 
       - name: Build AppImage package
-        run: xvfb-run -a mvn -B clean package -DskipTests -Depg.native.skip=false -P linux-x86_64,pkg-app-image
+        run: xvfb-run -a mvn -B clean package -DskipTests -P linux-x86_64,pkg-app-image
 
       - name: Archive app-image artifact (x86_64)
         shell: bash
@@ -301,16 +266,6 @@ jobs:
       # NOTE:
       # Do not build linux-aarch64 app-image on an x86_64 runner.
       # jpackage app-image launchers are native and not cross-compiled.
-
-      - name: Upload native EPG utility
-        uses: actions/upload-artifact@v7
-        with:
-          name: UIPTV-epg-linux-x86_64
-          path: |
-            python/util/epg_builder/target/dist/*.tar.gz
-            python/util/epg_builder/target/dist/*.zip
-          if-no-files-found: error
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_mobile_release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -365,11 +320,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v7
 
-      - name: Set up Python for native EPG utility
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.13'
-
       - name: Set up JDK 25
         uses: actions/setup-java@v6
         with:
@@ -378,7 +328,7 @@ jobs:
           cache: maven
 
       - name: Build AppImage package (aarch64)
-        run: mvn -B clean package -DskipTests -Depg.native.skip=false -P linux-aarch64,pkg-app-image
+        run: mvn -B clean package -DskipTests -P linux-aarch64,pkg-app-image
 
       - name: Archive app-image artifact (aarch64)
         shell: bash
@@ -390,16 +340,6 @@ jobs:
         with:
           name: UIPTV-linux-aarch64-app-image
           path: target/UIPTV-linux-aarch64-app-image.tar.gz
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-
-      - name: Upload native EPG utility
-        uses: actions/upload-artifact@v7
-        with:
-          name: UIPTV-epg-linux-aarch64
-          path: |
-            python/util/epg_builder/target/dist/*.tar.gz
-            python/util/epg_builder/target/dist/*.zip
-          if-no-files-found: error
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   publish_release:

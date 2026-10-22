@@ -104,6 +104,9 @@ class MainActivity : ComponentActivity() {
                     else dynamicLightColorScheme(this@MainActivity)
                 } else null
             }
+            val timeZoneOptions = remember {
+                java.util.TimeZone.getAvailableIDs().toList().sorted()
+            }
             var pendingLocalPlaylistSelection by remember { mutableStateOf<((String) -> Unit)?>(null) }
             var pendingBackupSelection by remember { mutableStateOf<((String?) -> Unit)?>(null) }
             var pendingRestoreSelection by remember { mutableStateOf<((String?) -> Unit)?>(null) }
@@ -143,6 +146,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 UiptvMobileApp(
                     colorScheme = deviceColorScheme,
+                    timeZoneOptions = timeZoneOptions,
                     resumeSignal = appResumeSignal,
                     isForeground = appForeground,
                     epgActions = com.uiptv.mobile.shared.ui.EpgUiActions(
@@ -154,7 +158,6 @@ class MainActivity : ComponentActivity() {
                         globalSource = epgRepository::globalSource,
                         saveGlobalSource = epgRepository::saveGlobalSource,
                         schedule = epgRepository::schedule,
-                        saveMapping = epgRepository::saveMapping,
                         icon = epgRepository::icon
                     ),
                     syncActions = RemoteSyncUiActions(
@@ -175,6 +178,7 @@ class MainActivity : ComponentActivity() {
                         deleteAccount = accountRepository::deleteAccount,
                         clearCache = accountRepository::clearAccountCache,
                         clearAllCache = accountRepository::clearAllCache,
+                        loadCacheSummary = accountRepository::cacheSummary,
                         enqueueCacheJob = cacheScheduler::enqueue,
                         loadCacheJobState = cacheScheduler::state,
                         loadRecentCacheJobs = { cacheScheduler.recentStates() },

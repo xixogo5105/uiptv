@@ -18,7 +18,6 @@ import java.util.function.Supplier;
 
 /** One cancellable loader per virtual grid. Detached cards retain no schedule or timer. */
 final class CardEpgSupport {
-    private static final String NO_PROGRAMME_DETAILS = "epgNoProgrammeDetails";
     /**
      * Hydrate a bounded first window in display order. The grid itself remains virtualized, so
      * this is a cap on EPG work rather than a request to render or retain the whole catalogue.
@@ -42,12 +41,13 @@ final class CardEpgSupport {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private static final class Binding {
-        final VBox panel;
+        final Pane panel;
         final Supplier<LiveGuideApplicationService.Row> source;
         long refreshAt;
         EpgProgramme current;
         EpgProgramme next;
-        Binding(VBox panel, Supplier<LiveGuideApplicationService.Row> source) { this.panel = panel; this.source = source; }
+        boolean sourceWarning;
+        Binding(Pane panel, Supplier<LiveGuideApplicationService.Row> source) { this.panel = panel; this.source = source; }
     }
 
     CardEpgSupport(Node owner) {
@@ -105,10 +105,16 @@ final class CardEpgSupport {
     }
 
     private void attach(Region card, Supplier<LiveGuideApplicationService.Row> source) {
-        VBox panel = new VBox(5); panel.getStyleClass().add("virtual-card-epg");
+        boolean programmeRow = card.getStyleClass().contains("epg-programme-aware-row");
+        Pane panel = programmeRow ? new HBox(12) : new VBox(5);
+        panel.getStyleClass().add("virtual-card-epg");
         panel.setMinWidth(0); panel.setMaxWidth(Double.MAX_VALUE); panel.setVisible(false); panel.setManaged(false);
         card.getStyleClass().add("epg-summary-card");
-        if (card instanceof VBox vertical) {
+        if (programmeRow && card instanceof GridPane grid) {
+            panel.getStyleClass().add("epg-programme-columns");
+            GridPane.setHgrow(panel, Priority.ALWAYS);
+            grid.add(panel, 1, 0);
+        } else if (card instanceof VBox vertical) {
             vertical.setAlignment(javafx.geometry.Pos.TOP_LEFT); vertical.getChildren().add(panel);
         } else if (card instanceof HBox horizontal) {
             var children = new ArrayList<>(horizontal.getChildren()); horizontal.getChildren().clear();
@@ -120,6 +126,7 @@ final class CardEpgSupport {
             horizontal.getChildren().setAll(body);
         }
         Binding binding = new Binding(panel, source);
+        displayLoading(panel);
         card.sceneProperty().addListener((_, _, scene) -> {
             if (scene == null) {
                 attached.remove(card);
@@ -127,7 +134,7 @@ final class CardEpgSupport {
                 queue();
             } else {
                 attached.put(card, binding);
-                if (System.currentTimeMillis() < binding.refreshAt) display(panel, binding.current, binding.next);
+                if (System.currentTimeMillis() < binding.refreshAt) displayPanel(panel, binding.current, binding.next);
                 observeScroll(card);
                 observeCardBounds(card);
                 retryAfterLayout();
@@ -264,11 +271,17 @@ final class CardEpgSupport {
             collectSources(request, cards, sources, permitted);
             var service = new LiveGuideApplicationService();
             var summaries = service.cachedSummaries(sources);
-            publishSummaries(request, permitted, summaries, service.cachedIcons(summaries));
+            publishSummaries(request, permitted, summaries, service.cachedIcons(summaries), service.cachedSourceWarnings(summaries));
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         } catch (Exception _) {
-            Platform.runLater(() -> { if (request == revision.get()) cards.forEach(entry -> entry.getValue().refreshAt = System.currentTimeMillis() + 30_000); });
+            Platform.runLater(() -> {
+                if (request != revision.get()) return;
+                cards.forEach(entry -> {
+                    entry.getValue().refreshAt = System.currentTimeMillis() + 30_000;
+                    displayUnavailable(entry.getValue().panel);
+                });
+            });
         } finally {
             Platform.runLater(() -> { if (request == revision.get()) pulse.playFromStart(); });
         }
@@ -297,20 +310,22 @@ final class CardEpgSupport {
         Platform.runLater(() -> {
             if (request == revision.get() && attached.containsKey(entry.getKey()) && visible(entry.getKey())) {
                 entry.getValue().refreshAt = System.currentTimeMillis() + 30 * 60_000L;
-                display(entry.getValue().panel, null, null);
+                displayPanel(entry.getValue().panel, null, null);
             }
         });
     }
 
     private void publishSummaries(long request, List<Map.Entry<Region, Binding>> entries,
-                                  List<LiveGuideApplicationService.Row> summaries, Map<LiveGuideApplicationService.Row, String> icons) {
+                                  List<LiveGuideApplicationService.Row> summaries, Map<LiveGuideApplicationService.Row, String> icons,
+                                  Map<LiveGuideApplicationService.Row, Boolean> sourceWarnings) {
         for (int index = 0; index < summaries.size(); index++) {
             var entry = entries.get(index);
             var loaded = summaries.get(index);
             long now = System.currentTimeMillis();
             EpgProgramme current = currentProgramme(loaded, now);
             EpgProgramme next = nextProgramme(loaded, now);
-            Platform.runLater(() -> publishSummary(request, entry, loaded, current, next, icons));
+            boolean sourceWarning = sourceWarnings.getOrDefault(loaded, false);
+            Platform.runLater(() -> publishSummary(request, entry, loaded, current, next, icons, sourceWarning));
         }
     }
 
@@ -324,7 +339,7 @@ final class CardEpgSupport {
 
     private void publishSummary(long request, Map.Entry<Region, Binding> entry,
                                 LiveGuideApplicationService.Row loaded, EpgProgramme current, EpgProgramme next,
-                                Map<LiveGuideApplicationService.Row, String> icons) {
+                                Map<LiveGuideApplicationService.Row, String> icons, boolean sourceWarning) {
         if (request != revision.get() || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()
                 || !attached.containsKey(entry.getKey()) || !visible(entry.getKey())) return;
         long refreshAt = System.currentTimeMillis() + 30 * 60_000L;
@@ -333,7 +348,8 @@ final class CardEpgSupport {
         entry.getValue().refreshAt = Math.max(System.currentTimeMillis() + 30_000, refreshAt);
         entry.getValue().current = current;
         entry.getValue().next = next;
-        display(entry.getValue().panel, current, next);
+        entry.getValue().sourceWarning = sourceWarning;
+        displayPanel(entry.getValue().panel, current, next, sourceWarning);
         if (entry.getKey().lookup(".channel-logo-view") instanceof com.uiptv.widget.AsyncImageView image) {
             image.setFallbackImage(icons.getOrDefault(loaded, ""), "channel");
         }
@@ -346,42 +362,121 @@ final class CardEpgSupport {
     private void restoreSummaries() {
         long now = System.currentTimeMillis();
         attached.forEach((card, binding) -> {
-            if (visible(card) && now < binding.refreshAt) display(binding.panel, binding.current, binding.next);
+            if (visible(card) && now < binding.refreshAt) displayPanel(binding.panel, binding.current, binding.next, binding.sourceWarning);
         });
     }
 
-    static void display(VBox panel, EpgProgramme current, EpgProgramme next) {
+    static void display(Pane panel, EpgProgramme current, EpgProgramme next) {
         display(panel, current, next, System.currentTimeMillis());
     }
 
-    static void display(VBox panel, EpgProgramme current, EpgProgramme next, long now) {
-        // Presentation-only placeholders: never publish invented schedules to the cache.
-        long hourStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
-                .truncatedTo(java.time.temporal.ChronoUnit.HOURS).toInstant().toEpochMilli();
-        if (current == null) current = new EpgProgramme(I18n.tr(NO_PROGRAMME_DETAILS), "", hourStart, hourStart + 3_600_000);
-        if (next == null) {
-            long start = current.stop();
-            next = new EpgProgramme(I18n.tr(NO_PROGRAMME_DETAILS), "", start, start + 3_600_000);
-        }
+    static void display(Pane panel, EpgProgramme current, EpgProgramme next, long now) {
+        displayPanel(panel, current, next);
+    }
+
+    private static void displayPanel(Pane panel, EpgProgramme current, EpgProgramme next) {
+        displayPanel(panel, current, next, false);
+    }
+
+    private static void displayPanel(Pane panel, EpgProgramme current, EpgProgramme next, boolean sourceWarning) {
         panel.getChildren().clear();
-        panel.getChildren().add(programme(I18n.tr("epgNow"), current));
-        double fraction = current.stop() <= current.start() ? 0
-                : Math.clamp((now - current.start()) / (double) (current.stop() - current.start()), 0, 1);
-        ProgressBar progress = new ProgressBar(fraction);
-        progress.getStyleClass().add("epg-programme-progress");
-        progress.setMaxWidth(Double.MAX_VALUE);
-        panel.getChildren().addAll(progress, programme(I18n.tr("epgNext"), next));
+        if (panel instanceof HBox columns) {
+            VBox nowColumn = new VBox(3);
+            nowColumn.getStyleClass().add("epg-programme-column");
+            nowColumn.setMinWidth(0); nowColumn.setMaxWidth(Double.MAX_VALUE);
+            VBox nextColumn = new VBox(3);
+            nextColumn.getStyleClass().add("epg-programme-column");
+            nextColumn.setMinWidth(0); nextColumn.setMaxWidth(Double.MAX_VALUE);
+            String missingNow = current != null ? ""
+                    : next != null ? "—"
+                    : sourceWarning ? I18n.tr("epgSourceUnavailable") : I18n.tr("epgNoGuide");
+            nowColumn.getChildren().add(programmeSummary(current, missingNow));
+            if (current != null) {
+                long now = System.currentTimeMillis();
+                double fraction = current.stop() <= current.start() ? 0
+                        : Math.clamp((now - current.start()) / (double) (current.stop() - current.start()), 0, 1);
+                ProgressBar progress = new ProgressBar(fraction);
+                progress.getStyleClass().add("epg-programme-progress");
+                progress.setMaxWidth(Double.MAX_VALUE);
+                nowColumn.getChildren().add(progress);
+            }
+            if (sourceWarning && (current != null || next != null)) nowColumn.getChildren().add(sourceWarningLabel(true));
+            nextColumn.getChildren().add(programmeSummary(next, next == null ? "—" : ""));
+            HBox.setHgrow(nowColumn, Priority.ALWAYS);
+            HBox.setHgrow(nextColumn, Priority.ALWAYS);
+            columns.getChildren().setAll(nowColumn, nextColumn);
+        } else {
+            VBox vertical = (VBox) panel;
+            vertical.getChildren().add(programme(I18n.tr("epgNow"), current));
+            if (current != null) {
+                long now = System.currentTimeMillis();
+                double fraction = current.stop() <= current.start() ? 0
+                        : Math.clamp((now - current.start()) / (double) (current.stop() - current.start()), 0, 1);
+                ProgressBar progress = new ProgressBar(fraction);
+                progress.getStyleClass().add("epg-programme-progress");
+                progress.setMaxWidth(Double.MAX_VALUE);
+                vertical.getChildren().add(progress);
+            }
+            vertical.getChildren().add(programme(I18n.tr("epgNext"), next));
+            if (sourceWarning) vertical.getChildren().add(sourceWarningLabel(current != null || next != null));
+        }
         panel.setVisible(true); panel.setManaged(true);
     }
 
+    private static Label sourceWarningLabel(boolean hasGuide) {
+        Label label = new Label(I18n.tr(hasGuide ? "epgSourceStale" : "epgSourceUnavailable"));
+        label.getStyleClass().add("epg-programme-time");
+        return label;
+    }
+
     private static VBox programme(String badge, EpgProgramme programme) {
-        String text = programme == null ? I18n.tr(NO_PROGRAMME_DETAILS) : programme.title();
-        Label title = new Label(badge + ": " + text); title.getStyleClass().add("virtual-card-epg-title");
+        return programme(badge, programme, true, I18n.tr("epgNoGuide"));
+    }
+
+    private static VBox programmeSummary(EpgProgramme programme, String emptyText) {
+        return programme("", programme, false, emptyText);
+    }
+
+    private static VBox programme(String badge, EpgProgramme programme, boolean showBadge, String emptyText) {
+        String text = programme == null ? emptyText : programme.title();
+        Label title = new Label(programme == null || !showBadge ? text : badge + ": " + text);
+        title.getStyleClass().add("virtual-card-epg-title");
         title.setMinWidth(0); title.setMaxWidth(Double.MAX_VALUE); title.setTextOverrun(OverrunStyle.ELLIPSIS);
         Tooltip tooltip = new Tooltip(text); tooltip.setWrapText(true); tooltip.setMaxWidth(400); title.setTooltip(tooltip);
-        Label time = new Label(programme == null ? "—" : TIME.format(Instant.ofEpochMilli(programme.start()).atZone(ZoneId.systemDefault())) + " – "
+        if (programme == null) return new VBox(2, title);
+        Label time = new Label(TIME.format(Instant.ofEpochMilli(programme.start()).atZone(ZoneId.systemDefault())) + " – "
                 + TIME.format(Instant.ofEpochMilli(programme.stop()).atZone(ZoneId.systemDefault())));
         time.getStyleClass().add("epg-programme-time"); return new VBox(2, title, time);
+    }
+
+    private static void displayLoading(Pane panel) {
+        panel.getChildren().clear();
+        ProgressIndicator loading = new ProgressIndicator();
+        loading.setMaxSize(16, 16); loading.setMinSize(16, 16);
+        Label label = new Label(I18n.tr("epgLoading"));
+        label.getStyleClass().add("epg-programme-time");
+        if (panel instanceof HBox row) {
+            VBox now = new VBox(3, new HBox(6, loading, label));
+            now.getStyleClass().add("epg-programme-column");
+            VBox next = programmeSummary(null, "—");
+            next.getStyleClass().add("epg-programme-column");
+            HBox.setHgrow(now, Priority.ALWAYS); HBox.setHgrow(next, Priority.ALWAYS);
+            row.getChildren().setAll(now, next);
+        } else ((VBox) panel).getChildren().setAll(new HBox(6, loading, label));
+        panel.setVisible(true); panel.setManaged(true);
+    }
+
+    private static void displayUnavailable(Pane panel) {
+        panel.getChildren().clear();
+        Label label = new Label(I18n.tr("epgSourceUnavailable"));
+        label.getStyleClass().add("epg-programme-time");
+        if (panel instanceof HBox row) {
+            VBox now = new VBox(2, label); now.getStyleClass().add("epg-programme-column");
+            VBox next = programmeSummary(null, "—"); next.getStyleClass().add("epg-programme-column");
+            HBox.setHgrow(now, Priority.ALWAYS); HBox.setHgrow(next, Priority.ALWAYS);
+            row.getChildren().setAll(now, next);
+        } else panel.getChildren().add(label);
+        panel.setVisible(true); panel.setManaged(true);
     }
 
     void addGuideMenu(ContextMenu menu, Node anchor, Supplier<LiveGuideApplicationService.Row> source) {

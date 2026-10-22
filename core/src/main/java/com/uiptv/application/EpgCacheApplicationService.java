@@ -137,6 +137,18 @@ public class EpgCacheApplicationService {
         });
         return result;
     }
+    /** Last-good guide rows remain usable after a failed source refresh; mark those rows as stale. */
+    public Map<Channel,Boolean> sourceWarnings(Account account, List<Channel> channels) {
+        Map<Channel,Boolean> result = new IdentityHashMap<>();
+        var config = ConfigurationService.getInstance().read();
+        if (!config.isEpgEnabled() || account == null || account.getAction() != Account.AccountAction.itv || channels.isEmpty()) return result;
+        var mappings = overrides(config, account);
+        var rules = new com.uiptv.db.EpgNameRulesDb().read();
+        var ids = channels.stream().map(channel -> identity(account, channel, config, mappings, rules.fingerprint())).toList();
+        var warnings = new EpgCacheDb().sourceWarnings(ids);
+        for (int index = 0; index < channels.size(); index++) result.put(channels.get(index), warnings.contains(ids.get(index)));
+        return result;
+    }
     public Map<Channel,String> icons(Account account,List<Channel> channels) {
         var config=ConfigurationService.getInstance().read();
         Map<Channel,String> result=new IdentityHashMap<>();

@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.*;
 
 /** One bounded background importer, independent of card rendering. */
 public class EpgCacheRefreshService {
-    private static long refreshMillis() {
+    static long refreshMillis() {
         return TimeUnit.HOURS.toMillis(ConfigurationService.getInstance().read().normalizedEpgRefreshHours());
     }
     private static long schedulerIntervalMillis() {
@@ -18,6 +18,8 @@ public class EpgCacheRefreshService {
     }
     private static final long FAILURE_MS=TimeUnit.MINUTES.toMillis(5);
     private static final Object COMMIT_LOCK=new Object();
+    /** Serializes scheduled and user-requested imports without discarding persisted data. */
+    static final java.util.concurrent.locks.ReentrantLock REFRESH_LOCK = new java.util.concurrent.locks.ReentrantLock();
     private static final java.util.concurrent.ConcurrentMap<String, java.util.concurrent.locks.ReentrantLock> NATIVE_REQUEST_LOCKS = new ConcurrentHashMap<>();
     private static final AtomicLong EPOCH=new AtomicLong();
     private static final Map<Runnable,EpgChangeNotifications.Subscription> LEGACY_LISTENERS=new ConcurrentHashMap<>();
@@ -54,7 +56,7 @@ public class EpgCacheRefreshService {
             return false;
         }
     }
-    private static final Set<Thread> WORKERS=ConcurrentHashMap.newKeySet();
+    static final Set<Thread> WORKERS=ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean QUEUED=new AtomicBoolean();
     private static final AtomicBoolean IMMEDIATE_REQUESTED=new AtomicBoolean();
     private static final java.util.concurrent.atomic.AtomicInteger CATALOGUE_RELOADS = new java.util.concurrent.atomic.AtomicInteger();
@@ -100,10 +102,10 @@ public class EpgCacheRefreshService {
         }
     }
     private static final Map<String,Integer> CURSORS=new HashMap<>();
-    private record Token(String path,long epoch) { }
-    private static Token token() { return new Token(SQLConnection.getDatabasePath(),EPOCH.get()); }
-    private static boolean current(Token token) { return CATALOGUE_RELOADS.get() == 0 && token.epoch()==EPOCH.get() && token.path().equals(SQLConnection.getDatabasePath()) && !Thread.currentThread().isInterrupted(); }
-    private static void commit(Token token,Runnable write) {
+    record Token(String path,long epoch) { }
+    static Token token() { return new Token(SQLConnection.getDatabasePath(),EPOCH.get()); }
+    static boolean current(Token token) { return CATALOGUE_RELOADS.get() == 0 && token.epoch()==EPOCH.get() && token.path().equals(SQLConnection.getDatabasePath()) && !Thread.currentThread().isInterrupted(); }
+    static void commit(Token token,Runnable write) {
         synchronized(COMMIT_LOCK) { if(current(token)) write.run(); }
     }
     public static long revision() { return EpgChangeNotifications.snapshot().revision(); }
@@ -237,13 +239,10 @@ public class EpgCacheRefreshService {
             new EpgCacheDb().clear();
         }
     }
-    public void clearAndRefresh() {
-        new EpgApplicationService().clearCache();
-        requestRefresh();
-    }
     private static void runScheduled() {
         synchronized (EpgCacheRefreshService.class) {
-            if (!lifecycleStarted || CATALOGUE_RELOADS.get() > 0 || Thread.currentThread().isInterrupted()) return;
+            if (!lifecycleStarted || CATALOGUE_RELOADS.get() > 0 || Thread.currentThread().isInterrupted()
+                    || !REFRESH_LOCK.tryLock()) return;
             WORKERS.add(Thread.currentThread());
         }
         try {
@@ -252,7 +251,7 @@ public class EpgCacheRefreshService {
             new EpgCacheRefreshService().refreshDue();
         } catch(Exception _) {
             if(!Thread.currentThread().isInterrupted()) AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG background refresh failed; existing guide remains available.");
-        } finally { WORKERS.remove(Thread.currentThread()); Thread.interrupted(); }
+        } finally { WORKERS.remove(Thread.currentThread()); Thread.interrupted(); REFRESH_LOCK.unlock(); }
     }
 
     public void refreshDue() {

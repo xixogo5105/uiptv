@@ -54,12 +54,18 @@ public final class EpgModeUI {
         Thread.ofVirtual().start(() -> new com.uiptv.application.EpgSettingsApplicationService().setPlaybackOnly(value));
     }
     public static void refreshGuides(Runnable finished) {
+        var job = com.uiptv.application.EpgRefreshJobService.start();
         Thread.ofVirtual().start(() -> {
-            try { new com.uiptv.application.EpgCacheRefreshService().clearAndRefresh(); }
-            finally { javafx.application.Platform.runLater(() -> {
+            com.uiptv.application.EpgRefreshJobService.Snapshot snapshot;
+            do {
+                try { Thread.sleep(250); }
+                catch (InterruptedException _) { Thread.currentThread().interrupt(); return; }
+                snapshot = com.uiptv.application.EpgRefreshJobService.get(job.id());
+            } while (snapshot != null && ("PREPARING".equals(snapshot.status()) || "RUNNING".equals(snapshot.status())));
+            javafx.application.Platform.runLater(() -> {
                 cacheRevision.set(cacheRevision.get() + 1);
                 if (finished != null) finished.run();
-            }); }
+            });
         });
     }
     /** Feature observers may rebuild layout only when the saved enable switch changes. */

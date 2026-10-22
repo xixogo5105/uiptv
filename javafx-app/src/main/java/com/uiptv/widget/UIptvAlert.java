@@ -32,9 +32,6 @@ public class UIptvAlert {
     public static void showMessageAlert(String contents) {
         String message = contents;
         AppLog.addInfoLog(UIptvAlert.class, message);
-        if (isHeadlessMode()) {
-            return;
-        }
         String alertKey = "INFO:" + message;
         if (!ACTIVE_VOID_ALERTS.add(alertKey)) {
             AppLog.addInfoLog(UIptvAlert.class, "Message alert coalesced: " + message);
@@ -53,10 +50,6 @@ public class UIptvAlert {
     public static boolean showConfirmationAlert(String contents) {
         String message = I18n.tr(contents);
         AppLog.addInfoLog(UIptvAlert.class, "Confirmation requested: " + message);
-        if (isHeadlessMode()) {
-            AppLog.addWarningLog(UIptvAlert.class, "Confirmation skipped in headless mode.");
-            return false;
-        }
         if (!Platform.isFxApplicationThread()) {
             AtomicBoolean confirmed = new AtomicBoolean(false);
             CountDownLatch latch = new CountDownLatch(1);
@@ -115,9 +108,6 @@ public class UIptvAlert {
     public static void showErrorAlert(String contents, Exception ex) {
         String message = I18n.tr(contents);
         logError(message, ex);
-        if (isHeadlessMode()) {
-            return;
-        }
         String alertKey = "ERROR:" + message;
         if (!ACTIVE_VOID_ALERTS.add(alertKey)) {
             AppLog.addInfoLog(UIptvAlert.class, "Error alert coalesced: " + message);
@@ -162,10 +152,6 @@ public class UIptvAlert {
 
     private static Window alertOwnerWindow() {
         return ThemedDialogSupport.activeOwnerWindow();
-    }
-
-    private static boolean isHeadlessMode() {
-        return Boolean.getBoolean("uiptv.headless");
     }
 
     private static void awaitLatch(CountDownLatch latch) {

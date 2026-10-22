@@ -121,12 +121,20 @@ public class EpgApplicationService {
 
     /** Stream one bounded source for the background database importer. */
     XmltvGuide downloadSource(String source) throws IOException, javax.xml.stream.XMLStreamException, InterruptedException {
+        return downloadSource(source, _ -> { });
+    }
+
+    /** Same bounded importer, with phase updates for a user-visible refresh job. */
+    XmltvGuide downloadSource(String source, java.util.function.Consumer<String> phase)
+            throws IOException, javax.xml.stream.XMLStreamException, InterruptedException {
+        phase.accept("Downloading");
         try (InputStream raw=open(source); BufferedInputStream buffered=new BufferedInputStream(raw)) {
             buffered.mark(2);
             int first=buffered.read();
             int second=buffered.read();
             buffered.reset();
             InputStream xml=first==0x1f && second==0x8b ? new GZIPInputStream(buffered) : buffered;
+            phase.accept("Parsing");
             XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit()),Instant.now());
             return new XmltvGuide(guide.programmes(), guide.names(), guide.qualityNames(),
                     resolveArtwork(guide.icons(), sourceUri(source)));

@@ -57,6 +57,22 @@ public class LiveGuideApplicationService {
         return rows.stream().map(row -> loaded.getOrDefault(row,row)).toList();
     }
 
+    /** Read persisted source failure state for a bounded batch of already visible cards. */
+    public Map<Row,Boolean> cachedSourceWarnings(List<Row> rows) {
+        Map<Row,Boolean> result = new IdentityHashMap<>();
+        Map<String,List<Row>> groups = new LinkedHashMap<>();
+        rows.forEach(row -> groups.computeIfAbsent(row.accountId(), _ -> new ArrayList<>()).add(row));
+        for (var group : groups.entrySet()) {
+            Account account = AccountService.getInstance().getById(group.getKey());
+            if (account == null) continue;
+            account.setAction(Account.AccountAction.itv);
+            var warnings = new EpgCacheApplicationService().sourceWarnings(account,
+                    group.getValue().stream().map(Row::channel).toList());
+            group.getValue().forEach(row -> result.put(row, warnings.getOrDefault(row.channel(), false)));
+        }
+        return result;
+    }
+
     public Map<Row,String> cachedIcons(List<Row> rows) {
         Map<Row,String> result=new IdentityHashMap<>();
         Map<String,List<Row>> groups=new LinkedHashMap<>();

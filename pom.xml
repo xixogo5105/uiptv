@@ -16,8 +16,6 @@
         <module>javafx-app</module>
         <module>lightweight-ui</module>
         <module>coverage-aggregate</module>
-        <module>epg-bridge</module>
-        <module>python/util/epg_builder</module>
     </modules>
 
     <properties>

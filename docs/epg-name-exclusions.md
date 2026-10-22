@@ -143,7 +143,7 @@ Exact IDs and names still take priority; whole-token boundaries preserve names s
 History and EnglishClub. Numbered stations and time shifts remain distinct. Conflicting
 aliases are omitted. A literal pipe is also removed by the existing punctuation cleanup.
 
-The builder receives the enabled rule snapshot and Java-produced channel alias in its
-inventory, then asks the same Java `EpgNameRules` code to construct source aliases. It
-does not duplicate the new exclusion vocabulary in Python. Android reads the same
-database rules. Existing disabled/custom rules are preserved by `INSERT OR IGNORE`.
+Java and Android use the same enabled rule snapshot and Java-produced channel alias
+to construct source aliases. There is no external EPG builder or duplicate Python
+exclusion vocabulary in guide processing. Existing disabled/custom rules are
+preserved by `INSERT OR IGNORE`.

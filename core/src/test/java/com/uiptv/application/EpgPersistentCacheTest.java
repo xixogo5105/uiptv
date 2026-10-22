@@ -234,8 +234,35 @@ class EpgPersistentCacheTest extends DbBackedTest {
         db.failed(source,0,""); Files.writeString(file,"<tv><broken"); refresh.refreshAccount(account,List.of(channel));
         assertEquals("Last good programme",cache.schedule(account,channel).getFirst().title());
         assertEquals(success,db.sourceState(source).refreshedAt()); assertTrue(db.sourceState(source).retryAt()>System.currentTimeMillis());
+        var config = ConfigurationService.getInstance().read();
+        var identity = EpgCacheApplicationService.identities(account, List.of(channel), config).getFirst();
+        assertTrue(db.sourceWarnings(List.of(identity)).contains(identity), "A failed refresh should mark its retained guide mapping stale.");
         Files.writeString(file,"unreadable"); refresh.refreshAccount(account,List.of(channel));
         assertEquals("Last good programme",cache.schedule(account,channel).getFirst().title());
+    }
+    @Test void playerStaleStatusUsesTheCatalogueChannelIdentityForPlaybackSnapshots() throws Exception {
+        Account account = account("player-stale-status");
+        Path file = xml("player-stale-status.xml", "Current programme");
+        account.setEpg(file.toString());
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("player-stale-status");
+        account.setAction(Account.AccountAction.itv);
+
+        Category category = new Category("live-category", "Live", "Live", false, 0);
+        CategoryDb.get().saveAll(List.of(category), account);
+        category = CategoryDb.get().getCategories(account).getFirst();
+        Channel catalogChannel = channel("station", "Station");
+        catalogChannel.setExtraJson("{\"tvg-id\":\"station\"}");
+        ChannelDb.get().saveAll(List.of(catalogChannel), category.getDbId(), account);
+        refresh.refreshAccount(account, List.of(catalogChannel));
+        String source = EpgCacheApplicationService.sourceId(file.toString());
+        db.failed(source, System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(5), "temporary failure");
+
+        // The active player may retain an older Channel snapshot without the catalogue metadata.
+        Channel playbackSnapshot = channel("station", "Station");
+        var result = new PlayerEpgApplicationService().current(account, playbackSnapshot);
+        assertEquals("STALE", result.guideStatus());
+        assertEquals("Current programme", result.now().title());
     }
     @Test void invalidImportRollsBackWholeSourceAndClearDoesNotTouchCatalog() {
         long now=System.currentTimeMillis(); var id=new EpgCacheDb.Identity("a","provider","signature");
@@ -299,7 +326,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         Files.writeString(Path.of("target/epg-cache-benchmark.txt"),"48,000 programmes / 500 channels; 32-card read median="+samples.get(6)+"ms, max="+samples.getLast()+"ms; 500-channel read="+catalogMs+"ms; cache bytes="+Files.size(EpgCacheDb.path())+"\n");
     }
 
-    @Test void settingsClearAndRefreshRepopulatesWithNewDataInBackground() throws Exception {
+    @Test void settingsRefreshReplacesSourceInBackgroundWithoutClearingLastGoodGuide() throws Exception {
         Account account=account("refresh-account"); account.setEpg(xml("refresh.xml","Old title").toString());
         AccountDb.get().save(account); account=AccountService.getInstance().getByName("refresh-account"); account.setAction(Account.AccountAction.itv);
         CategoryDb.get().saveAll(List.of(new Category("provider-category","Live","Live",false,0)),account);
@@ -307,14 +334,69 @@ class EpgPersistentCacheTest extends DbBackedTest {
         Channel channel=channel("station","Station"); channel.setCmd("http://example.test/live"); ChannelDb.get().saveAll(List.of(channel),category,account);
         refresh.refreshAccount(account,List.of(channel)); assertEquals("Old title",cache.schedule(account,channel).getFirst().title());
         xml("refresh.xml","New title");
-        EpgCacheRefreshService.start(); refresh.clearAndRefresh();
-        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5); boolean updated=false;
-        while(System.nanoTime()<deadline && !updated) {
-            var programmes=cache.schedule(account,channel); updated=!programmes.isEmpty() && programmes.getFirst().title().equals("New title");
-            if(!updated) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
-        }
-        assertTrue(updated,"Settings refresh must clear and repopulate the persisted guide");
+        var job=EpgRefreshJobService.start();
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
+        EpgRefreshJobService.Snapshot snapshot;
+        do {
+            snapshot=EpgRefreshJobService.get(job.id());
+            if (snapshot != null && (snapshot.status().equals("COMPLETED") || snapshot.status().equals("COMPLETED_WITH_WARNINGS")
+                    || snapshot.status().equals("FAILED") || snapshot.status().equals("CANCELLED"))) break;
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        } while(System.nanoTime()<deadline);
+        assertNotNull(snapshot);
+        assertEquals("COMPLETED", snapshot.status(), snapshot.message());
+        assertEquals("New title", cache.schedule(account,channel).getFirst().title(), "Manual refresh must replace the source without clearing the previous guide first");
         assertEquals(1,ChannelDb.get().getCachedLiveChannels(account.getDbId()).size(),"Catalog stays intact");
+    }
+
+    @Test void manualRefreshReportsAccountPreparationProgress() throws Exception {
+        Path playlist = tempDir.resolve("preflight-visible.m3u");
+        Files.writeString(playlist, "#EXTM3U\n");
+        Account account = account("preflight-visible");
+        account.setM3u8Path(playlist.toString());
+        AccountService.getInstance().save(account);
+
+        var started = EpgRefreshJobService.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        var snapshot = EpgRefreshJobService.get(started.id());
+        while (snapshot != null && !Set.of("COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "CANCELLED").contains(snapshot.status())
+                && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+            snapshot = EpgRefreshJobService.get(started.id());
+        }
+        assertNotNull(snapshot);
+        assertEquals("COMPLETED", snapshot.status(), snapshot.message());
+        assertEquals(1, snapshot.preparationTotal());
+        assertEquals(1, snapshot.preparationCompleted());
+        assertEquals(0, snapshot.total(), "A configured account without an EPG source should finish without source work.");
+    }
+
+    @Test void manualRefreshShowsAndCanCancelWhileWaitingForAnotherRefresh() {
+        EpgCacheRefreshService.REFRESH_LOCK.lock();
+        try {
+            var started = EpgRefreshJobService.start();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+            var snapshot = EpgRefreshJobService.get(started.id());
+            while (snapshot != null && !snapshot.stage().equals("Waiting for active refresh")
+                    && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+                snapshot = EpgRefreshJobService.get(started.id());
+            }
+            assertNotNull(snapshot);
+            assertEquals("Waiting for active refresh", snapshot.stage());
+            assertTrue(snapshot.startedAt() > 0);
+            assertTrue(EpgRefreshJobService.cancel(started.id()));
+
+            deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+            while (snapshot != null && !snapshot.status().equals("CANCELLED") && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+                snapshot = EpgRefreshJobService.get(started.id());
+            }
+            assertNotNull(snapshot);
+            assertEquals("CANCELLED", snapshot.status());
+        } finally {
+            EpgCacheRefreshService.REFRESH_LOCK.unlock();
+        }
     }
 
     @Test void uniqueNormalizedAliasesMatchButConflictingAliasesRemainUnmatched() throws Exception {

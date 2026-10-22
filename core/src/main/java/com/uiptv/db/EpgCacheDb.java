@@ -15,9 +15,6 @@ public final class EpgCacheDb {
     public record Identity(String accountId, String providerId, String signature) { }
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,
                         List<String> sources, String nativeSource) { }
-    public record BuilderMatch(Identity identity, String source, String guide, int priority) { }
-    public record SharedSource(int priority, String countries, String languages,
-                               Map<String,String> names, Map<String,String> icons) { }
     public record SourceState(long refreshedAt, long retryAt, String warning) { }
     public static Path path() { return Path.of(SQLConnection.getDatabasePath()); }
 
@@ -161,99 +158,6 @@ public final class EpgCacheDb {
         }
     }
 
-    /** Publish external data and exact mappings together, below all application-owned sources.
-     * Validation runs after taking SQLite's writer lock, preventing concurrent catalog/config writes.
-     * Sources absent from this build and higher-priority mappings are retained.
-     */
-    public void publishBuilder(Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
-                               long now, Runnable validateCurrentInventory) {
-        publishBuilder(sources, matches, Map.of(), now, validateCurrentInventory);
-    }
-    public void publishBuilder(Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
-                               Map<String,SharedSource> shared, long now, Runnable validateCurrentInventory) {
-        EpgChangeNotifications.Notification notification;
-        try (Connection c = open(true)) {
-            notification = publishBuilderTransaction(c, sources, matches, shared, now, validateCurrentInventory);
-        } catch (InterruptedException error) {
-            throw interruptedFailure(error);
-        } catch (SQLException | java.io.IOException | RuntimeException error) {
-            throw failure(error);
-        }
-        EpgChangeNotifications.publish(notification);
-    }
-
-    private EpgChangeNotifications.Notification publishBuilderTransaction(
-            Connection c, Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
-            Map<String,SharedSource> shared, long now, Runnable validateCurrentInventory)
-            throws SQLException, InterruptedException, java.io.IOException {
-        c.setAutoCommit(false);
-        try {
-            reserveWriter(c);
-            validateCurrentInventory.run();
-            publishBuilderSources(c, sources, shared, now);
-            publishBuilderMappings(c, matches);
-            EpgChangeNotifications.Notification notification = EpgChangeNotifications.create(c,
-                    EpgChangeNotifications.Kind.SOURCE_IMPORT, sources.keySet(),
-                    sources.values().stream().flatMap(value -> value.keySet().stream()).toList(), Set.of());
-            c.commit();
-            SharedEpgCacheDb.invalidate();
-            return notification;
-        } catch (InterruptedException error) {
-            c.rollback();
-            Thread.currentThread().interrupt();
-            throw error;
-        } catch (SQLException | java.io.IOException error) {
-            c.rollback();
-            throw error;
-        } catch (RuntimeException error) {
-            rollback(c, error);
-            throw error;
-        }
-    }
-
-    private void reserveWriter(Connection c) throws SQLException {
-        try (var lock = c.createStatement()) {
-            lock.executeUpdate("UPDATE epg_source SET retry_at=retry_at WHERE 0");
-        }
-    }
-
-    private void publishBuilderSources(Connection c, Map<String,Map<String,List<EpgProgramme>>> sources,
-                                       Map<String,SharedSource> shared, long now)
-            throws SQLException, InterruptedException, java.io.IOException {
-        try (var metadataInsert = c.prepareStatement("INSERT INTO epg_shared_source VALUES(?,?,?,?) ON CONFLICT(source_id) DO UPDATE SET priority=excluded.priority,countries=excluded.countries,languages=excluded.languages")) {
-            for (var source : sources.entrySet()) {
-                if (!source.getKey().startsWith("builder:")) throw new IllegalArgumentException("Unowned source");
-                SharedSource metadata = shared.get(source.getKey());
-                replaceSource(c, source.getKey(), source.getValue(), metadata == null ? Map.of() : metadata.names(),
-                        Map.of(), metadata == null ? Map.of() : metadata.icons(), now, now + 7_200_000L);
-                if (metadata != null) {
-                    metadataInsert.setString(1, source.getKey());
-                    metadataInsert.setInt(2, metadata.priority());
-                    metadataInsert.setString(3, metadata.countries());
-                    metadataInsert.setString(4, metadata.languages());
-                    metadataInsert.addBatch();
-                }
-            }
-            metadataInsert.executeBatch();
-        }
-    }
-
-    private void publishBuilderMappings(Connection c, List<BuilderMatch> matches) throws SQLException {
-        try (var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? AND source_id=?");
-             var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
-            for (BuilderMatch match : matches) {
-                String source = match.source();
-                delete.setString(1, match.identity().accountId()); delete.setString(2, match.identity().providerId());
-                delete.setString(3, source); delete.addBatch();
-                insert.setString(1, match.identity().accountId()); insert.setString(2, match.identity().providerId());
-                insert.setString(3, match.identity().signature()); insert.setString(4, source);
-                insert.setString(5, match.guide()); insert.setInt(6, 10000 + match.priority()); insert.addBatch();
-            }
-            delete.executeBatch();
-            insert.executeBatch();
-        }
-    }
-
     private void rollback(Connection c, RuntimeException error) {
         try { c.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
     }
@@ -383,7 +287,6 @@ public final class EpgCacheDb {
                 }
             }
         }
-        appendBuilderLinks(match, previous, links);
         applyCountryPolicy(match, context, links);
         return links;
     }
@@ -447,13 +350,6 @@ public final class EpgCacheDb {
         try (var row = statement.executeQuery()) { return row.next(); }
     }
 
-    private void appendBuilderLinks(Match match, List<Link> previous, List<Link> links) {
-        for (Link prior : previous) {
-            if (prior.source().startsWith("builder:") && prior.signature().equals(match.identity().signature())
-                    && links.stream().noneMatch(link -> link.source().equals(prior.source()))) links.add(prior);
-        }
-    }
-
     private void applyCountryPolicy(Match match, EpgTerritory.Context context, List<Link> links) {
         if (match.explicit() || context.ambiguous()) return;
         Set<String> expected = context.territories();
@@ -499,6 +395,34 @@ public final class EpgCacheDb {
         try(Connection c=open(false)) {
             select(c,identities,now).forEach((id,selection) -> result.put(id,selection.programmes()));
         } catch(Exception error) { throw failure(error); }
+        return result;
+    }
+    /** Identities whose mapped guide source failed after a previous successful import. */
+    public Set<Identity> sourceWarnings(List<Identity> identities) {
+        if (identities.isEmpty()) return Set.of();
+        Set<Identity> result = new HashSet<>();
+        try (Connection c = open(false)) {
+            for (int offset = 0; offset < identities.size(); offset += 128) {
+                List<Identity> batch = identities.subList(offset, Math.min(offset + 128, identities.size()));
+                String values = String.join(",", java.util.stream.IntStream.range(0, batch.size())
+                        .mapToObj(index -> "(" + index + ",?,?,?)").toList());
+                String sql = "WITH requested(n,account_id,provider_id,signature) AS (VALUES " + values + ") "
+                        + "SELECT DISTINCT r.n FROM requested r JOIN epg_channel_mapping m "
+                        + "ON m.account_id=r.account_id AND m.provider_channel_id=r.provider_id AND m.signature=r.signature "
+                        + "JOIN epg_source s ON s.source_id=m.source_id WHERE trim(coalesce(s.warning,''))<>''";
+                try (var query = c.prepareStatement(sql)) {
+                    int parameter = 1;
+                    for (Identity identity : batch) {
+                        query.setString(parameter++, identity.accountId());
+                        query.setString(parameter++, identity.providerId());
+                        query.setString(parameter++, identity.signature());
+                    }
+                    try (var rows = query.executeQuery()) {
+                        while (rows.next()) result.add(batch.get(rows.getInt(1)));
+                    }
+                }
+            }
+        } catch (Exception error) { throw failure(error); }
         return result;
     }
     public List<EpgProgramme> schedule(Identity identity, long from, long until) {

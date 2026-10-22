@@ -45,11 +45,7 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 - Persistent cache design: [docs/EPG_CACHE.md](docs/EPG_CACHE.md)
 - Change-notification design: [docs/EPG_CHANGE_NOTIFICATIONS_PLAN.md](docs/EPG_CHANGE_NOTIFICATIONS_PLAN.md)
 - Desktop memory audit: [docs/EPG_MEMORY_AUDIT.md](docs/EPG_MEMORY_AUDIT.md)
-- EPG Builder implementation review: [docs/EPG_BUILDER_REVIEW.md](docs/EPG_BUILDER_REVIEW.md)
 - Channel-name exclusion audit: [docs/epg-name-exclusions.md](docs/epg-name-exclusions.md)
-- EPG Builder usage guide: [python/util/epg_builder/README.md](python/util/epg_builder/README.md)
-- EPG Builder build and packaging: [Build and install](python/util/epg_builder/README.md#build-and-install)
-- EPG Builder configuration reference: [python/util/epg_builder/CONFIGURATION.md](python/util/epg_builder/CONFIGURATION.md)
 
 ## Project Layout
 
@@ -60,9 +56,9 @@ UIPTV now builds as a Maven reactor with separated runtime modules:
 - `javafx-app/`: JavaFX desktop application, players, widgets, dialogs, desktop CSS, icons, and native packaging configuration.
 - `lightweight-ui/`: server-only control window for the lightweight (no-desktop-browsing) mode.
 - `coverage-aggregate/`: JaCoCo/Kover report aggregation across modules.
-- `epg-bridge/`: headless Java bridge reusing core inventory, parsing and cache publication.
-- `python/util/epg_builder/`: external guide preparation utility and Maven native-binary packaging.
 - `website/`: static project website published separately to GitHub Pages.
+
+EPG is handled by the shared Java services and the Android Kotlin application. There is no external Python EPG Builder or bridge in the build. Full EPG mode presents channel / Now / Next information in the existing desktop and web catalogues; Android opens a channel schedule in a bottom sheet from the existing list. Manual desktop refresh is cancellable and keeps last-good source data when a download or parse fails. See [EPG.md](EPG.md) for details.
 
 Build from the repository root. Maven resolves the module graph automatically.
 
@@ -133,12 +129,10 @@ Before compiling, please ensure you have:
     - `C:\Program Files (x86)\WiX Toolset v3.14\bin`
 
 4.  **Linux DEB packaging (Debian/Ubuntu):** `fakeroot` must be installed for `.deb` builds.
-5.  **Optional EPG utility builds only:** Python 3.11+ with venv/pip. UIPTV desktop builds do not require Python. Maven creates its isolated build environment automatically.
 
 
 To compile the project, use Maven profiles from the repository root to target specific operating systems and package formats. Native packaging output is generated in `javafx-app/target/dist`. Each module also writes its own intermediate build output under its local `target/` directory.
 
-Platform builds skip the Python EPG utility by default. To build it alongside the desktop app, add `-Depg.native.skip=false` (for example, `./mvnw clean package -P mac-aarch64 -Depg.native.skip=false`). This produces the standalone EPG utility under `python/util/epg_builder/target/dist/` (`.tar.gz` on macOS/Linux, `.zip` on Windows), including Python and Java runtimes. Build on the matching OS/CPU architecture. See [EPG utility native packaging](python/util/epg_builder/README.md#native-binaries-from-maven).
 
 ### Build Commands
 Here are some examples of how to build the application for different targets.

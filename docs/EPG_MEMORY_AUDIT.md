@@ -57,7 +57,9 @@ A full low-heap run exposed player-control icons being decoded at their original
 
 Final full Maven reactor validation with a 256 MiB heap: 994 tests passed (588 core, 88 API server, 318 desktop). Guide UI tests cover strict empty-row filtering despite source warnings/native-provider flags, explicit pending/loading rows, compact Now/Next content, popup ownership, full schedule population, cleanup and switching back to the wide timeline. Native-window preview tests keep the JavaFX test runtime alive after closing their preview stage. The actual-feed probe described above passed independently. Total-process idle and VLC RSS targets still require a fresh run of the rebuilt app; a heap cap is not a total RSS cap.
 
-## Final presentation: original virtual cards at every width
+## Historical desktop catalogue before the October 2026 update
+
+The following section records an earlier desktop guide implementation and is superseded by the cross-client presentation update dated 22 October 2026 below.
 
 The responsive standalone guide/timeline described above was subsequently removed at the user's request. Both bookmark and account browsing now always use their original virtual grids and show all channels. Enabling EPG appends a bounded Now/Next summary inside visible live cards, plus View Guide in the existing right-click and ellipsis menus. Disabling EPG restores the original cards/heights/menu contents and stops guide timers and workers. The existing player-adjacent Now/Next panel is retained. The removed standalone guide source and its obsolete UI tests were replaced by tests of actual bookmark/channel cards and the retained player panel.
 
@@ -98,3 +100,19 @@ The final strict-viewport/player-guide reactor run passed 992 tests with a 256 M
 ## Persistent table cache follow-up
 
 Current desktop/server cards read bounded Now/Next results from the main SQLite database, with no separate EPG database. Refresh parsing is independent of card display and disabled along with all EPG timers when the feature is off. Programme descriptions are compressed in storage and omitted from card queries. Channel icon bytes use the existing bounded image cache. See `EPG_CACHE.md`; synthetic query measurements are emitted by `EpgPersistentCacheTest` into `core/target/epg-cache-benchmark.txt`. Overall live RSS targets still require a measured app/player session and are not implied by these query timings.
+
+## Cross-client EPG refresh and presentation follow-up — 22 October 2026
+
+This section records the current implementation and supersedes earlier refresh descriptions above that say the normal Refresh EPG action clears source caches before loading them. Desktop Refresh EPG now runs as a cancellable background job, coalesces duplicate XMLTV URLs, shows elapsed and account-preparation progress while waiting or discovering playlist sources, then reports source-by-source download/parse/match/save state. Cached channel lists load only when their source is matched. Each successfully validated source is atomically replaced. Failed or cancelled sources retain their last-good rows; already completed source imports remain committed. Clearing the EPG cache is a separate maintenance action.
+
+In full EPG mode, desktop and web browsing keep the existing catalogue surface and show virtualized Channel / Now / Next rows, while the player pane keeps the detailed programme view. Web rows request details only when visible or explicitly expanded. Empty schedules no longer receive made-up programme titles, times or progress. Android keeps its channel list and opens a Material 3 bottom sheet for the selected channel's schedule; there is no separate Live Guide screen. Provider, account, and global source precedence and saved guide identity mappings remain supported.
+
+The separate Python EPG Builder and Java bridge were removed from the application build, release workflow, and user setup. XMLTV import and persistence remain in the Java core, and Android continues to use its Kotlin guide repository. Refresh tests verify last-good retention and completion from real source work.
+
+## Headless cross-client validation — 22 October 2026
+
+The complete Maven reactor passed 1,218 tests: 753 core, 118 API-server, 1 lightweight-UI, and 346 JavaFX tests. There were no failures or errors; the optional VLC network fixture was skipped because it requires an explicit fixture property. The shared mobile suite passed 99 tests, coverage verification passed, the debug APK assembled, and Android instrumentation sources compiled. Connected instrumentation was not run because it launches the app on the device. All 31 web JavaScript tests passed.
+
+The test audit removed the last test path that called the lightweight app's window-showing startup, converted the EPG popup preview to render unattached content, and removed the shown Stage from the opt-in VLC recovery test. `ConfigurationUIEpgTest` inspects the refresh and cache-maintenance controls without firing them; refresh work is tested through the job/service APIs. There is no test-only `uiptv.headless` property that changes application behavior. Maven tests ran as a non-interactive process; JavaFX tests initialized the toolkit for control/layout checks but did not show a Stage, popup, native dialog, or application window. No terminal or browser window was opened. Connected Android instrumentation was not run because it launches the app on the device.
+
+Web schedule expansion retains one schedule at a time, aborts an obsolete request, and asks for 24 rows; the server caps any response at 100 entries. Visible summary lookup failures back off for five minutes instead of retrying on each settings poll. These bounds are covered by the web regression suite.

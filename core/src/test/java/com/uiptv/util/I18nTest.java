@@ -97,8 +97,19 @@ class I18nTest {
                 "autoVlcNativeMissing",
                 "configEpgPlaybackOnly",
                 "configWebPlaybackProxyEnabled",
+                "epgAdvancedSettings",
+                "epgClearCacheConfirm",
                 "epgDisablePlaybackOnly",
                 "epgEnablePlaybackOnly",
+                "epgRefreshCurrentSource",
+                "epgRefreshAccountsChecked",
+                "epgRefreshCurrentAccount",
+                "epgRefreshElapsed",
+                "epgRefreshPreparing",
+                "epgRefreshSourcesHeading",
+                "epgRefreshSourceCount",
+                "epgSettingsTitle",
+                "epgSourceStale",
                 "manageWebPlaybackProxy"
         );
         Properties english = loadBundle("messages_en_US.properties");

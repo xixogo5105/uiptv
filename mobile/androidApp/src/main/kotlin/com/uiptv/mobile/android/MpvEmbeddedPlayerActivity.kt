@@ -63,6 +63,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MpvEmbeddedPlayerActivity : Activity() {
+    private val lockOverlayIconTint = Color.WHITE
+
     private data class PlayerPalette(
         val controlSurface: Int,
         val buttonSurface: Int,
@@ -372,7 +374,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
             elevation = dp(4).toFloat()
             scaleType = ImageView.ScaleType.FIT_CENTER
-            imageTintList = ColorStateList.valueOf(M3OnSurface)
+            imageTintList = ColorStateList.valueOf(lockOverlayIconTint)
             isClickable = true
             isFocusable = true
             setOnClickListener { handleUnlockTap() }
@@ -507,8 +509,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (::epgPanelContent.isInitialized) epgPanelContent.setBackgroundColor(M3ControlSurface)
         if (::unlockButton.isInitialized) {
             unlockButton.background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
-            unlockButton.imageTintList = ColorStateList.valueOf(M3OnSurface)
-            (unlockButton.drawable)?.mutate()?.setTint(M3OnSurface)
+            unlockButton.imageTintList = ColorStateList.valueOf(lockOverlayIconTint)
+            (unlockButton.drawable)?.mutate()?.setTint(lockOverlayIconTint)
         }
         if (::lockHelpText.isInitialized) {
             lockHelpText.setTextColor(M3OnSurface)
@@ -1547,9 +1549,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun setCenterLockState(iconRes: Int, description: String, helpText: String) {
         val drawable = resources.getDrawable(iconRes, theme).mutate()
-        drawable.setTint(M3OnSurface)
+        drawable.setTint(lockOverlayIconTint)
         unlockButton.setImageDrawable(drawable)
-        unlockButton.imageTintList = ColorStateList.valueOf(M3OnSurface)
+        unlockButton.imageTintList = ColorStateList.valueOf(lockOverlayIconTint)
         unlockButton.tag = iconRes
         unlockButton.contentDescription = description
         lockHelpText.text = helpText

@@ -52,6 +52,9 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,18 +64,19 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldColors
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Android
@@ -175,15 +179,16 @@ typealias RestoreFilePicker = (onSelected: (String?) -> Unit) -> Unit
 typealias LogoRenderer = @Composable (String, String, Modifier) -> Unit
 typealias PlayerIconRenderer = @Composable (PlayerChoice, Modifier) -> Unit
 
-private val DeepNightPrimaryBase = Color(0xFFD1E4FF)
-private val DeepNightSurfaceBase = Color(0xFF1B1F23)
-private val DeepNightSurfaceHighBase = Color(0xFF22282E)
-private val DeepNightSurfaceHighestBase = Color(0xFF2A3138)
-private val DeepNightAccentBase = Color(0xFF4FD8EB)
+private val DeepNightPrimaryBase = Color(0xFFB7C6FF)
+private val DeepNightSurfaceBase = Color(0xFF111318)
+private val DeepNightSurfaceHighBase = Color(0xFF1D2026)
+private val DeepNightSurfaceHighestBase = Color(0xFF292C32)
+private val DeepNightAccentBase = Color(0xFFC1C6DD)
 private val RecordingDotRed = Color(0xFFE53935)
 private val DeepNightTextBase = Color(0xFFF4F7FA)
 private val DeepNightMutedTextBase = Color(0xFFAEB8C2)
 private val DeepNightBackgroundBase = Color(0xFF0F1216)
+private val DefaultMobileTimeZones = listOf("Etc/UTC", "Europe/London")
 
 private data class UiptvPalette(
     val primary: Color,
@@ -212,17 +217,6 @@ private val DarkUiptvPalette = UiptvPalette(
     text = DeepNightTextBase,
     mutedText = DeepNightMutedTextBase,
     background = DeepNightBackgroundBase
-)
-
-private val LightUiptvPalette = UiptvPalette(
-    primary = Color(0xFF17456A),
-    surface = Color(0xFFF7FAFD),
-    surfaceHigh = Color(0xFFEAF1F7),
-    surfaceHighest = Color(0xFFDDE7F0),
-    accent = Color(0xFF007D8D),
-    text = Color(0xFF111820),
-    mutedText = Color(0xFF52616E),
-    background = Color(0xFFFFFFFF)
 )
 
 private val LocalUiptvPalette = staticCompositionLocalOf { DarkUiptvPalette }
@@ -277,39 +271,39 @@ private val DeepNightBackground: Color
 
 private val UiptvDarkColorScheme = darkColorScheme(
     primary = DeepNightPrimaryBase,
-    onPrimary = Color(0xFF07151E),
-    primaryContainer = Color(0xFF24384C),
-    onPrimaryContainer = Color(0xFFEAF3FF),
+    onPrimary = Color(0xFF202D60),
+    primaryContainer = Color(0xFF39477D),
+    onPrimaryContainer = Color(0xFFDFE1FF),
     secondary = DeepNightAccentBase,
-    onSecondary = Color(0xFF001F25),
-    tertiary = Color(0xFFFFD54F),
-    onTertiary = Color(0xFF221A00),
+    onSecondary = Color(0xFF2B3045),
+    tertiary = Color(0xFFE5B9D8),
+    onTertiary = Color(0xFF43263C),
     background = DeepNightBackgroundBase,
     onBackground = DeepNightTextBase,
     surface = DeepNightSurfaceBase,
     onSurface = DeepNightTextBase,
-    surfaceVariant = DeepNightSurfaceHighBase,
-    onSurfaceVariant = DeepNightMutedTextBase,
-    outline = Color(0xFF60707D),
+    surfaceVariant = DeepNightSurfaceHighestBase,
+    onSurfaceVariant = Color(0xFFC5C6D0),
+    outline = Color(0xFF8F909A),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005)
 )
 
 private val UiptvLightColorScheme = lightColorScheme(
-    primary = LightUiptvPalette.primary,
+    primary = Color(0xFF405D9B),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFCFE5F7),
-    onPrimaryContainer = Color(0xFF001D31),
-    secondary = LightUiptvPalette.accent,
+    primaryContainer = Color(0xFFDCE1FF),
+    onPrimaryContainer = Color(0xFF00174A),
+    secondary = Color(0xFF596078),
     onSecondary = Color.White,
-    tertiary = Color(0xFF775C00),
+    tertiary = Color(0xFF75546F),
     onTertiary = Color.White,
-    background = LightUiptvPalette.background,
-    onBackground = LightUiptvPalette.text,
-    surface = LightUiptvPalette.surface,
-    onSurface = LightUiptvPalette.text,
-    surfaceVariant = LightUiptvPalette.surfaceHigh,
-    onSurfaceVariant = LightUiptvPalette.mutedText,
+    background = Color(0xFFFAF8FF),
+    onBackground = Color(0xFF191B21),
+    surface = Color(0xFFFAF8FF),
+    onSurface = Color(0xFF191B21),
+    surfaceVariant = Color(0xFFE3E1EC),
+    onSurfaceVariant = Color(0xFF45464F),
     outline = Color(0xFF6D7B87),
     error = Color(0xFFBA1A1A),
     onError = Color.White
@@ -333,7 +327,8 @@ fun UiptvMobileApp(
     logoRenderer: LogoRenderer = { _, _, _ -> },
     playerIconRenderer: PlayerIconRenderer = { choice, modifier -> DefaultPlayerIcon(choice, modifier) },
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> },
-    colorScheme: ColorScheme? = null
+    colorScheme: ColorScheme? = null,
+    timeZoneOptions: List<String> = DefaultMobileTimeZones
 ) {
     var epgEnabled by remember { mutableStateOf(false) }
     var epgPlaybackOnly by remember { mutableStateOf(false) }
@@ -380,8 +375,8 @@ fun UiptvMobileApp(
     val palette = UiptvPalette(
         primary = activeColorScheme.primary,
         surface = activeColorScheme.surface,
-        surfaceHigh = activeColorScheme.surfaceVariant,
-        surfaceHighest = activeColorScheme.surfaceVariant,
+        surfaceHigh = activeColorScheme.surfaceContainerLow,
+        surfaceHighest = activeColorScheme.surfaceContainerHigh,
         accent = activeColorScheme.secondary,
         text = activeColorScheme.onSurface,
         mutedText = activeColorScheme.onSurfaceVariant,
@@ -434,6 +429,7 @@ fun UiptvMobileApp(
                                 resumeSignal = resumeSignal,
                                 syncActions = syncActions,
                                 accountActions = accountActions,
+                                timeZoneOptions = timeZoneOptions,
                                 browseActions = browseActions,
                                 playbackActions = playbackActions,
                                 filterActions = filterActions,
@@ -472,6 +468,7 @@ fun UiptvMobileApp(
                                 resumeSignal = resumeSignal,
                                 syncActions = syncActions,
                                 accountActions = accountActions,
+                                timeZoneOptions = timeZoneOptions,
                                 browseActions = browseActions,
                                 playbackActions = playbackActions,
                                 filterActions = filterActions,
@@ -512,6 +509,7 @@ private fun CurrentTab(
     resumeSignal: Int,
     syncActions: RemoteSyncUiActions,
     accountActions: AccountUiActions,
+    timeZoneOptions: List<String>,
     browseActions: BrowseUiActions,
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
@@ -557,6 +555,7 @@ private fun CurrentTab(
                 if (account == null) {
                     AccountsScreen(
                         accountActions,
+                        timeZoneOptions,
                         backHandler,
                         onOpenAccountChannels,
                         localPlaylistPicker,
@@ -1108,7 +1107,6 @@ private fun ChannelsScreen(
         } else {
             itemScreenStates.SaveableStateProvider("${mode.name}:$selectedCategoryRowId") {
                 Column(Modifier.fillMaxSize()) {
-                    MobileLiveGuideButton(snapshot.items) { openBrowseItem(it) }
                     CatalogueItems(
                         items = snapshot.items,
                         mode = mode,
@@ -1200,41 +1198,6 @@ private fun CompactChromeIcon(label: String, description: String, onClick: () ->
 }
 
 @Composable
-private fun CompactModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = label,
-        modifier = Modifier
-            .defaultMinSize(minHeight = 40.dp)
-            .background(if (selected) DeepNightPrimary else DeepNightSurfaceHighest)
-            .clickable(enabled = !selected, onClick = onClick)
-            .semantics { contentDescription = "Show $label channels" }
-            .padding(horizontal = 7.dp, vertical = 10.dp),
-        color = if (selected) MaterialTheme.colorScheme.onPrimary else DeepNightText,
-        style = MaterialTheme.typography.bodySmall,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1
-    )
-}
-
-@Composable
-private fun SelectableChip(label: String, selected: Boolean, description: String, onClick: () -> Unit) {
-    Text(
-        text = label,
-        modifier = Modifier
-            .defaultMinSize(minHeight = 40.dp)
-            .background(if (selected) DeepNightPrimary else DeepNightSurfaceHighest)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        color = if (selected) MaterialTheme.colorScheme.onPrimary else DeepNightText,
-        style = MaterialTheme.typography.bodySmall,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-    )
-}
-
-@Composable
 private fun CategorySelectionToolbar(
     selectedCount: Int,
     onRemove: () -> Unit,
@@ -1322,52 +1285,6 @@ private fun CategoryListRow(
             )
         }
         if (!selectionMode) Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DeepNightMutedText)
-    }
-}
-
-@Composable
-private fun CategoryRail(
-    categories: List<MobileBrowseCategory>,
-    selectedCategoryRowId: Long?,
-    onSelect: (MobileBrowseCategory) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (categories.isEmpty()) {
-            item {
-                EmptyState(
-                    title = "No categories",
-                    detail = "Refresh cache to load categories.",
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-        items(categories, key = { it.rowId }) { category ->
-            CategoryPill(
-                name = "${category.title} ${category.itemCount}",
-                selected = category.rowId == selectedCategoryRowId,
-                onClick = { onSelect(category) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun CategoryPill(name: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 44.dp)
-            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else DeepNightSurfaceHigh)
-            .padding(horizontal = 6.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        TextButton(onClick = onClick) {
-            Text(name, style = MaterialTheme.typography.bodySmall)
-        }
     }
 }
 
@@ -1481,7 +1398,11 @@ private fun ChannelLogo(
         contentColor = DeepNightPrimary
     ) {
         if (showThumbnail && (logo.isNotBlank() || fallbackLogo.isNotBlank() || fallbackLoader != null)) {
-            CompositionLocalProvider(LocalThumbnailFallback provides fallbackLogo, LocalThumbnailFallbackLoader provides fallbackLoader) {
+            CompositionLocalProvider(
+                LocalThumbnailFallback provides fallbackLogo,
+                LocalThumbnailFallbackLoader provides fallbackLoader,
+                LocalThumbnailFallbackPanel provides true
+            ) {
                 logoRenderer(
                     logo.ifBlank { fallbackLogo },
                     contentDescription,
@@ -1491,13 +1412,20 @@ private fun ChannelLogo(
                 )
             }
         } else {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    label.take(3),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
+            Surface(
+                modifier = Modifier.padding(4.dp).fillMaxSize(),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        label.take(3),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -2305,8 +2233,12 @@ private fun WatchingNowEpisodeRow(
     onMenu: () -> Unit
 ) {
     val isWatching = episode.isWatched
-    val textColor = if (isWatching) Color.White else DeepNightText
-    val mutedColor = if (isWatching) Color(0xFFE0F7FF) else DeepNightMutedText
+    val textColor = if (isWatching) MaterialTheme.colorScheme.onPrimaryContainer else DeepNightText
+    val mutedColor = if (isWatching) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
     if (wideLayout) {
         ElevatedCard(
             modifier = Modifier
@@ -2318,7 +2250,7 @@ private fun WatchingNowEpisodeRow(
                 ),
             shape = RoundedCornerShape(10.dp),
             colors = CardDefaults.elevatedCardColors(
-                containerColor = if (isWatching) Color(0xFF069AC0) else DeepNightSurfaceHigh
+                containerColor = if (isWatching) MaterialTheme.colorScheme.primaryContainer else DeepNightSurfaceHigh
             )
         ) {
             Column(
@@ -2342,17 +2274,19 @@ private fun WatchingNowEpisodeRow(
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         if (episode.isWatched) {
-                            Text(
-                                "WATCHING",
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFFFFD700))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = Color(0xFF151515),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ) {
+                                Text(
+                                    "WATCHING",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
                         }
                         Text(
                             episode.title,
@@ -2394,7 +2328,7 @@ private fun WatchingNowEpisodeRow(
             ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = if (isWatching) Color(0xFF069AC0) else DeepNightSurfaceHigh
+            containerColor = if (isWatching) MaterialTheme.colorScheme.primaryContainer else DeepNightSurfaceHigh
         )
     ) {
         ListItem(
@@ -2411,17 +2345,19 @@ private fun WatchingNowEpisodeRow(
             headlineContent = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (episode.isWatched) {
-                        Text(
-                            "WATCHING",
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFFFD700))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = Color(0xFF151515),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ) {
+                            Text(
+                                "WATCHING",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
                     }
                     Text(
                         episode.title,
@@ -3356,23 +3292,23 @@ private fun RemoteSyncScreen(
             }
         ) { Text(if (filterEditorVisible) "Close filter editor" else "Edit filter rules") }
         if (filterEditorVisible) {
-            TextField(
+            OutlinedTextField(
                 value = categoryFilterText,
                 onValueChange = { categoryFilterText = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Category filters") },
                 placeholder = { Text("adult, xxx") },
                 minLines = 3,
-                colors = mobileTextFieldColors()
+                colors = mobileOutlinedTextFieldColors()
             )
-            TextField(
+            OutlinedTextField(
                 value = channelFilterText,
                 onValueChange = { channelFilterText = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Channel filters") },
                 placeholder = { Text("adult, xxx") },
                 minLines = 3,
-                colors = mobileTextFieldColors()
+                colors = mobileOutlinedTextFieldColors()
             )
             Button(
                 modifier = Modifier.semantics { contentDescription = "Save content filters" },
@@ -3604,22 +3540,14 @@ private fun SettingsSwitchRow(
     contentDescription: String,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 64.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        MobileM3Switch(
-            modifier = Modifier.semantics { this.contentDescription = contentDescription },
-            checked = checked,
-            enabled = enabled,
-            onCheckedChange = onCheckedChange
-        )
-    }
+    MobilePreferenceSwitchRow(
+        title = title,
+        description = description,
+        checked = checked,
+        enabled = enabled,
+        accessibilityLabel = contentDescription,
+        onCheckedChange = onCheckedChange
+    )
 }
 
 @Composable
@@ -3691,6 +3619,7 @@ private fun SettingsDestinationRow(destination: MobileSettingsDestination, onCli
 @Composable
 private fun AccountsScreen(
     accountActions: AccountUiActions,
+    timeZoneOptions: List<String>,
     backHandler: @Composable (Boolean, () -> Unit) -> Unit,
     onOpenAccountChannels: (MobileAccount) -> Unit,
     localPlaylistPicker: LocalPlaylistPicker?,
@@ -3701,6 +3630,8 @@ private fun AccountsScreen(
 ) {
     val scope = rememberCoroutineScope()
     var accounts by remember { mutableStateOf<List<MobileAccount>>(emptyList()) }
+    var accountCacheSummaries by remember { mutableStateOf<Map<Long, AccountCacheSummary>>(emptyMap()) }
+    var cacheSummaryRevision by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf(MobileAccount()) }
     var selectedType by remember { mutableStateOf(MobileAccountType.STALKER_PORTAL) }
     var statusText by remember { mutableStateOf("") }
@@ -3750,8 +3681,17 @@ private fun AccountsScreen(
 
     LaunchedEffect(accountActions, refreshSignal) {
         runCatching { accountActions.loadAccounts() }
-            .onSuccess { accounts = it }
+            .onSuccess { accounts = it; cacheSummaryRevision++ }
             .onFailure { statusText = "Unable to load accounts" }
+    }
+
+    LaunchedEffect(accountActions, accounts, cacheSummaryRevision) {
+        val summaries = mutableMapOf<Long, AccountCacheSummary>()
+        accounts.mapNotNull { it.id }.distinct().forEach { accountId ->
+            runCatching { accountActions.loadCacheSummary(accountId) }
+                .onSuccess { summaries[accountId] = it }
+        }
+        accountCacheSummaries = summaries
     }
 
     val activeCacheJobId = cacheDialogJob?.jobId
@@ -3767,7 +3707,7 @@ private fun AccountsScreen(
                 if (!latest.isActive()) {
                     if (latest.status == CacheRefreshJobStatus.SUCCEEDED) {
                         runCatching { accountActions.loadAccounts() }
-                            .onSuccess { accounts = it }
+                            .onSuccess { accounts = it; cacheSummaryRevision++ }
                             .onFailure { statusText = "Unable to load accounts" }
                     }
                     break
@@ -3819,12 +3759,44 @@ private fun AccountsScreen(
 
         val accountListState = rememberLazyListState()
         Column(modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-            MobileScreenHeader("Accounts", "Your sources, ready to browse",
-                    searchVisible = accountSearchVisible, searchQuery = accountSearchQuery,
-                    searchLabel = "Search accounts", onSearchToggle = { accountSearchVisible = !accountSearchVisible },
-                    onSearchQueryChange = { accountSearchQuery = it }, onAdd = {
-                        editing = MobileAccount(); selectedType = MobileAccountType.STALKER_PORTAL; editorVisible = true
-                    })
+            MobileScreenHeader(
+                "Accounts",
+                "Your sources, ready to browse",
+                searchVisible = accountSearchVisible,
+                searchQuery = accountSearchQuery,
+                searchLabel = "Search accounts",
+                onSearchToggle = { accountSearchVisible = !accountSearchVisible },
+                onSearchQueryChange = { accountSearchQuery = it },
+                addMenuActions = listOf(
+                    MobileHeaderAddAction(
+                        "Stalker Portal",
+                        "Portal URL and MAC addresses",
+                        Icons.Outlined.LiveTv
+                    ) {
+                        editing = MobileAccount()
+                        selectedType = MobileAccountType.STALKER_PORTAL
+                        editorVisible = true
+                    },
+                    MobileHeaderAddAction(
+                        "Xtreme API",
+                        "Provider URL and login details",
+                        Icons.Outlined.PlayCircle
+                    ) {
+                        editing = MobileAccount()
+                        selectedType = MobileAccountType.XTREME_API
+                        editorVisible = true
+                    },
+                    MobileHeaderAddAction(
+                        "M3U Playlist",
+                        "Playlist URL or local file",
+                        Icons.AutoMirrored.Outlined.PlaylistPlay
+                    ) {
+                        editing = MobileAccount()
+                        selectedType = MobileAccountType.M3U8_URL
+                        editorVisible = true
+                    }
+                )
+            )
             Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -3920,6 +3892,7 @@ private fun AccountsScreen(
             items(visibleAccounts, key = { it.id ?: it.accountName }) { account ->
                 AccountRow(
                     account = account,
+                    cacheSummary = account.id?.let(accountCacheSummaries::get),
                     onOpen = {
                         if (account.id != null) {
                             onOpenAccountChannels(account)
@@ -3965,6 +3938,7 @@ private fun AccountsScreen(
         AccountEditorDialog(
             account = editing.copy(type = selectedType),
             selectedType = selectedType,
+            timeZoneOptions = timeZoneOptions,
             onDismiss = { editorVisible = false },
             onTypeChange = {
                 selectedType = it
@@ -4020,7 +3994,7 @@ private fun AccountsScreen(
                                     editing = MobileAccount()
                                     selectedType = MobileAccountType.STALKER_PORTAL
                                     runCatching { accountActions.loadAccounts() }
-                                        .onSuccess { loaded -> accounts = loaded }
+                                        .onSuccess { loaded -> accounts = loaded; cacheSummaryRevision++ }
                                         .onFailure { error -> statusText = "Unable to load accounts" }
                                 }
                                 .onFailure {
@@ -4095,6 +4069,7 @@ private fun AccountsScreen(
                                 accountFeedback = AccountFeedback("Delete Failed", message, false)
                             }
                             accounts = runCatching { accountActions.loadAccounts() }.getOrDefault(accounts)
+                            cacheSummaryRevision++
                             running = false
                         }
                     }
@@ -4140,6 +4115,7 @@ private fun AccountsScreen(
 @Composable
 private fun AccountRow(
     account: MobileAccount,
+    cacheSummary: AccountCacheSummary?,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onClearCache: () -> Unit,
@@ -4189,6 +4165,15 @@ private fun AccountRow(
                 )
             }
             Text(account.type.displayName, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            cacheSummary?.let { summary ->
+                Text(
+                    summary.accountRowLabel(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         Box {
             IconButton(
@@ -4246,6 +4231,24 @@ private fun AccountRow(
     }
     }
 }
+
+internal fun AccountCacheSummary.accountRowLabel(): String {
+    val content = buildList {
+        if (liveCategories > 0 || liveChannels > 0) {
+            add("${countText(liveCategories, "live category", "live categories")} · ${countText(liveChannels, "channel", "channels")}")
+        }
+        if (vodCategories > 0 || vodChannels > 0) {
+            add("${countText(vodCategories, "movie category", "movie categories")} · ${countText(vodChannels, "movie", "movies")}")
+        }
+        if (seriesCategories > 0 || seriesChannels > 0 || seriesEpisodes > 0) {
+            add("${countText(seriesCategories, "series category", "series categories")} · ${countText(seriesChannels, "series", "series")} · ${countText(seriesEpisodes, "episode", "episodes")}")
+        }
+    }
+    return content.takeIf { it.isNotEmpty() }?.joinToString("  •  ") ?: "No catalogue cached"
+}
+
+private fun countText(count: Int, singular: String, plural: String): String =
+    "$count ${if (count == 1) singular else plural}"
 
 @Composable
 private fun CacheRefreshDialog(
@@ -4483,6 +4486,7 @@ private fun AccountFeedbackDialog(feedback: AccountFeedback, onDismiss: () -> Un
 private fun AccountEditorDialog(
     account: MobileAccount,
     selectedType: MobileAccountType,
+    timeZoneOptions: List<String>,
     onDismiss: () -> Unit,
     onTypeChange: (MobileAccountType) -> Unit,
     onAccountChange: (MobileAccount) -> Unit,
@@ -4510,7 +4514,16 @@ private fun AccountEditorDialog(
                 Column(Modifier.fillMaxSize()) {
                     MobileScreenHeader(if (account.id == null) "Add account" else "Edit account", onBack = onDismiss)
                     Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                        AccountEditor(account, selectedType, onTypeChange, onAccountChange, onBrowseLocalPlaylist, onSave, onDelete)
+                        AccountEditor(
+                            account = account,
+                            selectedType = selectedType,
+                            timeZoneOptions = timeZoneOptions,
+                            onTypeChange = onTypeChange,
+                            onAccountChange = onAccountChange,
+                            onBrowseLocalPlaylist = onBrowseLocalPlaylist,
+                            onSave = onSave,
+                            onDelete = onDelete
+                        )
                     }
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (account.id != null) TextButton(onClick = onDelete) {
@@ -4529,6 +4542,7 @@ private fun AccountEditorDialog(
 private fun AccountEditor(
     account: MobileAccount,
     selectedType: MobileAccountType,
+    timeZoneOptions: List<String>,
     onTypeChange: (MobileAccountType) -> Unit,
     onAccountChange: (MobileAccount) -> Unit,
     onBrowseLocalPlaylist: LocalPlaylistPicker?,
@@ -4549,32 +4563,23 @@ private fun AccountEditor(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DeepNightSurfaceHigh)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             accountEditorHelpText(selectedType, isNewAccount),
-            color = DeepNightMutedText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )
         AccountTextField("Account name", account.accountName) { onAccountChange(account.copy(accountName = it)) }
-        if (account.accountName.isBlank()) Text("Choose a name to recognise this source.", style = MaterialTheme.typography.bodySmall)
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            mobileAccountTypeChoices.forEach { type ->
-                val selected = selectedType == type ||
-                    (type == MobileAccountType.M3U8_URL && selectedType.isM3uPlaylistType())
-                SelectableChip(
-                    label = type.choiceLabel(),
-                    selected = selected,
-                    description = "Use ${type.choiceLabel()} account type",
-                    onClick = { onTypeChange(type) }
-                )
-            }
+        if (account.accountName.isBlank()) {
+            Text(
+                "Choose a name to recognise this source.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        AccountTypeDropdown(selectedType, onTypeChange)
         when (selectedType) {
             MobileAccountType.STALKER_PORTAL -> {
                 AccountTextField("Portal URL", account.url) { onAccountChange(account.copy(url = it)) }
@@ -4587,7 +4592,7 @@ private fun AccountEditor(
                     )
                     Text(
                         "Add one or more MAC addresses separated by comma or semicolon. The first valid entry becomes the default.",
-                        color = DeepNightMutedText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else {
@@ -4609,7 +4614,6 @@ private fun AccountEditor(
                     AccountTextField("Device ID 2", account.deviceId2) { onAccountChange(account.copy(deviceId2 = it)) }
                     AccountTextField("Signature", account.signature) { onAccountChange(account.copy(signature = it)) }
                     AccountTextField("HTTP Method", account.httpMethod) { onAccountChange(account.copy(httpMethod = it)) }
-                    AccountTextField("Timezone", account.timezone) { onAccountChange(account.copy(timezone = it)) }
                 }
             }
             MobileAccountType.XTREME_API -> {
@@ -4624,7 +4628,7 @@ private fun AccountEditor(
                     AccountTextField("Password", account.password) {}
                     Text(
                         "Select the username/password pair to use for cache refresh and playback.",
-                        color = DeepNightMutedText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else {
@@ -4639,7 +4643,7 @@ private fun AccountEditor(
                 }
                 Text(
                     "Or choose a local M3U file. If both fields are filled, the URL is used.",
-                    color = DeepNightMutedText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
                 CompactOutlinedTextField(
@@ -4664,22 +4668,33 @@ private fun AccountEditor(
                 AccountTextField("EPG URL (optional)", account.epg) { onAccountChange(account.copy(epg = it)) }
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MobileM3Switch(
-                modifier = Modifier.semantics { contentDescription = "Pin account to top" },
-                checked = account.pinToTop,
-                onCheckedChange = { onAccountChange(account.copy(pinToTop = it)) }
+        if (selectedType == MobileAccountType.STALKER_PORTAL) {
+            MobileAccountChoiceDropdown(
+                value = account.timezone.ifBlank { "Europe/London" },
+                label = "Timezone",
+                accessibilityLabel = "Select account timezone",
+                options = (timeZoneOptions + account.timezone)
+                    .filter(String::isNotBlank)
+                    .distinct()
+                    .sorted(),
+                searchable = true,
+                onSelected = { onAccountChange(account.copy(timezone = it)) }
             )
-            Text("Pin to top")
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MobileM3Switch(
-                modifier = Modifier.semantics { contentDescription = "Resolve redirects for account" },
-                checked = account.resolveChainAndDeepRedirects,
-                onCheckedChange = { onAccountChange(account.copy(resolveChainAndDeepRedirects = it)) }
-            )
-            Text("Resolve redirects")
-        }
+        MobilePreferenceSwitchRow(
+            title = "Pin to top",
+            description = "Keep this account at the top of the account list.",
+            accessibilityLabel = "Pin account to top",
+            checked = account.pinToTop,
+            onCheckedChange = { onAccountChange(account.copy(pinToTop = it)) }
+        )
+        MobilePreferenceSwitchRow(
+            title = "Resolve redirects",
+            description = "Follow chained stream URLs when loading content.",
+            accessibilityLabel = "Resolve redirects for account",
+            checked = account.resolveChainAndDeepRedirects,
+            onCheckedChange = { onAccountChange(account.copy(resolveChainAndDeepRedirects = it)) }
+        )
 
     }
     if (macManagerVisible) {
@@ -4693,61 +4708,68 @@ private fun AccountEditor(
 }
 
 @Composable
+private fun AccountTypeDropdown(
+    selectedType: MobileAccountType,
+    onTypeChange: (MobileAccountType) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = selectedType.choiceLabel()
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Account type") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                .semantics { contentDescription = "Choose account type" },
+            colors = mobileOutlinedTextFieldColors()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            mobileAccountTypeChoices.forEach { type ->
+                DropdownMenuItem(
+                    text = { Text(type.choiceLabel()) },
+                    onClick = {
+                        expanded = false
+                        onTypeChange(type)
+                    },
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun StalkerMacSelector(
     selectedMac: String,
     macOptions: List<String>,
     onMacSelected: (String) -> Unit,
     onManage: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
     val selected = macOptions.firstOrNull { it.equals(selectedMac, ignoreCase = true) }
         ?: selectedMac.normalizedMacEntry()
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        MobileAccountChoiceDropdown(
+            value = selected.ifBlank { "No MAC addresses" },
+            label = "MAC address",
+            accessibilityLabel = "Select Stalker MAC address",
+            options = macOptions,
+            onSelected = onMacSelected
+        )
+        TextButton(
+            modifier = Modifier.align(Alignment.End),
+            onClick = onManage
         ) {
-            Text(
-                "MAC",
-                modifier = Modifier.weight(1f),
-                color = DeepNightMutedText,
-                style = MaterialTheme.typography.bodySmall
-            )
-            TextButton(onClick = onManage) {
-                Text("Manage")
-            }
-        }
-        Box {
-            OutlinedButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "Select Stalker MAC address" },
-                enabled = macOptions.isNotEmpty(),
-                onClick = { expanded = true }
-            ) {
-                Text(
-                    selected.ifBlank { "No MAC addresses" },
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Start,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text("v")
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                macOptions.forEach { mac ->
-                    DropdownMenuItem(
-                        text = { Text(mac) },
-                        onClick = {
-                            expanded = false
-                            onMacSelected(mac)
-                        }
-                    )
-                }
-            }
+            Text("Manage MAC addresses")
         }
     }
 }
@@ -4759,48 +4781,90 @@ private fun XtremeCredentialSelector(
     credentials: List<XtremeCredential>,
     onCredentialSelected: (XtremeCredential) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
     val selected = credentials.firstOrNull {
         it.username == selectedUsername && it.password == selectedPassword
     } ?: credentials.firstOrNull { it.username == selectedUsername }
         ?: credentials.firstOrNull { it.isDefault }
         ?: credentials.firstOrNull()
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            "Credentials",
-            color = DeepNightMutedText,
-            style = MaterialTheme.typography.bodySmall
-        )
-        Box {
-            OutlinedButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "Select Xtreme username and password" },
-                enabled = credentials.isNotEmpty(),
-                onClick = { expanded = true }
-            ) {
-                Text(
-                    selected?.displayLabel(credentials).orEmpty().ifBlank { "No credentials" },
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Start,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text("v")
+    MobileAccountChoiceDropdown(
+        value = selected?.displayLabel(credentials).orEmpty().ifBlank { "No credentials" },
+        label = "Credentials",
+        accessibilityLabel = "Select Xtreme username and password",
+        options = credentials.map { it.displayLabel(credentials) },
+        onSelected = { label ->
+            credentials.firstOrNull { it.displayLabel(credentials) == label }?.let(onCredentialSelected)
+        }
+    )
+}
+
+@Composable
+private fun MobileAccountChoiceDropdown(
+    value: String,
+    label: String,
+    accessibilityLabel: String,
+    options: List<String>,
+    searchable: Boolean = false,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember(value) { mutableStateOf(value) }
+    val enabled = options.isNotEmpty()
+    val visibleOptions = if (searchable && expanded && query.isNotBlank()) {
+        options.filter { it.contains(query, ignoreCase = true) }
+    } else {
+        options
+    }
+    ExposedDropdownMenuBox(
+        expanded = expanded && enabled,
+        onExpandedChange = {
+            if (enabled) {
+                expanded = it
+                query = if (it && searchable) "" else value
             }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                credentials.forEach { credential ->
-                    DropdownMenuItem(
-                        text = { Text(credential.displayLabel(credentials)) },
-                        onClick = {
-                            expanded = false
-                            onCredentialSelected(credential)
-                        }
-                    )
+        }
+    ) {
+        OutlinedTextField(
+            value = if (searchable && expanded) query else value,
+            onValueChange = { typed ->
+                if (searchable && enabled) {
+                    query = typed
+                    expanded = true
                 }
+            },
+            readOnly = !searchable,
+            enabled = enabled,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded && enabled) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(
+                    if (searchable) ExposedDropdownMenuAnchorType.PrimaryEditable
+                    else ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                    enabled = enabled
+                )
+                .semantics { contentDescription = accessibilityLabel },
+            colors = mobileOutlinedTextFieldColors()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false }
+        ) {
+            if (visibleOptions.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No matching timezones") },
+                    enabled = false,
+                    onClick = {}
+                )
+            }
+            visibleOptions.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    onClick = {
+                        expanded = false
+                        query = option
+                        onSelected(option)
+                    }
+                )
             }
         }
     }
@@ -5080,7 +5144,7 @@ private fun String.normalizedMacEntry(): String =
 @Composable
 private fun AccountTextField(label: String, value: String, onValueChange: (String) -> Unit) {
     val secret = label.contains("Password", ignoreCase = true)
-    TextField(
+    OutlinedTextField(
         value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
         label = { Text(label) }, singleLine = true,
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
@@ -5089,7 +5153,7 @@ private fun AccountTextField(label: String, value: String, onValueChange: (Strin
             label.contains("URL") -> KeyboardType.Uri
             else -> KeyboardType.Text
         }),
-        colors = mobileTextFieldColors()
+        colors = mobileOutlinedTextFieldColors()
     )
 }
 
@@ -5100,14 +5164,14 @@ private fun AccountMultilineTextField(
     onValueChange: (String) -> Unit,
     placeholder: String? = null
 ) {
-    TextField(
+    OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 96.dp),
         minLines = 3,
-        textStyle = MaterialTheme.typography.bodySmall,
+        textStyle = MaterialTheme.typography.bodyLarge,
         label = {
             Text(
                 label,
@@ -5124,7 +5188,7 @@ private fun AccountMultilineTextField(
                 )
             }
         },
-        colors = mobileTextFieldColors()
+        colors = mobileOutlinedTextFieldColors()
     )
 }
 
@@ -5139,14 +5203,14 @@ private fun CompactOutlinedTextField(
     enabled: Boolean = true,
     readOnly: Boolean = false
 ) {
-    TextField(
+    OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         enabled = enabled,
         readOnly = readOnly,
         modifier = modifier.heightIn(min = 56.dp),
         singleLine = true,
-        textStyle = MaterialTheme.typography.bodySmall,
+        textStyle = MaterialTheme.typography.bodyLarge,
         label = {
             Text(
                 label,
@@ -5166,36 +5230,17 @@ private fun CompactOutlinedTextField(
             }
         },
         keyboardOptions = keyboardOptions,
-        colors = mobileTextFieldColors()
+        colors = mobileOutlinedTextFieldColors()
     )
 }
 
 @Composable
-internal fun mobileTextFieldColors(): TextFieldColors =
-    TextFieldDefaults.colors(
-        focusedTextColor = DeepNightText,
-        unfocusedTextColor = DeepNightText,
-        disabledTextColor = DeepNightMutedText,
-        errorTextColor = Color(0xFFFFD6D6),
-        cursorColor = DeepNightAccent,
-        focusedLabelColor = DeepNightAccent,
-        unfocusedLabelColor = DeepNightMutedText,
-        disabledLabelColor = DeepNightMutedText,
-        errorLabelColor = Color(0xFFFFB4AB),
-        focusedPlaceholderColor = DeepNightMutedText,
-        unfocusedPlaceholderColor = DeepNightMutedText,
-        focusedIndicatorColor = Color.Transparent,
-        unfocusedIndicatorColor = Color.Transparent,
-        disabledIndicatorColor = Color.Transparent,
-        errorIndicatorColor = Color.Transparent,
-        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.55f),
-        errorContainerColor = MaterialTheme.colorScheme.errorContainer,
-        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
-        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        focusedTrailingIconColor = MaterialTheme.colorScheme.primary,
-        unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+internal fun mobileOutlinedTextFieldColors(): TextFieldColors =
+    OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f),
+        errorBorderColor = MaterialTheme.colorScheme.error
     )
 
 @Composable
@@ -5463,7 +5508,8 @@ data class AccountUiActions(
     val enqueueCacheJob: suspend (CacheRefreshJobRequest) -> String,
     val loadCacheJobState: suspend (String) -> CacheRefreshJobState?,
     val loadRecentCacheJobs: suspend () -> List<CacheRefreshJobState>,
-    val stopCacheJob: suspend (String) -> Unit
+    val stopCacheJob: suspend (String) -> Unit,
+    val loadCacheSummary: suspend (Long) -> AccountCacheSummary = { AccountCacheSummary() }
 ) {
     companion object {
         fun preview(): AccountUiActions =
@@ -5489,7 +5535,8 @@ data class AccountUiActions(
                     )
                 },
                 loadRecentCacheJobs = { emptyList() },
-                stopCacheJob = {}
+                stopCacheJob = {},
+                loadCacheSummary = { AccountCacheSummary(liveCategories = 1, liveChannels = 4) }
             )
     }
 }

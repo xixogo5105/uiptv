@@ -515,6 +515,64 @@
     -fx-spacing: 10;
 }
 
+.epg-refresh-sources-card {
+    -fx-min-height: 0;
+}
+
+.epg-refresh-message {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
+.epg-refresh-preparing {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-padding: 10 4 10 4;
+}
+
+.epg-refresh-source-list {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.epg-refresh-source-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 3 0 3 0;
+}
+
+.epg-refresh-source-list .list-cell:filled:selected,
+.epg-refresh-source-list .list-cell:filled:selected:focused {
+    -fx-background-color: transparent;
+}
+
+.epg-refresh-source-row {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 10 12 10 12;
+    -fx-min-height: 48;
+}
+
+.epg-refresh-source-name {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
+.epg-refresh-source-status {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+}
+
+.epg-refresh-source-status.success {
+    -fx-text-fill: #15803d;
+}
+
+.epg-refresh-source-status.failure {
+    -fx-text-fill: #b91c1c;
+}
+
 .verification-mac-card {
     -fx-background-color: -uiptv-surface-muted;
     -fx-border-color: -uiptv-border-subtle;
@@ -5151,6 +5209,12 @@
 
 .virtual-card-epg { -fx-padding: 8 0 0 0; -fx-border-color: -uiptv-card-border; -fx-border-width: 1 0 0 0; }
 .virtual-card-epg-title { -fx-font-weight: normal; -fx-text-fill: -uiptv-text-primary; -fx-font-size: 12; }
+.epg-programme-header { -fx-padding: 3 12 5 12; -fx-border-color: -uiptv-card-border; -fx-border-width: 0 0 1 0; }
+.epg-programme-header-label { -fx-text-fill: -uiptv-text-secondary; -fx-font-size: 11; -fx-font-weight: bold; }
+.epg-programme-aware-row { -fx-min-height: 70; -fx-padding: 6 12; }
+.epg-programme-aware-row > .virtual-card-epg { -fx-padding: 0; -fx-border-width: 0; -fx-spacing: 12; -fx-alignment: center-left; }
+.epg-programme-columns { -fx-alignment: center-left; }
+.epg-programme-column { -fx-min-width: 0; }
 .epg-guide-popup .epg-guide-popup-programme { -fx-padding: 14; -fx-background-radius: 10; -fx-border-radius: 10; }
 .epg-guide-popup .list-cell { -fx-alignment: top-left; }
 

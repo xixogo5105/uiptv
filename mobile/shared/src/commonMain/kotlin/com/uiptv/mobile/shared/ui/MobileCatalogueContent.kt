@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Menu
@@ -21,6 +22,9 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +32,13 @@ import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
 
 internal val LocalShowNavigation = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+internal data class MobileHeaderAddAction(
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit
+)
 
 /** Shared app chrome keeps navigation and search in the same place at every window size. */
 @Composable
@@ -41,9 +52,11 @@ internal fun MobileScreenHeader(
     onSearchToggle: (() -> Unit)? = null,
     onSearchQueryChange: ((String) -> Unit)? = null,
     onAdd: (() -> Unit)? = null,
+    addMenuActions: List<MobileHeaderAddAction> = emptyList(),
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     val showNavigation = LocalShowNavigation.current
+    var addMenuExpanded by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
             if (searchVisible && onSearchQueryChange != null) {
@@ -69,7 +82,57 @@ internal fun MobileScreenHeader(
                 Icon(if (searchVisible) Icons.Outlined.Close else Icons.Outlined.Search,
                     contentDescription = if (searchVisible) "Close search" else "Search")
             }
-            if (onAdd != null) IconButton(onClick = onAdd) { Icon(Icons.Outlined.Add, contentDescription = "Add") }
+            if (onAdd != null || addMenuActions.isNotEmpty()) {
+                Box {
+                    IconButton(
+                        onClick = {
+                            if (addMenuActions.isNotEmpty()) addMenuExpanded = true else onAdd?.invoke()
+                        },
+                        modifier = Modifier.semantics { contentDescription = "Add account" }
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                    }
+                    if (addMenuActions.isNotEmpty()) {
+                        DropdownMenu(
+                            expanded = addMenuExpanded,
+                            onDismissRequest = { addMenuExpanded = false },
+                            shape = MaterialTheme.shapes.extraLarge,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            addMenuActions.forEach { action ->
+                                DropdownMenuItem(
+                                    leadingIcon = {
+                                        Surface(
+                                            modifier = Modifier.size(40.dp),
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(action.icon, contentDescription = null)
+                                            }
+                                        }
+                                    },
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(action.title, style = MaterialTheme.typography.labelLarge)
+                                            Text(
+                                                action.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        addMenuExpanded = false
+                                        action.onClick()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,

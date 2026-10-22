@@ -4,6 +4,9 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +22,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -31,6 +35,7 @@ fun RemoteLogoImage(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val cache = remember(context) { ThumbnailCache.getInstance(context) }
+    val useFallbackPanel = com.uiptv.mobile.shared.ui.LocalThumbnailFallbackPanel.current
 
     var bitmap by remember(logoUrl, fallbackLogoUrl, fallbackLoader) { mutableStateOf<Bitmap?>(null) }
 
@@ -40,13 +45,25 @@ fun RemoteLogoImage(
 
     val loadedBitmap = bitmap?.asImageBitmap()
     if (loadedBitmap == null) {
+        val fallbackModifier = if (useFallbackPanel) {
+            modifier
+                .padding(4.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+        }
         Box(
-            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+            modifier = fallbackModifier,
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = fallbackInitials(contentDescription),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (useFallbackPanel) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,

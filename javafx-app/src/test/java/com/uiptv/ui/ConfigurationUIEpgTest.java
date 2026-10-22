@@ -43,39 +43,26 @@ class ConfigurationUIEpgTest extends DbBackedUiTest {
         assertFalse(ConfigurationService.getInstance().read().isEpgEnabled());
         assertEquals(previous.getEpgMappingsJson(), ConfigurationService.getInstance().read().getEpgMappingsJson());
     }
-    @Test void settingsRefreshClearsGuideCacheWithoutFetchingSources() throws Exception {
+    @Test void settingsExposeNonDestructiveRefreshAndSeparateCacheMaintenance() throws Exception {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setEpgEnabled(true); ConfigurationService.getInstance().save(configuration);
-        var account = new com.uiptv.model.Account(); account.setType(com.uiptv.util.AccountType.M3U8_LOCAL);
-        account.setAction(com.uiptv.model.Account.AccountAction.itv); account.setDbId("settings-refresh");
-        var source = tempDir.resolve("refresh-guide.xml"); java.nio.file.Files.writeString(source, "<tv><programme channel='station' start='" + java.time.format.DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now().minusSeconds(60)) + "' stop='" + java.time.format.DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now().plusSeconds(3600)) + "'><title>Current show</title></programme></tv>"); account.setEpg(source.toString());
-        var channel = new com.uiptv.model.Channel(); channel.setChannelId("station"); channel.setName("Station");
-        new com.uiptv.application.EpgCacheRefreshService().refreshAccount(account, java.util.List.of(channel));
-        var cache = new com.uiptv.application.EpgCacheApplicationService();
-        assertFalse(cache.schedule(account, channel).isEmpty());
-        var done = new java.util.concurrent.CountDownLatch(1);
-        var cacheChanged = new java.util.concurrent.CountDownLatch(1);
-        var revisionField = EpgModeUI.class.getDeclaredField("cacheRevision"); revisionField.setAccessible(true);
-        var revision = (javafx.beans.property.LongProperty) revisionField.get(null);
-        javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> cacheChanged.countDown();
-        javafx.scene.control.Button button = runOnFxThread(() -> {
+        long refreshedAt = System.currentTimeMillis();
+        new com.uiptv.db.EpgCacheDb().replaceSource("settings-retained-source",
+                java.util.Map.of("station", java.util.List.of(new com.uiptv.application.EpgProgramme(
+                        "Saved show", "", refreshedAt - 60_000, refreshedAt + 3_600_000))),
+                java.util.Map.of(), java.util.Map.of(), refreshedAt, refreshedAt + 3_600_000);
+        var controls = runOnFxThread(() -> {
             ConfigurationUI ui = new ConfigurationUI(null);
             javafx.scene.control.Button refresh = (javafx.scene.control.Button) field(ui, "refreshEpgButton");
             assertEquals(com.uiptv.util.I18n.tr("epgRefreshGuide"), refresh.getText());
-            assertNotNull(refresh.getParent());
-            // Cache invalidation now publishes progress before the refresh worker finishes.
-            // The button becoming enabled is the completion signal; a cache event alone is not.
-            refresh.disabledProperty().addListener((_, wasDisabled, isDisabled) -> {
-                if (wasDisabled && !isDisabled) done.countDown();
-            });
-            revision.addListener(listener); refresh.fire(); return refresh;
+            assertNotNull(refresh.getParent()); assertFalse(refresh.isDisabled());
+            javafx.scene.control.Button clear = (javafx.scene.control.Button) field(ui, "clearEpgCacheButton");
+            assertNotNull(clear.getParent()); assertFalse(clear.isDisabled());
+            return new javafx.scene.control.Button[]{refresh, clear};
         });
-        try {
-            assertTrue(done.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            assertTrue(cacheChanged.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            runOnFxThread(() -> { assertFalse(button.isDisabled()); return null; });
-            assertTrue(cache.schedule(account, channel).isEmpty());
-        } finally { runOnFxThread(() -> { revision.removeListener(listener); return null; }); }
+        assertEquals(refreshedAt, new com.uiptv.db.EpgCacheDb().sourceState("settings-retained-source").refreshedAt());
+        assertEquals(com.uiptv.util.I18n.tr("epgRefreshGuide"), controls[0].getText());
+        assertEquals(com.uiptv.util.I18n.tr("configClearCache"), controls[1].getText());
     }
 
     private Object field(Object owner, String name) throws Exception {

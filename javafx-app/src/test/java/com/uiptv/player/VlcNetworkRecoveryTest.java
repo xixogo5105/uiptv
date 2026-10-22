@@ -3,10 +3,8 @@ package com.uiptv.player;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
-import javafx.scene.Scene;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
-import javafx.stage.Stage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
@@ -71,11 +69,13 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
             });
             String base = "http://127.0.0.1:" + server.getLocalPort();
             VlcVideoPlayer player = runOnFxThread(VlcVideoPlayer::new);
-            Stage stage = runOnFxThread(() -> {
-                Stage window = new Stage();
-                window.setScene(new Scene(new StackPane(player.getPlayerContainer()), 640, 400));
-                window.show();
-                return window;
+            runOnFxThread(() -> {
+                StackPane root = new StackPane(player.getPlayerContainer());
+                root.resize(640, 400);
+                var scene = new javafx.scene.Scene(root, 640, 400);
+                root.applyCss();
+                root.layout();
+                return scene;
             });
             try {
                 player.playbackReady().toCompletableFuture().get(10, TimeUnit.SECONDS);
@@ -105,7 +105,7 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
                 }, 10000);
             } finally {
                 releaseStalls.countDown();
-                runOnFxThread(() -> { player.disposePlayer(); stage.close(); return null; });
+                runOnFxThread(() -> { player.disposePlayer(); return null; });
             }
         } finally {
             releaseStalls.countDown();

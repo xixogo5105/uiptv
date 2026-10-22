@@ -23,12 +23,12 @@ class AndroidEpgTest {
             AndroidUiptvDatabaseHelper(context).use { it.applyMigrations(db) }
             val now = System.currentTimeMillis()
             db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES('','{}')")
-            db.execSQL("INSERT INTO epg_shared_source VALUES('builder:fixture',40,'IN','')")
-            db.execSQL("INSERT INTO epg_source VALUES('builder:fixture',?,?, '')",arrayOf<Any>(now,now+3600000))
-            db.execSQL("INSERT INTO epg_alias VALUES('builder:fixture',0,'star sports 1 hd','guide')")
+            db.execSQL("INSERT INTO epg_shared_source VALUES('shared:fixture',40,'IN','')")
+            db.execSQL("INSERT INTO epg_source VALUES('shared:fixture',?,?, '')",arrayOf<Any>(now,now+3600000))
+            db.execSQL("INSERT INTO epg_alias VALUES('shared:fixture',0,'star sports 1 hd','guide')")
             val output = java.io.ByteArrayOutputStream()
             java.util.zip.DeflaterOutputStream(output).use { it.write("Real description".toByteArray()) }
-            db.execSQL("INSERT INTO epg_programme VALUES('builder:fixture','guide',?,?,?,?)",
+            db.execSQL("INSERT INTO epg_programme VALUES('shared:fixture','guide',?,?,?,?)",
                 arrayOf<Any>(now-60000,now+3600000,"Shared programme",output.toByteArray()))
             val cache = AndroidSyncedEpgCache(db)
             listOf("STALKER_PORTAL","XTREME_API","M3U8_LOCAL").forEachIndexed { index,type ->
