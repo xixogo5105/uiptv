@@ -49,8 +49,8 @@ public class LiveGuideApplicationService {
             if(account==null) continue;
             account.setAction(Account.AccountAction.itv);
             var summaries=new EpgCacheApplicationService().summaries(account,group.getValue().stream().map(Row::channel).toList());
-            EpgCacheRefreshService.requestVisible(account, group.getValue().stream().map(Row::channel)
-                    .filter(channel -> summaries.getOrDefault(channel, List.of()).isEmpty()).toList());
+            // Card rendering is a cache-only read. Missing guide data must not
+            // turn scrolling or opening an "All" list into an importer trigger.
             for(Row row:group.getValue()) loaded.put(row,new Row(row.accountId(),row.accountName(),row.bookmarkId(),row.channel(),
                     summaries.getOrDefault(row.channel(),List.of()),false,row.nativeProvider()));
         }

@@ -469,7 +469,9 @@ final class EpgRefreshProgressDialog {
             if (!"Pending".equals(item.status())) started = true;
             String detail = localizedSourceDetail(item.detail());
             if (detail.isBlank() && (completed || warning)) {
-                detail = warning ? I18n.tr("epgRefreshNoMatchesDetail", I18n.formatNumber(Long.toString(item.programmes())))
+                detail = warning ? item.programmes() == 0
+                        ? I18n.tr("epgRefreshNoCurrentProgrammesDetail")
+                        : I18n.tr("epgRefreshNoMatchesDetail", I18n.formatNumber(Long.toString(item.programmes())))
                         : I18n.tr("epgRefreshImportedDetail", I18n.formatNumber(Long.toString(item.programmes())),
                                 I18n.formatNumber(Integer.toString(item.matchedChannels())));
             }

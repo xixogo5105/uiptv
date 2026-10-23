@@ -147,9 +147,12 @@ public class EpgApplicationService {
             int first=buffered.read();
             int second=buffered.read();
             buffered.reset();
-            InputStream xml=first==0x1f && second==0x8b ? new GZIPInputStream(buffered) : buffered;
+            boolean comprehensive = isComprehensiveSource(source);
+            InputStream compressed = comprehensive ? new LimitedInputStream(buffered, 512L * 1024 * 1024) : buffered;
+            InputStream xml=first==0x1f && second==0x8b ? new GZIPInputStream(compressed) : compressed;
             phase.accept("Parsing");
-            XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit()),Instant.now());
+            XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit(source)),Instant.now(),
+                    comprehensive ? XmltvGuide.Limits.comprehensive() : XmltvGuide.Limits.standard());
             return new XmltvGuide(guide.programmes(), guide.names(), guide.qualityNames(),
                     resolveArtwork(guide.icons(), sourceUri(source)));
         }
@@ -271,6 +274,20 @@ public class EpgApplicationService {
 
     static long sourceSizeLimit() {
         return 200L * 1024 * 1024;
+    }
+
+    static long sourceSizeLimit(String source) {
+        return isComprehensiveSource(source) ? 4L * 1024 * 1024 * 1024 : sourceSizeLimit();
+    }
+
+    private static boolean isComprehensiveSource(String source) {
+        if (source == null) return false;
+        String value = source.strip();
+        int query = value.indexOf('?');
+        if (query >= 0) value = value.substring(0, query);
+        int separator = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        String fileName = value.substring(separator + 1);
+        return fileName.matches("(?i)epg_ripper_all_sources\\d*\\.xml(?:\\.gz)?");
     }
 
     // The returned filter stream owns the HTTP response and closes it when the caller closes the stream.

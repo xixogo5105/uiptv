@@ -93,7 +93,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
     private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard, true);
     private final ScrollPane channelGridScroll = new ScrollPane();
-    private final GridPane epgColumnHeader = createEpgColumnHeader();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
@@ -144,7 +143,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private Consumer<List<Node>> detailHeaderActionsHandler;
     private boolean mediaDrawerMode = false;
-    private boolean compactEpgColumns;
     private final VBox listPane = new VBox(5);
     private final VBox searchBox = new VBox(5);
     private final VBox detailPane = new VBox(8);
@@ -665,14 +663,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyChannelGridSizing() {
-        boolean programmeRows = isFullEpgRowMode();
-        channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled || programmeRows);
-        if (programmeRows) {
-            channelGrid.setCardMinHeight(72);
-            channelGrid.setCardWidthRange(180, 1800);
-            channelGrid.setGaps(0, 4);
-            return;
-        }
+        channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
         if (!thumbnailsEnabled) {
             channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
                     && listAction == Account.AccountAction.itv ? 150 : 42);
@@ -714,8 +705,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGridScroll.setMinSize(0, 0);
         channelGridScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         channelGridScroll.addEventFilter(KeyEvent.KEY_PRESSED, this::handleChannelScrollKeyPressed);
-        channelGridScroll.viewportBoundsProperty().addListener((_, _, bounds) ->
-                updateResponsiveEpgLayout(bounds.getWidth()));
         VBox.setVgrow(channelGridScroll, Priority.ALWAYS);
     }
 
@@ -758,57 +747,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
             region.setMaxWidth(Double.MAX_VALUE);
             region.setMaxHeight(Double.MAX_VALUE);
         }
-        if (isFullEpgRowMode()) listPane.getChildren().setAll(searchBox, epgColumnHeader, content);
-        else listPane.getChildren().setAll(searchBox, content);
+        listPane.getChildren().setAll(searchBox, content);
         VBox.setVgrow(content, Priority.ALWAYS);
-        updateResponsiveEpgLayout(channelGridScroll.getViewportBounds().getWidth());
-    }
-
-    private boolean isFullEpgRowMode() {
-        return listAction == Account.AccountAction.itv && EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly();
-    }
-
-    private GridPane createEpgColumnHeader() {
-        GridPane header = new GridPane();
-        header.getStyleClass().add("epg-programme-header");
-        header.setMinWidth(0); header.setMaxWidth(Double.MAX_VALUE);
-        ColumnConstraints channel = new ColumnConstraints(); channel.setPercentWidth(36); channel.setMinWidth(0);
-        ColumnConstraints now = new ColumnConstraints(); now.setPercentWidth(28); now.setMinWidth(0);
-        ColumnConstraints next = new ColumnConstraints(); next.setPercentWidth(28); next.setMinWidth(0);
-        ColumnConstraints actions = new ColumnConstraints(); actions.setPercentWidth(8); actions.setMinWidth(68);
-        header.getColumnConstraints().setAll(channel, now, next, actions);
-        Label channelLabel = new Label(I18n.tr("autoChannels"));
-        Label nowLabel = new Label(I18n.tr("epgNow"));
-        Label nextLabel = new Label(I18n.tr("epgNext"));
-        channelLabel.getStyleClass().add("epg-programme-header-label");
-        nowLabel.getStyleClass().add("epg-programme-header-label");
-        nextLabel.getStyleClass().add("epg-programme-header-label");
-        header.add(channelLabel, 0, 0); header.add(nowLabel, 1, 0); header.add(nextLabel, 2, 0);
-        return header;
-    }
-
-    private void updateResponsiveEpgLayout(double availableWidth) {
-        if (!isFullEpgRowMode() || availableWidth <= 0) return;
-        boolean compact = availableWidth < 760;
-        if (compactEpgColumns == compact) return;
-        compactEpgColumns = compact;
-        Label nextLabel = (Label) epgColumnHeader.getChildren().get(2);
-        nextLabel.setVisible(!compact);
-        nextLabel.setManaged(!compact);
-        ColumnConstraints channel = new ColumnConstraints();
-        channel.setPercentWidth(compact ? 38 : 36);
-        channel.setMinWidth(0);
-        ColumnConstraints now = new ColumnConstraints();
-        now.setPercentWidth(compact ? 54 : 28);
-        now.setMinWidth(0);
-        ColumnConstraints next = new ColumnConstraints();
-        next.setPercentWidth(compact ? 0 : 28);
-        next.setMinWidth(0);
-        ColumnConstraints actions = new ColumnConstraints();
-        actions.setPercentWidth(8);
-        actions.setMinWidth(68);
-        epgColumnHeader.getColumnConstraints().setAll(channel, now, next, actions);
-        cardEpg.setCompactProgrammeRows(compact);
     }
 
     private void initDetailPane() {
@@ -928,9 +868,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private Region createChannelCard(ChannelItem item) {
-        if (isFullEpgRowMode()) {
-            return trackEpgCard(createEpgProgrammeRow(item), item);
-        }
         if (!thumbnailsEnabled) {
             return trackEpgCard(createPlainTextChannelCard(item), item);
         }
@@ -953,58 +890,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         );
         card.getStyleClass().add("channel-list-card");
         return trackEpgCard(card, item);
-    }
-
-    private Region createEpgProgrammeRow(ChannelItem item) {
-        GridPane row = new GridPane();
-        row.getStyleClass().addAll("bookmark-card", "channel-list-card", "epg-programme-aware-row");
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(6, 12, 6, 12));
-        row.setMinWidth(0); row.setMaxWidth(Double.MAX_VALUE); row.setMinHeight(70);
-        ColumnConstraints channelColumn = new ColumnConstraints();
-        channelColumn.setPercentWidth(36); channelColumn.setMinWidth(0);
-        ColumnConstraints nowColumn = new ColumnConstraints();
-        nowColumn.setPercentWidth(28); nowColumn.setMinWidth(0); nowColumn.setHgrow(Priority.ALWAYS);
-        ColumnConstraints nextColumn = new ColumnConstraints();
-        nextColumn.setPercentWidth(28); nextColumn.setMinWidth(0); nextColumn.setHgrow(Priority.ALWAYS);
-        ColumnConstraints bookmarkColumn = new ColumnConstraints();
-        bookmarkColumn.setPercentWidth(8); bookmarkColumn.setMinWidth(68);
-        row.getColumnConstraints().setAll(channelColumn, nowColumn, nextColumn, bookmarkColumn);
-
-        HBox channel = new HBox(10);
-        channel.setAlignment(Pos.CENTER_LEFT); channel.setMinWidth(0); channel.setMaxWidth(Double.MAX_VALUE);
-        if (thumbnailsEnabled) {
-            AsyncImageView logo = new AsyncImageView();
-            logo.loadImage(item == null ? "" : item.getLogo(), IMAGE_CACHE_KEY_CHANNEL);
-            channel.getChildren().add(logo);
-        }
-        Label title = new Label(item == null ? "" : item.getChannelName());
-        title.getStyleClass().add("bookmark-channel-title");
-        title.setMinWidth(0); title.setMaxWidth(Double.MAX_VALUE); title.setTextOverrun(OverrunStyle.ELLIPSIS);
-        HBox.setHgrow(title, Priority.ALWAYS);
-        channel.getChildren().add(title);
-        HBox actions = createChannelTrailingActions(item);
-        row.add(channel, 0, 0);
-        GridPane.setHgrow(channel, Priority.ALWAYS);
-        GridPane.setVgrow(channel, Priority.ALWAYS);
-
-        row.add(actions, 3, 0);
-        GridPane.setHgrow(actions, Priority.ALWAYS);
-        GridPane.setVgrow(actions, Priority.ALWAYS);
-        return row;
-    }
-
-    private HBox createChannelTrailingActions(ChannelItem item) {
-        HBox actions = new HBox(5);
-        actions.getStyleClass().addAll("playing-indicator-inline-row", CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS);
-        actions.setAlignment(Pos.CENTER_RIGHT);
-        actions.setMinWidth(Region.USE_PREF_SIZE);
-        actions.setMaxWidth(Double.MAX_VALUE);
-        actions.getChildren().add(createActionButton(item));
-        if (item != null && item.isBookmarked()) {
-            actions.getChildren().add(createBookmarkIcon());
-        }
-        return actions;
     }
 
     private Region trackEpgCard(Region card, ChannelItem item) {

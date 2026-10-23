@@ -1,22 +1,36 @@
 package com.uiptv.application;
 
 import java.io.*;
+import java.lang.ref.Cleaner;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
-/** In-memory compressed XMLTV schedules; only requested channels are expanded. */
+/** Disk-backed compressed XMLTV schedules; only requested channels are expanded. */
 final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> {
-    private final Map<String, List<byte[]>> channels;
-    private final long bytes;
+    private static final Cleaner CLEANER = Cleaner.create();
+    private record Chunk(long offset, int length, byte[] memory) { }
+    private final Map<String, List<Chunk>> channels;
+    private final long heapBytes;
+    private final Path spool;
     private final Map<String, List<EpgProgramme>> decoded = new LinkedHashMap<>(16, .75f, true);
+    private final Cleaner.Cleanable cleanable;
 
-    private CompactProgrammeMap(Map<String, List<byte[]>> channels, long bytes) {
+    private CompactProgrammeMap(Map<String, List<Chunk>> channels, long heapBytes, Path spool) {
         this.channels = Map.copyOf(channels);
-        this.bytes = bytes;
+        this.heapBytes = heapBytes;
+        this.spool = spool;
+        this.cleanable = spool == null ? null : CLEANER.register(this, new DeleteSpool(spool));
     }
 
-    long estimatedBytes() { return bytes + channels.size() * 192L + 512 * 1024; }
+    private record DeleteSpool(Path path) implements Runnable {
+        @Override public void run() { try { Files.deleteIfExists(path); } catch (IOException ignored) { } }
+    }
+
+    void close() { if (cleanable != null) cleanable.clean(); }
+    long estimatedBytes() { return heapBytes + channels.size() * 64L + 256 * 1024; }
     @Override public boolean containsKey(Object key) { return channels.containsKey(key); }
     @Override public int size() { return channels.size(); }
     @Override public boolean equals(Object other) {
@@ -25,14 +39,20 @@ final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> 
     @Override public int hashCode() { return entrySet().hashCode(); }
 
     @Override public synchronized List<EpgProgramme> get(Object key) {
-        List<byte[]> chunks = channels.get(key);
+        List<Chunk> chunks = channels.get(key);
         if (chunks == null) return List.of();
         List<EpgProgramme> cached = decoded.get(key);
         if (cached != null) return cached;
         List<EpgProgramme> programmes = new ArrayList<>();
-        try {
-            for (byte[] chunk : chunks) {
-                try (var input = new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(chunk)))) {
+        try (var file = spool == null ? null : new RandomAccessFile(spool.toFile(), "r")) {
+            for (Chunk chunk : chunks) {
+                byte[] bytes = chunk.memory();
+                if (bytes == null) {
+                    bytes = new byte[chunk.length()];
+                    file.seek(chunk.offset());
+                    file.readFully(bytes);
+                }
+                try (var input = new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(bytes)))) {
                     int count = input.readInt();
                     for (int i = 0; i < count; i++)
                         programmes.add(new EpgProgramme(input.readUTF(), input.readUTF(), input.readLong(), input.readLong()));
@@ -76,10 +96,29 @@ final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> 
     }
 
     static final class Builder {
-        private final Map<String, List<byte[]>> chunks = new HashMap<>();
+        private final Map<String, List<Chunk>> chunks = new HashMap<>();
         private final Map<String, List<EpgProgramme>> pending = new HashMap<>();
+        private final Path spool;
+        private final RandomAccessFile output;
+        private final long maxSpoolBytes;
+        private final boolean diskBacked;
         private long pendingBytes;
-        private long compressedBytes;
+        private long spoolBytes;
+
+        Builder() throws IOException { this(32L * 1024 * 1024, false); }
+
+        Builder(long maxSpoolBytes, boolean diskBacked) throws IOException {
+            this.maxSpoolBytes = maxSpoolBytes;
+            this.diskBacked = diskBacked;
+            if (diskBacked) {
+                spool = Files.createTempFile("uiptv-epg-", ".bin");
+                spool.toFile().deleteOnExit();
+                output = new RandomAccessFile(spool.toFile(), "rw");
+            } else {
+                spool = null;
+                output = null;
+            }
+        }
 
         void add(String id, EpgProgramme programme) throws IOException {
             pending.computeIfAbsent(id, _ -> new ArrayList<>()).add(programme);
@@ -98,18 +137,28 @@ final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> 
                     }
                 }
                 byte[] chunk = bytes.toByteArray();
-                chunks.computeIfAbsent(entry.getKey(), _ -> new ArrayList<>()).add(chunk);
-                compressedBytes += chunk.length + 32L;
+                if (spoolBytes + chunk.length > maxSpoolBytes)
+                    throw new IllegalArgumentException("Guide exceeds size limit");
+                long offset = diskBacked ? spoolBytes : -1;
+                if (diskBacked) output.write(chunk);
+                chunks.computeIfAbsent(entry.getKey(), _ -> new ArrayList<>()).add(
+                        new Chunk(offset, chunk.length, diskBacked ? null : chunk));
+                spoolBytes += chunk.length;
             }
             pending.clear(); pendingBytes = 0;
-            if (compressedBytes + chunks.size() * 192L > 32L * 1024 * 1024)
-                throw new IllegalArgumentException("Guide exceeds size limit");
         }
 
         CompactProgrammeMap build() throws IOException {
             flush();
+            if (output != null) output.close();
             chunks.replaceAll((_, value) -> List.copyOf(value));
-            return new CompactProgrammeMap(chunks, compressedBytes);
+            long references = chunks.values().stream().mapToLong(List::size).sum();
+            return new CompactProgrammeMap(chunks, chunks.size() * 64L + references * 24L + (diskBacked ? 0 : spoolBytes), spool);
+        }
+
+        void close() {
+            if (output != null) try { output.close(); } catch (IOException ignored) { }
+            if (spool != null) try { Files.deleteIfExists(spool); } catch (IOException ignored) { }
         }
     }
 }

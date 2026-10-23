@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /** Streaming XMLTV reader. External DTDs and entities are never fetched. */
-public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames, Map<String,String> icons) {
+public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames, Map<String,String> icons) implements AutoCloseable {
     private static final java.util.regex.Pattern WHITESPACE = java.util.regex.Pattern.compile("\\s+");
     private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|\\d{3,4}[pi])(?![\\p{L}\\p{N}])");
     private static final java.util.regex.Pattern DISPLAY_RESOLUTION = java.util.regex.Pattern.compile("\\s*\\((?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi]\\)");
@@ -19,6 +19,10 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("[\\s|/,-]+");
     private static final String CHANNEL_ELEMENT = "channel";
     private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
+    record Limits(int maxProgrammes, long maxMetadataBytes, long maxSpoolBytes, boolean diskBacked) {
+        static Limits standard() { return new Limits(200_000, 32L * 1024 * 1024, 32L * 1024 * 1024, false); }
+        static Limits comprehensive() { return new Limits(5_000_000, 128L * 1024 * 1024, 2L * 1024 * 1024 * 1024, true); }
+    }
 
     public XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
         this(programmes,names,qualityAliases(names),Map.of());
@@ -27,6 +31,11 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         this(programmes,names,qualityNames,Map.of());
     }
     public static XmltvGuide read(InputStream input, Instant now)
+            throws java.io.IOException, javax.xml.stream.XMLStreamException, InterruptedException {
+        return read(input, now, Limits.standard());
+    }
+
+    static XmltvGuide read(InputStream input, Instant now, Limits limits)
             throws java.io.IOException, javax.xml.stream.XMLStreamException, InterruptedException {
         XMLInputFactory factory = XMLInputFactory.newFactory();
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
@@ -38,26 +47,31 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             factory.setProperty("jdk.xml.totalEntitySizeLimit", "8388608");
         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
-        ParseContext context = new ParseContext(now);
-        XMLStreamReader reader = factory.createXMLStreamReader(input);
+        ParseContext context = new ParseContext(now, limits);
+        XMLStreamReader reader = null;
         try {
+            reader = factory.createXMLStreamReader(input);
             while (reader.hasNext()) {
                 if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
                 int event = reader.next();
                 if (event == XMLStreamConstants.START_ELEMENT) handleStartElement(reader, context);
                 if (event == XMLStreamConstants.END_ELEMENT) handleEndElement(reader, context);
             }
-        } finally { reader.close(); }
-        context.ambiguous.forEach(context.names::remove);
-        context.ambiguousQuality.forEach(context.qualityNames::remove);
-        context.qualityNames.remove("");
-        return new XmltvGuide(context.programmes.build(), Map.copyOf(context.names),
-                Map.copyOf(context.qualityNames), Map.copyOf(context.icons));
+            context.ambiguous.forEach(context.names::remove);
+            context.ambiguousQuality.forEach(context.qualityNames::remove);
+            context.qualityNames.remove("");
+            return new XmltvGuide(context.programmes.build(), Map.copyOf(context.names),
+                    Map.copyOf(context.qualityNames), Map.copyOf(context.icons));
+        } catch (java.io.IOException | javax.xml.stream.XMLStreamException | InterruptedException | RuntimeException error) {
+            context.programmes.close();
+            throw error;
+        } finally { if (reader != null) reader.close(); }
     }
 
     private static final class ParseContext {
         private final Instant now;
-        private final CompactProgrammeMap.Builder programmes = new CompactProgrammeMap.Builder();
+        private final Limits limits;
+        private final CompactProgrammeMap.Builder programmes;
         private final Map<String, String> names = new HashMap<>();
         private final Map<String, String> icons = new HashMap<>();
         private final Set<String> ambiguous = new HashSet<>();
@@ -72,7 +86,11 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         private int count;
         private long retainedBytes;
 
-        private ParseContext(Instant now) { this.now = now; }
+        private ParseContext(Instant now, Limits limits) throws java.io.IOException {
+            this.now = now;
+            this.limits = limits;
+            this.programmes = new CompactProgrammeMap.Builder(limits.maxSpoolBytes(), limits.diskBacked());
+        }
     }
 
     private static void handleStartElement(XMLStreamReader reader, ParseContext context)
@@ -127,7 +145,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             context.channel = null;
             return;
         }
-        if (++context.count > 200_000) throw new IllegalArgumentException("Guide exceeds programme limit");
+        if (++context.count > context.limits.maxProgrammes()) throw new IllegalArgumentException("Guide exceeds programme limit");
         context.programmes.add(context.channel, new EpgProgramme(context.title, context.description,
                 context.start.toEpochMilli(), context.stop == null ? 0 : context.stop.toEpochMilli()));
         context.channel = null;
@@ -135,7 +153,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
 
     private static void retain(ParseContext context, long bytes) {
         context.retainedBytes += bytes;
-        if (context.retainedBytes > 32L * 1024 * 1024) throw new IllegalArgumentException("Guide exceeds size limit");
+        if (context.retainedBytes > context.limits.maxMetadataBytes()) throw new IllegalArgumentException("Guide exceeds size limit");
     }
 
     /** Conservative retained-size estimate, including strings, lists and map entries. */
@@ -149,6 +167,10 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         for (var aliases : List.of(names,qualityNames,icons))
             for (var entry : aliases.entrySet()) bytes += 128L + 2L * (entry.getKey().length() + entry.getValue().length());
         return bytes;
+    }
+
+    @Override public void close() {
+        if (programmes instanceof CompactProgrammeMap compact) compact.close();
     }
 
     // Consume the whole element without ever building an unbounded description string.

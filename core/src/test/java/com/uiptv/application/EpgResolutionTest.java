@@ -70,8 +70,12 @@ class EpgResolutionTest extends DbBackedTest {
         }
     }
 
-    @Test void allDesktopSourcesHaveA200MiBLimitAndLimitsAreEnforced() throws Exception {
+    @Test void desktopGuideSizeLimitsAreBoundedAndComprehensiveBundleGetsASeparateLimit() throws Exception {
         assertEquals(200L * 1024 * 1024, EpgApplicationService.sourceSizeLimit());
+        assertEquals(4L * 1024 * 1024 * 1024,
+                EpgApplicationService.sourceSizeLimit("https://epgshare01.online/epgshare01/epg_ripper_ALL_SOURCES1.xml.gz"));
+        assertEquals(200L * 1024 * 1024,
+                EpgApplicationService.sourceSizeLimit("https://epgshare01.online/epgshare01/epg_ripper_IN2.xml.gz"));
         try (var limited = new EpgApplicationService.LimitedInputStream(new java.io.ByteArrayInputStream(new byte[5]), 4)) {
             assertEquals(4, limited.read(new byte[4]));
             assertThrows(java.io.IOException.class, limited::read);

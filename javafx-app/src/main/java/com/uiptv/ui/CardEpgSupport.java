@@ -172,7 +172,6 @@ final class CardEpgSupport {
         }
         Binding binding = new Binding(panel, source, programmeRow, compactProgrammeRows);
         setProgrammeRowColumns(card, binding.compact);
-        displayLoading(panel, binding.compact);
         card.sceneProperty().addListener((_, _, scene) -> {
             if (scene == null) {
                 attached.remove(card);
@@ -319,7 +318,9 @@ final class CardEpgSupport {
             collectSources(request, cards, sources, permitted);
             var service = new LiveGuideApplicationService();
             var summaries = service.cachedSummaries(sources);
-            publishSummaries(request, permitted, summaries, service.cachedIcons(summaries), service.cachedSourceWarnings(summaries));
+            var icons = service.cachedIcons(summaries);
+            var warnings = service.cachedSourceWarnings(summaries);
+            publishSummaries(request, permitted, summaries, icons, warnings);
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         } catch (Exception _) {
@@ -453,7 +454,9 @@ final class CardEpgSupport {
             if (current == null && next == null) {
                 Label placeholder = programmePlaceholder(sourceWarning
                         ? I18n.tr("epgSourceUnavailable") : I18n.tr("epgNoGuide"));
-                columns.setAlignment(javafx.geometry.Pos.CENTER);
+                // Start at the first programme column and center vertically in the row,
+                // matching the programme text column and the bookmark action.
+                columns.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 columns.getChildren().setAll(placeholder);
                 HBox.setHgrow(placeholder, Priority.ALWAYS);
                 panel.setVisible(true);
@@ -486,19 +489,31 @@ final class CardEpgSupport {
             else columns.getChildren().setAll(nowColumn, nextColumn);
         } else {
             VBox vertical = (VBox) panel;
-            vertical.getChildren().add(programme(I18n.tr("epgNow"), current));
-            if (current != null) {
-                double fraction = current.stop() <= current.start() ? 0
-                        : Math.clamp((now - current.start()) / (double) (current.stop() - current.start()), 0, 1);
-                ProgressBar progress = new ProgressBar(fraction);
-                progress.getStyleClass().add("epg-programme-progress");
-                progress.setMaxWidth(Double.MAX_VALUE);
-                vertical.getChildren().add(progress);
+            EpgProgramme displayedCurrent = current;
+            if (displayedCurrent == null) {
+                long hourStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
+                        .truncatedTo(java.time.temporal.ChronoUnit.HOURS).toInstant().toEpochMilli();
+                displayedCurrent = noProgrammeDetails(hourStart);
             }
-            vertical.getChildren().add(programme(I18n.tr("epgNext"), next));
+            EpgProgramme displayedNext = next == null
+                    ? noProgrammeDetails(displayedCurrent.stop())
+                    : next;
+            vertical.getChildren().add(programme(I18n.tr("epgNow"), displayedCurrent));
+            double fraction = displayedCurrent.stop() <= displayedCurrent.start() ? 0
+                    : Math.clamp((now - displayedCurrent.start())
+                    / (double) (displayedCurrent.stop() - displayedCurrent.start()), 0, 1);
+            ProgressBar progress = new ProgressBar(fraction);
+            progress.getStyleClass().add("epg-programme-progress");
+            progress.setMaxWidth(Double.MAX_VALUE);
+            vertical.getChildren().add(progress);
+            vertical.getChildren().add(programme(I18n.tr("epgNext"), displayedNext));
             if (sourceWarning) vertical.getChildren().add(sourceWarningLabel(current != null || next != null));
         }
         panel.setVisible(true); panel.setManaged(true);
+    }
+
+    private static EpgProgramme noProgrammeDetails(long start) {
+        return new EpgProgramme(I18n.tr("epgNoProgrammeDetails"), "", start, start + 3_600_000);
     }
 
     private static Label sourceWarningLabel(boolean hasGuide) {
@@ -509,11 +524,11 @@ final class CardEpgSupport {
 
     private static Label programmePlaceholder(String text) {
         Label label = new Label(text);
-        label.getStyleClass().addAll("epg-programme-time", "epg-programme-placeholder");
+        label.getStyleClass().addAll("virtual-card-epg-title", "epg-programme-placeholder");
         label.setMinWidth(0);
         label.setMaxWidth(Double.MAX_VALUE);
-        label.setAlignment(javafx.geometry.Pos.CENTER);
-        label.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        label.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        label.setTextAlignment(javafx.scene.text.TextAlignment.LEFT);
         label.setWrapText(true);
         Tooltip tooltip = new Tooltip(text);
         tooltip.setWrapText(true);

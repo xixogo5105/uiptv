@@ -12,6 +12,8 @@ import java.util.*;
 // Dynamic SQL fragments here are generated placeholder tuples or fixed schema table names.
 @SuppressWarnings("java:S2077")
 public final class EpgCacheDb {
+    /** Persisted negative match, invalidated whenever any guide source is replaced. */
+    private static final String UNMATCHED_SOURCE_ID = "__uiptv_unmatched__";
     public record Identity(String accountId, String providerId, String signature) { }
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,
                         List<String> sources, String nativeSource) { }
@@ -87,6 +89,7 @@ public final class EpgCacheDb {
                     notifications.add(EpgChangeNotifications.create(connection,
                             EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(source), Set.of(), Set.of()));
                 }
+                clearUnmatchedMappings(connection);
                 // Removing the shadows makes all mapping reads resolve against the newly published main tables.
                 try (var statement = connection.createStatement()) {
                     for (String table : TABLES) statement.execute("DROP TABLE temp." + table);
@@ -183,6 +186,7 @@ public final class EpgCacheDb {
             try {
                 replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt,
                         processedProgrammes);
+                clearUnmatchedMappings(c);
                 EpgChangeNotifications.Notification sourceNotification = EpgChangeNotifications.create(c,
                         EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(sourceId), programmes.keySet(), identities);
                 MappingResult mapping = mapChannelsInTransaction(c, uniqueMatches, now, false, processedMappings, false);
@@ -218,6 +222,7 @@ public final class EpgCacheDb {
         c.setAutoCommit(false);
         try {
             replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt, processed);
+            clearUnmatchedMappings(c);
             EpgChangeNotifications.Notification notification = EpgChangeNotifications.create(c,
                     EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(sourceId), programmes.keySet(), identities);
             c.commit();
@@ -415,14 +420,23 @@ public final class EpgCacheDb {
                 List<Link> links = previous;
                 if (!sameSignature) {
                     links = resolveLinks(match, previous, queries);
-                    if (!previous.equals(links)) {
-                        changed = true;
-                        changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
-                                match.identity().accountId(), match.identity().providerId()));
+                    List<Link> persistedLinks = links.isEmpty()
+                            ? List.of(new Link(match.identity().signature(), UNMATCHED_SOURCE_ID, "", Integer.MAX_VALUE, Set.of()))
+                            : links;
+                    if (!previous.equals(persistedLinks)) {
+                        boolean onlyNegativeResult = persistedLinks.size() == 1
+                                && UNMATCHED_SOURCE_ID.equals(persistedLinks.getFirst().source());
+                        boolean hadVisibleMapping = previous.stream()
+                                .anyMatch(prior -> !UNMATCHED_SOURCE_ID.equals(prior.source()));
+                        if (!onlyNegativeResult || hadVisibleMapping) {
+                            changed = true;
+                            changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
+                                    match.identity().accountId(), match.identity().providerId()));
+                        }
                         delete.setString(1, match.identity().accountId());
                         delete.setString(2, match.identity().providerId());
                         delete.addBatch();
-                        for (Link link : links) {
+                        for (Link link : persistedLinks) {
                             insert.setString(1, match.identity().accountId());
                             insert.setString(2, match.identity().providerId());
                             insert.setString(3, link.signature());
@@ -458,6 +472,13 @@ public final class EpgCacheDb {
         }
     }
 
+    private static void clearUnmatchedMappings(Connection connection) throws SQLException {
+        try (var statement = connection.prepareStatement("DELETE FROM epg_channel_mapping WHERE source_id=?")) {
+            statement.setString(1, UNMATCHED_SOURCE_ID);
+            statement.executeUpdate();
+        }
+    }
+
     private static boolean hasUsableProgramme(PreparedStatement query, List<Link> links, long now)
             throws SQLException {
         for (Link link : links) {
@@ -488,6 +509,10 @@ public final class EpgCacheDb {
             while (rows.next()) {
                 String source = rows.getString(2);
                 String guide = rows.getString(3);
+                if (UNMATCHED_SOURCE_ID.equals(source)) {
+                    previous.add(new Link(rows.getString(1), source, guide, rows.getInt(4), Set.of()));
+                    continue;
+                }
                 previous.add(new Link(rows.getString(1), source, guide, rows.getInt(4),
                         EpgTerritory.sourceCountries(queries.declaredCountries().get(source), source, guide)));
             }

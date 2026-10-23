@@ -8,6 +8,9 @@ import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.util.zip.GZIPOutputStream;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -79,6 +82,29 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         assertEquals(60_000, schedule.getFirst().stop() - schedule.getFirst().start());
         assertEquals("é".repeat(2048), schedule.getFirst().description());
         assertTrue(parsed.estimatedBytes() < 1024 * 1024);
+    }
+
+    @Test void comprehensiveEpgshareFeedUsesBoundedDiskBackedStorageAboveTheNormalProgrammeLimit() throws Exception {
+        var formatter = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC);
+        var source = tempDir.resolve("epg_ripper_ALL_SOURCES1.xml.gz");
+        try (var gzip = new GZIPOutputStream(Files.newOutputStream(source));
+             var writer = new BufferedWriter(new OutputStreamWriter(gzip, java.nio.charset.StandardCharsets.UTF_8))) {
+            writer.write("<tv>");
+            Instant start = Instant.now();
+            for (int index = 0; index < 200_001; index++) {
+                writer.write("<programme channel='station' start='");
+                writer.write(formatter.format(start.plusSeconds(index)));
+                writer.write("'><title>Show ");
+                writer.write(Integer.toString(index));
+                writer.write("</title></programme>");
+            }
+            writer.write("</tv>");
+        }
+        try (XmltvGuide guide = new EpgApplicationService().downloadSource(source.toString())) {
+            assertEquals(1, guide.programmes().size());
+            assertTrue(guide.estimatedBytes() < 2 * 1024 * 1024,
+                    "Schedules should stay in compressed disk-backed storage until requested");
+        }
     }
 
     @Test void multipleLargeFeedsPersistWithoutRetainingParsedGuides() throws Exception {

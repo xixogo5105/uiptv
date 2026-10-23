@@ -82,25 +82,15 @@ test('web EPG is read-only from desktop settings with no header status or toggle
   assert.match(source, /fetch\(window\.location\.origin \+ '\/config', \{cache: 'no-store'\}\)/);
   assert.ok(html.includes("cardProgramme(bookmark, 'epgNow')"));assert.ok(html.includes("cardProgramme(channel, 'epgNext')"));assert.ok(html.includes('cardProgrammeProgress'));
 });
-test('full-EPG web headers and rows use matching fractional tracks that leave room for gaps', () => {
+test('full-EPG web keeps the original stacked Now and Next cards', () => {
   const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
-  const header = css.match(/\.epg-column-header\s*\{[^}]*grid-template-columns:\s*([^;]+);/s)?.[1];
-  const row = css.match(/\.epg-row-card\s*\{[^}]*grid-template-columns:\s*([^;]+);/s)?.[1];
-  assert.ok(header); assert.ok(row);
-  assert.equal(header, row, 'the header labels must align with every EPG row');
-  assert.match(header, /minmax\(0,\s*1\.1fr\)\s+minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/);
-  assert.doesNotMatch(header, /%/, 'percentage tracks plus grid gaps can exceed the content width');
-  const narrow = css.match(/@media\s*\(max-width:\s*760px\)\s*\{[^}]*\.epg-column-header,[^}]*\.epg-row-card\s*\{[^}]*grid-template-columns:\s*([^;]+);/s)?.[1];
-  assert.ok(narrow);
-  assert.match(narrow, /minmax\(0,\s*\.8fr\)\s+minmax\(0,\s*1fr\)/);
-  assert.doesNotMatch(narrow, /%/);
-  assert.match(css, /\.epg-column-header,\s*\.epg-row-card\s*\{\s*gap:\s*8px;/,
-    'the narrowest breakpoint must keep header and row gaps aligned');
   const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
-  assert.match(html, /class="epg-column-header"/);
-  assert.match(html, /class="epg-now-column"/);
-  assert.match(html, /class="epg-next-column"/);
-  assert.match(html, /class="epg-info-button"/);
+  assert.match(html, /class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && isLiveBookmark\(bookmark\)"/);
+  assert.match(html, /\{\{ epgLabels\.epgNow \|\| 'Now' \}\}: \{\{ cardProgramme\(bookmark, 'epgNow'\)\.title \}\}/);
+  assert.match(html, /\{\{ epgLabels\.epgNext \|\| 'Next' \}\}: \{\{ cardProgramme\(bookmark, 'epgNext'\)\.title \}\}/);
+  assert.match(html, /class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && contentMode === 'itv'"/);
+  assert.doesNotMatch(html, /epg-column-header|epg-row-card|epg-now-column|epg-next-column/);
+  assert.doesNotMatch(css, /epg-column-header|epg-row-card|full-epg-mode/);
 });
 test('switching EPG off invalidates an already completed but unread player response',async()=>{
   const {context}=harness();context.applyDesktopEpgSetting(true);
@@ -169,27 +159,22 @@ test('HTTP configuration failures keep the last desktop setting',async()=>{
   await context.loadConfig();assert.equal(context.epgEnabled.value,true);
 });
 
-test('card summaries use only real programme data and never synthesize guide text or time',()=>{
- const context={Vue:{}, createApp(){}, ref:value=>({value}), epgTime:{value:new Date('2026-10-16T12:30:00Z').getTime()}};
+test('card summaries restore the full-card missing-programme placeholders from main',()=>{
+ const context={Vue:{}, createApp(){}, ref:value=>({value}), epgLabels:{value:{epgNoProgrammeDetails:'No programme details'}}, epgTime:{value:new Date('2026-10-16T12:30:00Z').getTime()}};
  vm.createContext(context);
  vm.runInContext(functionSource('const cardProgramme =','const isLiveBookmark =')+'this.cardProgramme=cardProgramme;this.cardProgrammeProgress=cardProgrammeProgress;this.cardProgrammeTime=cardProgrammeTime;',context);
  const item={epgNow:{title:'Current',start:context.epgTime.value-1800000,stop:context.epgTime.value+1800000}};
  assert.equal(context.cardProgrammeProgress(item),0.5);
- assert.equal(context.cardProgramme({},'epgNow'),null);assert.equal(context.cardProgrammeTime(null),'');
+ assert.equal(context.cardProgramme({},'epgNow').title,'No programme details');
+ assert.equal(context.cardProgramme({},'epgNext').title,'No programme details');
+ assert.ok(context.cardProgrammeTime(context.cardProgramme({},'epgNow')).includes(' – '));
  assert.ok(context.cardProgrammeTime(item.epgNow).includes(' – '));
- assert.equal(context.cardProgramme(item,'epgNext'),null);assert.equal(context.cardProgrammeProgress({}),0);
+ assert.equal(context.cardProgramme(item,'epgNext').title,'No programme details');assert.equal(context.cardProgrammeProgress({}),0.5);
 });
 
-test('EPG row cells distinguish missing current data from a missing guide and keep Next aligned',()=>{
- const {context}=harness();
- assert.equal(context.cardNowStatus({epgLoaded:true,epgNext:{title:'Upcoming'}}),'—');
- assert.equal(context.cardNowStatus({epgLoaded:true}),context.epgLabels.value.epgNoGuide);
- assert.equal(context.cardNowStatus({epgLoaded:true,epgUnavailable:true}),context.epgLabels.value.epgSourceUnavailable);
- assert.equal(context.cardNowStatus({epgLoaded:true,epgSourceStatus:'STALE',epgNext:{title:'Upcoming'}}),context.epgLabels.value.epgSourceStale);
+test('missing guide details keep both Now and Next blocks in web cards',()=>{
  const html=fs.readFileSync('api-server/src/main/resources/web/index.html','utf8');
- const css=fs.readFileSync('api-server/src/main/resources/web/css/spa.css','utf8');
- assert.equal((html.match(/epg-next-column epg-next-empty/g)||[]).length,2);
- assert.ok(css.includes('.epg-column-header'));
- assert.ok(css.includes('@media (max-width: 760px)'));
- assert.ok(css.includes('.epg-row-card .epg-next-column { display: none; }'));
+ assert.equal((html.match(/cardProgramme\((?:bookmark|channel), 'epgNow'\)\.title/g)||[]).length,4);
+ assert.equal((html.match(/cardProgramme\((?:bookmark|channel), 'epgNext'\)\.title/g)||[]).length,4);
+ assert.equal((html.match(/cardProgrammeProgress\((?:bookmark|channel)\)/g)||[]).length,2);
 });

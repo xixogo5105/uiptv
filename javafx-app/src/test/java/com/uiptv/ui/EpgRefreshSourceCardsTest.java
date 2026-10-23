@@ -106,7 +106,7 @@ class EpgRefreshSourceCardsTest extends DbBackedUiTest {
                 cards.update(List.of(source("one", "Saving", "Processed 52,779 programmes.")));
                 cards.update(List.of(source("one", "Saved", "Processed 52,779 programmes.")));
                 cards.update(List.of(source("one", "Completed", "Imported 52,779 programmes; 3,570 cached channels have current or upcoming guide data. Full results must wrap inside the card."),
-                        source("two", "No matches", "Downloaded 0 programmes, but none matched cached channels with current or upcoming guide data.")));
+                        source("two", "No matches", "The source downloaded successfully, but it contains no current or upcoming programmes.")));
                 var bar = new com.uiptv.widget.SegmentedProgressBar(); bar.setTotal(13);
                 var progressRow = new javafx.scene.layout.HBox(14, new javafx.scene.control.Label("13 of 13 sources completed"), bar);
                 javafx.scene.layout.HBox.setHgrow(bar, javafx.scene.layout.Priority.ALWAYS); bar.setMinWidth(0);

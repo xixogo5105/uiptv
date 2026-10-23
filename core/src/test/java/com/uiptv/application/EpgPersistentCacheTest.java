@@ -31,6 +31,36 @@ class EpgPersistentCacheTest extends DbBackedTest {
     private EpgCacheDb.Match match(EpgCacheDb.Identity id,String guide,List<String> sources) { return new EpgCacheDb.Match(id,guide,"","",true,sources,""); }
     private String title(EpgCacheDb.Identity id,long now) { return db.summaries(List.of(id),now).get(id).getFirst().title(); }
     private void source(String id,String channel,List<EpgProgramme> programmes,long now) { db.replaceSource(id,Map.of(channel,programmes),Map.of(),Map.of(),now,now+7_200_000); }
+
+    @Test void unchangedUnmatchedChannelsAreRememberedUntilGuideSourceChanges() throws Exception {
+        long now = System.currentTimeMillis();
+        var identity = new EpgCacheDb.Identity("negative-cache-account", "negative-cache-channel", "same-signature");
+        source("negative-cache-source", "unrelated-guide", List.of(p("Unrelated", now - 1_000, now + 3_600_000)), now);
+        var unmatched = new EpgCacheDb.Match(identity, "", "News Channel", "NewsChannel", false,
+                List.of("negative-cache-source"), "");
+
+        assertFalse(db.mapChannels(List.of(unmatched), now, true));
+        try (var connection = SQLConnection.connect(); var query = connection.prepareStatement(
+                "SELECT COUNT(*) FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=?")) {
+            query.setString(1, identity.accountId());
+            query.setString(2, identity.providerId());
+            try (var rows = query.executeQuery()) {
+                assertTrue(rows.next());
+                assertEquals(1, rows.getInt(1), "A no-match result needs a persisted signature so polling does not repeat name matching.");
+            }
+        }
+        assertFalse(db.mapChannels(List.of(unmatched), now + 1, true),
+                "The same unmatched identity must reuse its persisted negative result.");
+
+        db.replaceSource("negative-cache-source",
+                Map.of("news-guide", List.of(p("Evening News", now - 1_000, now + 3_600_000))),
+                Map.of("News Channel", "news-guide"), Map.of("News Channel", "news-guide"), Map.of(),
+                now + 1, now + 7_200_000);
+        assertTrue(db.mapChannels(List.of(unmatched), now + 1, true),
+                "Replacing guide data must invalidate remembered no-match results.");
+        assertEquals("Evening News", title(identity, now + 1));
+    }
+
     private Path xml(String filename,String title) throws Exception {
         Path path=tempDir.resolve(filename); long now=System.currentTimeMillis();
         var format=DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC);
@@ -176,7 +206,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals("Cached title", cache.schedule(account, channel).getFirst().title());
     }
 
-    @Test void visibleNewAccountChannelsLoadWithoutWaitingForBulkCatalogueRotation() throws Exception {
+    @Test void cardSummariesStayCacheOnlyUntilAnExplicitRefresh() throws Exception {
         var account = account("visible-new-account");
         account.setEpg(xml("visible-new.xml", "Visible programme").toString());
         AccountDb.get().save(account);
@@ -184,7 +214,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         account.setAction(Account.AccountAction.itv);
         var channel = channel("station", "Station");
         // This channel is deliberately absent from the cached catalogue and bookmarks.
-        // Only the visible summary request can make the importer visit it.
+        // Reading a card summary must not implicitly trigger source import work.
         try (var _ = EpgCacheRefreshService.pauseForCatalogueReload()) {
             EpgCacheRefreshService.start();
             assertTrue(new LiveGuideApplicationService().cachedSummaries(List.of(
@@ -192,7 +222,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
                     .getFirst().programmes().isEmpty());
             assertTrue(cache.schedule(account, channel).isEmpty());
         }
-        refresh.refreshDue();
+        refresh.refreshAccount(account, List.of(channel));
         assertEquals("Visible programme", cache.schedule(account, channel).getFirst().title());
     }
 
@@ -210,6 +240,19 @@ class EpgPersistentCacheTest extends DbBackedTest {
             refresh.refreshDue();
             assertTrue(nativeService.constructed().isEmpty(),
                     "The scheduled account refresh must not call Stalker EPG per channel");
+        }
+    }
+
+    @Test void scheduledRefreshSkipsCataloguesWithoutAnyGuideSource() {
+        var account = account("no-guide-source");
+        AccountDb.get().save(account);
+        var channelDb = mock(ChannelDb.class);
+        try (var channelDbStatic = mockStatic(ChannelDb.class)) {
+            channelDbStatic.when(ChannelDb::get).thenReturn(channelDb);
+
+            refresh.refreshDue();
+
+            verify(channelDb, never()).getCachedLiveChannels(anyString());
         }
     }
 

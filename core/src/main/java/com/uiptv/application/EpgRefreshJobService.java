@@ -213,9 +213,9 @@ public final class EpgRefreshJobService {
                 for (SourceWork source : sources.values()) {
                     if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                     try {
-                        XmltvGuide guide = epg.downloadSource(source.source,
+                        try (XmltvGuide guide = epg.downloadSource(source.source,
                                 phase -> job.update(source, phase, ""),
-                                bytes -> job.update(source, "Parsing", I18n.tr("epgRefreshReadBytesDetail", readableBytes(bytes))));
+                                bytes -> job.update(source, "Parsing", I18n.tr("epgRefreshReadBytesDetail", readableBytes(bytes))))) {
                         if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                         long now = System.currentTimeMillis();
                         long retryAt = now + EpgCacheRefreshService.refreshMillis();
@@ -231,6 +231,7 @@ public final class EpgRefreshJobService {
                         if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                         imported.add(new SuccessfulSource(source, programmes.get()));
                         job.sourceImported(source, programmes.get());
+                        }
                     } catch (InterruptedException cancelled) {
                         throw cancelled;
                     } catch (Exception error) {
@@ -263,8 +264,11 @@ public final class EpgRefreshJobService {
                             int matched = mapping == null ? 0
                                     : mapping.mappedBySource().getOrDefault(success.source().id, 0);
                             if (matched == 0) {
+                                String detail = success.programmes() == 0
+                                        ? I18n.tr("epgRefreshNoCurrentProgrammesDetail")
+                                        : I18n.tr("epgRefreshNoMatchesDetail", success.programmes());
                                 job.sourceFinished(success.source(), "No matches",
-                                        I18n.tr("epgRefreshNoMatchesDetail", success.programmes()), success.programmes(), 0);
+                                        detail, success.programmes(), 0);
                             } else {
                                 job.sourceFinished(success.source(), "Completed",
                                         I18n.tr("epgRefreshImportedDetail", success.programmes(), matched),

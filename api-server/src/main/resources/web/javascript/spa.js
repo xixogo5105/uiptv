@@ -22,18 +22,22 @@ createApp({
         const epgEnabled = ref(false);
         const epgPlaybackOnly = ref(false);
         const webPlaybackProxyEnabled = ref(true);
-        const epgLabels = ref({});
+        const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
         const epgLabel = key => epgLabels.value?.[key] || '';
         const epgTime = ref(Date.now());
-        const cardProgramme = (item, slot) => item?.[slot] || null;
+        const cardProgramme = (item, slot) => {
+            if (item[slot]) return item[slot];
+            const hour = new Date(epgTime.value); hour.setMinutes(0, 0, 0);
+            const start = slot === 'epgNext' ? (item.epgNow?.stop || hour.getTime() + 3600000) : hour.getTime();
+            return {title: epgLabels.value.epgNoProgrammeDetails || 'No programme details', start, stop: start + 3600000};
+        };
         const cardProgrammeTime = programme => {
-            if (!programme || !(programme.stop > programme.start)) return '';
             const time = value => new Date(value).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
             return `${time(programme.start)} – ${time(programme.stop)}`;
         };
         const cardProgrammeProgress = item => {
             const programme = cardProgramme(item, 'epgNow');
-            return programme && programme.stop > programme.start ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : 0;
+            return programme.stop > programme.start ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : 0;
         };
         const cardEpgExpandedKey = ref('');
         const cardEpgDetails = ref({key: '', loading: false, error: false, programmes: []});

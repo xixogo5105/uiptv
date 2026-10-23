@@ -1005,9 +1005,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
                     INLINE_INDICATOR_RIGHT_MARGIN,
                     0,
                     Math.max(0, INLINE_INDICATOR_GAP - inlineRow.getSpacing())));
-            // Keep the hover-only action at the leading edge of the trailing icons. Bookmarked
-            // cards nest the action and bookmark in a title-action group, so the playing marker
-            // must be inserted between them: left-to-right ..., recording, bookmark.
+            // Keep the hover-only action at the leading edge of the trailing icons. Place the
+            // playing marker immediately before the bookmark so the marker never covers it.
             if (insertIndicatorBetweenTrailingActions(inlineRow, indicator)) {
                 if (indicator.getParent().getStyleClass().contains(CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS)) {
                     HBox.setMargin(indicator, Insets.EMPTY);

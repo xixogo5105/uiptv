@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.uiptv.mobile.shared.epg.*
 import com.uiptv.mobile.shared.i18n.MobileMessages
 import kotlinx.coroutines.launch
@@ -203,7 +204,6 @@ internal fun MobileEpgSettings() {
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) {
     val state = LocalEpgState.current
     if (!state.enabled || state.playbackOnly) return
@@ -222,52 +222,33 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
     }
     val now = result?.now(state.time)?.takeIf { it.hasProgrammeInformation() }
     val next = result?.next(state.time)?.takeIf { it.hasProgrammeInformation() }
-    val nowStatus = mobileEpgNowStatus(result, now, next)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            when {
-                now != null -> {
-                    Text("${MobileMessages.text("epgNow")} · ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyMedium)
-                    Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start).coerceAtLeast(1)).coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth())
-                }
-                result == null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                    Text(MobileMessages.text("epgLoading"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                else -> Text(nowStatus.orEmpty(), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            mobileEpgSourceStatus(result, now, next)?.let { status ->
-                Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (next != null) Text("${MobileMessages.text("epgNext")} · ${next.title} · ${programmeTime(next.start)}", maxLines = 1,
-                overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (now != null) {
+            Text("${MobileMessages.text("epgNow")}: ${now.title}", maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium)
+            Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelMedium)
+            LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start).coerceAtLeast(1)).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth())
+        } else Text(if (result == null) MobileMessages.text("epgLoading") else MobileMessages.text("epgMobileNoGuide"),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        mobileEpgSourceStatus(result, now, next)?.let { status ->
+            Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        IconButton(onClick = { details = true }, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Outlined.Info, contentDescription = MobileMessages.text("epgProgrammeDetails"),
-                tint = MaterialTheme.colorScheme.primary)
+        if (next != null) Text("${MobileMessages.text("epgNext")}: ${next.title} · ${programmeTime(next.start)}", maxLines = 2,
+            overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) {
+            Text(MobileMessages.text("epgMobileProgrammeGuide"))
         }
     }
-    if (details) {
-        ModalBottomSheet(onDismissRequest = { details = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Column(Modifier.fillMaxWidth().fillMaxHeight(0.82f).padding(horizontal = 20.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(name, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(MobileMessages.text("epgMobileProgrammeGuide"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+    if (details) Dialog(onDismissRequest = { details = false }) {
+        Surface(shape = MaterialTheme.shapes.large) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(16.dp)) {
+                MobileScreenHeader(name, MobileMessages.text("epgMobileProgrammeGuide")) {
                     IconButton(onClick = { details = false }) {
                         Icon(Icons.Outlined.Close, contentDescription = MobileMessages.text("commonClose"))
                     }
                 }
-                ProgrammeSchedule(result, Modifier.weight(1f).padding(top = 12.dp))
+                ProgrammeSchedule(result, Modifier.weight(1f, fill = false))
             }
         }
     }

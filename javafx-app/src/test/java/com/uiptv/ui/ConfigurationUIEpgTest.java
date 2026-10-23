@@ -24,6 +24,15 @@ class ConfigurationUIEpgTest extends DbBackedUiTest {
             ConfigurationUI ui = new ConfigurationUI(null);
             SwitchToggle enabled = (SwitchToggle) field(ui, "epgEnabledSwitch");
             TextArea source = (TextArea) field(ui, "globalEpgSourceField");
+            assertEquals(6, source.getPrefRowCount());
+            try {
+                var sourceRow = ConfigurationUI.class.getDeclaredMethod("buildEpgSourceRow");
+                sourceRow.setAccessible(true);
+                var row = (javafx.scene.layout.VBox) sourceRow.invoke(ui);
+                assertSame(source, row.getChildren().get(1));
+            } catch (ReflectiveOperationException error) {
+                throw new AssertionError(error);
+            }
             var interval=(javafx.scene.control.ComboBox<Integer>)field(ui,"epgSchedulerIntervalComboBox");
             assertEquals(5,interval.getValue()); assertFalse(interval.isDisabled()); interval.setValue(10);
             assertTrue(ConfigurationUI.themeHelpText().contains(com.uiptv.util.I18n.tr("configEpgSchedulerIntervalHelp")));

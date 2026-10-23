@@ -906,7 +906,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private VBox buildEpgSettingsGroup() {
-        globalEpgSourceField.setPrefRowCount(4);
+        globalEpgSourceField.setPrefRowCount(6);
         globalEpgSourceField.setPromptText(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
         globalEpgSourceField.setTooltip(new Tooltip(I18n.tr(CONFIG_GLOBAL_EPG_HELP)));
         epgSchedulerIntervalComboBox.getItems().setAll(1, 2, 3, 5, 10, 15, 30, 60);
@@ -953,17 +953,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private Node buildEpgSourceRow() {
-        Button browse = new Button(I18n.tr("autoBrowse"));
-        browse.setOnAction(_ -> {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle(I18n.tr("configGlobalEpgSource"));
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("XMLTV", "*.xml", "*.xmltv", "*.gz"));
-            java.io.File file = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
-            if (file != null) globalEpgSourceField.setText(globalEpgSourceField.getText().isBlank() ? file.getAbsolutePath() : globalEpgSourceField.getText().strip() + "\n" + file.getAbsolutePath());
-        });
-        HBox row = new HBox(8, globalEpgSourceField, browse);
-        HBox.setHgrow(globalEpgSourceField, Priority.ALWAYS);
-        return createStackedSettingControlRow("configGlobalEpgSource", row);
+        return createStackedSettingControlRow("configGlobalEpgSource", globalEpgSourceField);
     }
 
     private Node createStackedSettingControlRow(String labelKey, Region control) {

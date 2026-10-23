@@ -62,17 +62,6 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                     Account account = new Account(); account.setDbId("local-account");
                     ChannelListUI channels = new ChannelListUI(account, "All", "all", Account.AccountAction.itv);
                     BookmarkChannelListUI bookmarks = new BookmarkChannelListUI(null, null);
-                    if (enabled) {
-                        invoke(channels, "updateResponsiveEpgLayout", new Class<?>[]{double.class}, 640.0);
-                        GridPane header = (GridPane) field(channels, "epgColumnHeader").get(channels);
-                        assertEquals(4, header.getColumnConstraints().size());
-                        assertFalse(header.getChildren().get(2).isManaged());
-                        assertEquals(8, header.getColumnConstraints().get(3).getPercentWidth());
-                        invoke(channels, "updateResponsiveEpgLayout", new Class<?>[]{double.class}, 900.0);
-                        assertEquals(4, header.getColumnConstraints().size());
-                        assertTrue(header.getChildren().get(2).isManaged());
-                        assertEquals(8, header.getColumnConstraints().get(3).getPercentWidth());
-                    }
                     var bookmark = new BookmarkChannelListUI.BookmarkItem(new SimpleStringProperty("bookmark"), new SimpleStringProperty("Cinema"),
                             new SimpleStringProperty("provider-id"), new SimpleStringProperty("cmd"), new SimpleStringProperty("Account"),
                             new SimpleStringProperty("All"), new SimpleStringProperty(""), new SimpleStringProperty("Cinema (Account)"),
@@ -86,23 +75,19 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                             assertNotNull(card); assertNotNull(saved);
                             assertEquals(enabled, card.lookup(".virtual-card-epg") != null);
                             assertEquals(enabled, saved.lookup(".virtual-card-epg") != null);
-                            assertEquals(enabled, saved.getStyleClass().contains("epg-programme-aware-row"),
-                                    "Live bookmarks use the programme-aware row only in full EPG mode.");
-                            if (enabled) assertNotNull(saved.lookup(".epg-programme-columns"));
+                            assertFalse(card.getStyleClass().contains("epg-programme-aware-row"));
+                            assertFalse(saved.getStyleClass().contains("epg-programme-aware-row"));
                             if (enabled) {
-                                assertEquals(4, ((GridPane) card).getColumnConstraints().size());
                                 Node bookmarkGlyph = card.lookup(".channel-bookmark-glyph");
                                 assertNotNull(bookmarkGlyph, "Bookmarked EPG channels keep their bookmark indicator.");
-                                Node bookmarkCell = bookmarkGlyph;
-                                while (bookmarkCell.getParent() != null && bookmarkCell.getParent() != card) {
-                                    bookmarkCell = bookmarkCell.getParent();
+                                assertNotNull(card.lookup(".epg-card-header"), "EPG details stay inside the full virtual card.");
+                                assertInstanceOf(VBox.class, card.lookup(".virtual-card-epg"));
+                                assertInstanceOf(VBox.class, saved.lookup(".virtual-card-epg"));
+                                if (thumbnails) {
+                                    assertNotNull(saved.lookup(".epg-card-header"), "Bookmark EPG details stay inside the full virtual card.");
+                                } else {
+                                    assertSame(saved, saved.lookup(".virtual-card-epg").getParent());
                                 }
-                                assertSame(card, bookmarkCell.getParent(),
-                                        "The bookmark action is a direct child of its EPG row.");
-                                assertEquals(3, GridPane.getColumnIndex(bookmarkCell),
-                                        "The bookmark indicator sits in the trailing row column.");
-                                assertEquals(2, GridPane.getColumnSpan(card.lookup(".virtual-card-epg")),
-                                        "Now and Next occupy the two guide columns.");
                             }
                             ContextMenu menu = (ContextMenu) invoke(channels, "createChannelContextMenu",
                                     new Class<?>[]{ChannelListUI.ChannelItem.class, List.class, Node.class}, item, List.of(item), card);
@@ -116,19 +101,24 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                                 assertTrue(panel.isManaged()); assertTrue(panel.isVisible()); assertTrue(card.isManaged());
                                 if (panel instanceof HBox columns) {
                                     assertEquals(1, columns.getChildren().size(),
-                                            "An empty guide uses one centered message instead of separate Now and Next placeholders.");
+                                            "An empty guide uses one message in the first programme column.");
                                     Label placeholder = (Label) columns.getChildren().getFirst();
                                     assertEquals(I18n.tr("epgNoGuide"), placeholder.getText());
-                                    assertEquals(javafx.geometry.Pos.CENTER, columns.getAlignment());
-                                    assertTrue(placeholder.getStyleClass().contains("epg-programme-placeholder"));
+                                    assertEquals(javafx.geometry.Pos.CENTER_LEFT, columns.getAlignment());
+                                    assertTrue(placeholder.getStyleClass().contains("virtual-card-epg-title"));
+                                    assertEquals(javafx.geometry.Pos.CENTER_LEFT, placeholder.getAlignment());
                                     assertFalse(panel.lookup(".progress-bar") instanceof ProgressBar);
                                 } else {
-                                    assertEquals(2, panel.getChildren().size());
-                                    assertEquals(I18n.tr("epgNoGuide"),
-                                            ((Label) ((VBox) panel.getChildren().getFirst()).getChildren().getFirst()).getText());
-                                    assertEquals(I18n.tr("epgNoGuide"),
-                                            ((Label) ((VBox) panel.getChildren().getLast()).getChildren().getFirst()).getText());
-                                    assertTrue(panel.lookup(".progress-bar") == null);
+                                    assertEquals(3, panel.getChildren().size());
+                                    VBox nowColumn = (VBox) panel.getChildren().getFirst();
+                                    VBox nextColumn = (VBox) panel.getChildren().getLast();
+                                    assertEquals(I18n.tr("epgNow") + ": " + I18n.tr("epgNoProgrammeDetails"),
+                                            ((Label) nowColumn.getChildren().getFirst()).getText());
+                                    assertEquals(I18n.tr("epgNext") + ": " + I18n.tr("epgNoProgrammeDetails"),
+                                            ((Label) nextColumn.getChildren().getFirst()).getText());
+                                    assertNotNull(nowColumn.lookup(".epg-programme-time"), "The placeholder keeps its time range.");
+                                    assertNotNull(nextColumn.lookup(".epg-programme-time"), "The next placeholder keeps its time range.");
+                                    assertInstanceOf(ProgressBar.class, panel.lookup(".progress-bar"));
                                 }
                                 long now = System.currentTimeMillis();
                                 CardEpgSupport.display(panel, new EpgProgramme("Current film", "", now - 60_000, now + 60_000),

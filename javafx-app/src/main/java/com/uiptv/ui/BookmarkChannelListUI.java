@@ -545,8 +545,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         pageScroll.setFocusTraversable(false);
         pageScroll.setMinSize(0, 0);
         pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        pageScroll.viewportBoundsProperty().addListener((_, _, bounds) ->
-                cardEpg.setCompactProgrammeRows(bounds.getWidth() > 0 && bounds.getWidth() < 760));
         VBox.setVgrow(pageScroll, Priority.ALWAYS);
 
         configureListPanel(pageScroll);
@@ -842,10 +840,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private Region createBookmarkCard(BookmarkItem item) {
-        if (item != null && item.getAccountAction() == Account.AccountAction.itv
-                && EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
-            return trackBookmarkEpg(createEpgProgrammeRow(item), item);
-        }
         if (!thumbnailsEnabled) {
             return trackBookmarkEpg(createPlainTextBookmarkCard(item), item);
         }
@@ -859,67 +853,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 isDrmProtected(item),
                 createBookmarkTrailingActions(item)
         ), item);
-    }
-
-    private Region createEpgProgrammeRow(BookmarkItem item) {
-        GridPane row = new GridPane();
-        row.getStyleClass().addAll("bookmark-card", "bookmark-epg-row", "epg-programme-aware-row");
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(6, 12, 6, 12));
-        row.setMinWidth(0);
-        row.setMaxWidth(Double.MAX_VALUE);
-        row.setMinHeight(70);
-        ColumnConstraints channelColumn = new ColumnConstraints();
-        channelColumn.setPercentWidth(36);
-        channelColumn.setMinWidth(0);
-        ColumnConstraints programmeColumn = new ColumnConstraints();
-        programmeColumn.setPercentWidth(56);
-        programmeColumn.setMinWidth(0);
-        programmeColumn.setHgrow(Priority.ALWAYS);
-        ColumnConstraints actionsColumn = new ColumnConstraints();
-        actionsColumn.setPercentWidth(8);
-        actionsColumn.setMinWidth(68);
-        row.getColumnConstraints().setAll(channelColumn, programmeColumn, actionsColumn);
-
-        HBox channel = new HBox(10);
-        channel.setAlignment(Pos.CENTER_LEFT);
-        channel.setMinWidth(0);
-        channel.setMaxWidth(Double.MAX_VALUE);
-        if (thumbnailsEnabled) {
-            AsyncImageView logo = new AsyncImageView();
-            logo.loadImage(item.getLogo(), BOOKMARK_CACHE);
-            channel.getChildren().add(logo);
-        }
-        VBox labels = new VBox(3);
-        labels.setMinWidth(0);
-        labels.setMaxWidth(Double.MAX_VALUE);
-        Label title = new Label(HtmlEntityDecoder.decode(Objects.toString(item.getChannelName(), "")));
-        title.getStyleClass().add("bookmark-channel-title");
-        title.setMinWidth(0);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setTextOverrun(OverrunStyle.ELLIPSIS);
-        labels.getChildren().add(title);
-        String accountName = bookmarkAccountName(item);
-        if (!accountName.isBlank()) {
-            Label account = new Label(HtmlEntityDecoder.decode(accountName));
-            account.getStyleClass().add("bookmark-channel-account");
-            account.setMinWidth(0);
-            account.setMaxWidth(Double.MAX_VALUE);
-            account.setTextOverrun(OverrunStyle.ELLIPSIS);
-            labels.getChildren().add(account);
-        }
-        HBox.setHgrow(labels, Priority.ALWAYS);
-        channel.getChildren().add(labels);
-        if (isDrmProtected(item)) channel.getChildren().add(createPlainTextDrmBadge());
-        row.add(channel, 0, 0);
-        GridPane.setHgrow(channel, Priority.ALWAYS);
-        GridPane.setVgrow(channel, Priority.ALWAYS);
-
-        HBox actions = createBookmarkTrailingActions(item);
-        row.add(actions, 2, 0);
-        GridPane.setHgrow(actions, Priority.ALWAYS);
-        GridPane.setVgrow(actions, Priority.ALWAYS);
-        return row;
     }
 
     private HBox createBookmarkTrailingActions(BookmarkItem item) {
@@ -1066,19 +999,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyBookmarkGridDisplayMode(boolean thumbnailsEnabled) {
-        boolean programmeRows = EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
-                && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv);
-        bookmarkGrid.setSingleColumn(programmeRows);
-        if (programmeRows) {
-            // Full EPG rows need room for the channel name and Now/Next columns.
-            // The ordinary card width cap otherwise lays them out as a narrow grid.
-            bookmarkGrid.setCardWidthRange(180, 1800);
-            bookmarkGrid.setCardMinHeight(72);
-            bookmarkGrid.setGaps(0, 4);
-            return;
-        }
         // Plain-text cards use the same responsive column strategy as thumbnail cards;
         // only the card height and vertical gap differ between the two modes.
+        bookmarkGrid.setSingleColumn(false);
         bookmarkGrid.setCardWidthRange(255, 345);
         bookmarkGrid.setCardMinHeight(bookmarkCardHeight(thumbnailsEnabled));
         bookmarkGrid.setGaps(16, thumbnailsEnabled
