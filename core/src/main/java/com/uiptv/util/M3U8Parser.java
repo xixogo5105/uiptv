@@ -26,6 +26,7 @@ import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class M3U8Parser {
+    private static final Map<String, String> PLAYLIST_REQUEST_HEADERS = Map.of("User-Agent", "UIPTV");
     private static final String EXTINF = "#EXTINF";
     private static final String EXT_X_KEY = "#EXT-X-KEY";
     private static final String KODIPROP_INPUTSTREAM_ADDON = "#KODIPROP:inputstreamaddon=";
@@ -48,7 +49,7 @@ public class M3U8Parser {
         try {
             String source = normalizeSource(m3u8Source);
             if (isHttpSource(source)) {
-                HttpUtil.StreamResult response = HttpUtil.openStream(source, null, "GET", null, HttpUtil.RequestOptions.defaults());
+                HttpUtil.StreamResult response = openPlaylistStream(source);
                 try (response;
                      BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
                     return parseCategory(reader);
@@ -65,7 +66,7 @@ public class M3U8Parser {
     public static Set<PlaylistEntry> parseUriCategory(URI m3u8Uri) {
         try {
             if (isHttpUri(m3u8Uri)) {
-                HttpUtil.StreamResult response = HttpUtil.openStream(m3u8Uri.toString(), null, "GET", null, HttpUtil.RequestOptions.defaults());
+                HttpUtil.StreamResult response = openPlaylistStream(m3u8Uri.toString());
                 try (response;
                      BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
                     return parseCategory(reader);
@@ -111,7 +112,7 @@ public class M3U8Parser {
         try {
             String source = normalizeSource(m3u8Source);
             if (isHttpSource(source)) {
-                HttpUtil.StreamResult response = HttpUtil.openStream(source, null, "GET", null, HttpUtil.RequestOptions.defaults());
+                HttpUtil.StreamResult response = openPlaylistStream(source);
                 try (response;
                      BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
                     parseM3U8(reader, consumer);
@@ -129,7 +130,7 @@ public class M3U8Parser {
     public static void forEachChannelUriM3U8(URI m3u8Uri, Consumer<PlaylistEntry> consumer) {
         try {
             if (isHttpUri(m3u8Uri)) {
-                HttpUtil.StreamResult response = HttpUtil.openStream(m3u8Uri.toString(), null, "GET", null, HttpUtil.RequestOptions.defaults());
+                HttpUtil.StreamResult response = openPlaylistStream(m3u8Uri.toString());
                 try (response;
                      BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
                     parseM3U8(reader, consumer);
@@ -455,6 +456,17 @@ public class M3U8Parser {
     private static boolean isHttpUri(URI source) {
         String protocol = source == null ? "" : source.getScheme();
         return protocol != null && protocol.toLowerCase().startsWith("http");
+    }
+
+    private static HttpUtil.StreamResult openPlaylistStream(String source) throws IOException {
+        HttpUtil.StreamResult response = HttpUtil.openStream(
+                source, PLAYLIST_REQUEST_HEADERS, "GET", null, HttpUtil.RequestOptions.defaults());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            int status = response.statusCode();
+            response.close();
+            throw new IOException("M3U playlist request failed with HTTP " + status);
+        }
+        return response;
     }
 
     private static boolean isHttpSource(String source) {

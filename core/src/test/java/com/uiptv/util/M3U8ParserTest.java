@@ -148,7 +148,7 @@ class M3U8ParserTest {
         try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             httpUtil.when(() -> HttpUtil.openStream(
                             eq("https://playlist.test/live.m3u"),
-                            isNull(),
+                            eq(Map.of("User-Agent", "UIPTV")),
                             eq("GET"),
                             isNull(),
                             any(HttpUtil.RequestOptions.class)))
@@ -179,15 +179,37 @@ class M3U8ParserTest {
     }
 
     private static HttpUtil.StreamResult streamResult(String body) {
+        return streamResult(body, HttpUtil.STATUS_OK);
+    }
+
+    private static HttpUtil.StreamResult streamResult(String body, int statusCode) {
         return new HttpUtil.StreamResult(
                 "GET",
                 "https://playlist.test/live.m3u",
-                HttpUtil.STATUS_OK,
+                statusCode,
                 Map.of(),
                 Map.of(),
                 new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)),
                 mock(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse.class)
         );
+    }
+
+    @Test
+    void rejectsHttpErrorInsteadOfTreatingErrorPageAsEmptyPlaylist() {
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
+            httpUtil.when(() -> HttpUtil.openStream(
+                            eq("https://playlist.test/live.m3u"),
+                            eq(Map.of("User-Agent", "UIPTV")),
+                            eq("GET"),
+                            isNull(),
+                            any(HttpUtil.RequestOptions.class)))
+                    .thenAnswer(_ -> streamResult("<html>blocked</html>", 403));
+
+            UncheckedIOException error = assertThrows(UncheckedIOException.class,
+                    () -> M3U8Parser.parseChannelSourceM3U8("https://playlist.test/live.m3u"));
+
+            assertTrue(error.getCause().getMessage().contains("HTTP 403"));
+        }
     }
 
     @Test
