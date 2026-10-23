@@ -73,6 +73,20 @@ class M3U8ParserTest {
     }
 
     @Test
+    void parsesKodiPipeSeparatedHttpHeadersFromStreamUrls() throws IOException {
+        PlaylistEntry entry = parseContent("""
+                #EXTM3U
+                #EXTINF:-1 tvg-id="headers",Headers
+                https://example.test/live.m3u8|user-agent=Kodi%20Agent&referer=https://guide.example/
+                """).getFirst();
+
+        assertEquals("https://example.test/live.m3u8", entry.getPlaylistEntry());
+        assertEquals("Kodi%20Agent", ((Map<?, ?>) entry.getMetadata().get("extvlcopt")).get("http-user-agent"));
+        assertEquals("https://guide.example/", ((Map<?, ?>) entry.getMetadata().get("extvlcopt")).get("http-referrer"));
+        assertEquals("https://guide.example/", ((Map<?, ?>) entry.getMetadata().get("urlHeaders")).get("referer"));
+    }
+
+    @Test
     void mapsComClearKeyAlphaAndParsesClearKeys() throws IOException {
         String content = """
                 #EXTM3U
@@ -135,6 +149,57 @@ class M3U8ParserTest {
             assertTrue(categories.stream().anyMatch(entry -> "Sports".equals(entry.getGroupTitle())));
         } finally {
             Files.deleteIfExists(temp);
+        }
+    }
+
+    @Test
+    void retainsKodiPlaylistAttributesAndDirectivesAndUsesExtgrpForCategories() throws IOException {
+        String content = """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="guide.news" tvg-name="News HD" tvg-logo="https://example.test/logo.png" tvg-chno="101" tvg-shift="+1" radio="false" catchup="default" catchup-days="7",News
+                #EXTGRP:Documentary; Factual
+                #EXTVLCOPT:http-user-agent=Kodi test agent
+                #EXTVLCOPT:http-referrer=https://example.test/
+                #WEBPROP:inputstream.adaptive.manifest_type=hls
+                #EXT-X-PLAYLIST-TYPE:VOD
+                https://example.test/news.m3u8
+                #EXTINF:-1 tvg-id="guide.news2",News Two
+                https://example.test/news-2.m3u8
+                #EXTINF:-1 group-title="Sports",Sports
+                https://example.test/sports.m3u8
+                #EXTINF:-1,Uncategorized
+                https://example.test/uncategorized.m3u8
+                """;
+
+        List<PlaylistEntry> entries = parseContent(content);
+
+        assertEquals(6, entries.size());
+        assertEquals(Set.of("Documentary", "Factual", "Sports", CategoryType.UNCATEGORIZED.displayName()),
+                entries.stream().map(PlaylistEntry::getGroupTitle).collect(java.util.stream.Collectors.toSet()));
+        PlaylistEntry entry = entries.stream().filter(item -> "News".equals(item.getTitle())).findFirst().orElseThrow();
+        assertEquals(Set.of("Documentary", "Factual"), entries.stream().filter(item -> "News".equals(item.getTitle()) || "News Two".equals(item.getTitle()))
+                .map(PlaylistEntry::getGroupTitle).collect(java.util.stream.Collectors.toSet()));
+        assertEquals("guide.news", entry.getId());
+        assertEquals("101", entry.getMetadata().get("tvg-chno"));
+        assertEquals("News HD", entry.getMetadata().get("tvg-name"));
+        assertEquals("default", entry.getMetadata().get("catchup"));
+        assertEquals("Kodi test agent", ((Map<?, ?>) entry.getMetadata().get("extvlcopt")).get("http-user-agent"));
+        assertEquals("https://example.test/", ((Map<?, ?>) entry.getMetadata().get("extvlcopt")).get("http-referrer"));
+        assertEquals("hls", ((Map<?, ?>) entry.getMetadata().get("webprop")).get("inputstream.adaptive.manifest_type"));
+        assertEquals("VOD", entry.getMetadata().get("playlistType"));
+
+        Path categoryPlaylist = writeTempPlaylist("""
+                #EXTM3U
+                #EXTINF:-1,News
+                #EXTGRP:Documentary;Factual
+                https://example.test/news.m3u8
+                """);
+        try {
+            Set<String> groups = M3U8Parser.parsePathCategory(categoryPlaylist.toString()).stream()
+                    .map(PlaylistEntry::getGroupTitle).collect(java.util.stream.Collectors.toSet());
+            assertTrue(groups.containsAll(Set.of("Documentary", "Factual")));
+        } finally {
+            Files.deleteIfExists(categoryPlaylist);
         }
     }
 

@@ -90,10 +90,14 @@ class EpgApplicationServiceTest extends DbBackedTest {
         java.util.concurrent.atomic.AtomicInteger downloads = new java.util.concurrent.atomic.AtomicInteger();
         com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/playlist", exchange -> {
-            byte[] body = "#EXTM3U url-tvg=\"/guide\"\n".getBytes(StandardCharsets.UTF_8);
+            byte[] body = "#EXTM3U url-tvg=\"/guide, /guide2\"\n".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, body.length); exchange.getResponseBody().write(body); exchange.close();
         });
         server.createContext("/guide", exchange -> {
+            downloads.incrementAndGet(); byte[] body = bytes.toByteArray();
+            exchange.sendResponseHeaders(200, body.length); exchange.getResponseBody().write(body); exchange.close();
+        });
+        server.createContext("/guide2", exchange -> {
             downloads.incrementAndGet(); byte[] body = bytes.toByteArray();
             exchange.sendResponseHeaders(200, body.length); exchange.getResponseBody().write(body); exchange.close();
         });
@@ -101,18 +105,24 @@ class EpgApplicationServiceTest extends DbBackedTest {
         try {
             Account account = account("Remote", AccountType.M3U8_URL);
             account.setM3u8Path("http://127.0.0.1:" + server.getAddress().getPort() + "/playlist");
+            account.setEpg("https://manual.test/one.xml; https://manual.test/two.xml");
             Channel channel = channel("guide-id", "Test"); EpgApplicationService service = new EpgApplicationService();
-            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
-            service.enrichCached(account, List.of(channel));
-            assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(1, downloads.get());
-            // New service instances read persisted rows without downloading the feed again.
-            new EpgApplicationService().enrichCached(account, List.of(channel));
-            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
-            assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(1, downloads.get());
-            service.clearCache();
+            List<String> sources = service.cacheSources(account);
+            assertTrue(sources.contains("http://127.0.0.1:" + server.getAddress().getPort() + "/guide"));
+            assertTrue(sources.contains("http://127.0.0.1:" + server.getAddress().getPort() + "/guide2"));
+            assertTrue(sources.contains("https://manual.test/one.xml"));
+            assertTrue(sources.contains("https://manual.test/two.xml"));
             new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
             service.enrichCached(account, List.of(channel));
             assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(2, downloads.get());
+            // New service instances read persisted rows without downloading the feed again.
+            new EpgApplicationService().enrichCached(account, List.of(channel));
+            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+            assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(2, downloads.get());
+            service.clearCache();
+            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+            service.enrichCached(account, List.of(channel));
+            assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(4, downloads.get());
         } finally { server.stop(0); }
     }
     @Test void xmltvHandlesOffsetsMissingStopsAndAmbiguousNames() throws Exception {
@@ -201,6 +211,8 @@ class EpgApplicationServiceTest extends DbBackedTest {
     @Test void coversWarningIdentityAndSourceNormalizationBranches() {
         assertEquals(List.of(), EpgApplicationService.globalSources(null));
         assertEquals(List.of("first", "second"), EpgApplicationService.globalSources(" first\nsecond\nfirst\n "));
+        assertEquals(List.of("one", "two", "three", "four", "five", "six"),
+                EpgApplicationService.globalSources("one, two;three  four|one\rfive\rsix"));
         assertEquals("epgSourceTooLarge", EpgApplicationService.warning(new IOException("Guide exceeds size limit")));
         assertEquals("epgSourceProgrammeLimit", EpgApplicationService.warning(new IOException("Guide exceeds programme limit")));
         assertEquals("epgSourceXmlLimit", EpgApplicationService.warning(
@@ -222,6 +234,18 @@ class EpgApplicationServiceTest extends DbBackedTest {
         assertEquals("xmltv-guide", EpgApplicationService.guideId(m3u, m3uChannel));
         m3uChannel.setExtraJson("{}");
         assertEquals("provider-id", EpgApplicationService.guideId(m3u, m3uChannel));
+    }
+
+    @Test void appliesKodiTvgShiftToGuideProgrammeTimes() {
+        Channel channel = channel("guide-id", "Shifted channel");
+        channel.setExtraJson("{\"m3u\":{\"tvg-shift\":\"1.5\"}}");
+        EpgProgramme programme = new EpgProgramme("Show", "Details", 1_000L, 2_000L);
+
+        EpgProgramme shifted = EpgCacheApplicationService.applyTvgShift(channel, List.of(programme)).getFirst();
+
+        assertEquals(5_401_000L, shifted.start());
+        assertEquals(5_402_000L, shifted.stop());
+        assertEquals(List.of(programme), EpgCacheApplicationService.applyTvgShift(channel("plain", "Plain"), List.of(programme)));
     }
 
     private void refreshAndEnrich(Account account, Channel channel) {

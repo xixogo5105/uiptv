@@ -27,6 +27,7 @@ import java.util.Locale
 /** Repository actions keep IO and parsing outside composables. */
 data class EpgUiActions(
     val clearCache: suspend () -> Unit = {},
+    val loadBackgroundCheckIntervalMinutes: suspend () -> Int = { 3 },
     val loadEnabled: suspend () -> Boolean = { false },
     val saveEnabled: suspend (Boolean) -> Unit = {},
     val loadPlaybackOnly: suspend () -> Boolean = { false },
@@ -40,9 +41,12 @@ internal data class EpgUiState(
     val enabled: Boolean = false,
     val playbackOnly: Boolean = false,
     val time: Long = 0,
+    val backgroundCheckIntervalMinutes: Int = 3,
+    val dataRevision: Int = 0,
     val actions: EpgUiActions = EpgUiActions(),
     val onEnabled: (Boolean) -> Unit = {},
-    val onPlaybackOnly: (Boolean) -> Unit = {}
+    val onPlaybackOnly: (Boolean) -> Unit = {},
+    val onDataRefresh: () -> Unit = {}
 )
 
 /** Uses the Material 3 Switch and the current app color-scheme tokens consistently. */
@@ -144,7 +148,7 @@ internal fun MobileEpgSettings() {
             onCheckedChange = { value ->
                 scope.launch {
                     runCatching { state.actions.saveEnabled(value) }
-                        .onSuccess { state.onEnabled(value) }
+                        .onSuccess { state.onEnabled(value); state.onDataRefresh() }
                         .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
                 }
             }
@@ -178,7 +182,7 @@ internal fun MobileEpgSettings() {
         TextButton(enabled = !busy, onClick = { scope.launch {
             busy = true
             runCatching { state.actions.saveGlobalSource(source) }
-                .onSuccess { status = MobileMessages.text("epgMobileSourcesSaved") }
+                .onSuccess { status = MobileMessages.text("epgMobileSourcesSaved"); state.onDataRefresh() }
                 .onFailure { status = MobileMessages.text("epgMobileSourcesSaveFailed") }
             busy = false
         } }) { Text(MobileMessages.text("epgMobileSaveSources")) }
@@ -193,7 +197,7 @@ internal fun MobileEpgSettings() {
             TextButton(enabled = !busy, onClick = { scope.launch {
                 busy = true
                 runCatching { state.actions.clearCache() }
-                    .onSuccess { status = MobileMessages.text("epgMobileCacheCleared") }
+                    .onSuccess { status = MobileMessages.text("epgMobileCacheCleared"); state.onDataRefresh() }
                     .onFailure { status = MobileMessages.text("epgMobileCacheClearFailed") }
                 busy = false
             } }) { Text(MobileMessages.text("configClearCache")) }
@@ -207,18 +211,19 @@ internal fun MobileEpgSettings() {
 internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) {
     val state = LocalEpgState.current
     if (!state.enabled || state.playbackOnly) return
-    val cacheRevision by MobileEpgCache.revision.collectAsState()
     var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(MobileEpgCache.peek(accountId, channelId, state.time)) }
     var details by remember(accountId, channelId) { mutableStateOf(false) }
-    LaunchedEffect(accountId, channelId, state.time / 60_000, cacheRevision) {
+    LaunchedEffect(accountId, channelId, state.time / 60_000, state.dataRevision) {
         val cached = MobileEpgCache.peek(accountId, channelId, state.time)
-        if (cached?.status == MobileEpgStatus.AVAILABLE || cached?.status == MobileEpgStatus.STALE) {
+        if (cached != null) {
             result = cached
             return@LaunchedEffect
         }
+        result = null
         val fetched = loadGuide(state, accountId, channelId, name)
         result = fetched
-        MobileEpgCache.put(accountId, channelId, fetched, state.time)
+        MobileEpgCache.put(accountId, channelId, fetched, state.time,
+            state.backgroundCheckIntervalMinutes * 60_000L)
     }
     val now = result?.now(state.time)?.takeIf { it.hasProgrammeInformation() }
     val next = result?.next(state.time)?.takeIf { it.hasProgrammeInformation() }

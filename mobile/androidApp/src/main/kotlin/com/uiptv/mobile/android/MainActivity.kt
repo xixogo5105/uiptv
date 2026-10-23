@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity() {
                     isForeground = appForeground,
                     epgActions = com.uiptv.mobile.shared.ui.EpgUiActions(
                         clearCache = epgRepository::clearCache,
+                        loadBackgroundCheckIntervalMinutes = epgRepository::backgroundCheckIntervalMinutes,
                         loadEnabled = { preferences.load().epgEnabled },
                         saveEnabled = preferences::saveEpgEnabled,
                         loadPlaybackOnly = { preferences.load().epgPlaybackOnly },

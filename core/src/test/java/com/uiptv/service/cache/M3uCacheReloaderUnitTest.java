@@ -49,7 +49,7 @@ class M3uCacheReloaderUnitTest {
         try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             httpUtil.when(() -> HttpUtil.openStream(
                             eq(playlistUrl),
-                            isNull(),
+                            eq(Map.of("User-Agent", "UIPTV")),
                             eq("GET"),
                             isNull(),
                             any(HttpUtil.RequestOptions.class)))

@@ -334,9 +334,14 @@ fun UiptvMobileApp(
     var epgEnabled by remember { mutableStateOf(false) }
     var epgPlaybackOnly by remember { mutableStateOf(false) }
     var epgTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    var epgBackgroundCheckIntervalMinutes by remember { mutableIntStateOf(3) }
+    var epgDataRevision by remember { mutableIntStateOf(0) }
     LaunchedEffect(epgActions, resumeSignal) {
         epgEnabled = epgActions.loadEnabled()
         epgPlaybackOnly = epgActions.loadPlaybackOnly()
+        epgBackgroundCheckIntervalMinutes = epgActions.loadBackgroundCheckIntervalMinutes().coerceIn(1, 60)
+        epgTime = System.currentTimeMillis()
+        epgDataRevision++
     }
     LaunchedEffect(epgEnabled, epgPlaybackOnly, isForeground) {
         while (epgEnabled && !epgPlaybackOnly && isForeground) { epgTime = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
@@ -384,8 +389,17 @@ fun UiptvMobileApp(
         background = activeColorScheme.background
     )
     CompositionLocalProvider(LocalUiptvPalette provides palette,
-        LocalEpgState provides EpgUiState(epgEnabled && isForeground, epgPlaybackOnly, epgTime, epgActions,
-            { epgEnabled = it }, { epgPlaybackOnly = it })) {
+        LocalEpgState provides EpgUiState(
+            enabled = epgEnabled && isForeground,
+            playbackOnly = epgPlaybackOnly,
+            time = epgTime,
+            backgroundCheckIntervalMinutes = epgBackgroundCheckIntervalMinutes,
+            dataRevision = epgDataRevision,
+            actions = epgActions,
+            onEnabled = { epgEnabled = it },
+            onPlaybackOnly = { epgPlaybackOnly = it },
+            onDataRefresh = { epgDataRevision++ }
+        )) {
         MaterialTheme(colorScheme = activeColorScheme) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val layoutMode = remember(maxWidth, maxHeight) {
@@ -3553,33 +3567,14 @@ private fun SettingsSwitchRow(
 
 @Composable
 private fun SettingsWelcomeCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
-                modifier = Modifier.size(52.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Settings, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(26.dp))
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Make UIPTV yours", style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
-                Text("Manage syncing, playback, artwork and your library.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-        }
+        Text("Make UIPTV yours", style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+        Text("Manage syncing, playback, artwork and your library.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

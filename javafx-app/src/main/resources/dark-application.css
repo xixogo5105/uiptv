@@ -648,6 +648,17 @@
     -fx-font-size: 0.96em;
 }
 
+.epg-refresh-step {
+    -fx-spacing: 2;
+    -fx-padding: 1 0 1 0;
+}
+
+.epg-refresh-step-stage {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.96em;
+    -fx-font-weight: bold;
+}
+
 .epg-refresh-source-chevron {
     -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: bold;

@@ -147,7 +147,11 @@ class EpgRefreshSourceCardsTest extends DbBackedUiTest {
                     assertTrue(card.body.getBoundsInParent().getMaxY() <= card.getHeight(), "Source body overflows its card");
                     for (var node : card.body.getChildren()) {
                         var step = (EpgRefreshProgressDialog.SourceStep) node;
-                        assertTrue(step.stage.getBoundsInParent().getMaxX() <= step.detail.getBoundsInParent().getMinX());
+                        assertTrue(step.stage.getBoundsInParent().getMaxY() <= step.detail.getBoundsInParent().getMinY(),
+                                "Each status appears above its explanation");
+                        assertEquals(step.stage.getBoundsInParent().getMinX(), step.detail.getBoundsInParent().getMinX(), 1,
+                                "Status and explanation share the same left edge");
+                        assertTrue(step.stage.getBoundsInParent().getMaxX() <= step.getWidth() + 1);
                         assertTrue(step.detail.getBoundsInParent().getMaxX() <= step.getWidth() + 1);
                         assertTrue(step.detail.getHeight() >= step.detail.prefHeight(step.detail.getWidth()) - 1);
                     }

@@ -14,7 +14,7 @@ function harness() {
     URLSearchParams, AbortController, Date, WeakMap, Map, clearTimeout(){}, setTimeout(){return 1;},
     nextTick(fn){if(fn) tasks.push(Promise.resolve().then(fn));},
     IntersectionObserver: class {constructor(callback){this.callback=callback;} observe(element){this.callback([{target:element,isIntersecting:true}]);} disconnect(){} unobserve(){}},
-    epgEnabled: ref(false), epgPlaybackOnly: ref(false), thumbnailsEnabled: ref(false), webPlaybackProxyEnabled: ref(true), epgLabels: ref(englishEpgLabels), playerEpg: ref({old: true}),
+    epgEnabled: ref(false), epgPlaybackOnly: ref(false), epgTime: ref(10_000), thumbnailsEnabled: ref(false), webPlaybackProxyEnabled: ref(true), epgLabels: ref(englishEpgLabels), playerEpg: ref({old: true}),
     currentChannel: ref({accountId: 'account', dbId: 'local-row', categoryId: 'category', mode: 'itv'}),
     liveGuideLoading: ref(false), liveGuideError: ref(''), liveGuideAccountId: ref('account'), selectedGuideProgramme:ref(null),
     liveGuideStart: ref(0), liveGuideRows: ref([]), epgGuideVisible: ref(false),
@@ -35,7 +35,7 @@ function harness() {
     ${functionSource('const refreshPlayerEpg =', 'watch(currentChannel,')}
     ${functionSource('let cardEpgObserver =', 'watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode]')}
     ${functionSource('const applyDesktopEpgSetting =', 'const findBookmarkForChannel =')}
-    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,cardEpgStatus,cardEpgIsStale,cardNowStatus});`, context);
+    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,updateEpgClock,cardEpgStatus,cardEpgIsStale,cardNowStatus});`, context);
   return {context, calls, async flush(){await Promise.all(tasks.splice(0));}};
 }
 test('web EPG labels are translated for every shipped non-English locale', () => {
@@ -105,6 +105,27 @@ test('all visible channel cards including M3U hydrate through JSON without a 32-
   channels.forEach(channel=>context.observeChannelEpg({},channel)); await context.refreshVisibleCardEpg();
   assert.ok(channels.every(channel=>channel.epgNow?.title==='Current'));
   assert.equal(calls.length,33);assert.ok(calls.every(call=>call.url.includes('categoryId=local-category')&&!call.url.includes('provider-')));
+});
+test('bookmark EPG refresh cooldown survives recycled DOM elements',async()=>{
+  const {context,calls}=harness();context.epgEnabled.value=true;
+  const channel={dbId:'recycled-row',categoryId:'cat'};
+  context.observeChannelEpg({},channel);
+  await context.refreshVisibleCardEpg();
+  assert.equal(calls.length,1);
+  context.observeChannelEpg(null,channel);
+  context.observeChannelEpg({},channel);
+  await context.refreshVisibleCardEpg();
+  assert.equal(calls.length,1);
+});
+test('web EPG progress clock updates at minute boundaries, not on every settings poll',()=>{
+  const {context}=harness();context.epgEnabled.value=true;
+  assert.equal(context.updateEpgClock(59_999),false);
+  assert.equal(context.epgTime.value,10_000);
+  assert.equal(context.updateEpgClock(60_000),true);
+  assert.equal(context.epgTime.value,60_000);
+  context.epgPlaybackOnly.value=true;
+  assert.equal(context.updateEpgClock(120_000),false);
+  assert.equal(context.epgTime.value,60_000);
 });
 test('bookmark cards use bookmark database IDs and skip movies and series',async()=>{
   const {context,calls}=harness();context.epgEnabled.value=true;context.activeTab.value='bookmarks';

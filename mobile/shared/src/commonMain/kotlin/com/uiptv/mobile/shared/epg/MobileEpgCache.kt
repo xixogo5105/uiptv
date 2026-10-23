@@ -1,9 +1,5 @@
 package com.uiptv.mobile.shared.epg
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-
 /** Cross-screen, cross-activity cache of per-channel EPG results.
  *
  * Composables lose their `remember` state when a LazyColumn item is scrolled out and back in, and the
@@ -18,9 +14,6 @@ import kotlinx.coroutines.flow.asStateFlow
 object MobileEpgCache {
     private val lock = Any()
     private val results = linkedMapOf<String, CachedResult>()
-    private val _revision = MutableStateFlow(0L)
-    /** Local equivalent of the desktop committed revision; consumers collect only while visible. */
-    val revision: StateFlow<Long> = _revision.asStateFlow()
     private const val MAX_ENTRIES = 128
 
     data class CachedResult(val result: MobileEpgResult, val expiresAt: Long)
@@ -38,21 +31,26 @@ object MobileEpgCache {
     fun put(key: String, result: MobileEpgResult, now: Long, ttlMillis: Long) = synchronized(lock) {
         results[key] = CachedResult(result, now + ttlMillis)
         while (results.size > MAX_ENTRIES) results.remove(results.keys.first())
-        _revision.value++
     }
 
-    fun put(accountId: Long, providerChannelId: String, result: MobileEpgResult, now: Long) =
-        put(key(accountId, providerChannelId), result, now, ttlFor(result, now))
+    fun put(
+        accountId: Long,
+        providerChannelId: String,
+        result: MobileEpgResult,
+        now: Long,
+        unavailableTtlMillis: Long = 30_000
+    ) = put(key(accountId, providerChannelId), result, now, ttlFor(result, now, unavailableTtlMillis))
 
     fun clear(accountId: Long, providerChannelId: String) = synchronized(lock) {
         results.remove(key(accountId, providerChannelId))
-        _revision.value++
     }
 
-    fun clear() = synchronized(lock) { results.clear(); _revision.value++ }
+    fun clear() = synchronized(lock) { results.clear() }
 
-    fun ttlFor(result: MobileEpgResult, now: Long): Long {
-        if (result.status != MobileEpgStatus.AVAILABLE && result.status != MobileEpgStatus.STALE) return 30_000
+    fun ttlFor(result: MobileEpgResult, now: Long, unavailableTtlMillis: Long = 30_000): Long {
+        if (result.status != MobileEpgStatus.AVAILABLE && result.status != MobileEpgStatus.STALE) {
+            return unavailableTtlMillis.coerceIn(30_000, 60 * 60_000)
+        }
         val boundary = result.programmes.filter { it.stop > now }.minOfOrNull { it.stop } ?: now + 3_600_000
         return (boundary - now + 2 * 60_000).coerceIn(60_000, 15 * 60_000)
     }

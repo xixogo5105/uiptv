@@ -615,10 +615,42 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private boolean playResolvedMedia(EmbeddedMediaPlayer player, String uri) {
+        List<String> mediaOptions = new ArrayList<>();
         if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-            return player.media().play(uri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+            mediaOptions.add(":http-user-agent=" + VLC_HTTP_USER_AGENT);
         }
-        return player.media().play(uri);
+        mediaOptions.addAll(playlistVlcOptions(currentChannel));
+        return mediaOptions.isEmpty()
+                ? player.media().play(uri)
+                : player.media().play(uri, mediaOptions.toArray(String[]::new));
+    }
+
+    static List<String> playlistVlcOptions(com.uiptv.model.Channel channel) {
+        if (channel == null || channel.getExtraJson() == null || channel.getExtraJson().isBlank()) return List.of();
+        try {
+            org.json.JSONObject metadata = new org.json.JSONObject(channel.getExtraJson()).optJSONObject("m3u");
+            if (metadata == null) return List.of();
+            org.json.JSONObject properties = new org.json.JSONObject();
+            org.json.JSONObject kodiProperties = metadata.optJSONObject("kodiprop");
+            org.json.JSONObject vlcProperties = metadata.optJSONObject("extvlcopt");
+            if (kodiProperties != null) kodiProperties.keySet().forEach(key -> properties.put(key, kodiProperties.opt(key)));
+            if (vlcProperties != null) vlcProperties.keySet().forEach(key -> properties.put(key, vlcProperties.opt(key)));
+            if (properties.isEmpty()) return List.of();
+            List<String> options = new ArrayList<>();
+            for (String key : List.of("http-user-agent", "http-referrer", "http-origin", "http-cookie", "network-caching", "http-reconnect")) {
+                String value = properties.optString(key, "").strip();
+                if (value.isBlank()) continue;
+                if (key.equals("http-reconnect")) {
+                    if (value.equalsIgnoreCase("true") || value.equals("1")) options.add(":http-reconnect");
+                    else if (value.equalsIgnoreCase("false") || value.equals("0")) options.add(":no-http-reconnect");
+                } else if (value.indexOf('\n') < 0 && value.indexOf('\r') < 0) {
+                    options.add(":" + key + "=" + value);
+                }
+            }
+            return options;
+        } catch (org.json.JSONException ignored) {
+            return List.of();
+        }
     }
 
     /**

@@ -39,6 +39,12 @@ createApp({
             const programme = cardProgramme(item, 'epgNow');
             return programme.stop > programme.start ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : 0;
         };
+        const updateEpgClock = now => {
+            if (!epgEnabled.value || epgPlaybackOnly.value) return false;
+            if (Math.floor(now / 60000) === Math.floor(epgTime.value / 60000)) return false;
+            epgTime.value = now;
+            return true;
+        };
         const cardEpgExpandedKey = ref('');
         const cardEpgDetails = ref({key: '', loading: false, error: false, programmes: []});
         let cardEpgDetailsController = null;
@@ -135,7 +141,7 @@ createApp({
                     refreshPlayerEpg();
                     clearTimeout(cardEpgTimer);
                     cardEpgGeneration++;
-                    visibleEpgCards.forEach(record => { record.refreshAt = 0; });
+                    visibleEpgCards.forEach(record => { record.refreshAt = 0; cardEpgRefreshTimes.delete(record.item); });
                     cardEpgTimer = setTimeout(refreshVisibleCardEpg, 100);
                 }
             };
@@ -1582,6 +1588,7 @@ createApp({
             epgEnabled.value = enabled;
             epgPlaybackOnly.value = enabled && playbackOnly;
             syncEpgEvents();
+            if (changed) cardEpgRefreshTimes = new WeakMap();
             if (!enabled) {
                 ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null;
                 ++cardEpgGeneration;
@@ -5030,6 +5037,7 @@ createApp({
         };
 
         let cardEpgObserver = null, cardEpgBindings = new WeakMap(), cardEpgTimer;
+        let cardEpgRefreshTimes = new WeakMap();
         const visibleEpgCards = new Map();
         let cardEpgController = null, cardEpgRunning = false, cardEpgActiveKey = '', cardEpgGeneration = 0;
         const cardEpgContext = () => epgEnabled.value && !epgPlaybackOnly.value && (activeTab.value === 'bookmarks'
@@ -5049,6 +5057,7 @@ createApp({
                         if (!response.ok) {
                             record.item.epgLoading = false;
                             record.refreshAt = Date.now() + 5 * 60000;
+                            cardEpgRefreshTimes.set(record.item, record.refreshAt);
                             if (!record.item.epgNow && !record.item.epgNext) {
                                 record.item.epgUnavailable = true; record.item.epgSourceStatus = 'UNAVAILABLE';
                             } else {
@@ -5066,10 +5075,12 @@ createApp({
                         record.item.epgUnavailable = false; record.item.epgStale = result.guideStatus === 'STALE';
                         record.item.epgSourceStatus = result.guideStatus || 'NO_MATCH';
                         record.refreshAt = Date.now() + 30 * 60000;
+                        cardEpgRefreshTimes.set(record.item, record.refreshAt);
                     } catch (_) {
                         record.item.epgLoading = false;
                         if (!controller.signal.aborted) {
                             record.refreshAt = Date.now() + 5 * 60000;
+                            cardEpgRefreshTimes.set(record.item, record.refreshAt);
                             if (!record.item.epgNow && !record.item.epgNext) {
                                 record.item.epgUnavailable = true; record.item.epgSourceStatus = 'UNAVAILABLE';
                             } else {
@@ -5094,7 +5105,14 @@ createApp({
                 for (const entry of entries) {
                     const record = cardEpgBindings.get(entry.target);
                     if (!record) continue;
-                    if (entry.isIntersecting) visibleEpgCards.set(record.key, record);
+                    if (entry.isIntersecting) {
+                        if (record.generation !== cardEpgGeneration) {
+                            record.generation = cardEpgGeneration;
+                            record.refreshAt = 0;
+                            cardEpgRefreshTimes.delete(record.item);
+                        }
+                        visibleEpgCards.set(record.key, record);
+                    }
                     else {
                         visibleEpgCards.delete(record.key);
                         if (cardEpgActiveKey === record.key) cardEpgController?.abort();
@@ -5106,7 +5124,7 @@ createApp({
             if (previous?.key === key && previous.item === item) return;
             if (previous) { visibleEpgCards.delete(previous.key); cardEpgObserver.unobserve(element); }
             const params = bookmark ? {bookmarkId: item.dbId} : {accountId, channelId: item.dbId, categoryId: item.categoryId};
-            cardEpgBindings.set(element, {key, params, item, refreshAt: 0}); cardEpgObserver.observe(element);
+            cardEpgBindings.set(element, {key, params, item, refreshAt: cardEpgRefreshTimes.get(item) || 0, generation: cardEpgGeneration}); cardEpgObserver.observe(element);
         };
         const observeChannelEpg = (element, channel) => observeEpgCard(element, channel);
         const observeBookmarkEpg = (element, bookmark) => observeEpgCard(element, bookmark, true);
@@ -5121,7 +5139,7 @@ createApp({
             window.addEventListener('resize', syncNarrowViewport, {passive: true});
             const desktopSettingsTimer = window.setInterval(async () => {
                 if (!document.hidden) {
-                    if (!epgPlaybackOnly.value) epgTime.value = Date.now();
+                    updateEpgClock(Date.now());
                     await loadConfig();
                     if (!epgPlaybackOnly.value) refreshVisibleCardEpg();
                 }

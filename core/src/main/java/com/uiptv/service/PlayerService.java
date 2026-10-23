@@ -205,6 +205,7 @@ public class PlayerService {
         channelJson.put("clearKeysJson", safeChannelValue(channel, Channel::getClearKeysJson));
         channelJson.put("inputstreamaddon", safeChannelValue(channel, Channel::getInputstreamaddon));
         channelJson.put("manifestType", safeChannelValue(channel, Channel::getManifestType));
+        channelJson.put("extraJson", safeChannelValue(channel, Channel::getExtraJson));
         channelJson.put("season", safeChannelValue(channel, Channel::getSeason));
         channelJson.put("episodeNum", safeChannelValue(channel, Channel::getEpisodeNum));
         return channelJson;

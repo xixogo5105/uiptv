@@ -16,8 +16,6 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -490,34 +488,25 @@ final class EpgRefreshProgressDialog {
         }
     }
 
-    static final class SourceStep extends GridPane {
+    static final class SourceStep extends VBox {
         final Label stage = new Label();
         final Label detail = new Label();
 
         SourceStep() {
+            super(2);
             getStyleClass().add("epg-refresh-step");
             setMinWidth(0);
             setMinHeight(Region.USE_PREF_SIZE);
             setMaxWidth(Double.MAX_VALUE);
-            ColumnConstraints stageColumn = new ColumnConstraints();
-            stageColumn.setPercentWidth(28);
-            stageColumn.setMinWidth(0);
-            ColumnConstraints detailColumn = new ColumnConstraints();
-            detailColumn.setPercentWidth(72);
-            detailColumn.setMinWidth(0);
-            getColumnConstraints().setAll(stageColumn, detailColumn);
+            stage.getStyleClass().add("epg-refresh-step-stage");
             for (Label label : java.util.List.of(stage, detail)) {
                 label.setWrapText(true);
                 label.setMinWidth(0);
                 label.setMinHeight(Region.USE_PREF_SIZE);
                 label.setMaxWidth(Double.MAX_VALUE);
-                label.getStyleClass().add("epg-refresh-source-summary");
             }
-            detail.setPadding(new Insets(0, 0, 0, 12));
-            add(stage, 0, 0);
-            add(detail, 1, 0);
-            GridPane.setValignment(stage, javafx.geometry.VPos.TOP);
-            GridPane.setValignment(detail, javafx.geometry.VPos.TOP);
+            detail.getStyleClass().add("epg-refresh-source-summary");
+            getChildren().setAll(stage, detail);
         }
     }
 }

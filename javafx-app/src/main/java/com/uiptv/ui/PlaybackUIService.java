@@ -418,6 +418,7 @@ public final class PlaybackUIService {
             channelJson.put("clearKeysJson", safe(channel.getClearKeysJson()));
             channelJson.put("inputstreamaddon", safe(channel.getInputstreamaddon()));
             channelJson.put("manifestType", safe(channel.getManifestType()));
+            channelJson.put("extraJson", safe(channel.getExtraJson()));
             channelJson.put("season", safe(channel.getSeason()));
             channelJson.put("episodeNum", safe(channel.getEpisodeNum()));
         }

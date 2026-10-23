@@ -63,6 +63,7 @@ public class PlayerRequestResolver {
         fillIfBlank(channel::getClearKeysJson, channel::setClearKeysJson, requestChannel.getClearKeysJson());
         fillIfBlank(channel::getInputstreamaddon, channel::setInputstreamaddon, requestChannel.getInputstreamaddon());
         fillIfBlank(channel::getManifestType, channel::setManifestType, requestChannel.getManifestType());
+        fillIfBlank(channel::getExtraJson, channel::setExtraJson, requestChannel.getExtraJson());
         fillIfBlank(channel::getSeason, channel::setSeason, requestChannel.getSeason());
         fillIfBlank(channel::getEpisodeNum, channel::setEpisodeNum, requestChannel.getEpisodeNum());
         return channel;

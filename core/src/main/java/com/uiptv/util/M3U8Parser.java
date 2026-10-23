@@ -33,6 +33,10 @@ public class M3U8Parser {
     private static final String KODIPROP_MANIFEST_TYPE = "#KODIPROP:inputstream.adaptive.manifest_type=";
     private static final String KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type=";
     private static final String KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key=";
+    private static final String EXTGRP = "#EXTGRP:";
+    private static final String EXTVLCOPT = "#EXTVLCOPT:";
+    private static final String WEBPROP = "#WEBPROP:";
+    private static final String PLAYLIST_TYPE = "#EXT-X-PLAYLIST-TYPE:";
     private static final String COMMENT_PREFIX = "#";
     private static final String UNCATEGORIZED = CategoryType.UNCATEGORIZED.displayName();
     private static final String DRM_TYPE_WIDEVINE = "com.widevine.alpha";
@@ -165,13 +169,28 @@ public class M3U8Parser {
         boolean hasUncategorizedEntries = false;
         try {
             String line;
+            List<String> activeDirectiveGroups = List.of();
+            String pendingEntry = null;
+            List<String> pendingGroups = List.of();
             while ((line = reader.readLine()) != null) {
-                if (!line.startsWith(EXTINF)) {
-                    continue;
+                String trimmed = line.strip();
+                if (trimmed.startsWith(EXTGRP)) {
+                    activeDirectiveGroups = splitGroupTitles(trimmed.substring(EXTGRP.length()));
+                    if (pendingEntry != null && parseAttribute(pendingEntry, "group-title").isBlank()) {
+                        pendingGroups = activeDirectiveGroups;
+                    }
+                } else if (trimmed.startsWith(EXTINF)) {
+                    if (pendingEntry != null && processCategoryLineSafely(playlistEntries, pendingEntry, pendingGroups)) {
+                        hasUncategorizedEntries = true;
+                    }
+                    pendingEntry = trimmed;
+                    boolean hasGroupTitle = !parseAttribute(trimmed, "group-title").isBlank();
+                    if (hasGroupTitle) activeDirectiveGroups = List.of();
+                    pendingGroups = hasGroupTitle ? List.of() : activeDirectiveGroups;
                 }
-                if (processCategoryLineSafely(playlistEntries, line)) {
-                    hasUncategorizedEntries = true;
-                }
+            }
+            if (pendingEntry != null && processCategoryLineSafely(playlistEntries, pendingEntry, pendingGroups)) {
+                hasUncategorizedEntries = true;
             }
         } catch (Exception e) {
             AppLog.addErrorLog(M3U8Parser.class, e.getMessage());
@@ -184,8 +203,12 @@ public class M3U8Parser {
     }
 
     private static boolean processCategoryLineSafely(Set<PlaylistEntry> playlistEntries, String line) {
+        return processCategoryLineSafely(playlistEntries, line, List.of());
+    }
+
+    private static boolean processCategoryLineSafely(Set<PlaylistEntry> playlistEntries, String line, List<String> directiveGroups) {
         try {
-            return processCategoryLine(playlistEntries, line);
+            return processCategoryLine(playlistEntries, line, directiveGroups);
         } catch (RuntimeException e) {
             AppLog.addErrorLog(M3U8Parser.class, e.getMessage());
             return false;
@@ -193,8 +216,13 @@ public class M3U8Parser {
     }
 
     private static boolean processCategoryLine(Set<PlaylistEntry> playlistEntries, String line) {
+        return processCategoryLine(playlistEntries, line, List.of());
+    }
+
+    private static boolean processCategoryLine(Set<PlaylistEntry> playlistEntries, String line, List<String> directiveGroups) {
         String tvgId = parseAttribute(line, "tvg-id");
         List<String> groupTitles = splitGroupTitles(parseAttribute(line, "group-title"));
+        if (groupTitles.isEmpty()) groupTitles = directiveGroups;
         if (groupTitles.isEmpty()) {
             return true;
         }
@@ -215,7 +243,7 @@ public class M3U8Parser {
             EntryParser parser = new EntryParser(consumer);
             String line;
             while ((line = reader.readLine()) != null) {
-                parser.accept(line);
+                parser.accept(line.replace("\uFEFF", "").strip());
             }
             parser.flush();
         } catch (IOException e) {
@@ -241,18 +269,25 @@ public class M3U8Parser {
         private String inputstreamaddon;
         private String manifestType;
         private String url;
+        private List<String> directiveGroups = List.of();
+        private final Map<String, Object> metadata = new LinkedHashMap<>();
     }
 
     private static final class EntryParser {
         private final Consumer<PlaylistEntry> consumer;
         private EntryHeader header;
         private EntryState state;
+        private List<String> activeDirectiveGroups = List.of();
 
         private EntryParser(Consumer<PlaylistEntry> consumer) {
             this.consumer = consumer;
         }
 
         private void accept(String line) {
+            if (line.strip().startsWith(EXTGRP) && header == null) {
+                activeDirectiveGroups = splitGroupTitles(line.strip().substring(EXTGRP.length()));
+                return;
+            }
             if (line.startsWith(EXTINF)) {
                 startEntry(line);
                 return;
@@ -263,6 +298,8 @@ public class M3U8Parser {
         private void startEntry(String line) {
             header = parseEntryHeader(line);
             state = new EntryState();
+            if (!header.groupTitles.isEmpty()) activeDirectiveGroups = List.of();
+            state.directiveGroups = activeDirectiveGroups;
         }
 
         private void applyLineToActiveEntry(String line) {
@@ -288,19 +325,35 @@ public class M3U8Parser {
         }
 
         private static void addParsedEntry(Consumer<PlaylistEntry> consumer, EntryHeader header, EntryState state) {
-            for (String groupTitle : effectiveGroupTitles(header.groupTitles)) {
-                consumer.accept(new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo,
-                        state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
+            List<String> groups = header.groupTitles.isEmpty() ? state.directiveGroups : header.groupTitles;
+            for (String groupTitle : effectiveGroupTitles(groups)) {
+                PlaylistEntry entry = new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo,
+                        state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType);
+                entry.setMetadata(new LinkedHashMap<>(header.attributes));
+                if (!state.metadata.isEmpty()) entry.getMetadata().putAll(state.metadata);
+                consumer.accept(entry);
             }
         }
 
         private static EntryHeader parseEntryHeader(String line) {
-            return new EntryHeader(
-                    parseAttribute(line, "tvg-id"),
-                    splitGroupTitles(parseAttribute(line, "group-title")),
-                    parseTitle(line),
-                    parseAttribute(line, "tvg-logo")
-            );
+            Map<String, Object> attributes = parseAttributes(line);
+            String title = parseTitle(line);
+            if (title.isBlank()) title = parseAttribute(line, "tvg-name");
+            return new EntryHeader(parseAttribute(line, "tvg-id"),
+                    splitGroupTitles(parseAttribute(line, "group-title")), title,
+                    parseAttribute(line, "tvg-logo"), attributes);
+        }
+
+        private static Map<String, Object> parseAttributes(String line) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            Pattern attributes = Pattern.compile("(?:^|\\s)([\\w-]+)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))");
+            Matcher matcher = attributes.matcher(line);
+            while (matcher.find()) {
+                String value = matcher.group(2) != null ? matcher.group(2)
+                        : matcher.group(3) != null ? matcher.group(3) : matcher.group(4);
+                values.put(matcher.group(1).toLowerCase(Locale.ROOT), value);
+            }
+            return values;
         }
 
         private static List<String> effectiveGroupTitles(List<String> groupTitles) {
@@ -310,7 +363,25 @@ public class M3U8Parser {
             return groupTitles;
         }
 
-        private static boolean applyMetaLine(EntryState state, String nextLine, String trimmed) {
+        private boolean applyMetaLine(EntryState state, String nextLine, String trimmed) {
+            if (trimmed.startsWith(EXTGRP)) {
+                state.directiveGroups = splitGroupTitles(trimmed.substring(EXTGRP.length()));
+                activeDirectiveGroups = state.directiveGroups;
+                state.metadata.put("extgrp", trimmed.substring(EXTGRP.length()).trim());
+                return false;
+            }
+            if (trimmed.startsWith(EXTVLCOPT)) {
+                addProperty(state.metadata, "extvlcopt", trimmed.substring(EXTVLCOPT.length()));
+                return false;
+            }
+            if (trimmed.startsWith(WEBPROP)) {
+                addProperty(state.metadata, "webprop", trimmed.substring(WEBPROP.length()));
+                return false;
+            }
+            if (trimmed.startsWith(PLAYLIST_TYPE)) {
+                state.metadata.put("playlistType", trimmed.substring(PLAYLIST_TYPE.length()).trim());
+                return false;
+            }
             if (nextLine.startsWith(EXT_X_KEY)) {
                 state.drmType = parseDrmType(nextLine);
                 state.drmLicenseUrl = parseAttribute(nextLine, "URI");
@@ -332,14 +403,57 @@ public class M3U8Parser {
                 applyLicenseKey(state, nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim());
                 return false;
             }
+            if (trimmed.startsWith("#KODIPROP:")) {
+                addProperty(state.metadata, "kodiprop", trimmed.substring("#KODIPROP:".length()));
+                return false;
+            }
             if (isNotBlank(trimmed) && !trimmed.startsWith(COMMENT_PREFIX)) {
                 String normalizedCandidate = normalizePotentialUrl(trimmed);
                 if (isLikelyStreamUrl(normalizedCandidate)) {
-                    state.url = normalizedCandidate;
+                    state.url = separateUrlHeaders(normalizedCandidate, state);
                     return true;
                 }
             }
             return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        private static void addProperty(Map<String, Object> metadata, String key, String raw) {
+            int equals = raw.indexOf('=');
+            String name = equals < 0 ? raw.trim() : raw.substring(0, equals).trim();
+            String value = equals < 0 ? "" : raw.substring(equals + 1).trim();
+            if (name.isBlank()) return;
+            Map<String, String> properties = (Map<String, String>) metadata.computeIfAbsent(key, _ -> new LinkedHashMap<String, String>());
+            properties.put(name, value);
+        }
+
+        private static String separateUrlHeaders(String candidate, EntryState state) {
+            int delimiter = candidate.indexOf('|');
+            if (delimiter < 0 || delimiter == candidate.length() - 1) return candidate;
+            Map<String, String> headers = new LinkedHashMap<>();
+            Map<String, String> vlcOptions = new LinkedHashMap<>();
+            for (String pair : candidate.substring(delimiter + 1).split("&")) {
+                int equals = pair.indexOf('=');
+                if (equals <= 0) continue;
+                String name = pair.substring(0, equals).trim();
+                String value = pair.substring(equals + 1).trim();
+                if (name.isBlank() || value.isBlank()) continue;
+                headers.put(name, value);
+                switch (name.toLowerCase(Locale.ROOT)) {
+                    case "user-agent" -> vlcOptions.put("http-user-agent", value);
+                    case "referer", "referrer" -> vlcOptions.put("http-referrer", value);
+                    case "origin" -> vlcOptions.put("http-origin", value);
+                    case "cookie" -> vlcOptions.put("http-cookie", value);
+                    default -> { /* Preserve unrecognized headers for export and web playback. */ }
+                }
+            }
+            if (!headers.isEmpty()) state.metadata.put("urlHeaders", headers);
+            if (!vlcOptions.isEmpty()) {
+                @SuppressWarnings("unchecked")
+                Map<String, String> existing = (Map<String, String>) state.metadata.computeIfAbsent("extvlcopt", _ -> new LinkedHashMap<String, String>());
+                existing.putAll(vlcOptions);
+            }
+            return candidate.substring(0, delimiter);
         }
 
         private static String normalizeLicenseType(String type, String currentType) {
@@ -450,7 +564,7 @@ public class M3U8Parser {
         }
     }
 
-    private record EntryHeader(String tvgId, List<String> groupTitles, String title, String logo) {
+    private record EntryHeader(String tvgId, List<String> groupTitles, String title, String logo, Map<String, Object> attributes) {
     }
 
     private static boolean isHttpUri(URI source) {

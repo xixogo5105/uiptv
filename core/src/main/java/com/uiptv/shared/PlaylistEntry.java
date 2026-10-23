@@ -23,6 +23,8 @@ public class PlaylistEntry extends BaseJson {
     private Map<String, String> clearKeys;
     private String inputstreamaddon;
     private String manifestType; // New field for manifest_type
+    /** Kodi-style M3U attributes and per-entry directives retained for playback/export. */
+    private Map<String, Object> metadata;
 
     public PlaylistEntry(String id, String groupTitle, String title, String sourceUrl, String logo) {
         this.id = id;

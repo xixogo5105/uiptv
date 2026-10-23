@@ -53,8 +53,10 @@ class AndroidEpgRepository(
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty().trim()
             val id = MobileXmltvGuide.usableGuideIdentity(override.ifBlank { guideId(account, providerChannelId) })
-            val sources = linkedSetOf(discover(account), account.epg).apply {
-                addAll(config("globalEpgSource").lineSequence().map { it.trim() }.filter { it.isNotBlank() })
+            val sources = linkedSetOf<String>().apply {
+                addAll(discover(account))
+                addAll(splitSources(account.epg))
+                addAll(splitSources(config("globalEpgSource")))
             }
             Triple(id, if (override.isBlank()) name else "", sources.filter { it.isNotBlank() })
         }
@@ -68,8 +70,12 @@ class AndroidEpgRepository(
         ""
     }
     override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
+    suspend fun backgroundCheckIntervalMinutes(): Int = withContext(Dispatchers.IO) {
+        config("epgSchedulerIntervalMinutes").toIntOrNull()
+            ?.takeIf { it in listOf(1, 2, 3, 5, 10, 15, 30, 60) } ?: 3
+    }
     override suspend fun saveGlobalSource(source: String) = withContext(Dispatchers.IO) {
-        require(source.lineSequence().map { it.trim() }.all { it.isBlank() || !it.contains("://") || it.startsWith("http://", true) ||
+        require(splitSources(source).all { !it.contains("://") || it.startsWith("http://", true) ||
             it.startsWith("https://", true) || it.startsWith("content://", true) || it.startsWith("file://", true) }) {
             "Use an XMLTV HTTP/HTTPS URL or local file."
         }
@@ -91,7 +97,7 @@ class AndroidEpgRepository(
         if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
         val now = System.currentTimeMillis()
         MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
-            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext it
+            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext applyTvgShift(accountId, providerChannelId, it)
         }
         val cloned = AndroidSyncedEpgCache(databaseHelper.readableDatabase)
         val synced = cloned.read(accountId, providerChannelId, now)
@@ -99,7 +105,7 @@ class AndroidEpgRepository(
         if (synced != null) {
             MobileEpgCache.put(MobileEpgCache.key(accountId, providerChannelId), synced.result, now,
                 MobileEpgCache.ttlFor(synced.result, now))
-            return@withContext synced.result
+            return@withContext applyTvgShift(accountId, providerChannelId, synced.result)
         }
         val desktopHost = preferences.load().remoteEndpoint.host
         // Only serve results that carry real programme data. A cached DISABLED/NO_MATCH/UNAVAILABLE
@@ -107,7 +113,7 @@ class AndroidEpgRepository(
         // updated, so those are recomputed every time (cheap: the guide parse and native schedule
         // caches are still hit).
         MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
-            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext it
+            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext applyTvgShift(accountId, providerChannelId, it)
         }
         val request = mutex.withLock {
             ensureActive()
@@ -132,7 +138,7 @@ class AndroidEpgRepository(
                 val result = MobileEpgResult(
                     if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withContext result
+                return@withContext applyTvgShift(accountId, providerChannelId, result)
             }
             // Native schedules above retain precedence over shared public guides.
             cloned.matchCloned(accountId, providerChannelId, name, now, shared = true)?.let { shared ->
@@ -140,19 +146,21 @@ class AndroidEpgRepository(
                     programmes = MobileEpgSchedules.preferSources(listOf(schedules.programmes, shared.result.programmes))
                 ) else shared.result
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withContext result
+                return@withContext applyTvgShift(accountId, providerChannelId, result)
             }
             if (hasNativeProgramme) {
                 val result = MobileEpgResult(
                     if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withContext result
+                return@withContext applyTvgShift(accountId, providerChannelId, result)
             }
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty()
             val id = MobileXmltvGuide.usableGuideIdentity(override.ifBlank { guideId(account, providerChannelId) })
-            val sources = linkedSetOf(discover(account), account.epg).apply {
-                addAll(config("globalEpgSource").lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList())
+            val sources = linkedSetOf<String>().apply {
+                addAll(discover(account))
+                addAll(splitSources(account.epg))
+                addAll(splitSources(config("globalEpgSource")))
             }
             Triple(id, sources.filter { it.isNotBlank() }.map { resolveDesktopSource(it, desktopHost) }, override)
         }
@@ -175,7 +183,19 @@ class AndroidEpgRepository(
             if (result.status == MobileEpgStatus.AVAILABLE || result.status == MobileEpgStatus.STALE) {
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
             }
-            return@withContext result
+            return@withContext applyTvgShift(accountId, providerChannelId, result)
+    }
+
+    private fun applyTvgShift(accountId: Long, channelId: String, result: MobileEpgResult): MobileEpgResult {
+        val extraJson = databaseHelper.readableDatabase.rawQuery(
+            "SELECT ch.extraJson FROM Channel ch JOIN Category cat ON ch.categoryId=cat.id WHERE cat.accountId=? AND ch.channelId=? LIMIT 1",
+            arrayOf(accountId.toString(), channelId)
+        ).use { if (it.moveToFirst()) it.getString(0).orEmpty() else "" }
+        val raw = runCatching { JSONObject(extraJson).optJSONObject("m3u")?.optString("tvg-shift").orEmpty().toDouble() }.getOrNull()
+            ?: return result
+        if (!raw.isFinite() || kotlin.math.abs(raw) > 24.0 || raw == 0.0 || result.programmes.isEmpty()) return result
+        val offset = (raw * 3_600_000.0).toLong()
+        return result.copy(programmes = result.programmes.map { it.copy(start = it.start + offset, stop = it.stop + offset) })
     }
 
     private fun sharedGuide(source: String, now: Long): Deferred<GuideCache> = synchronized(guideLoads) {
@@ -206,32 +226,39 @@ class AndroidEpgRepository(
             .firstOrNull { it.isNotBlank() && !(account.type == MobileAccountType.STALKER_PORTAL && it == channelId) }
             ?: if (account.type == MobileAccountType.XTREME_API) "" else channelId
     }
-    private fun discover(account: MobileAccount): String {
-        if (account.type != MobileAccountType.M3U8_LOCAL && account.type != MobileAccountType.M3U8_URL) return ""
+    private fun discover(account: MobileAccount): List<String> {
+        if (account.type != MobileAccountType.M3U8_LOCAL && account.type != MobileAccountType.M3U8_URL) return emptyList()
         val playlist = account.m3u8Path.ifBlank { account.url }
-        if (playlist.isBlank()) return ""
+        if (playlist.isBlank()) return emptyList()
         val now = System.currentTimeMillis()
         discovered[playlist]?.takeIf { now < it.second }?.let { return it.first }
-        var found = ""
+        var found = emptyList<String>()
         try {
             open(playlist).bufferedReader().use { reader ->
                 repeat(20) {
                     val line = reader.readLine()?.replace("\uFEFF", "")?.trim() ?: return@repeat
                     if (line.startsWith("#EXTM3U")) {
                         for (attribute in listOf("x-tvg-url", "url-tvg", "tvg-url")) {
-                            found = Regex("""(?i)\b$attribute\s*=\s*["']([^"']+)["']""").find(line)?.groupValues?.get(1).orEmpty().split(',')[0].trim()
-                            if (found.isNotBlank()) break
+                            found = Regex("""(?i)\b$attribute\s*=\s*["']([^"']+)["']""").find(line)?.groupValues?.get(1).orEmpty().let(::splitSources)
+                            if (found.isNotEmpty()) break
                         }
+                        return@use
                     }
                 }
             }
-            if (found.isNotBlank()) found = if (playlist.startsWith("content:")) found else
-                (if (playlist.contains("://") || playlist.startsWith("file:")) URI(playlist) else File(playlist).toURI()).resolve(found).toString()
-        } catch (_: Exception) { found = "" }
-        discovered[playlist] = found to now + if (found.isBlank()) 30 * 60_000L else 900_000
+            if (playlist.startsWith("content:")) found = emptyList()
+            else {
+                val base = if (playlist.contains("://") || playlist.startsWith("file:")) URI(playlist) else File(playlist).toURI()
+                found = found.mapNotNull { runCatching { base.resolve(it).toString() }.getOrNull() }.distinct()
+            }
+        } catch (_: Exception) { found = emptyList() }
+        discovered[playlist] = found to now + if (found.isEmpty()) 30 * 60_000L else 900_000
         while (discovered.size > 8) discovered.remove(discovered.keys.first())
         return found
     }
+
+    private fun splitSources(value: String): List<String> = value.split(Regex("(?:\\r?\\n|\\r|[,;|]+|\\t+| {2,})"))
+        .map { it.trim() }.filter { it.isNotBlank() }.distinct()
     private fun loadGuide(source: String, now: Long): GuideCache {
         val previous = synchronized(guides) { guides[source] }
         if (previous != null && now < previous.expires) return previous
@@ -365,8 +392,8 @@ class AndroidEpgRepository(
                 val entry = iterator.next(); retained -= bytes(entry.value); iterator.remove()
             }
         }
-        private val discovered = object : LinkedHashMap<String, Pair<String, Long>>(16, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String, Pair<String, Long>>): Boolean = size > 16
+        private val discovered = object : LinkedHashMap<String, Pair<List<String>, Long>>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, Pair<List<String>, Long>>): Boolean = size > 16
         }
         private val native = object : LinkedHashMap<Pair<MobileAccount, String>, NativeCache>(64, 0.75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<Pair<MobileAccount, String>, NativeCache>): Boolean = size > 64

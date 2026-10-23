@@ -384,9 +384,20 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         if (isBlank(channelId)) {
             channelId = UUID.nameUUIDFromBytes((entry.getTitle() + entry.getPlaylistEntry()).getBytes()).toString();
         }
-        return new Channel(channelId, entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null,
+        String channelNumber = metadataValue(entry, "tvg-chno");
+        Channel channel = new Channel(channelId, entry.getTitle(), channelNumber, entry.getPlaylistEntry(), null, null, null,
                 entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(),
                 entry.getInputstreamaddon(), entry.getManifestType());
+        if (entry.getMetadata() != null && !entry.getMetadata().isEmpty()) {
+            channel.setExtraJson(new org.json.JSONObject().put("m3u", new org.json.JSONObject(entry.getMetadata())).toString());
+        }
+        return channel;
+    }
+
+    private static String metadataValue(PlaylistEntry entry, String key) {
+        if (entry.getMetadata() == null) return null;
+        Object value = entry.getMetadata().get(key);
+        return value == null ? null : value.toString();
     }
 
     protected record CensoringSummary(int categories, int channels) {

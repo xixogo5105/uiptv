@@ -405,7 +405,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         })
         lockedMuteButton = ImageButton(this).apply {
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = roundedBackground(M3ControlSurface, dp(16), M3SurfaceOutline)
+            background = lockedMuteButtonBackground()
             elevation = dp(3).toFloat()
             scaleType = ImageView.ScaleType.FIT_CENTER
             imageTintList = ColorStateList.valueOf(Color.WHITE)
@@ -517,8 +517,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             lockHelpText.background = roundedBackground(M3ControlSurface, dp(18), M3SurfaceOutline)
         }
         if (::lockedMuteButton.isInitialized) {
-            val active = muted
-            lockedMuteButton.background = controlButtonBackground(active)
+            lockedMuteButton.background = lockedMuteButtonBackground()
             setButtonIcon(lockedMuteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
         }
         if (::rootLayout.isInitialized) applyPaletteToViewTree(rootLayout)
@@ -1309,7 +1308,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun setButtonIcon(button: ImageButton, drawableRes: Int) {
         val drawable = resources.getDrawable(drawableRes, theme).mutate()
         val active = (::muteButton.isInitialized && button === muteButton && muted) ||
-            (::lockedMuteButton.isInitialized && button === lockedMuteButton && muted) ||
             (::repeatButton.isInitialized && button === repeatButton && repeatEnabled) ||
             (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && currentTrackIsEnabled("sid")) ||
             (::lockButton.isInitialized && button === lockButton && locked)
@@ -1333,6 +1331,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             radius = dp(16),
             strokeColor = null
         )
+
+    private fun lockedMuteButtonBackground(): GradientDrawable =
+        roundedBackground(M3ControlSurface, dp(16), M3SurfaceOutline)
 
     private fun togglePlayPause() {
         val player = mpv ?: return
@@ -1390,7 +1391,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         setButtonIcon(lockedMuteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
         lockedMuteButton.contentDescription = if (muted) "Unmute" else "Mute"
-        lockedMuteButton.background = controlButtonBackground(active = muted)
+        lockedMuteButton.background = lockedMuteButtonBackground()
     }
 
     private fun cycleAudioTrack() {

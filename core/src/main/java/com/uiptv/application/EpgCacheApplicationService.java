@@ -121,7 +121,8 @@ public class EpgCacheApplicationService {
         var rules=new com.uiptv.db.EpgNameRulesDb().read();
         var ids=channels.stream().map(c -> identity(account,c,config,mappings,rules.fingerprint())).toList();
         var records=new EpgCacheDb().summaries(ids,System.currentTimeMillis());
-        for(int i=0;i<channels.size();i++) result.put(channels.get(i),records.getOrDefault(ids.get(i),List.of()));
+        for(int i=0;i<channels.size();i++) result.put(channels.get(i),
+                applyTvgShift(channels.get(i), records.getOrDefault(ids.get(i),List.of())));
         var sharedQueries = channels.stream()
                 .filter(channel -> result.get(channel).isEmpty() || prefersSharedIdentity(account, channel, config)
                         || containsGenericProgramme(result.get(channel)))
@@ -131,9 +132,10 @@ public class EpgCacheApplicationService {
             var entry = shared.get(sharedQuery(account, channel, config));
             if (entry == null || entry.programmes().isEmpty()) return;
             var existing = result.get(channel);
-            if (existing.isEmpty() || prefersSharedIdentity(account, channel, config)) result.put(channel, entry.programmes());
+            List<EpgProgramme> shiftedShared = applyTvgShift(channel, entry.programmes());
+            if (existing.isEmpty() || prefersSharedIdentity(account, channel, config)) result.put(channel, shiftedShared);
             else if (containsGenericProgramme(existing))
-                result.put(channel, EpgSchedules.preferSources(List.of(existing, entry.programmes())));
+                result.put(channel, EpgSchedules.preferSources(List.of(existing, shiftedShared)));
         });
         return result;
     }
@@ -172,15 +174,32 @@ public class EpgCacheApplicationService {
             var query = sharedQuery(account, channel, config);
             var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query), now, true).get(query);
             if (shared != null && !shared.programmes().isEmpty()) {
-                if (prefersSharedIdentity(account, channel, config)) return shared.programmes();
-                if (schedule.isEmpty()) return shared.programmes();
-                return EpgSchedules.preferSources(List.of(schedule, shared.programmes()));
+                if (prefersSharedIdentity(account, channel, config)) return applyTvgShift(channel, shared.programmes());
+                if (schedule.isEmpty()) return applyTvgShift(channel, shared.programmes());
+                return applyTvgShift(channel, EpgSchedules.preferSources(List.of(schedule, shared.programmes())));
             }
         }
-        if (schedule.stream().anyMatch(p -> p.stop() > now)) return schedule;
+        if (schedule.stream().anyMatch(p -> p.stop() > now)) return applyTvgShift(channel, schedule);
         var query = sharedQuery(account,channel,config);
         var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query),now,true).get(query);
-        return shared == null ? schedule : shared.programmes();
+        return applyTvgShift(channel, shared == null ? schedule : shared.programmes());
+    }
+
+    static List<EpgProgramme> applyTvgShift(Channel channel, List<EpgProgramme> programmes) {
+        if (programmes == null || programmes.isEmpty() || channel == null) return programmes == null ? List.of() : programmes;
+        try {
+            org.json.JSONObject m3u = new org.json.JSONObject(channel.getExtraJson()).optJSONObject("m3u");
+            String raw = m3u == null ? "" : m3u.optString("tvg-shift", "").strip();
+            if (raw.isBlank()) return programmes;
+            double hours = Double.parseDouble(raw);
+            if (!Double.isFinite(hours) || Math.abs(hours) > 24) return programmes;
+            long offset = Math.round(hours * 3_600_000d);
+            if (offset == 0) return programmes;
+            return programmes.stream().map(programme -> new EpgProgramme(programme.title(), programme.description(),
+                    programme.start() + offset, programme.stop() + offset)).toList();
+        } catch (Exception _) {
+            return programmes;
+        }
     }
     static boolean nativeProvider(Account account) { return account.getType()==AccountType.STALKER_PORTAL || account.getType()==AccountType.XTREME_API; }
     static List<EpgCacheDb.Match> matches(Account account,List<Channel> channels,List<String> xmlSources) {

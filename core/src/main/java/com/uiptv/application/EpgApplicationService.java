@@ -59,10 +59,11 @@ public class EpgApplicationService {
         return "epgSourceUnavailable";
     }
 
-    /** One source per line; existing single-source settings remain compatible. */
+    /** Accept common list separators while preserving each URL verbatim and in priority order. */
     public static List<String> globalSources(String value) {
         if (value == null || value.isBlank()) return List.of();
-        return value.lines().map(String::strip).filter(line -> !line.isBlank()).distinct().toList();
+        return Arrays.stream(value.split("(?:\\r?\\n|\\r|[,;|]+|\\t+| {2,})"))
+                .map(String::strip).filter(source -> !source.isBlank()).distinct().toList();
     }
 
     public boolean isEnabled() {
@@ -118,11 +119,11 @@ public class EpgApplicationService {
 
     List<String> cacheSources(Account account) {
         LinkedHashSet<String> sources = new LinkedHashSet<>();
-        try { sources.add(discover(account)); }
+        try { sources.addAll(discover(account)); }
         catch (IOException | RuntimeException _) {
             AppLog.addWarningLog(EpgApplicationService.class, "Playlist EPG discovery unavailable.");
         }
-        sources.add(account.getEpg());
+        sources.addAll(globalSources(account.getEpg()));
         sources.addAll(globalSources(com.uiptv.service.ConfigurationService.getInstance().read().getGlobalEpgSource()));
         return sources.stream().filter(source -> source != null && !source.isBlank()).toList();
     }
@@ -213,16 +214,16 @@ public class EpgApplicationService {
         }
     }
 
-    private String discover(Account account) throws IOException {
-        if (account.getType() != AccountType.M3U8_LOCAL && account.getType() != AccountType.M3U8_URL) return "";
+    private List<String> discover(Account account) throws IOException {
+        if (account.getType() != AccountType.M3U8_LOCAL && account.getType() != AccountType.M3U8_URL) return List.of();
         String playlist = account.getM3u8Path();
-        if (playlist == null || playlist.isBlank()) return "";
+        if (playlist == null || playlist.isBlank()) return List.of();
         try { SOURCE_LOAD_LOCK.lockInterruptibly(); }
         catch (InterruptedException _) { Thread.currentThread().interrupt(); throw new InterruptedIOException("Playlist discovery cancelled"); }
         try {
             long now = System.currentTimeMillis();
             DiscoveredSource cached = discoveredSource(playlist);
-            if (cached != null && now < cached.retryAt()) return cached.source();
+            if (cached != null && now < cached.retryAt()) return cached.sources();
             return loadDiscoveredSource(playlist, now);
         } finally { SOURCE_LOAD_LOCK.unlock(); }
     }
@@ -233,38 +234,42 @@ public class EpgApplicationService {
         }
     }
 
-    private String loadDiscoveredSource(String playlist, long now) throws IOException {
-        String found;
+    private List<String> loadDiscoveredSource(String playlist, long now) throws IOException {
+        List<String> found;
         try {
             found = readPlaylistEpgSource(playlist);
         } catch (IOException | RuntimeException error) {
-            putBounded(SOURCES, playlist, new DiscoveredSource("", now + Duration.ofMinutes(30).toMillis()));
+            putBounded(SOURCES, playlist, new DiscoveredSource(List.of(), now + Duration.ofMinutes(30).toMillis()));
             throw error;
         }
-        if (!found.isBlank()) found = sourceUri(playlist).resolve(found).toString();
-        putBounded(SOURCES, playlist, new DiscoveredSource(found, now + Duration.ofMinutes(15).toMillis()));
-        return found;
+        URI base = sourceUri(playlist);
+        List<String> resolved = found.stream().map(source -> {
+            try { return base.resolve(source).toString(); }
+            catch (IllegalArgumentException _) { return ""; }
+        }).filter(source -> !source.isBlank()).distinct().toList();
+        putBounded(SOURCES, playlist, new DiscoveredSource(resolved, now + Duration.ofMinutes(15).toMillis()));
+        return resolved;
     }
 
-    private String readPlaylistEpgSource(String playlist) throws IOException {
+    private List<String> readPlaylistEpgSource(String playlist) throws IOException {
         try (InputStream input = open(playlist);
              BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             for (int i = 0; i < 20; i++) {
                 String line = reader.readLine();
-                if (line == null) return "";
+                if (line == null) return List.of();
                 String header = line.replace("\uFEFF", "").strip();
                 if (header.startsWith("#EXTM3U")) return playlistAttribute(header);
             }
-            return "";
+            return List.of();
         }
     }
 
-    private String playlistAttribute(String header) {
+    private List<String> playlistAttribute(String header) {
         for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
             String value = M3uPlaylistUtils.parseAttribute(header, attribute);
-            if (!value.isBlank()) return value.split(",")[0].strip();
+            if (!value.isBlank()) return globalSources(value);
         }
-        return "";
+        return List.of();
     }
 
     private static URI sourceUri(String source) {
@@ -309,7 +314,7 @@ public class EpgApplicationService {
             while (cache.size() > 8) cache.remove(cache.keySet().iterator().next());
         }
     }
-    private record DiscoveredSource(String source, long retryAt) { }
+    private record DiscoveredSource(List<String> sources, long retryAt) { }
     static class LimitedInputStream extends FilterInputStream {
         private long remaining;
         private final long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();

@@ -90,7 +90,10 @@ class AndroidM3uCacheReloader(
     private fun saveEntries(db: SQLiteDatabase, accountId: Long, entries: List<M3uEntry>): AccountCacheSummary {
         val allCategoryId = insertCategory(db, accountId, "all", "All")
         val categoryIdByTitle = linkedMapOf<String, Long>()
-        val groupedEntries = entries.groupBy { it.groupTitle.ifBlank { "Uncategorized" } }
+        val groupedEntries = entries.flatMap { entry ->
+            entry.groupTitle.split(';').map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("Uncategorized") }
+                .map { group -> group to entry }
+        }.groupBy({ it.first }, { it.second })
         groupedEntries.keys
             .sortedWith(String.CASE_INSENSITIVE_ORDER)
             .forEach { title ->
@@ -101,11 +104,14 @@ class AndroidM3uCacheReloader(
         entries.forEachIndexed { index, entry ->
             insertChannel(db, allCategoryId, entry, index)
             channelRows++
-            val categoryDbId = categoryIdByTitle[entry.groupTitle.ifBlank { "Uncategorized" }]
-            if (categoryDbId != null) {
-                insertChannel(db, categoryDbId, entry, index)
-                channelRows++
-            }
+            entry.groupTitle.split(';').map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("Uncategorized") }
+                .distinct().forEach { group ->
+                    val categoryDbId = categoryIdByTitle[group]
+                    if (categoryDbId != null) {
+                        insertChannel(db, categoryDbId, entry, index)
+                        channelRows++
+                    }
+                }
         }
 
         return AccountCacheSummary(
@@ -137,7 +143,7 @@ class AndroidM3uCacheReloader(
                 put("channelId", entry.tvgId.ifBlank { stableChannelId(entry.url, index) })
                 put("categoryId", categoryDbId.toString())
                 put("name", entry.name)
-                put("number", "")
+                put("number", entry.channelNumber)
                 put("cmd", entry.url)
                 put("cmd_1", "")
                 put("cmd_2", "")
@@ -151,6 +157,7 @@ class AndroidM3uCacheReloader(
                 put("clearKeysJson", entry.clearKeysJson)
                 put("inputstreamaddon", entry.inputstreamaddon)
                 put("manifestType", entry.manifestType)
+                put("extraJson", entry.extraJson)
             }
         )
     }
@@ -189,7 +196,9 @@ data class M3uEntry(
     val drmLicenseUrl: String = "",
     val clearKeysJson: String = "",
     val inputstreamaddon: String = "",
-    val manifestType: String = ""
+    val manifestType: String = "",
+    val channelNumber: String = "",
+    val extraJson: String = ""
 )
 
 object M3uPlaylistParser {
@@ -199,18 +208,37 @@ object M3uPlaylistParser {
     private const val KODIPROP_MANIFEST_TYPE = "#KODIPROP:inputstream.adaptive.manifest_type="
     private const val KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type="
     private const val KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key="
-    private val attributeRegex = Regex("([A-Za-z0-9_-]+)=\"([^\"]*)\"")
+    private const val EXTGRP = "#EXTGRP:"
+    private const val EXTVLCOPT = "#EXTVLCOPT:"
+    private const val WEBPROP = "#WEBPROP:"
+    private const val PLAYLIST_TYPE = "#EXT-X-PLAYLIST-TYPE:"
+    private val attributeRegex = Regex("""([A-Za-z0-9_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s,]+))""")
 
     fun parse(playlist: String): List<M3uEntry> {
         val entries = mutableListOf<M3uEntry>()
         var state = EntryState()
+        var pendingGroups = emptyList<String>()
+        var activeGroups = emptyList<String>()
         playlist.lineSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .forEach { line ->
                 when {
-                    line.startsWith("#EXTINF", ignoreCase = true) ->
-                        state = EntryState(info = parseExtInf(line))
+                    line.startsWith("#EXTINF", ignoreCase = true) -> {
+                        val info = parseExtInf(line)
+                        if (info.groupTitle.isNotBlank()) activeGroups = emptyList()
+                        state = EntryState(info = info, directiveGroups = if (info.groupTitle.isBlank()) pendingGroups.ifEmpty { activeGroups } else emptyList())
+                        pendingGroups = emptyList()
+                    }
+                    line.startsWith(EXTGRP, ignoreCase = true) -> {
+                        val groups = splitGroups(line.substringAfter(":"))
+                        activeGroups = groups
+                        if (state.info == null) pendingGroups = groups
+                        else state = state.copy(directiveGroups = groups, metadata = state.metadata + ("extgrp" to line.substringAfter(":").trim()))
+                    }
+                    line.startsWith(EXTVLCOPT, ignoreCase = true) -> state = state.withProperty("extvlcopt", line.substringAfter(":"))
+                    line.startsWith(WEBPROP, ignoreCase = true) -> state = state.withProperty("webprop", line.substringAfter(":"))
+                    line.startsWith(PLAYLIST_TYPE, ignoreCase = true) -> state = state.copy(metadata = state.metadata + ("playlistType" to line.substringAfter(":").trim()))
                     line.startsWith("#EXT-X-KEY", ignoreCase = true) ->
                         state = state.withExtXKey(line)
                     line.startsWith(KODIPROP_INPUTSTREAM_ADDON, ignoreCase = true) ->
@@ -221,20 +249,31 @@ object M3uPlaylistParser {
                         state = state.copy(drmType = normalizeLicenseType(line.substringAfter("=").trim(), state.drmType))
                     line.startsWith(KODIPROP_LICENSE_KEY, ignoreCase = true) ->
                         state = state.withLicenseKey(line.substringAfter("=").trim())
+                    line.startsWith("#KODIPROP:", ignoreCase = true) -> state = state.withProperty("kodiprop", line.substringAfter(":"))
                     line.startsWith("#") -> Unit
                     else -> {
                         val info = state.info
+                        val urlParts = splitStreamUrl(line)
+                        val metadata = state.metadata.toMutableMap()
+                        if (urlParts.second.isNotEmpty()) metadata["urlHeaders"] = urlParts.second
+                        if (urlParts.third.isNotEmpty()) {
+                            val existing = (metadata["extvlcopt"] as? Map<*, *>)
+                                ?.entries?.associate { it.key.toString() to it.value.toString() }.orEmpty()
+                            metadata["extvlcopt"] = existing + urlParts.third
+                        }
                         entries += M3uEntry(
                             name = info?.name?.takeIf { it.isNotBlank() } ?: line,
-                            url = line,
-                            groupTitle = info?.groupTitle.orEmpty(),
+                            url = urlParts.first,
+                            groupTitle = info?.groupTitle.orEmpty().ifBlank { state.directiveGroups.joinToString(";") },
                             logo = info?.logo.orEmpty(),
                             tvgId = info?.tvgId.orEmpty(),
                             drmType = state.drmType,
                             drmLicenseUrl = state.drmLicenseUrl,
                             clearKeysJson = state.clearKeysJson,
                             inputstreamaddon = state.inputstreamaddon,
-                            manifestType = state.manifestType
+                            manifestType = state.manifestType,
+                            channelNumber = info?.channelNumber.orEmpty(),
+                            extraJson = JSONObject().put("m3u", JSONObject(info?.attributes.orEmpty() + metadata)).toString()
                         )
                         state = EntryState()
                     }
@@ -245,12 +284,15 @@ object M3uPlaylistParser {
 
     private fun parseExtInf(line: String): ExtInf {
         val attributes = attributeRegex.findAll(line)
-            .associate { it.groupValues[1].lowercase() to it.groupValues[2] }
+            .associate { it.groupValues[1].lowercase() to attributeValue(it) }
+        val title = line.substringAfter(",", "").trim().ifBlank { attributes["tvg-name"].orEmpty() }
         return ExtInf(
-            name = line.substringAfter(",", "").trim(),
+            name = title,
             groupTitle = attributes["group-title"].orEmpty(),
             logo = attributes["tvg-logo"].orEmpty(),
-            tvgId = attributes["tvg-id"].orEmpty()
+            tvgId = attributes["tvg-id"].orEmpty(),
+            channelNumber = attributes["tvg-chno"].orEmpty(),
+            attributes = attributes
         )
     }
 
@@ -275,9 +317,13 @@ object M3uPlaylistParser {
     private fun parseAttribute(line: String, name: String): String =
         attributeRegex.findAll(line)
             .firstOrNull { it.groupValues[1].equals(name, ignoreCase = true) }
-            ?.groupValues
-            ?.getOrNull(2)
+            ?.let(::attributeValue)
             .orEmpty()
+
+    private fun attributeValue(match: MatchResult): String =
+        match.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() }
+            ?: match.groupValues.getOrNull(3)?.takeIf { it.isNotEmpty() }
+            ?: match.groupValues.getOrNull(4).orEmpty()
 
     private fun normalizeLicenseType(type: String, currentType: String): String =
         when {
@@ -326,13 +372,47 @@ object M3uPlaylistParser {
         val drmLicenseUrl: String = "",
         val clearKeysJson: String = "",
         val inputstreamaddon: String = "",
-        val manifestType: String = ""
-    )
+        val manifestType: String = "",
+        val directiveGroups: List<String> = emptyList(),
+        val metadata: Map<String, Any> = emptyMap()
+    ) {
+        fun withProperty(group: String, raw: String): EntryState {
+            val key = raw.substringBefore("=", "").trim()
+            if (key.isBlank()) return this
+            val value = raw.substringAfter("=", "").trim()
+            val current = (metadata[group] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() }.orEmpty()
+            return copy(metadata = metadata + (group to (current + (key to value))))
+        }
+    }
 
     private data class ExtInf(
         val name: String,
         val groupTitle: String,
         val logo: String,
-        val tvgId: String
+        val tvgId: String,
+        val channelNumber: String,
+        val attributes: Map<String, String>
     )
+
+    private fun splitGroups(value: String): List<String> = value.split(';').map { it.trim() }.filter { it.isNotBlank() }.distinct()
+
+    private fun splitStreamUrl(value: String): Triple<String, Map<String, String>, Map<String, String>> {
+        val delimiter = value.indexOf('|')
+        if (delimiter < 0 || delimiter == value.lastIndex) return Triple(value, emptyMap(), emptyMap())
+        val headers = linkedMapOf<String, String>()
+        val vlcOptions = linkedMapOf<String, String>()
+        value.substring(delimiter + 1).split('&').forEach { pair ->
+            val name = pair.substringBefore('=', "").trim()
+            val headerValue = pair.substringAfter('=', "").trim()
+            if (name.isBlank() || headerValue.isBlank()) return@forEach
+            headers[name] = headerValue
+            when (name.lowercase()) {
+                "user-agent" -> vlcOptions["http-user-agent"] = headerValue
+                "referer", "referrer" -> vlcOptions["http-referrer"] = headerValue
+                "origin" -> vlcOptions["http-origin"] = headerValue
+                "cookie" -> vlcOptions["http-cookie"] = headerValue
+            }
+        }
+        return Triple(value.substring(0, delimiter), headers, vlcOptions)
+    }
 }

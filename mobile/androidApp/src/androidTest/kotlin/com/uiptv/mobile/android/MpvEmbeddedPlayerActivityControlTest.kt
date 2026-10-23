@@ -168,6 +168,7 @@ class MpvEmbeddedPlayerActivityControlTest {
         org.junit.Assert.assertEquals(R.drawable.unlock_icon, controlBarLock.tag)
         val palette = player.javaClass.getDeclaredField("playerPalette").apply { isAccessible = true }.get(player)
         val onSurfaceColor = palette.javaClass.getDeclaredField("onSurface").apply { isAccessible = true }.getInt(palette)
+        val controlSurfaceColor = palette.javaClass.getDeclaredField("controlSurface").apply { isAccessible = true }.getInt(palette)
         org.junit.Assert.assertEquals(onSurfaceColor, controlBarLock.imageTintList?.defaultColor)
         clickControl(player, "Lock screen")
 
@@ -180,6 +181,11 @@ class MpvEmbeddedPlayerActivityControlTest {
         org.junit.Assert.assertEquals(R.drawable.lock_icon, centreLock.tag)
         org.junit.Assert.assertEquals(View.VISIBLE, cornerMute.visibility)
         org.junit.Assert.assertEquals(onSurfaceColor, centreLock.imageTintList?.defaultColor)
+        org.junit.Assert.assertEquals(controlSurfaceColor,
+            (cornerMute.background as android.graphics.drawable.GradientDrawable).color?.defaultColor)
+        clickControl(player, cornerMute.contentDescription.toString())
+        org.junit.Assert.assertEquals(controlSurfaceColor,
+            (cornerMute.background as android.graphics.drawable.GradientDrawable).color?.defaultColor)
         org.junit.Assert.assertTrue(help.text.toString().contains("Double-tap to unlock"))
         org.junit.Assert.assertTrue("Help text must render below the measured icon", help.top >= centreLock.bottom)
         Thread.sleep(3_400)
