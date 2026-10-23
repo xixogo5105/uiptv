@@ -35,17 +35,21 @@ class ConfigurationUIEpgTest extends DbBackedUiTest {
             }
             var interval=(javafx.scene.control.ComboBox<Integer>)field(ui,"epgSchedulerIntervalComboBox");
             assertEquals(5,interval.getValue()); assertFalse(interval.isDisabled()); interval.setValue(10);
+            var globalInterval=(javafx.scene.control.ComboBox<Integer>)field(ui,"globalEpgRefreshIntervalComboBox");
+            assertEquals(6,globalInterval.getValue()); globalInterval.setValue(168);
             assertTrue(ConfigurationUI.themeHelpText().contains(com.uiptv.util.I18n.tr("configEpgSchedulerIntervalHelp")));
             assertTrue(ConfigurationUI.cacheFilteringHelpText().contains(com.uiptv.util.I18n.tr("configEpgSchedulerIntervalHelp")));
             assertTrue(enabled.isSelected()); assertEquals("/local/guide.xml.gz", source.getText());
             enabled.setSelected(false); source.setText("https://guide.example.test/global.xml.gz");
-            assertTrue(interval.isDisabled());
+            assertTrue(interval.isDisabled()); assertTrue(globalInterval.isDisabled());
             var build = ConfigurationUI.class.getDeclaredMethod("buildConfigurationToSave", Configuration.class); build.setAccessible(true);
             Configuration saved = (Configuration) build.invoke(ui, previous); ConfigurationService.getInstance().save(saved);
             assertEquals(previous.getEpgMappingsJson(), saved.getEpgMappingsJson());
             assertEquals(10,saved.normalizedEpgSchedulerIntervalMinutes());
+            assertEquals(168,saved.normalizedGlobalEpgRefreshIntervalHours());
             ConfigurationUI restarted = new ConfigurationUI(null);
             assertFalse(((SwitchToggle) field(restarted, "epgEnabledSwitch")).isSelected());
+            assertEquals(168,((javafx.scene.control.ComboBox<Integer>)field(restarted,"globalEpgRefreshIntervalComboBox")).getValue());
             assertEquals(source.getText(), ((TextArea) field(restarted, "globalEpgSourceField")).getText());
             return null;
         });

@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import java.util.Properties
+import java.io.File
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -7,6 +8,23 @@ plugins {
     alias(libs.plugins.kotlin.compose.compiler)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kover)
+}
+
+val xcodeAvailable = if (System.getProperty("os.name").contains("Mac", ignoreCase = true)) {
+    val xcrun = System.getenv("PATH").orEmpty()
+        .split(File.pathSeparator)
+        .map { File(it, "xcrun") }
+        .firstOrNull { it.isFile && it.canExecute() }
+    if (xcrun == null) {
+        providers.provider { false }
+    } else {
+        providers.exec {
+            commandLine(xcrun.absolutePath, "xcodebuild", "-version")
+            isIgnoreExitValue = true
+        }.result.map { it.exitValue == 0 }
+    }
+} else {
+    providers.provider { false }
 }
 
 kotlin {
@@ -23,7 +41,7 @@ kotlin {
 
     val enableIosTargets = providers.gradleProperty("uiptv.enableIosTargets")
         .map(String::toBoolean)
-        .orElse(canUseXcode())
+        .orElse(xcodeAvailable)
         .get()
 
     if (enableIosTargets) {
@@ -89,7 +107,7 @@ val mobileMessageKeys = listOf(
     "epgMobileMemoryPressure", "epgSourceTooLarge", "epgSourceProgrammeLimit", "epgSourceInvalid"
 )
 
-val generateUiptvSchemaMirror by tasks.registering {
+val generateUiptvSchemaMirror = tasks.register("generateUiptvSchemaMirror") {
     description = "Generates UiptvGeneratedSchema.kt from core/src/main/resources/db/migrations/0000_baseline.sql"
     group = "build"
 
@@ -208,7 +226,7 @@ val generateUiptvSchemaMirror by tasks.registering {
         }
     }
 
-val generateMobileMessages by tasks.registering {
+val generateMobileMessages = tasks.register("generateMobileMessages") {
     description = "Generates mobile UI messages from the shared translated property bundles"
     group = "build"
 
@@ -301,10 +319,10 @@ sourceSets.named("commonMain") {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.material.icons.extended)
             implementation(libs.kotlinx.coroutines.core)
         }
         androidMain.dependencies {
@@ -391,20 +409,5 @@ kover {
                 minBound(80)
             }
         }
-    }
-}
-
-fun canUseXcode(): Boolean {
-    if (System.getProperty("os.name").contains("Mac", ignoreCase = true).not()) {
-        return false
-    }
-
-    return try {
-        ProcessBuilder("xcrun", "xcodebuild", "-version")
-            .redirectErrorStream(true)
-            .start()
-            .waitFor() == 0
-    } catch (_: Exception) {
-        false
     }
 }

@@ -335,11 +335,14 @@ fun UiptvMobileApp(
     var epgPlaybackOnly by remember { mutableStateOf(false) }
     var epgTime by remember { mutableStateOf(System.currentTimeMillis()) }
     var epgBackgroundCheckIntervalMinutes by remember { mutableIntStateOf(3) }
+    var epgGlobalRefreshIntervalHours by remember { mutableIntStateOf(6) }
     var epgDataRevision by remember { mutableIntStateOf(0) }
     LaunchedEffect(epgActions, resumeSignal) {
         epgEnabled = epgActions.loadEnabled()
         epgPlaybackOnly = epgActions.loadPlaybackOnly()
         epgBackgroundCheckIntervalMinutes = epgActions.loadBackgroundCheckIntervalMinutes().coerceIn(1, 60)
+        epgGlobalRefreshIntervalHours = epgActions.loadGlobalRefreshIntervalHours()
+            .takeIf { it in listOf(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168) } ?: 6
         epgTime = System.currentTimeMillis()
         epgDataRevision++
     }
@@ -394,6 +397,7 @@ fun UiptvMobileApp(
             playbackOnly = epgPlaybackOnly,
             time = epgTime,
             backgroundCheckIntervalMinutes = epgBackgroundCheckIntervalMinutes,
+            globalRefreshIntervalHours = epgGlobalRefreshIntervalHours,
             dataRevision = epgDataRevision,
             actions = epgActions,
             onEnabled = { epgEnabled = it },
@@ -548,7 +552,7 @@ private fun CurrentTab(
 ) {
     val tab = selectedTab
     val hasBrowseAccount = selectedBrowseAccount != null
-    val routeKey = if (tab == 1 && hasBrowseAccount) "account:${selectedBrowseAccount?.id}" else "tab:$tab"
+    val routeKey = if (tab == 1 && hasBrowseAccount) "account:${selectedBrowseAccount.id}" else "tab:$tab"
     Box(modifier.fillMaxSize()) {
     screenStates.SaveableStateProvider(routeKey) {
         when (tab) {

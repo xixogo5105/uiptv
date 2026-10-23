@@ -106,8 +106,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private boolean virtualizationEnabled = true;
     private boolean detachedCardCachingEnabled;
     private boolean virtualizedActive;
+    private boolean epgCardSizingEnabled;
     private boolean virtualWindowUpdateQueued;
     private boolean virtualWindowUpdateInProgress;
+    private boolean virtualCardHeightMeasurementQueued;
     private int columnCount = 1;
     private int virtualizationThreshold = DEFAULT_VIRTUALIZATION_THRESHOLD;
     private int virtualRowBuffer = DEFAULT_VIRTUAL_ROW_BUFFER;
@@ -329,9 +331,23 @@ public class ResponsiveCardGrid<T> extends StackPane {
         this.cardMinHeight = Math.max(24, cardMinHeight);
         measuredVirtualCardHeight = 0;
         for (Region card : cardsByItem.values()) {
-            card.setMinHeight(this.cardMinHeight);
+            card.setMinHeight(requiredCardMinHeight(card, this.cardMinHeight));
         }
         updateCardWidths();
+        requestCardHeightMeasurement();
+    }
+
+    public void setEpgCardSizingEnabled(boolean enabled) {
+        if (epgCardSizingEnabled == enabled) {
+            return;
+        }
+        epgCardSizingEnabled = enabled;
+        measuredVirtualCardHeight = 0;
+        for (Region card : cardsByItem.values()) {
+            card.setMinHeight(requiredCardMinHeight(card, cardMinHeight));
+        }
+        updateCardWidths();
+        requestCardHeightMeasurement();
     }
 
     public void setCardDisposer(Consumer<Region> cardDisposer) {
@@ -754,7 +770,16 @@ public class ResponsiveCardGrid<T> extends StackPane {
         cacheDetachedCards(evictCards(retainedItems));
 
         List<Node> renderedCards = renderCards(safeFirst, safeLast);
-        cardPane.getChildren().setAll(renderedCards);
+        // Keep overlapping cards attached. setAll detaches even retained children, which
+        // re-runs their scene listeners, EPG rendering, CSS and image lifecycle on scroll.
+        Set<Node> retainedNodes = new HashSet<>(renderedCards);
+        cardPane.getChildren().removeIf(node -> !retainedNodes.contains(node));
+        for (int index = 0; index < renderedCards.size(); index++) {
+            Node card = renderedCards.get(index);
+            if (index < cardPane.getChildren().size() && cardPane.getChildren().get(index) == card) continue;
+            cardPane.getChildren().remove(card);
+            cardPane.getChildren().add(index, card);
+        }
         refreshPlayingCardIndicators();
         firstRenderedIndex = safeFirst;
         lastRenderedExclusive = safeLast;
@@ -764,7 +789,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updateSelectionStyles();
         applyActivatedStyles(cardsByItem);
         applyActivatedStyles(detachedCardsByItem);
-        scheduleVirtualCardHeightMeasurement();
+        requestCardHeightMeasurement();
     }
 
     private Set<T> retainedItems(int first, int last) {
@@ -836,11 +861,16 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
     }
 
-    private void scheduleVirtualCardHeightMeasurement() {
-        if (!virtualizedActive || cardsByItem.isEmpty()) {
+    /** Coalesced notification for asynchronously loaded card content, never a layout-pulse listener. */
+    public void requestCardHeightMeasurement() {
+        if (!virtualizedActive || cardsByItem.isEmpty() || virtualCardHeightMeasurementQueued) {
             return;
         }
-        Platform.runLater(this::measureRenderedVirtualCardHeight);
+        virtualCardHeightMeasurementQueued = true;
+        Platform.runLater(() -> {
+            virtualCardHeightMeasurementQueued = false;
+            measureRenderedVirtualCardHeight();
+        });
     }
 
     private void measureRenderedVirtualCardHeight() {
@@ -849,17 +879,17 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         double maxHeight = 0;
         for (Region card : cardsByItem.values()) {
-            double height = card.getLayoutBounds().getHeight();
-            if (height <= 0) {
-                height = card.prefHeight(computedCardWidth);
-            }
-            maxHeight = Math.max(maxHeight, height);
+            // Allocated bounds still describe the old row when EPG arrives. Measure
+            // width-dependent preferred content, not that stale allocation.
+            maxHeight = Math.max(maxHeight, requiredCardMinHeight(card,
+                    Math.max(cardMinHeight, Math.ceil(card.prefHeight(computedCardWidth)))));
         }
         double measured = Math.max(cardMinHeight, Math.ceil(maxHeight));
         if (measured <= 0 || measured <= measuredVirtualCardHeight + 1) {
             return;
         }
         measuredVirtualCardHeight = measured;
+        cardsByItem.values().forEach(card -> card.setMinHeight(virtualCardHeight()));
         updateVirtualContentHeight();
         scheduleVirtualWindowUpdate();
     }
@@ -963,7 +993,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updatePlayingCardIndicator(card, activated);
         UiRenderQuality.optimizeLayout(card);
         card.setFocusTraversable(false);
-        card.setMinHeight(cardMinHeight);
+        card.setMinHeight(requiredCardMinHeight(card, cardMinHeight));
         card.setMaxWidth(maxCardWidth);
 
         card.addEventHandler(MouseEvent.MOUSE_PRESSED, event -> {
@@ -1811,6 +1841,13 @@ selectedItemsInternal.add(item);
         }
     }
 
+    private double requiredCardMinHeight(Region card, double minimum) {
+        double contentHeight = Math.ceil(card.prefHeight(computedCardWidth));
+        double required = Math.max(minimum, contentHeight);
+        return epgCardSizingEnabled && card.getStyleClass().contains("epg-summary-card")
+                ? Math.ceil(required * 1.1) : required;
+    }
+
     private void applyComputedCardWidth(Region card) {
         if (card == null) {
             return;
@@ -1818,6 +1855,13 @@ selectedItemsInternal.add(item);
         card.setMinWidth(computedCardWidth);
         card.setPrefWidth(computedCardWidth);
         card.setMaxWidth(computedCardWidth);
+        if (virtualizedActive) {
+            double requiredBaseHeight = requiredCardMinHeight(card, cardMinHeight);
+            card.setMinHeight(Math.max(requiredBaseHeight, virtualCardHeight()));
+            if (requiredBaseHeight > virtualCardHeight() + 1) {
+                requestCardHeightMeasurement();
+            }
+        }
     }
 
     private void updateVirtualLayoutAfterWidthChange(int previousColumnCount, double previousCardWidth) {
@@ -1832,6 +1876,7 @@ selectedItemsInternal.add(item);
         updateVirtualContentHeight();
         if (previousColumnCount != columnCount || Math.abs(previousCardWidth - computedCardWidth) >= 0.5) {
             firstRenderedIndex = -1;
+            requestCardHeightMeasurement();
         }
         scheduleVirtualWindowUpdate();
     }

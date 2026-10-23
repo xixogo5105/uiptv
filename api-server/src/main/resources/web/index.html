@@ -176,11 +176,12 @@
                                             <i class="bi bi-trash3"></i>
                                         </button>
                                     <div class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && isLiveBookmark(bookmark)">
-                                        <strong class="card-epg-title" :title="cardProgramme(bookmark, 'epgNow').title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(bookmark, 'epgNow').title }}</strong>
-                                        <small>{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNow')) }}</small>
-                                        <progress :value="cardProgrammeProgress(bookmark)" max="1" :aria-label="epgLabels.epgNow"></progress>
-                                        <strong class="card-epg-title" :title="cardProgramme(bookmark, 'epgNext').title">{{ epgLabels.epgNext || 'Next' }}: {{ cardProgramme(bookmark, 'epgNext').title }}</strong>
-                                        <small>{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNext')) }}</small>
+                                        <small v-if="cardEpgStatus(bookmark)">{{ cardEpgStatus(bookmark) }}</small>
+                                        <strong v-if="cardProgramme(bookmark, 'epgNow')" class="card-epg-title" :title="cardProgramme(bookmark, 'epgNow')?.title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(bookmark, 'epgNow')?.title }}</strong>
+                                        <small v-if="cardProgrammeTime(cardProgramme(bookmark, 'epgNow'))">{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNow')) }}</small>
+                                        <progress v-if="cardProgrammeProgress(bookmark) !== null" :value="cardProgrammeProgress(bookmark)" max="1" :aria-label="epgLabels.epgNow"></progress>
+                                        <strong v-if="cardProgramme(bookmark, 'epgNext')" class="card-epg-title" :title="cardProgramme(bookmark, 'epgNext')?.title">{{ epgLabels.epgNext || 'Next' }}: {{ cardProgramme(bookmark, 'epgNext')?.title }}</strong>
+                                        <small v-if="cardProgrammeTime(cardProgramme(bookmark, 'epgNext'))">{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNext')) }}</small>
                                     </div>
                                     </article>
                             </template>
@@ -357,11 +358,12 @@
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
                                         </div>
                                     <div class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && contentMode === 'itv'">
-                                        <strong class="card-epg-title" :title="cardProgramme(channel, 'epgNow').title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(channel, 'epgNow').title }}</strong>
-                                        <small>{{ cardProgrammeTime(cardProgramme(channel, 'epgNow')) }}</small>
-                                        <progress :value="cardProgrammeProgress(channel)" max="1" :aria-label="epgLabels.epgNow"></progress>
-                                        <strong class="card-epg-title" :title="cardProgramme(channel, 'epgNext').title">{{ epgLabels.epgNext || 'Next' }}: {{ cardProgramme(channel, 'epgNext').title }}</strong>
-                                        <small>{{ cardProgrammeTime(cardProgramme(channel, 'epgNext')) }}</small>
+                                        <small v-if="cardEpgStatus(channel)">{{ cardEpgStatus(channel) }}</small>
+                                        <strong v-if="cardProgramme(channel, 'epgNow')" class="card-epg-title" :title="cardProgramme(channel, 'epgNow')?.title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(channel, 'epgNow')?.title }}</strong>
+                                        <small v-if="cardProgrammeTime(cardProgramme(channel, 'epgNow'))">{{ cardProgrammeTime(cardProgramme(channel, 'epgNow')) }}</small>
+                                        <progress v-if="cardProgrammeProgress(channel) !== null" :value="cardProgrammeProgress(channel)" max="1" :aria-label="epgLabels.epgNow"></progress>
+                                        <strong v-if="cardProgramme(channel, 'epgNext')" class="card-epg-title" :title="cardProgramme(channel, 'epgNext')?.title">{{ epgLabels.epgNext || 'Next' }}: {{ cardProgramme(channel, 'epgNext')?.title }}</strong>
+                                        <small v-if="cardProgrammeTime(cardProgramme(channel, 'epgNext'))">{{ cardProgrammeTime(cardProgramme(channel, 'epgNext')) }}</small>
                                     </div>
                                     </article>
                                     <div class="empty-state compact" v-if="filteredChannels.length === 0">

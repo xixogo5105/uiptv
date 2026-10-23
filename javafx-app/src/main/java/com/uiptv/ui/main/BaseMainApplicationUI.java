@@ -405,6 +405,10 @@ public abstract class BaseMainApplicationUI {
                     watchingNowUI.forceReload();
                 }
             }, hostServices, this::toggleTheme);
+            configurationUI.setEpgRefreshCompletedHandler(() -> {
+                context.bookmarkChannelListUI().refreshCardsAfterManualEpgRefresh();
+                context.accountListUI().refreshOpenChannelEpgCardsAfterManualRefresh();
+            });
             setMinWidthForPane(configurationUI);
             context.configurationRef().set(configurationUI);
             context.configurationTab().setContent(AppNavigationPane.wrapContent(configurationUI));

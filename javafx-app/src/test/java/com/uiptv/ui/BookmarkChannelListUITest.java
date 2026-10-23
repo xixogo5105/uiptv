@@ -1,7 +1,9 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
+import com.uiptv.service.BookmarkService;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
@@ -24,7 +26,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -317,6 +322,55 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         assertTrue(snapshot.unregistered());
     }
 
+    @Test
+    void manualEpgRefreshReloadsBookmarksAndRecreatesUnchangedVisibleCards() throws Exception {
+        Bookmark bookmark = new Bookmark("Repair Account", "All", "channel-refresh", "Refresh card",
+                "cmd-channel-refresh", "http://example.test", null);
+        bookmark.setAccountAction(Account.AccountAction.itv);
+        BookmarkService.getInstance().save(bookmark);
+
+        BookmarkChannelListUI ui = runOnFxThread(() -> {
+            BookmarkChannelListUI page = new BookmarkChannelListUI(null, null);
+            firePillByText(findByStyle(page, "uiptv-pill-bar"), "All");
+            allBookmarkItems(page).add(bookmarkItem(bookmark.getDbId(), "Refresh card", "Repair Account"));
+            invokeFilterView(page);
+            return page;
+        });
+        try {
+            Region previousCard = runOnFxThread(() -> renderedBookmarkCard(ui));
+            long generationBefore = runOnFxThread(() -> reloadGeneration(ui).get());
+
+            runOnFxThread(() -> {
+                ui.refreshCardsAfterManualEpgRefresh();
+                return null;
+            });
+            assertTrue(runOnFxThread(() -> reloadGeneration(ui).get()) > generationBefore,
+                    "Manual EPG completion must issue a fresh bookmark query even when the page is detached.");
+
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            boolean reloadFinished = false;
+            while (System.nanoTime() < deadline) {
+                reloadFinished = runOnFxThread(() -> !booleanField(ui, "reloadInProgress"));
+                if (reloadFinished) break;
+                LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(20));
+            }
+            assertTrue(reloadFinished, "The bookmark query should finish and publish its result.");
+
+            Region refreshedCard = runOnFxThread(() -> renderedBookmarkCard(ui));
+            assertNotNull(refreshedCard);
+            assertFalse(previousCard == refreshedCard,
+                    "The virtual card must be recreated even when the bookmark rows did not change.");
+        } finally {
+            runOnFxThread(() -> {
+                invokeNoArg(ui, "unregisterBookmarkChangeListener");
+                Field cardEpg = BookmarkChannelListUI.class.getDeclaredField("cardEpg");
+                cardEpg.setAccessible(true);
+                ((CardEpgSupport) cardEpg.get(ui)).stop();
+                return null;
+            });
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static List<BookmarkChannelListUI.BookmarkItem> allBookmarkItems(BookmarkChannelListUI ui) throws Exception {
         Field field = BookmarkChannelListUI.class.getDeclaredField("allBookmarkItems");
@@ -372,6 +426,20 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         return field.getBoolean(target);
+    }
+
+    private static AtomicLong reloadGeneration(BookmarkChannelListUI ui) throws Exception {
+        Field field = BookmarkChannelListUI.class.getDeclaredField("reloadGeneration");
+        field.setAccessible(true);
+        return (AtomicLong) field.get(ui);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Region renderedBookmarkCard(BookmarkChannelListUI ui) throws Exception {
+        ResponsiveCardGrid<?> grid = bookmarkGridOf(ui);
+        Field field = ResponsiveCardGrid.class.getDeclaredField("cardsByItem");
+        field.setAccessible(true);
+        return (Region) ((Map<?, ?>) field.get(grid)).values().stream().findFirst().orElse(null);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

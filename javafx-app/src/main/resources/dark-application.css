@@ -5372,7 +5372,13 @@
 .epg-guide-popup-programme.current-programme { -fx-border-color: #32b8dd; }
 
 .virtual-card-epg { -fx-padding: 8 0 0 0; -fx-border-color: -uiptv-card-border; -fx-border-width: 1 0 0 0; }
+.virtual-card-epg.virtual-card-epg-no-guide { -fx-padding: 0; -fx-border-width: 0; }
+.epg-no-guide-separator { -fx-border-color: -uiptv-card-border; -fx-border-width: 1 0 0 0; }
 .virtual-card-epg-title { -fx-font-weight: normal; -fx-text-fill: -uiptv-text-primary; -fx-font-size: 12; }
+.uiptv-responsive-card:selected .epg-no-guide-separator,
+.uiptv-responsive-card.selected .epg-no-guide-separator,
+.bookmark-card:selected .epg-no-guide-separator,
+.bookmark-card.selected .epg-no-guide-separator { -fx-border-color: -uiptv-selected-card-muted-fg; }
 .epg-programme-columns { -fx-alignment: center-left; }
 .epg-programme-column { -fx-min-width: 0; }
 .epg-guide-popup .epg-guide-popup-programme { -fx-padding: 14; -fx-background-radius: 10; -fx-border-radius: 10; }

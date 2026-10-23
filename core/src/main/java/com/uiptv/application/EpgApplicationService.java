@@ -101,7 +101,8 @@ public class EpgApplicationService {
 
     static boolean usable(List<EpgProgramme> programmes) {
         long now = System.currentTimeMillis();
-        return programmes.stream().anyMatch(p -> p.stop() > now && p.stop() > p.start() && !p.title().isBlank());
+        return programmes.stream().anyMatch(p -> p.stop() > now && p.stop() > p.start()
+                && !p.title().isBlank() && !EpgSchedules.isGenericTitle(p.title()));
     }
 
     public static String guideId(Account account, Channel channel) {

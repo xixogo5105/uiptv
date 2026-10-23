@@ -25,4 +25,18 @@ class EpgMigrationTest extends DbBackedTest {
         }
         assertEquals("", ConfigurationDb.get().getConfiguration().getGlobalEpgSource());
     }
+
+    @Test void globalEpgCooldownAndAttemptTimestampAreAddedToExistingDatabases() throws Exception {
+        long refreshedAt = System.currentTimeMillis() - 2 * 60 * 60_000L;
+        try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
+            statement.execute("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning,last_attempt_at) "
+                    + "VALUES('cooldown-upgrade'," + refreshedAt + "," + (refreshedAt + 7_200_000) + ", '', " + refreshedAt + ")");
+            statement.execute("ALTER TABLE Configuration DROP COLUMN globalEpgRefreshIntervalHours");
+            statement.execute("ALTER TABLE epg_source DROP COLUMN last_attempt_at");
+            statement.execute("DELETE FROM schema_migrations WHERE name='0220_add_global_epg_refresh_cooldown.sql'");
+            DatabasePatchesUtils.applyPatches(connection);
+        }
+        assertEquals(6, ConfigurationDb.get().getConfiguration().normalizedGlobalEpgRefreshIntervalHours());
+        assertEquals(refreshedAt, new EpgCacheDb().sourceState("cooldown-upgrade").lastAttemptAt());
+    }
 }

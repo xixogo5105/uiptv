@@ -63,8 +63,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MpvEmbeddedPlayerActivity : Activity() {
-    private val lockOverlayIconTint = Color.WHITE
-
     private data class PlayerPalette(
         val controlSurface: Int,
         val buttonSurface: Int,
@@ -77,6 +75,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     )
 
     private lateinit var playerPalette: PlayerPalette
+    private val lockOverlayIconTint: Int get() = playerPalette.onSurface
     private val M3ControlSurface: Int get() = playerPalette.controlSurface
     private val M3ButtonSurface: Int get() = playerPalette.buttonSurface
     private val M3AccentContainer: Int get() = playerPalette.accentContainer
@@ -2038,8 +2037,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun displayEpg(result: com.uiptv.mobile.shared.epg.MobileEpgResult) {
         epgResult = result
         val now = System.currentTimeMillis()
-        val current = result?.now(now)
-        val next = result?.next(now)
+        val current = result.now(now)
+        val next = result.next(now)
         val channelTitle = currentTarget?.title.orEmpty()
         val parts = mutableListOf<String>()
         if (current != null) parts.add("Now: ${current.title}")

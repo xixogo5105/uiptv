@@ -534,6 +534,7 @@ class AndroidStalkerCacheReloader(
         when (val js = opt("js")) {
             is org.json.JSONArray -> js
             is JSONObject -> js.optJSONArray("data") ?: org.json.JSONArray()
+            null -> optJSONArray("data") ?: org.json.JSONArray()
             else -> optJSONArray("data") ?: org.json.JSONArray()
         }
 

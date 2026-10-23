@@ -152,6 +152,8 @@ class MainActivity : ComponentActivity() {
                     epgActions = com.uiptv.mobile.shared.ui.EpgUiActions(
                         clearCache = epgRepository::clearCache,
                         loadBackgroundCheckIntervalMinutes = epgRepository::backgroundCheckIntervalMinutes,
+                        loadGlobalRefreshIntervalHours = epgRepository::globalRefreshIntervalHours,
+                        saveGlobalRefreshIntervalHours = epgRepository::saveGlobalRefreshIntervalHours,
                         loadEnabled = { preferences.load().epgEnabled },
                         saveEnabled = preferences::saveEpgEnabled,
                         loadPlaybackOnly = { preferences.load().epgPlaybackOnly },

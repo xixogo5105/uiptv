@@ -17,7 +17,11 @@ public final class EpgCacheDb {
     public record Identity(String accountId, String providerId, String signature) { }
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,
                         List<String> sources, String nativeSource) { }
-    public record SourceState(long refreshedAt, long retryAt, String warning) { }
+    public record SourceState(long refreshedAt, long retryAt, String warning, long lastAttemptAt) {
+        public SourceState(long refreshedAt, long retryAt, String warning) {
+            this(refreshedAt, retryAt, warning, 0);
+        }
+    }
 
     /** Private, disk-backed staging keeps downloads invisible until one atomic mapping publication. */
     public StagedSources stageSources() { return new StagedSources(); }
@@ -126,10 +130,10 @@ public final class EpgCacheDb {
 
     public SourceState sourceState(String sourceId) {
         try (Connection c = open(false)) {
-            try (var statement = c.prepareStatement("SELECT refreshed_at,retry_at,warning FROM epg_source WHERE source_id=?")) {
+            try (var statement = c.prepareStatement("SELECT refreshed_at,retry_at,warning,last_attempt_at FROM epg_source WHERE source_id=?")) {
                 statement.setString(1, sourceId);
                 try (var rows = statement.executeQuery()) {
-                    return rows.next() ? new SourceState(rows.getLong(1), rows.getLong(2), rows.getString(3)) : new SourceState(0, 0, "");
+                    return rows.next() ? new SourceState(rows.getLong(1), rows.getLong(2), rows.getString(3), rows.getLong(4)) : new SourceState(0, 0, "", 0);
                 }
             }
         } catch (Exception error) { throw failure(error); }
@@ -245,7 +249,7 @@ public final class EpgCacheDb {
         insertProgrammes(c, sourceId, programmes, now, processed);
         insertAliases(c, sourceId, aliases, qualityAliases);
         insertIcons(c, sourceId, icons);
-        state(c, sourceId, now, retryAt, "");
+        state(c, sourceId, now, retryAt, "", now);
     }
 
     @SuppressWarnings("java:S6909")
@@ -319,14 +323,14 @@ public final class EpgCacheDb {
     private void deleteSourceRows(Connection c, String table, String source) throws SQLException {
         try (var statement = c.prepareStatement("DELETE FROM " + table + " WHERE source_id=?")) { statement.setString(1, source); statement.executeUpdate(); }
     }
-    private void state(Connection c, String id, long refreshed, long retry, String warning) throws SQLException {
-        try (var statement = c.prepareStatement("INSERT INTO epg_source VALUES(?,?,?,?) ON CONFLICT(source_id) DO UPDATE SET refreshed_at=excluded.refreshed_at,retry_at=excluded.retry_at,warning=excluded.warning")) {
-            statement.setString(1,id); statement.setLong(2,refreshed); statement.setLong(3,retry); statement.setString(4,warning); statement.executeUpdate();
+    private void state(Connection c, String id, long refreshed, long retry, String warning, long lastAttempt) throws SQLException {
+        try (var statement = c.prepareStatement("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning,last_attempt_at) VALUES(?,?,?,?,?) ON CONFLICT(source_id) DO UPDATE SET refreshed_at=excluded.refreshed_at,retry_at=excluded.retry_at,warning=excluded.warning,last_attempt_at=excluded.last_attempt_at")) {
+            statement.setString(1,id); statement.setLong(2,refreshed); statement.setLong(3,retry); statement.setString(4,warning); statement.setLong(5,lastAttempt); statement.executeUpdate();
         }
     }
     public void failed(String sourceId, long retryAt, String warning) {
         SourceState previous = sourceState(sourceId);
-        try (Connection c = open(true)) { state(c,sourceId,previous.refreshedAt(),retryAt,warning); }
+        try (Connection c = open(true)) { state(c,sourceId,previous.refreshedAt(),retryAt,warning,System.currentTimeMillis()); }
         catch (Exception error) { throw failure(error); }
     }
 

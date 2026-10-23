@@ -57,6 +57,7 @@ import lombok.NoArgsConstructor;
     private String epgMappingsJson = "{}";
     private String epgRefreshIntervalHours = "2";
     private String epgSchedulerIntervalMinutes = "3";
+    private String globalEpgRefreshIntervalHours = "6";
     public int normalizedEpgRefreshHours() {
         try { return Math.clamp(Integer.parseInt(epgRefreshIntervalHours),1,24); }
         catch(RuntimeException _) { return 2; }
@@ -66,6 +67,12 @@ import lombok.NoArgsConstructor;
             int value = Integer.parseInt(epgSchedulerIntervalMinutes);
             return java.util.List.of(1, 2, 3, 5, 10, 15, 30, 60).contains(value) ? value : 3;
         } catch (RuntimeException _) { return 3; }
+    }
+    public int normalizedGlobalEpgRefreshIntervalHours() {
+        try {
+            int value = Integer.parseInt(globalEpgRefreshIntervalHours);
+            return java.util.List.of(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168).contains(value) ? value : 6;
+        } catch (RuntimeException _) { return 6; }
     }
 
 

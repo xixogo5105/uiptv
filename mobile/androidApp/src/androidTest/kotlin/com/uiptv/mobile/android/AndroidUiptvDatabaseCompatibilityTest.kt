@@ -122,7 +122,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
                 source.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(12, 'live-desktop', '7', 'itv', 'Live Desktop')")
                 source.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(13, 'live-one', '12', 'Live One', 'http://desktop/live-one')")
-                source.execSQL("INSERT INTO epg_source VALUES('synced-source',1,9999999999999,'')")
+                source.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning) VALUES('synced-source',1,9999999999999,'')")
                 source.execSQL("INSERT INTO epg_channel_mapping VALUES('7','live-one','signature','synced-source','station',0)")
                 source.execSQL("INSERT INTO epg_programme VALUES('synced-source','station',1,9999999999999,'Synced film',X'789C030000000001')")
                 source.execSQL("INSERT INTO epg_channel_icon VALUES('synced-source','station','https://example.invalid/icon.png')")

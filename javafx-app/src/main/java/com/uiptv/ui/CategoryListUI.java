@@ -133,6 +133,14 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     public String liveGuideAccountId() { return mediaContext.dbId(); }
 
+    public void refreshOpenChannelEpgCardsAfterManualRefresh() {
+        if (!getChildren().contains(detailPane) || detailContent.getChildren().isEmpty()) return;
+        Node openDetail = detailContent.getChildren().getFirst();
+        if (openDetail instanceof ChannelListUI channelListUI) {
+            channelListUI.refreshCardsAfterManualEpgRefresh();
+        }
+    }
+
     private Account accountForMode(Account.AccountAction mode) {
         return contextForMode(mode).toAccount();
     }

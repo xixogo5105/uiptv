@@ -21,6 +21,7 @@ class MobileEpgTest {
     fun genericTitlesAreRecognizedAsFiller() {
         assertTrue(MobileEpgSchedules.isGenericTitle("Movie"))
         assertTrue(MobileEpgSchedules.isGenericTitle("No information available"))
+        assertTrue(MobileEpgSchedules.isGenericTitle("No details available"))
         assertFalse(MobileEpgSchedules.isGenericTitle("Ahankaar"))
     }
 

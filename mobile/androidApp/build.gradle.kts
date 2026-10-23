@@ -15,7 +15,7 @@ val hasReleaseSigning = listOf(
     releaseKeyPassword
 ).all { !it.isNullOrBlank() }
 val api24LibmpvAar = layout.projectDirectory.file("libs/libmpv-android-api24.aar")
-val verifyApi24LibmpvAar by tasks.registering {
+val verifyApi24LibmpvAar = tasks.register("verifyApi24LibmpvAar") {
     inputs.file(api24LibmpvAar)
         .withPropertyName("api24LibmpvAar")
         .optional()
@@ -47,7 +47,9 @@ android {
         buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
     }
 
-    sourceSets.getByName("androidTest").assets.srcDir("../../core/src/test/resources")
+    sourceSets.getByName("androidTest").assets.directories.add(
+        layout.projectDirectory.file("../../core/src/test/resources").asFile.absolutePath
+    )
 
     signingConfigs {
         create("release") {
@@ -77,7 +79,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            assets.srcDir("../../core/src/main/resources")
+            assets.directories.add(layout.projectDirectory.file("../../core/src/main/resources").asFile.absolutePath)
         }
     }
     compileOptions {
@@ -92,10 +94,10 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation(project(":shared"))
     implementation(libs.androidx.activity.compose)
-    implementation(compose.foundation)
-    implementation(compose.material3)
-    implementation(compose.runtime)
-    implementation(compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.ui)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.dash)

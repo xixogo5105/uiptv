@@ -34,11 +34,14 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChannelListUIContextMenuTest extends DbBackedUiTest {
@@ -63,6 +66,34 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             assertEquals(javafx.animation.Animation.Status.STOPPED, pulse.getStatus());
             Field executorField = ChannelListUI.class.getDeclaredField("refreshExecutor"); executorField.setAccessible(true);
             assertTrue(((java.util.concurrent.ExecutorService) executorField.get(ui)).isShutdown());
+            return null;
+        });
+    }
+
+    @Test
+    void manualEpgRefreshRecreatesOpenLiveChannelCardsOnly() throws Exception {
+        runOnFxThread(() -> {
+            ChannelListUI live = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            ChannelListUI vod = new ChannelListUI(new Account(), "Movies", "movies", Account.AccountAction.vod);
+            try {
+                ResponsiveCardGrid<ChannelListUI.ChannelItem> liveGrid = channelGrid(live);
+                ResponsiveCardGrid<ChannelListUI.ChannelItem> vodGrid = channelGrid(vod);
+                liveGrid.setItems(FXCollections.observableArrayList(channelItem()));
+                vodGrid.setItems(FXCollections.observableArrayList(channelItem("Movie")));
+                Region oldLiveCard = renderedCard(liveGrid);
+                Region oldVodCard = renderedCard(vodGrid);
+
+                live.refreshCardsAfterManualEpgRefresh();
+                vod.refreshCardsAfterManualEpgRefresh();
+
+                assertNotSame(oldLiveCard, renderedCard(liveGrid),
+                        "An open live-channel list must recreate cards after a guide refresh.");
+                assertSame(oldVodCard, renderedCard(vodGrid),
+                        "A VOD list must not be rebound by a live-guide refresh.");
+            } finally {
+                live.dispose();
+                vod.dispose();
+            }
             return null;
         });
     }
@@ -549,6 +580,12 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         Field field = ChannelListUI.class.getDeclaredField("channelGridScroll");
         field.setAccessible(true);
         return (ScrollPane) field.get(ui);
+    }
+
+    private static Region renderedCard(ResponsiveCardGrid<?> grid) throws Exception {
+        Field field = ResponsiveCardGrid.class.getDeclaredField("cardsByItem");
+        field.setAccessible(true);
+        return (Region) ((Map<?, ?>) field.get(grid)).values().stream().findFirst().orElseThrow();
     }
 
     private static void invokeNoArg(Object target, String methodName) throws Exception {

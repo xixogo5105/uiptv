@@ -129,6 +129,12 @@ public class AccountListUI extends HBox implements SearchTarget {
         AccountItem selected = accountGrid.getSelectedItems().isEmpty() ? null : accountGrid.getSelectedItems().getFirst();
         return selected == null ? "" : selected.getAccountId();
     }
+
+    public void refreshOpenChannelEpgCardsAfterManualRefresh() {
+        if (activeCategoryListUI != null) {
+            activeCategoryListUI.refreshOpenChannelEpgCardsAfterManualRefresh();
+        }
+    }
     private Node leadingBodyContent;
     private final ChangeListener<Boolean> leadingBodyContentVisibilityListener =
             (_, _, _) -> updateBodyLayoutChildren();

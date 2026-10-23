@@ -64,4 +64,22 @@ class EpgRefreshLifecycleTest extends DbBackedTest {
         assertTrue((Boolean) due.invoke(null, new EpgCacheDb.SourceState(0, 0, ""), now));
         assertFalse((Boolean) due.invoke(null, new EpgCacheDb.SourceState(now, now + 60_000, "warning"), now));
     }
+
+    @Test void globalSourcesHonorTheConfiguredCooldownFromTheirLastAttempt() throws Exception {
+        var config = ConfigurationService.getInstance().read();
+        config.setGlobalEpgRefreshIntervalHours("6");
+        ConfigurationService.getInstance().save(config);
+        Method due = EpgCacheRefreshService.class.getDeclaredMethod(
+                "due", EpgCacheDb.SourceState.class, long.class, boolean.class);
+        due.setAccessible(true);
+        long now = System.currentTimeMillis();
+        long hour = java.util.concurrent.TimeUnit.HOURS.toMillis(1);
+        assertFalse((Boolean) due.invoke(null,
+                new EpgCacheDb.SourceState(now - 5 * hour, 0, "", now - 5 * hour), now, true));
+        assertTrue((Boolean) due.invoke(null,
+                new EpgCacheDb.SourceState(now - 6 * hour, 0, "", now - 6 * hour), now, true));
+        assertTrue((Boolean) due.invoke(null,
+                new EpgCacheDb.SourceState(now - hour, 0, "", now - hour), now, false),
+                "Account-only sources keep their existing refresh interval.");
+    }
 }

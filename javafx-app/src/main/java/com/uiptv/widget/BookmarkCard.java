@@ -61,7 +61,9 @@ public class BookmarkCard extends HBox {
         subtitleLabel.getStyleClass().add("bookmark-channel-account");
         subtitleLabel.setMinWidth(0);
         subtitleLabel.setMaxWidth(Double.MAX_VALUE);
-        subtitleLabel.setWrapText(true);
+        subtitleLabel.setWrapText(false);
+        subtitleLabel.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+        subtitleLabel.setTooltip(new javafx.scene.control.Tooltip(subtitle == null ? "" : subtitle));
         String safeSubtitle = subtitle == null ? "" : subtitle;
         subtitleLabel.setText(safeSubtitle);
         subtitleLabel.setVisible(!safeSubtitle.isBlank());

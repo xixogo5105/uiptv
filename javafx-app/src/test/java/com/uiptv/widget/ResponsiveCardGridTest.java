@@ -1249,6 +1249,54 @@ class ResponsiveCardGridTest {
                 snapshot.renderedLabels());
     }
 
+    @Test
+    void scrollingDoesNotDetachOverlappingCardsFromTheirScene() throws Exception {
+        runOnFxThread(() -> {
+            AtomicInteger detachments = new AtomicInteger();
+            ResponsiveCardGrid<Integer> grid = new ResponsiveCardGrid<>(item -> {
+                Label card = new Label("Card " + item);
+                card.sceneProperty().addListener((_, before, after) -> {
+                    if (before != null && after == null) detachments.incrementAndGet();
+                });
+                return card;
+            });
+            grid.setVirtualizationThreshold(1);
+            grid.setItems(FXCollections.observableArrayList(java.util.stream.IntStream.range(0, 1000).boxed().toList()));
+            new Scene(grid, 420, 240);
+            invokeRenderVirtualWindow(grid, 0, 10, 0);
+            detachments.set(0);
+            Node retained = cardPane(grid).getChildren().get(2);
+            invokeRenderVirtualWindow(grid, 2, 12, 88);
+            assertEquals(2, detachments.get(), "Only the two cards leaving the window may detach");
+            assertEquals(retained, cardPane(grid).getChildren().getFirst());
+            return null;
+        });
+    }
+
+    @Test
+    void asynchronousWrappedContentUpdatesTheVirtualRowHeightFromPreferredSize() throws Exception {
+        runOnFxThread(() -> {
+            ResponsiveCardGrid<Integer> grid = new ResponsiveCardGrid<>(item -> new VBox(new Label("Channel")));
+            grid.setVirtualizationThreshold(1); grid.setCardMinHeight(168);
+            grid.setItems(FXCollections.observableArrayList(java.util.stream.IntStream.range(0, 1000).boxed().toList()));
+            new Scene(grid, 800, 600); grid.resize(800, 600);
+            invokeRenderVirtualWindow(grid, 0, 8, 0);
+            VBox card = (VBox) cardPane(grid).getChildren().getFirst();
+            card.resize(255, 168);
+            Label wrapped = new Label("A long programme title that wraps over several lines. ".repeat(20));
+            wrapped.setWrapText(true); wrapped.setMinHeight(Region.USE_PREF_SIZE);
+            card.getChildren().add(wrapped); card.applyCss();
+            double needed = card.prefHeight(card.getPrefWidth());
+            assertTrue(needed > 168);
+            Method measure = ResponsiveCardGrid.class.getDeclaredMethod("measureRenderedVirtualCardHeight");
+            measure.setAccessible(true); measure.invoke(grid);
+            Method height = ResponsiveCardGrid.class.getDeclaredMethod("virtualCardHeight");
+            height.setAccessible(true);
+            assertTrue((double) height.invoke(grid) >= needed, "Row stride must include asynchronously loaded wrapped content");
+            return null;
+        });
+    }
+
     private static ResponsiveCardGrid<String> newGrid() {
         ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(Label::new);
         grid.setItems(FXCollections.observableArrayList("one", "two", "three"));

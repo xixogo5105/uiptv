@@ -92,8 +92,10 @@ object MobileEpgSchedules {
         "series", "special", "specials", "movie night", "movie time", "watch now", "now playing",
         "feature", "features", "presentation", "presentation", "unknown", "untitled", "title",
         "title name", "name", "default", "default title", "placeholder", "tbd", "n/a", "na",
-        "no information", "no information available", "no programme details available",
-        "no program details available", "programme information unavailable", "program information unavailable",
+        "no details", "no details available", "no programme details", "no programme details available",
+        "no program details", "no program details available", "no programme guide available", "no guide available",
+        "guide source unavailable", "no information", "no information available",
+        "programme information unavailable", "program information unavailable",
         "schedule unavailable", "not available", "no info", "no data",
         "movie of the day", "movie of the week", "feature presentation", "feature film"
     )

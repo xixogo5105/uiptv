@@ -98,7 +98,8 @@ public class DatabaseUtils {
                 new DataColumn("globalEpgSource", "TEXT"),
                 new DataColumn("epgMappingsJson", "TEXT"),
                 new DataColumn("epgRefreshIntervalHours", "TEXT"),
-                new DataColumn("epgSchedulerIntervalMinutes", "TEXT")
+                new DataColumn("epgSchedulerIntervalMinutes", "TEXT"),
+                new DataColumn("globalEpgRefreshIntervalHours", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -362,7 +363,8 @@ public class DatabaseUtils {
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn("refreshed_at", INTEGER_TYPE),
                 new DataColumn("retry_at", INTEGER_TYPE),
-                new DataColumn("warning", "TEXT")
+                new DataColumn("warning", "TEXT"),
+                new DataColumn("last_attempt_at", INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),

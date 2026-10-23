@@ -70,6 +70,16 @@ class AndroidEpgRepository(
         ""
     }
     override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
+    suspend fun globalRefreshIntervalHours(): Int = withContext(Dispatchers.IO) {
+        normalizeGlobalRefreshHours(config("globalEpgRefreshIntervalHours"))
+    }
+    suspend fun saveGlobalRefreshIntervalHours(hours: Int) = withContext(Dispatchers.IO) {
+        require(hours in GLOBAL_REFRESH_HOURS)
+        saveConfig("globalEpgRefreshIntervalHours", hours.toString())
+        synchronized(guides) { guides.clear() }
+        MobileEpgCache.clear()
+        Unit
+    }
     suspend fun backgroundCheckIntervalMinutes(): Int = withContext(Dispatchers.IO) {
         config("epgSchedulerIntervalMinutes").toIntOrNull()
             ?.takeIf { it in listOf(1, 2, 3, 5, 10, 15, 30, 60) } ?: 3
@@ -259,23 +269,36 @@ class AndroidEpgRepository(
 
     private fun splitSources(value: String): List<String> = value.split(Regex("(?:\\r?\\n|\\r|[,;|]+|\\t+| {2,})"))
         .map { it.trim() }.filter { it.isNotBlank() }.distinct()
-    private fun loadGuide(source: String, now: Long): GuideCache {
+    private suspend fun loadGuide(source: String, now: Long): GuideCache {
+        val globalId = globalSourceId(source)
+        val globalInterval = globalId?.let { globalRefreshIntervalMillis() }
         val previous = synchronized(guides) { guides[source] }
         if (previous != null && now < previous.expires) return previous
         val remote = source.startsWith("http://", true) || source.startsWith("https://", true)
-        val persisted = if (remote) disk.read(source, now) else null
-        if (persisted != null) return GuideCache(persisted, disk.expires(source), false).also {
+        val ttl = globalInterval ?: 24 * 3600_000L
+        val persisted = if (remote) disk.read(source, now, ttlMillis = ttl) else null
+        if (persisted != null) return GuideCache(persisted, disk.expires(source, ttl), false).also {
             synchronized(guides) { guides[source] = it; trimGuides() }
+        }
+        if (globalId != null) {
+            val lastAttempt = globalSourceLastAttempt(globalId)
+            val cooldownEnds = lastAttempt + ttl
+            if (lastAttempt > 0 && now < cooldownEnds) {
+                val stale = if (remote) disk.read(source, now, stale = true, ttlMillis = ttl) else null
+                return GuideCache(stale, cooldownEnds, stale != null)
+                    .also { synchronized(guides) { guides[source] = it; trimGuides() } }
+            }
         }
         val cached = try {
             open(source).buffered().use { buffered ->
                 buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
                 val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
                 val limited = LimitedStream(xml)
-                GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now, source), now + 24 * 3600_000L, false)
+                GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now, source), now + ttl, false)
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
+            if (globalId != null) saveGlobalSourceAttempt(globalId, now)
             val message = when (error) {
                 is OutOfMemoryError -> MobileMessages.text("epgMobileMemoryPressure")
                 else -> when (error.message) {
@@ -284,11 +307,32 @@ class AndroidEpgRepository(
                     else -> MobileMessages.text("epgSourceInvalid")
                 }
             }
-            val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true) else null
-            GuideCache(fallback, now + 30 * 60_000L, fallback != null, message)
+            val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true, ttlMillis = ttl) else null
+            GuideCache(fallback, if (globalInterval != null) now + ttl else now + 30 * 60_000L, fallback != null, message)
         }
+        if (globalId != null && cached.guide != null) saveGlobalSourceAttempt(globalId, now)
         synchronized(guides) { guides[source] = cached; trimGuides() }
         return cached
+    }
+    private suspend fun globalSourceId(source: String): String? {
+        val host = preferences.load().remoteEndpoint.host
+        return splitSources(config("globalEpgSource")).firstOrNull { resolveDesktopSource(it, host) == source }
+            ?.let { hash("xml:$it") }
+    }
+    private fun globalRefreshIntervalMillis(): Long = normalizeGlobalRefreshHours(config("globalEpgRefreshIntervalHours")) * 3_600_000L
+    private fun globalSourceLastAttempt(sourceId: String): Long = runCatching {
+        databaseHelper.readableDatabase.rawQuery(
+            "SELECT last_attempt_at FROM epg_source WHERE source_id=?", arrayOf(sourceId)
+        ).use { if (it.moveToFirst()) it.getLong(0) else 0L }
+    }.getOrDefault(0L)
+    private fun saveGlobalSourceAttempt(sourceId: String, attemptedAt: Long) {
+        val db = databaseHelper.writableDatabase
+        val updated = db.update("epg_source", ContentValues().apply { put("last_attempt_at", attemptedAt) },
+            "source_id=?", arrayOf(sourceId))
+        if (updated == 0) {
+            db.execSQL("INSERT OR IGNORE INTO epg_source(source_id,refreshed_at,retry_at,warning,last_attempt_at) VALUES(?,0,0,'',?)",
+                arrayOf<Any?>(sourceId, attemptedAt))
+        }
     }
     private fun open(source: String): InputStream {
         if (source.startsWith("content://")) return context.contentResolver.openInputStream(Uri.parse(source)) ?: error("File unavailable")
@@ -372,6 +416,11 @@ class AndroidEpgRepository(
         }
 
         const val MAX_NATIVE_PROGRAMMES = 2000
+        private val GLOBAL_REFRESH_HOURS = listOf(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168)
+        private fun normalizeGlobalRefreshHours(value: String): Int = value.toIntOrNull()
+            ?.takeIf { it in GLOBAL_REFRESH_HOURS } ?: 6
+        private fun hash(value: String): String = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
         private val mutex = Mutex()
         private val guideScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val guidePermits = kotlinx.coroutines.sync.Semaphore(2)

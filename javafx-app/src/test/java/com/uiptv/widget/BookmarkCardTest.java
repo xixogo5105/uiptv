@@ -26,7 +26,7 @@ class BookmarkCardTest {
     }
 
     @Test
-    void titleSuffixIsRenderedAsMutedTextAndSubtitleWraps() throws Exception {
+    void titleSuffixIsRenderedAsMutedTextAndSubtitleStaysOnOneLine() throws Exception {
         BookmarkCard card = runOnFxThread(() -> new BookmarkCard(
                 "BBC One",
                 "Living Room",
@@ -52,7 +52,8 @@ class BookmarkCardTest {
                 .filter(label -> "News and entertainment".equals(label.getText()))
                 .findFirst()
                 .orElseThrow());
-        assertTrue(runOnFxThread(subtitle::isWrapText));
+        assertFalse(runOnFxThread(subtitle::isWrapText));
+        assertEquals(javafx.scene.control.OverrunStyle.ELLIPSIS, runOnFxThread(subtitle::getTextOverrun));
         assertTrue(runOnFxThread(subtitle::isVisible));
         assertTrue(runOnFxThread(subtitle::isManaged));
     }

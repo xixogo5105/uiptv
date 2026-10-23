@@ -16,10 +16,10 @@ internal class AndroidEpgDiskCache(context: Context) {
             .joinToString("") { "%02x".format(it.toInt() and 255) }
         return File(directory, "epg-$hash.xml")
     }
-    fun expires(source: String): Long = file(source).lastModified() + ttl
-    fun read(source: String, now: Long, stale: Boolean = false): MobileXmltvGuide? {
+    fun expires(source: String, ttlMillis: Long = ttl): Long = file(source).lastModified() + ttlMillis
+    fun read(source: String, now: Long, stale: Boolean = false, ttlMillis: Long = ttl): MobileXmltvGuide? {
         val file = file(source)
-        if (!file.isFile || (!stale && now >= file.lastModified() + ttl)) return null
+        if (!file.isFile || (!stale && now >= file.lastModified() + ttlMillis)) return null
         return try {
             file.inputStream().use { AndroidXmltvReader.read(AndroidEpgRepository.LimitedStream(it), now, source) }
         } catch (error: OutOfMemoryError) { null }

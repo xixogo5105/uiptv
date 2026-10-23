@@ -6,6 +6,7 @@ import com.uiptv.widget.SegmentedProgressBar;
 import com.uiptv.widget.SegmentedProgressBar.SegmentStatus;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -39,8 +40,14 @@ final class EpgRefreshProgressDialog {
     private EpgRefreshProgressDialog() { }
 
     static void open(javafx.scene.control.Control owner, Runnable finished) {
+        open(owner, finished, null);
+    }
+
+    static void open(javafx.scene.control.Control owner, Runnable finished, Runnable guidesRefreshed) {
         var initial = EpgRefreshJobService.start();
         var completionReported = new AtomicBoolean();
+        var refreshReported = new AtomicBoolean();
+        notifyWhenGuidePublished(initial.id(), guidesRefreshed, refreshReported);
         Stage stage = new Stage();
         Window ownerWindow = owner.getScene() == null ? null : owner.getScene().getWindow();
         if (ownerWindow != null) stage.initOwner(ownerWindow);
@@ -320,6 +327,37 @@ final class EpgRefreshProgressDialog {
         return !"PREPARING".equals(status) && !"RUNNING".equals(status);
     }
 
+    static boolean hasPublishedGuide(EpgRefreshJobService.Snapshot snapshot) {
+        return snapshot != null
+                && ("COMPLETED".equals(snapshot.status()) || "COMPLETED_WITH_WARNINGS".equals(snapshot.status()))
+                && snapshot.sources().stream().anyMatch(source ->
+                "Completed".equals(source.status()) || "Saved".equals(source.status()));
+    }
+
+    private static void notifyWhenGuidePublished(String jobId, Runnable guidesRefreshed,
+                                                 AtomicBoolean refreshReported) {
+        if (guidesRefreshed == null) return;
+        Thread.ofVirtual().name("epg-refresh-card-update-" + jobId).start(() -> {
+            EpgRefreshJobService.Snapshot snapshot;
+            do {
+                try {
+                    Thread.sleep(250);
+                } catch (InterruptedException _) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                snapshot = EpgRefreshJobService.get(jobId);
+            } while (snapshot != null && !terminal(snapshot.status()));
+            if (hasPublishedGuide(snapshot) && refreshReported.compareAndSet(false, true)) {
+                try {
+                    Platform.runLater(guidesRefreshed);
+                } catch (IllegalStateException _) {
+                    // The application can be shutting down after the refresh has completed.
+                }
+            }
+        });
+    }
+
     private static boolean isActiveSourceStatus(String status) {
         return switch (status) {
             case "Pending", "Completed", "Saved", "No matches", "Failed", "Skipped" -> false;
@@ -337,8 +375,12 @@ final class EpgRefreshProgressDialog {
             case "Matching", "Linking channels" -> I18n.tr("epgRefreshMatching");
             case "Loading cached channels" -> I18n.tr("epgRefreshLoadingCachedChannels");
             case "Saving" -> I18n.tr("epgRefreshSaving");
+            case "Staging" -> I18n.tr("epgRefreshStaging");
+            case "Staged" -> I18n.tr("epgRefreshStaged");
+            case "Publishing" -> I18n.tr("epgRefreshPublishing");
             case "Source unavailable" -> I18n.tr("epgSourceUnavailable");
             case "Completed" -> I18n.tr("epgRefreshCompleted");
+            case "Warnings" -> I18n.tr("epgRefreshWarnings");
             case "Saved" -> I18n.tr("reloadSaved");
             case "No sources configured" -> I18n.tr("epgRefreshNoSources");
             case "No matches" -> I18n.tr("epgRefreshNoMatches");
@@ -474,7 +516,7 @@ final class EpgRefreshProgressDialog {
                                 I18n.formatNumber(Integer.toString(item.matchedChannels())));
             }
             if (!"Pending".equals(item.status())) {
-                String stepKey = "Saved".equals(item.status()) ? "Saving" : item.status();
+                String stepKey = "Saved".equals(item.status()) ? "Saving" : "Staged".equals(item.status()) ? "Staging" : item.status();
                 SourceStep step = steps.computeIfAbsent(stepKey, key -> {
                     SourceStep line = new SourceStep();
                     body.getChildren().add(line);

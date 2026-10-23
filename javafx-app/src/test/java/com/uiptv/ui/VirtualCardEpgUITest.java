@@ -46,7 +46,238 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
             CardEpgSupport.display(compact, current, null, start + 1_000, true);
             assertEquals(1, compact.getChildren().size(), "Narrow programme rows keep the channel and current programme columns aligned.");
             CardEpgSupport.display(compact, current, null, start + 1_000, false);
-            assertEquals(2, compact.getChildren().size(), "Wide programme rows restore the Next column.");
+            assertEquals(1, compact.getChildren().size(), "A missing next programme does not create a placeholder column.");
+            var next = new EpgProgramme("Next programme", "", start + 4_000, start + 8_000);
+            CardEpgSupport.display(compact, current, next, start + 1_000, false);
+            assertEquals(2, compact.getChildren().size(), "A real next programme is shown in the second column.");
+            return null;
+        });
+    }
+
+    @Test void missingGuideUsesOneNoGuideMessageWithoutInventedTimelines() throws Exception {
+        runOnFxThread(() -> {
+            long now = System.currentTimeMillis();
+            VBox card = new VBox(5);
+            CardEpgSupport.display(card, null, null, now);
+            assertEquals(3, card.getChildren().size(), "The no-guide message sits below its own separator at the card bottom.");
+            Region flexibleSpace = (Region) card.getChildren().get(0);
+            Region separator = (Region) card.getChildren().get(1);
+            assertEquals(javafx.scene.layout.Priority.ALWAYS, VBox.getVgrow(flexibleSpace));
+            assertTrue(separator.getStyleClass().contains("epg-no-guide-separator"));
+            assertEquals(I18n.tr("epgNoGuide"), ((Label) card.getChildren().getLast()).getText());
+            assertTrue(card.getStyleClass().contains("virtual-card-epg-no-guide"));
+            assertTrue(card.lookupAll(".epg-programme-time").isEmpty());
+            assertNull(card.lookup(".progress-bar"));
+            assertTrue(card.lookupAll(".label").stream().noneMatch(node -> node instanceof Label label
+                    && I18n.tr("epgSourceUnavailable").equals(label.getText())),
+                    "Source refresh failures stay out of the card content.");
+
+            HBox programmeRow = new HBox(12);
+            CardEpgSupport.display(programmeRow, null, null, now);
+            assertEquals(I18n.tr("epgNoGuide"), ((Label) programmeRow.getChildren().getFirst()).getText());
+            assertNull(programmeRow.lookup(".progress-bar"));
+            assertNull(programmeRow.lookup(".epg-programme-time"));
+
+            for (EpgProgramme invalid : List.of(new EpgProgramme("Real title", "", 0, 0),
+                    new EpgProgramme("Real title", "", 100, 1))) {
+                CardEpgSupport.display(card, invalid, null, now);
+                assertNull(card.lookup(".progress-bar"));
+                assertNull(card.lookup(".epg-programme-time"), "Malformed provider times are not replaced with fabricated times.");
+            }
+            return null;
+        });
+    }
+
+    @Test void escapedProgrammeTitlesRenderAsReadableText() throws Exception {
+        runOnFxThread(() -> {
+            long now = System.currentTimeMillis();
+            VBox card = new VBox(5);
+            CardEpgSupport.display(card,
+                    new EpgProgramme("Women and &amp;#039;s One-Day International Cricket", "", now - 60_000, now + 60_000),
+                    null, now);
+
+            Label title = (Label) card.lookup(".virtual-card-epg-title");
+            assertNotNull(title);
+            assertEquals("Now: Women and 's One-Day International Cricket", title.getText());
+            return null;
+        });
+    }
+
+    @Test void providerMissingDetailsMarkersDoNotRenderAsFakeProgrammes() throws Exception {
+        runOnFxThread(() -> {
+            VBox panel = new VBox();
+            CardEpgSupport.display(panel, new EpgProgramme("No programme details", "", 1000, 3000),
+                    new EpgProgramme("No details available", "", 3000, 5000), 2000);
+            assertEquals(3, panel.getChildren().size());
+            assertEquals(I18n.tr("epgNoGuide"), ((Label) panel.getChildren().getLast()).getText());
+            assertNull(panel.lookup(".progress-bar"));
+            assertTrue(panel.lookupAll(".epg-programme-time").isEmpty());
+            CardEpgSupport.display(panel, null, null, System.currentTimeMillis());
+            assertEquals(3, panel.getChildren().size());
+            assertNull(panel.lookup(".progress-bar"));
+            assertTrue(panel.lookupAll(".epg-programme-time").isEmpty());
+            return null;
+        });
+    }
+
+    @Test void minuteTickKeepsNoGuideMessageStableWithoutAddingProgress() throws Exception {
+        runOnFxThread(() -> {
+            try (var mode = mockStatic(EpgModeUI.class)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                VBox card = new VBox(); VBox root = new VBox(card);
+                new Scene(root, 320, 300); root.resize(320, 300);
+                CardEpgSupport support = new CardEpgSupport(root);
+                support.bind(card, () -> null);
+                long now = System.currentTimeMillis();
+                Pane panel = (Pane) card.lookup(".virtual-card-epg");
+                CardEpgSupport.display(panel, null, null, now);
+                root.applyCss(); root.layout();
+                var nodes = List.copyOf(panel.getChildren());
+                invoke(support, "updateProgress", new Class<?>[0]);
+                assertEquals(nodes, panel.getChildren());
+                assertNull(panel.lookup(".progress-bar"));
+                assertEquals(I18n.tr("epgNoGuide"), ((Label) panel.getChildren().getLast()).getText());
+                support.stop();
+            }
+            return null;
+        });
+    }
+
+    @Test void minuteTickPreservesProgrammeNodesAndDoesNoGuideLookup() throws Exception {
+        runOnFxThread(() -> {
+            try (var mode = mockStatic(EpgModeUI.class)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                VBox card = new VBox(); VBox root = new VBox(card);
+                new Scene(root, 320, 300); root.resize(320, 300);
+                CardEpgSupport support = new CardEpgSupport(root);
+                java.util.concurrent.atomic.AtomicInteger lookups = new java.util.concurrent.atomic.AtomicInteger();
+                support.bind(card, () -> { lookups.incrementAndGet(); return null; });
+                long now = System.currentTimeMillis();
+                EpgProgramme current = new EpgProgramme("Real programme", "", now - 60_000, now + 60_000);
+                Pane panel = (Pane) card.lookup(".virtual-card-epg");
+                CardEpgSupport.display(panel, current, null, now - 30_000);
+                var bindings = (Map<?, ?>) field(support, "attached").get(support);
+                Object binding = bindings.get(card);
+                field(binding, "current").set(binding, current);
+                root.applyCss(); root.layout();
+                var nodes = List.copyOf(panel.getChildren());
+                ProgressBar progress = (ProgressBar) panel.lookup(".progress-bar");
+                invoke(support, "updateProgress", new Class<?>[0]);
+                assertEquals(nodes, panel.getChildren());
+                assertSame(progress, panel.lookup(".progress-bar"));
+                assertEquals(.5, progress.getProgress(), .1);
+                assertEquals(0, lookups.get());
+                support.stop();
+            }
+            return null;
+        });
+    }
+
+    @Test void thousandDetachedCardsOwnNoLoadingAnimationsOrActiveClocks() throws Exception {
+        runOnFxThread(() -> {
+            try (var mode = mockStatic(EpgModeUI.class)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                CardEpgSupport support = new CardEpgSupport(new VBox());
+                for (int i = 0; i < 1_000; i++) {
+                    VBox card = new VBox(); support.bind(card, () -> null);
+                    Pane panel = (Pane) card.lookup(".virtual-card-epg");
+                    invoke(support, "displayLoading", new Class<?>[]{Pane.class, boolean.class}, panel, false);
+                    assertNull(panel.lookup(".progress-indicator"));
+                    assertEquals(I18n.tr("epgLoading"), ((Label) panel.lookup(".label")).getText());
+                }
+                assertEquals(javafx.animation.Animation.Status.STOPPED,
+                        ((javafx.animation.Timeline) field(support, "clock").get(support)).getStatus());
+                assertTrue(((Map<?, ?>) field(support, "attached").get(support)).isEmpty());
+                support.stop();
+            }
+            return null;
+        });
+    }
+
+    @Test void cachedSummaryReattachmentKeepsTheSameTextAndProgressNodes() throws Exception {
+        runOnFxThread(() -> {
+            try (var mode = mockStatic(EpgModeUI.class)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                CardEpgSupport support = new CardEpgSupport(new VBox());
+                VBox card = new VBox(); VBox root = new VBox(card); new Scene(root, 320, 300);
+                support.bind(card, () -> null);
+                Pane panel = (Pane) card.lookup(".virtual-card-epg");
+                long now = System.currentTimeMillis();
+                var current = new EpgProgramme("Real programme", "", now - 1000, now + 60000);
+                CardEpgSupport.display(panel, current, null, now);
+                Object binding = ((Map<?, ?>) field(support, "attached").get(support)).get(card);
+                field(binding, "current").set(binding, current);
+                field(binding, "refreshAt").setLong(binding, now + 60000);
+                var nodes = List.copyOf(panel.getChildren());
+                root.getChildren().clear(); root.getChildren().add(card);
+                assertEquals(nodes, panel.getChildren(), "Recycled cards retain their existing summary controls");
+                support.stop();
+            }
+            return null;
+        });
+    }
+
+    @Test void wrappedProgrammeTextStaysInsideResponsiveBookmarkCards() throws Exception {
+        runOnFxThread(() -> {
+            try (var mode = mockStatic(EpgModeUI.class)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                for (boolean dark : new boolean[]{false, true}) for (int width : new int[]{1900, 1450, 980, 620}) {
+                    CardEpgSupport support = new CardEpgSupport(new VBox());
+                    var grid = new com.uiptv.widget.ResponsiveCardGrid<Integer>(item -> {
+                        var card = new com.uiptv.widget.BookmarkCard("Willow Xtra - 1 (US-HD) with a longer channel title",
+                                "wtc05.mi20.cc (ultapulta 22-02-2202) with a very long account name", "", true, "channel", false);
+                        return support.bind(card, () -> null);
+                    });
+                    grid.setVirtualizationThreshold(5); grid.setEpgCardSizingEnabled(true);
+                    grid.setCardWidthRange(306, 414); grid.setCardMinHeight(168);
+                    grid.setMinWidth(width - 20);
+                    grid.setItems(javafx.collections.FXCollections.observableArrayList(java.util.stream.IntStream.range(0, 24).boxed().toList()));
+                    ScrollPane scroll = new ScrollPane(grid); scroll.setFitToWidth(true);
+                    StackPane root = new StackPane(scroll); new Scene(root, width, 600);
+                    root.getStylesheets().add(getClass().getResource(dark ? "/dark-application.css" : "/application.css").toExternalForm());
+                    root.resize(width, 600); root.applyCss(); root.layout();
+                    grid.resize(width - 20, grid.prefHeight(width - 20));
+                    invoke(grid, "updateVirtualWindowGuarded", new Class<?>[0]); grid.layout();
+                    long now = System.currentTimeMillis(); int item = 0;
+                    for (Node node : grid.lookupAll(".virtual-card-epg")) {
+                        boolean missing = item++ % 3 == 0;
+                        CardEpgSupport.display((Pane) node,
+                                missing ? null : new EpgProgramme("Women's One-Day International Cricket with an unusually long programme title", "", now - 1000, now + 3600000),
+                                missing ? null : new EpgProgramme("Women's ODI Cricket Review with a long title that must wrap", "", now + 3600000, now + 7200000));
+                    }
+                    root.applyCss(); root.layout();
+                    invoke(grid, "measureRenderedVirtualCardHeight", new Class<?>[0]); root.layout();
+                    save(root, "target/epg-responsive-" + width + "-" + dark + ".png");
+                    if (width == 1900) assertTrue(grid.lookupAll(".bookmark-card").stream()
+                            .anyMatch(card -> Objects.equals(GridPane.getColumnIndex(card), 4)), "Wide panes remain free to show more than four cards");
+                    for (Node node : grid.lookupAll(".bookmark-card")) {
+                        Region card = (Region) node;
+                        assertTrue(card.getMinHeight() >= Math.ceil(Math.max(168, card.prefHeight(card.getWidth())) * 1.1) - 1,
+                                "Full-EPG cards include the requested 10% height at width " + width);
+                        Region noGuideSeparator = (Region) card.lookup(".epg-no-guide-separator");
+                        if (noGuideSeparator != null) {
+                            Label noGuideMessage = (Label) card.lookup(".virtual-card-epg-title");
+                            var separatorBounds = card.sceneToLocal(noGuideSeparator.localToScene(noGuideSeparator.getBoundsInLocal()));
+                            var messageBounds = card.sceneToLocal(noGuideMessage.localToScene(noGuideMessage.getBoundsInLocal()));
+                            assertTrue(separatorBounds.getMaxY() <= messageBounds.getMinY(),
+                                    "The bottom placeholder must sit below its separator.");
+                            assertTrue(separatorBounds.getMinY() > card.getHeight() * .55,
+                                    "The no-guide separator is bottom-aligned inside its card.");
+                            assertTrue(card.getHeight() - messageBounds.getMaxY() <= card.getInsets().getBottom() + 2,
+                                    "The no-guide message must sit at the card bottom.");
+                        }
+                        Label account = (Label) card.lookup(".bookmark-channel-account");
+                        assertFalse(account.isWrapText());
+                        assertEquals(OverrunStyle.ELLIPSIS, account.getTextOverrun());
+                        for (Node text : card.lookupAll(".text")) {
+                            var bounds = card.sceneToLocal(text.localToScene(text.getBoundsInLocal()));
+                            assertTrue(bounds.getMaxY() <= card.getHeight() - card.getInsets().getBottom() + 1,
+                                    "Text overlaps card padding at width " + width + ": " + bounds + " card height=" + card.getHeight());
+                        }
+                    }
+                    grid.setItems(javafx.collections.FXCollections.observableArrayList()); support.stop();
+                }
+            }
             return null;
         });
     }
@@ -70,6 +301,16 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                         for (boolean thumbnails : new boolean[]{false, true}) {
                             field(channels, "thumbnailsEnabled").setBoolean(channels, thumbnails);
                             field(bookmarks, "thumbnailsEnabled").setBoolean(bookmarks, thumbnails);
+                            invoke(channels, "applyChannelGridSizing", new Class<?>[0]);
+                            Object channelGrid = field(channels, "channelGrid").get(channels);
+                            assertEquals(enabled ? (thumbnails ? 306.0 : 288.0) : (thumbnails ? 255.0 : 240.0),
+                                    field(channelGrid, "minCardWidth").getDouble(channelGrid));
+                            assertEquals(enabled, field(channelGrid, "epgCardSizingEnabled").getBoolean(channelGrid));
+                            ((javafx.collections.ObservableList) field(bookmarks, "filteredItems").get(bookmarks)).setAll(bookmark);
+                            invoke(bookmarks, "applyBookmarkGridDisplayMode", new Class<?>[]{boolean.class}, thumbnails);
+                            Object bookmarkGrid = field(bookmarks, "bookmarkGrid").get(bookmarks);
+                            assertEquals(enabled ? 306.0 : 255.0, field(bookmarkGrid, "minCardWidth").getDouble(bookmarkGrid));
+                            assertEquals(enabled, field(bookmarkGrid, "epgCardSizingEnabled").getBoolean(bookmarkGrid));
                             Region card = (Region) invoke(channels, "createChannelCard", new Class<?>[]{ChannelListUI.ChannelItem.class}, item);
                             Region saved = (Region) invoke(bookmarks, "createBookmarkCard", new Class<?>[]{BookmarkChannelListUI.BookmarkItem.class}, bookmark);
                             assertNotNull(card); assertNotNull(saved);
@@ -110,15 +351,11 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                                     assertFalse(panel.lookup(".progress-bar") instanceof ProgressBar);
                                 } else {
                                     assertEquals(3, panel.getChildren().size());
-                                    VBox nowColumn = (VBox) panel.getChildren().getFirst();
-                                    VBox nextColumn = (VBox) panel.getChildren().getLast();
-                                    assertEquals(I18n.tr("epgNow") + ": " + I18n.tr("epgNoProgrammeDetails"),
-                                            ((Label) nowColumn.getChildren().getFirst()).getText());
-                                    assertEquals(I18n.tr("epgNext") + ": " + I18n.tr("epgNoProgrammeDetails"),
-                                            ((Label) nextColumn.getChildren().getFirst()).getText());
-                                    assertNotNull(nowColumn.lookup(".epg-programme-time"), "The placeholder keeps its time range.");
-                                    assertNotNull(nextColumn.lookup(".epg-programme-time"), "The next placeholder keeps its time range.");
-                                    assertInstanceOf(ProgressBar.class, panel.lookup(".progress-bar"));
+                                    assertEquals(I18n.tr("epgNoGuide"), ((Label) panel.getChildren().getLast()).getText());
+                                    assertNull(panel.lookup(".epg-programme-time"));
+                                    assertNull(panel.lookup(".progress-bar"));
+                                    assertTrue(panel.lookupAll(".label").stream().noneMatch(node -> node instanceof Label label
+                                            && I18n.tr("epgSourceUnavailable").equals(label.getText())));
                                 }
                                 long now = System.currentTimeMillis();
                                 CardEpgSupport.display(panel, new EpgProgramme("Current film", "", now - 60_000, now + 60_000),
@@ -181,6 +418,8 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 Label title = new Label("Example Cinema"); title.getStyleClass().add("bookmark-channel-title");
                 Button anchor = new Button("⋯"); HBox header = new HBox(12, title, anchor);
                 VBox card = new VBox(12, header, panel); card.getStyleClass().add("bookmark-card");
+                VBox.setVgrow(panel, javafx.scene.layout.Priority.ALWAYS);
+                card.setMinHeight(220); card.setPrefHeight(220);
                 VBox root = new VBox(card); root.setStyle("-fx-padding: 16; -fx-background-color: -uiptv-app-bg");
                 Scene scene = new Scene(root, 480, 250);
                 scene.getStylesheets().add(getClass().getResource("/application.css").toExternalForm());
@@ -203,6 +442,12 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 CardEpgSupport.display(panel, null, null,
                         java.time.ZonedDateTime.of(2026, 10, 15, 8, 45, 0, 0, java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
                 root.applyCss(); root.layout();
+                Region noGuideSeparator = (Region) panel.lookup(".epg-no-guide-separator");
+                assertNotNull(noGuideSeparator);
+                assertNotNull(noGuideSeparator.getBorder());
+                Color separatorColor = (Color) noGuideSeparator.getBorder().getStrokes().getFirst().getTopStroke();
+                assertTrue(separatorColor.getBrightness() > .7,
+                        "The no-guide separator remains visible on a selected card in either theme.");
                 save(root, "target/epg-selected-placeholder-" + (dark ? "dark" : "light") + ".png");
 
                 VBox body = ChannelGuidePopup.content(row, 480, () -> {});
@@ -415,6 +660,12 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
 
     private static Field field(Object target, String name) throws Exception {
         Field field = target.getClass().getDeclaredField(name); field.setAccessible(true); return field;
+    }
+    private static String timeRange(long start, long stop) {
+        var formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
+        var zone = java.time.ZoneId.systemDefault();
+        return formatter.format(java.time.Instant.ofEpochMilli(start).atZone(zone)) + " – "
+                + formatter.format(java.time.Instant.ofEpochMilli(stop).atZone(zone));
     }
     private static Object invoke(Object target, String name, Class<?>[] types, Object... args) throws Exception {
         Method method = target.getClass().getDeclaredMethod(name, types); method.setAccessible(true); return method.invoke(target, args);

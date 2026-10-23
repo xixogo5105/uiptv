@@ -288,6 +288,59 @@ class EpgPersistentCacheTest extends DbBackedTest {
         }
     }
 
+    @Test void genericPlaybackResponseKeepsLastGoodNativeSchedule() {
+        var account = account("last-good-native");
+        account.setType(AccountType.XTREME_API);
+        var channel = channel("provider-stream", "Station");
+        channel.setExtraJson("{\"epg_channel_id\":\"station\"}");
+        long now = System.currentTimeMillis();
+        String nativeSource = EpgCacheApplicationService.nativeSource(account, channel);
+        db.replaceSource(nativeSource, Map.of(channel.getChannelId(), List.of(
+                        p("Last good programme", now - 1_000, now + 60_000))),
+                Map.of(), Map.of(), Map.of(), now, 0);
+        db.mapChannels(EpgCacheApplicationService.matches(account, List.of(channel), List.of()), now);
+        db.failed(nativeSource, 0, "epgNoGuide");
+
+        try (var nativeService = mockConstruction(NativeEpgApplicationService.class, (service, context) ->
+                when(service.schedule(any(), any())).thenReturn(List.of(
+                        p("No information available", now - 1_000, now + 3_600_000))))) {
+            var result = new PlayerEpgApplicationService().currentForPlayback(account, channel);
+            assertEquals("Last good programme", result.now().title());
+            verify(nativeService.constructed().getFirst()).schedule(account, channel);
+        }
+    }
+
+    @Test void genericPlaybackResponseFallsBackToConfiguredGlobalSchedule() throws Exception {
+        var account = account("global-fallback-native");
+        account.setType(AccountType.XTREME_API);
+        var channel = channel("provider-stream", "Station");
+        channel.setExtraJson("{\"epg_channel_id\":\"station\"}");
+        Path global = xml("global-fallback.xml", "Global programme");
+        var config = ConfigurationService.getInstance().read();
+        config.setGlobalEpgSource(global.toString());
+        ConfigurationService.getInstance().save(config);
+        refresh.refreshAccount(account, List.of(channel));
+        String nativeSource = EpgCacheApplicationService.nativeSource(account, channel);
+        long now = System.currentTimeMillis();
+
+        try (var nativeService = mockConstruction(NativeEpgApplicationService.class, (service, context) ->
+                when(service.schedule(any(), any())).thenReturn(List.of(
+                        p("No information available", now - 1_000, now + 3_600_000))))) {
+            var result = new PlayerEpgApplicationService().currentForPlayback(account, channel);
+            assertEquals("Global programme", result.now().title());
+            verify(nativeService.constructed().getFirst()).schedule(account, channel);
+        }
+
+        try (Connection connection = SQLConnection.connect();
+             var query = connection.prepareStatement("SELECT COUNT(*) FROM epg_programme WHERE source_id=?")) {
+            query.setString(1, nativeSource);
+            try (var rows = query.executeQuery()) {
+                assertTrue(rows.next());
+                assertEquals(0, rows.getInt(1), "A generic provider response must not be persisted as a programme.");
+            }
+        }
+    }
+
     @Test void androidSyncedCacheSignatureGoldenMatchesDesktop() {
         Account account = account("987654321");
         account.setUrl(""); account.setUsername(""); account.setPassword(""); account.setMacAddress("");
@@ -568,6 +621,56 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertTrue(snapshot.message().contains("Provider-native schedules"));
     }
 
+    @Test void stagedManualFeedIsNotSavedAndCancellationKeepsPublishedData() throws Exception {
+        long now = System.currentTimeMillis();
+        Path feed = xml("staged-progress.xml", "Unpublished update");
+        String sourceId = EpgCacheApplicationService.sourceId(feed.toString());
+        var identity = new EpgCacheDb.Identity("staging-progress", "station", "signature");
+        source(sourceId, "station", List.of(p("Last good", now - 1000, now + 3600000)), now);
+        db.mapChannels(List.of(match(identity, "station", List.of(sourceId))), now);
+        var previous = db.sourceState(sourceId);
+        long revision = EpgChangeNotifications.snapshot().revision();
+        var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/slow", exchange -> {
+            entered.countDown();
+            try {
+                release.await(5, TimeUnit.SECONDS);
+                byte[] body = "<tv/>".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length); exchange.getResponseBody().write(body);
+            } catch (InterruptedException cancelled) { Thread.currentThread().interrupt(); }
+            finally { exchange.close(); }
+        });
+        server.start();
+        EpgRefreshJobService.Snapshot started = null;
+        try {
+            var config = ConfigurationService.getInstance().read();
+            config.setGlobalEpgSource(feed + "\nhttp://127.0.0.1:" + server.getAddress().getPort() + "/slow");
+            ConfigurationService.getInstance().save(config);
+            started = EpgRefreshJobService.start();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            var snapshot = EpgRefreshJobService.get(started.id());
+            assertEquals("Staged", snapshot.sources().stream().filter(item -> item.id().equals(sourceId)).findFirst().orElseThrow().status());
+            assertEquals(0, snapshot.completed());
+            assertEquals("Last good", title(identity, now));
+            assertTrue(EpgRefreshJobService.cancel(started.id()));
+            release.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            do {
+                snapshot = EpgRefreshJobService.get(started.id());
+                if ("CANCELLED".equals(snapshot.status())) break;
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+            } while (System.nanoTime() < deadline);
+            assertEquals("CANCELLED", snapshot.status());
+            assertEquals("Last good", title(identity, now));
+            assertEquals(previous, db.sourceState(sourceId));
+            assertEquals(revision, EpgChangeNotifications.snapshot().revision());
+        } finally {
+            if (started != null) EpgRefreshJobService.cancel(started.id());
+            release.countDown(); server.stop(0);
+        }
+    }
+
     @Test void refreshWithNoAccountsOrGlobalSourcesReportsNoSources() throws Exception {
         var started = EpgRefreshJobService.start();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -620,6 +723,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         }
         assertNotNull(snapshot);
         assertEquals("COMPLETED_WITH_WARNINGS", snapshot.status(), snapshot.message());
+        assertEquals("Warnings", snapshot.stage());
         assertEquals(1, snapshot.sources().size());
         assertEquals("No matches", snapshot.sources().getFirst().status());
         assertTrue(snapshot.sources().getFirst().detail().contains("none matched"));
@@ -761,6 +865,60 @@ class EpgPersistentCacheTest extends DbBackedTest {
         refresh.refreshAccount(account,List.of(channel)); assertEquals("Refreshed title",cache.schedule(account,channel).getFirst().title());
         config.setEpgRefreshIntervalHours("invalid"); assertEquals(2,config.normalizedEpgRefreshHours());
         config.setEpgRefreshIntervalHours("999"); assertEquals(24,config.normalizedEpgRefreshHours());
+    }
+
+    @Test void globalRefreshIntervalUsesTheAllowedValuesAndDefaultsToSixHours() {
+        var config = ConfigurationService.getInstance().read();
+        assertEquals(6, config.normalizedGlobalEpgRefreshIntervalHours());
+        for (int hours : List.of(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168)) {
+            config.setGlobalEpgRefreshIntervalHours(String.valueOf(hours));
+            assertEquals(hours, config.normalizedGlobalEpgRefreshIntervalHours());
+        }
+        config.setGlobalEpgRefreshIntervalHours("7");
+        assertEquals(6, config.normalizedGlobalEpgRefreshIntervalHours());
+        config.setGlobalEpgRefreshIntervalHours("168");
+        ConfigurationService.getInstance().save(config);
+        assertEquals(168, ConfigurationService.getInstance().read().normalizedGlobalEpgRefreshIntervalHours());
+    }
+
+    @Test void manualGlobalRefreshRunsDuringCooldownAndPublishesANewCooldown() throws Exception {
+        Path feed = xml("manual-global-cooldown.xml", "Updated by manual refresh");
+        String id = EpgCacheApplicationService.sourceId(feed.toString());
+        long now = System.currentTimeMillis();
+        db.replaceSource(id, Map.of("station", List.of(p("Last good", now - 1_000, now + 3_600_000))),
+                Map.of(), Map.of(), now, now + TimeUnit.HOURS.toMillis(6));
+        Account account = account("manual-global-cooldown");
+        account.setEpg(feed.toString());
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("manual-global-cooldown");
+        var category = new Category("manual-global-live", "Live", "Live", false, 0);
+        CategoryDb.get().saveAll(List.of(category), account);
+        category = CategoryDb.get().getCategories(account).getFirst();
+        ChannelDb.get().saveAll(List.of(channel("station", "Station")), category.getDbId(), account);
+        var config = ConfigurationService.getInstance().read();
+        config.setGlobalEpgSource(feed.toString());
+        config.setGlobalEpgRefreshIntervalHours("6");
+        ConfigurationService.getInstance().save(config);
+
+        var started = EpgRefreshJobService.start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        var snapshot = EpgRefreshJobService.get(started.id());
+        while (snapshot != null && !Set.of("COMPLETED", "COMPLETED_WITH_WARNINGS", "FAILED", "CANCELLED").contains(snapshot.status())
+                && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+            snapshot = EpgRefreshJobService.get(started.id());
+        }
+        assertNotNull(snapshot);
+        assertEquals("COMPLETED", snapshot.status(), snapshot.message());
+        assertTrue(db.sourceState(id).lastAttemptAt() >= started.startedAt());
+        try (Connection connection = SQLConnection.connect(); var query = connection.prepareStatement(
+                "SELECT title FROM epg_programme WHERE source_id=? ORDER BY starts_at LIMIT 1")) {
+            query.setString(1, id);
+            try (var rows = query.executeQuery()) {
+                assertTrue(rows.next());
+                assertEquals("Updated by manual refresh", rows.getString(1));
+            }
+        }
     }
 
     @Test void xmltvChannelIconsPersistWithoutProgrammesAndResolveRelativeUrls() throws Exception {

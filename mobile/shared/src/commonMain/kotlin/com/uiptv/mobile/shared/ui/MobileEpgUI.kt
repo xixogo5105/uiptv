@@ -28,6 +28,8 @@ import java.util.Locale
 data class EpgUiActions(
     val clearCache: suspend () -> Unit = {},
     val loadBackgroundCheckIntervalMinutes: suspend () -> Int = { 3 },
+    val loadGlobalRefreshIntervalHours: suspend () -> Int = { 6 },
+    val saveGlobalRefreshIntervalHours: suspend (Int) -> Unit = {},
     val loadEnabled: suspend () -> Boolean = { false },
     val saveEnabled: suspend (Boolean) -> Unit = {},
     val loadPlaybackOnly: suspend () -> Boolean = { false },
@@ -42,6 +44,7 @@ internal data class EpgUiState(
     val playbackOnly: Boolean = false,
     val time: Long = 0,
     val backgroundCheckIntervalMinutes: Int = 3,
+    val globalRefreshIntervalHours: Int = 6,
     val dataRevision: Int = 0,
     val actions: EpgUiActions = EpgUiActions(),
     val onEnabled: (Boolean) -> Unit = {},
@@ -136,6 +139,8 @@ internal fun MobileEpgSettings() {
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var advancedExpanded by remember { mutableStateOf(false) }
+    var globalRefreshInterval by remember(state.actions) { mutableIntStateOf(state.globalRefreshIntervalHours) }
+    var intervalMenuExpanded by remember { mutableStateOf(false) }
     LaunchedEffect(state.actions) {
         runCatching { state.actions.globalSource() }.onSuccess { source = it }
             .onFailure { status = MobileMessages.text("epgMobileSourcesLoadFailed") }
@@ -191,6 +196,31 @@ internal fun MobileEpgSettings() {
         }
         if (advancedExpanded) {
             HorizontalDivider()
+            Text(MobileMessages.text("configEpgRefreshInterval"), style = MaterialTheme.typography.titleSmall)
+            Box {
+                OutlinedButton(onClick = { intervalMenuExpanded = true }, enabled = !busy) {
+                    Text(if (globalRefreshInterval < 24) "${globalRefreshInterval}h" else "${globalRefreshInterval / 24}d")
+                }
+                DropdownMenu(expanded = intervalMenuExpanded, onDismissRequest = { intervalMenuExpanded = false }) {
+                    listOf(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168).forEach { hours ->
+                        DropdownMenuItem(
+                            text = { Text(if (hours < 24) "${hours}h" else "${hours / 24}d") },
+                            onClick = {
+                                intervalMenuExpanded = false
+                                scope.launch {
+                                    busy = true
+                                    runCatching { state.actions.saveGlobalRefreshIntervalHours(hours) }
+                                        .onSuccess { globalRefreshInterval = hours; state.onDataRefresh() }
+                                        .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
+                                    busy = false
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+            Text(MobileMessages.text("configEpgRefreshIntervalHelp"),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(MobileMessages.text("epgMobileMaintenance"), style = MaterialTheme.typography.titleSmall)
             Text(MobileMessages.text("epgMobileCacheDescription"),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -227,6 +257,7 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
     }
     val now = result?.now(state.time)?.takeIf { it.hasProgrammeInformation() }
     val next = result?.next(state.time)?.takeIf { it.hasProgrammeInformation() }
+    val hasGuideDetails = result?.programmes.orEmpty().any { it.hasProgrammeInformation() }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (now != null) {
             Text("${MobileMessages.text("epgNow")}: ${now.title}", maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -234,15 +265,20 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
             Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelMedium)
             LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start).coerceAtLeast(1)).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth())
-        } else Text(if (result == null) MobileMessages.text("epgLoading") else MobileMessages.text("epgMobileNoGuide"),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            if (!hasGuideDetails && result != null) HorizontalDivider()
+            Text(mobileEpgNowStatus(result, now, next).orEmpty(),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         mobileEpgSourceStatus(result, now, next)?.let { status ->
             Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (next != null) Text("${MobileMessages.text("epgNext")}: ${next.title} · ${programmeTime(next.start)}", maxLines = 2,
             overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) {
-            Text(MobileMessages.text("epgMobileProgrammeGuide"))
+        if (hasGuideDetails) {
+            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) {
+                Text(MobileMessages.text("epgMobileProgrammeGuide"))
+            }
         }
     }
     if (details) Dialog(onDismissRequest = { details = false }) {
@@ -266,9 +302,11 @@ private suspend fun loadGuide(state: EpgUiState, accountId: Long, channelId: Str
 
 /** Suppress upstream missing-data markers without inventing programme titles or times. */
 internal fun MobileEpgProgramme.hasProgrammeInformation(): Boolean =
-    stop > start && title.isNotBlank() && title.trim().lowercase() !in setOf(
-        "no programme details available", "no program details available", "no information available",
-        "programme information unavailable", "no information", "no data", "unknown", "n/a"
+    start > 0 && stop > start && title.isNotBlank() && title.trim().lowercase() !in setOf(
+        "no details available", "no details", "no programme details", "no program details",
+        "no programme details available", "no program details available", "no programme guide available",
+        "no guide available", "no information available", "programme information unavailable",
+        "no information", "no info", "no data", "unknown", "unavailable", "n/a", "na", "-"
     )
 
 internal fun mobileEpgNowStatus(
@@ -278,10 +316,8 @@ internal fun mobileEpgNowStatus(
 ): String? = when {
     now != null -> null
     result == null -> MobileMessages.text("epgLoading")
-    result.status == MobileEpgStatus.UNAVAILABLE && next == null -> MobileMessages.text("epgMobileSourceUnavailable")
     next != null -> MobileMessages.text("epgMobileNoProgrammeNow")
-    result.status == MobileEpgStatus.UNAVAILABLE -> MobileMessages.text("epgMobileSourceUnavailable")
-    else -> MobileMessages.text("epgMobileNoGuide")
+    else -> MobileMessages.text("epgNoGuide")
 }
 
 internal fun mobileEpgSourceStatus(
@@ -289,7 +325,7 @@ internal fun mobileEpgSourceStatus(
     now: MobileEpgProgramme?,
     next: MobileEpgProgramme?
 ): String? = when {
-    result?.status == MobileEpgStatus.STALE -> MobileMessages.text("epgSourceStale")
+    result?.status == MobileEpgStatus.STALE && (now != null || next != null) -> MobileMessages.text("epgSourceStale")
     result?.status == MobileEpgStatus.UNAVAILABLE && (now != null || next != null) -> MobileMessages.text("epgSourceStale")
     else -> null
 }
@@ -299,10 +335,9 @@ private fun ProgrammeSchedule(result: MobileEpgResult?, modifier: Modifier = Mod
     val programmes = remember(result) { result?.programmes.orEmpty().filter { it.hasProgrammeInformation() }.distinctBy { "${it.start}:${it.stop}:${it.title}" } }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (result == null) item { Text(MobileMessages.text("epgLoading")); LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        if (result?.status == MobileEpgStatus.STALE) item { Text(MobileMessages.text("epgSourceStale")) }
-        if (result?.status == MobileEpgStatus.UNAVAILABLE) item { Text(MobileMessages.text("epgMobileSourceUnavailable")) }
-        if (result != null && programmes.isEmpty() && result.status != MobileEpgStatus.UNAVAILABLE) item {
-            Text(MobileMessages.text("epgMobileNoGuide"))
+        if (result != null && programmes.isEmpty()) item { Text(MobileMessages.text("epgNoGuide")) }
+        else if (result?.status == MobileEpgStatus.STALE || result?.status == MobileEpgStatus.UNAVAILABLE) {
+            item { Text(MobileMessages.text("epgSourceStale")) }
         }
         items(programmes, key = { "${it.start}:${it.stop}:${it.title}" }, contentType = { "programme" }) { p ->
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

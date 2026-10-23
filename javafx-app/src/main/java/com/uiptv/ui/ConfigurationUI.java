@@ -37,6 +37,7 @@ import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import javafx.util.StringConverter;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,6 +63,7 @@ public class ConfigurationUI extends VBox {
     private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
     private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
     private static final String CONFIG_GLOBAL_EPG_HELP = "configGlobalEpgHelp";
+    private static final String CONFIG_EPG_REFRESH_INTERVAL_HELP = "configEpgRefreshIntervalHelp";
     private static final String CONFIG_EPG_SCHEDULER_INTERVAL_HELP = "configEpgSchedulerIntervalHelp";
     private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
@@ -107,9 +109,11 @@ public class ConfigurationUI extends VBox {
             new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
     private final ComboBox<Integer> epgSchedulerIntervalComboBox = new ComboBox<>();
+    private final ComboBox<Integer> globalEpgRefreshIntervalComboBox = new ComboBox<>();
     private final SwitchToggle epgEnabledSwitch = new SwitchToggle();
     private final SwitchToggle epgPlaybackOnlySwitch = new SwitchToggle();
     private final TextArea globalEpgSourceField = new TextArea();
+    private Runnable epgRefreshCompletedHandler = () -> { };
     private final SwitchToggle showBookmarkAndAccountCountsSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
     private final SwitchToggle wideViewSwitch = new SwitchToggle();
@@ -233,6 +237,10 @@ public class ConfigurationUI extends VBox {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
         initWidgets();
+    }
+
+    public void setEpgRefreshCompletedHandler(Runnable handler) {
+        epgRefreshCompletedHandler = handler == null ? () -> { } : handler;
     }
 
     private record SettingsPanelFilter(String id, String title) {
@@ -391,7 +399,8 @@ public class ConfigurationUI extends VBox {
 
         refreshEpgButton.setOnAction(_ -> {
             refreshEpgButton.setDisable(true);
-            EpgRefreshProgressDialog.open(refreshEpgButton, () -> refreshEpgButton.setDisable(false));
+            EpgRefreshProgressDialog.open(refreshEpgButton, () -> refreshEpgButton.setDisable(false),
+                    () -> epgRefreshCompletedHandler.run());
         });
         clearEpgCacheButton.setOnAction(_ -> {
             if (!UIptvAlert.showConfirmationAlert(I18n.tr("epgClearCacheConfirm"))) return;
@@ -911,9 +920,19 @@ public class ConfigurationUI extends VBox {
         globalEpgSourceField.setTooltip(new Tooltip(I18n.tr(CONFIG_GLOBAL_EPG_HELP)));
         epgSchedulerIntervalComboBox.getItems().setAll(1, 2, 3, 5, 10, 15, 30, 60);
         if (epgSchedulerIntervalComboBox.getValue() == null) epgSchedulerIntervalComboBox.setValue(3);
+        globalEpgRefreshIntervalComboBox.getItems().setAll(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168);
+        if (globalEpgRefreshIntervalComboBox.getValue() == null) globalEpgRefreshIntervalComboBox.setValue(6);
+        globalEpgRefreshIntervalComboBox.setConverter(new StringConverter<>() {
+            @Override public String toString(Integer hours) {
+                return hours == null ? "" : hours < 24 ? hours + "h" : (hours / 24) + "d";
+            }
+            @Override public Integer fromString(String value) { return null; }
+        });
         epgSchedulerIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
+        globalEpgRefreshIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
         epgPlaybackOnlySwitch.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
         epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP)));
+        globalEpgRefreshIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_REFRESH_INTERVAL_HELP)));
         refreshEpgButton.setDisable(!epgEnabledSwitch.isSelected());
         epgEnabledSwitch.selectedProperty().addListener((_, _, enabled) -> refreshEpgButton.setDisable(!enabled));
         clearEpgActivity.setMinSize(22, 22);
@@ -930,6 +949,7 @@ public class ConfigurationUI extends VBox {
 
         VBox advancedOptions = new VBox(10,
                 createSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch),
+                createStackedSettingControlRow("configEpgRefreshInterval", globalEpgRefreshIntervalComboBox),
                 createStackedSettingControlRow("configEpgSchedulerInterval", epgSchedulerIntervalComboBox),
                 clearEpgRow, clearEpgStatus);
         TitledPane advanced = new TitledPane(I18n.tr("epgAdvancedSettings"), advancedOptions);
@@ -1740,6 +1760,7 @@ public class ConfigurationUI extends VBox {
             epgEnabledSwitch.setSelected(configuration.isEpgEnabled());
             epgPlaybackOnlySwitch.setSelected(configuration.isEpgPlaybackOnly());
             epgSchedulerIntervalComboBox.setValue(configuration.normalizedEpgSchedulerIntervalMinutes());
+            globalEpgRefreshIntervalComboBox.setValue(configuration.normalizedGlobalEpgRefreshIntervalHours());
             globalEpgSourceField.setText(configuration.getGlobalEpgSource());
             syncShowBookmarkAndAccountCountsSelector();
             wideViewCheckBox.setSelected(configuration.isWideView());
@@ -1882,6 +1903,7 @@ public class ConfigurationUI extends VBox {
         configuration.setEpgEnabled(epgEnabledSwitch.isSelected());
         configuration.setEpgPlaybackOnly(epgPlaybackOnlySwitch.isSelected());
         configuration.setEpgSchedulerIntervalMinutes(String.valueOf(epgSchedulerIntervalComboBox.getValue()==null ? 3 : epgSchedulerIntervalComboBox.getValue()));
+        configuration.setGlobalEpgRefreshIntervalHours(String.valueOf(globalEpgRefreshIntervalComboBox.getValue()==null ? 6 : globalEpgRefreshIntervalComboBox.getValue()));
         configuration.setGlobalEpgSource(globalEpgSourceField.getText().strip());
         configuration.setEpgMappingsJson(previous == null ? "{}" : previous.getEpgMappingsJson());
         // Persists the three-state selection; mirrors the legacy darkTheme flag as part of the write.

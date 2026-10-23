@@ -102,6 +102,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     /** Recent playback is applied when the user returns to the view, not during playback startup. */
     private volatile boolean recentRefreshPending = false;
     private volatile boolean reloadRequestedWhileReloading = false;
+    private boolean rebuildCardsAfterEpgReload = false;
     private boolean changeListenerRegistered = false;
     private boolean accountChangeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
@@ -171,7 +172,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     public void forceReload() {
-        cardEpg.queue();
+        forceReload(true);
+    }
+
+    private void forceReload(boolean refreshEpgCards) {
+        if (refreshEpgCards) cardEpg.queue();
         loadedOnce = true;
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
@@ -179,6 +184,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         pendingBookmarkSnapshots.clear();
         bookmarkGrid.setPlaceholderText("");
         startReloadThread(generation);
+    }
+
+    /** Repeats the startup bookmark query and recreates visible virtual cards after EPG publication. */
+    public void refreshCardsAfterManualEpgRefresh() {
+        rebuildCardsAfterEpgReload = true;
+        forceReload(false);
     }
 
     /**
@@ -335,6 +346,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         reloadInProgress = false;
         bookmarkGrid.setPlaceholderText(I18n.tr(I18N_AUTO_UNABLE_TO_LOAD_BOOKMARKS));
+        rebuildEpgCardsAfterReloadIfNeeded();
         triggerDeferredReloadIfNeeded();
     }
 
@@ -357,8 +369,16 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
+        rebuildEpgCardsAfterReloadIfNeeded();
         requestContentFocus();
         triggerDeferredReloadIfNeeded();
+    }
+
+    private void rebuildEpgCardsAfterReloadIfNeeded() {
+        if (!rebuildCardsAfterEpgReload) return;
+        rebuildCardsAfterEpgReload = false;
+        bookmarkGrid.refresh();
+        cardEpg.queue();
     }
 
     private void applyPartialReload(long generation, List<BookmarkItem> partialItems) {
@@ -564,7 +584,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         // during startup. A lightweight refresh can leave virtual cards that
         // were created in playback-only mode without an EPG panel after the
         // mode is switched back while this page is already alive.
-        bookmarkGrid.setItems(bookmarkGrid.getItems());
+        bookmarkGrid.refresh();
         cardEpg.queue();
     }
 
@@ -716,6 +736,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
         bookmarkGrid.setVirtualizationThreshold(BOOKMARK_INITIAL_STREAM_SIZE);
+        bookmarkGrid.setDetachedCardCachingEnabled(true);
         bookmarkGrid.setPlaceholderText("");
         bookmarkGrid.setCardDisposer(card -> {
             if (card instanceof BookmarkCard bookmarkCard) {
@@ -925,7 +946,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (!accountName.isBlank()) {
             Label account = new Label(HtmlEntityDecoder.decode(accountName));
             account.getStyleClass().add("bookmark-channel-account");
-            account.setWrapText(true);
+            account.setWrapText(false);
+            account.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
             account.setMinWidth(0);
             account.setMaxWidth(Double.MAX_VALUE);
             card.getChildren().add(account);
@@ -1002,7 +1024,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         // Plain-text cards use the same responsive column strategy as thumbnail cards;
         // only the card height and vertical gap differ between the two modes.
         bookmarkGrid.setSingleColumn(false);
-        bookmarkGrid.setCardWidthRange(255, 345);
+        boolean cardEpgVisible = EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+                && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv);
+        bookmarkGrid.setEpgCardSizingEnabled(cardEpgVisible);
+        bookmarkGrid.setCardWidthRange(cardEpgVisible ? 306 : 255, cardEpgVisible ? 414 : 345);
         bookmarkGrid.setCardMinHeight(bookmarkCardHeight(thumbnailsEnabled));
         bookmarkGrid.setGaps(16, thumbnailsEnabled
                 ? GRID_NORMAL_VERTICAL_GAP

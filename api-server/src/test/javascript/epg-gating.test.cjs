@@ -9,11 +9,11 @@ function harness() {
   const ref = value => ({value});
   const englishEpgLabels = JSON.parse(fs.readFileSync('api-server/src/main/resources/web/epg-labels.json', 'utf8')).en;
   const context = {
-    ref,
+    ref, document: {hidden:false},
     window: {location: {origin: 'http://fixture'}}, navigator: {language: 'en'},
     URLSearchParams, AbortController, Date, WeakMap, Map, clearTimeout(){}, setTimeout(){return 1;},
     nextTick(fn){if(fn) tasks.push(Promise.resolve().then(fn));},
-    IntersectionObserver: class {constructor(callback){this.callback=callback;} observe(element){this.callback([{target:element,isIntersecting:true}]);} disconnect(){} unobserve(){}},
+    IntersectionObserver: class {constructor(callback){this.callback=callback;} observe(element){this.callback([{target:element,isIntersecting:element.visible !== false}]);} disconnect(){} unobserve(){}},
     epgEnabled: ref(false), epgPlaybackOnly: ref(false), epgTime: ref(10_000), thumbnailsEnabled: ref(false), webPlaybackProxyEnabled: ref(true), epgLabels: ref(englishEpgLabels), playerEpg: ref({old: true}),
     currentChannel: ref({accountId: 'account', dbId: 'local-row', categoryId: 'category', mode: 'itv'}),
     liveGuideLoading: ref(false), liveGuideError: ref(''), liveGuideAccountId: ref('account'), selectedGuideProgramme:ref(null),
@@ -31,11 +31,11 @@ function harness() {
   vm.createContext(context);
   vm.runInContext(`let playerEpgRequest = 0, playerEpgController = null, liveGuideRequest = 0, liveGuideController = null, nativeGuideController = null;
     const epgLabels = this.epgLabels, epgLabel = key => epgLabels.value?.[key] || '';
-    ${functionSource('const cardProgramme =', 'const isLiveBookmark =')}
+    ${functionSource('const missingProgrammeTitles =', 'const isLiveBookmark =')}
     ${functionSource('const refreshPlayerEpg =', 'watch(currentChannel,')}
     ${functionSource('let cardEpgObserver =', 'watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode]')}
     ${functionSource('const applyDesktopEpgSetting =', 'const findBookmarkForChannel =')}
-    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,updateEpgClock,cardEpgStatus,cardEpgIsStale,cardNowStatus});`, context);
+    Object.assign(this,{cardEpgDetails,isCardEpgExpanded,toggleCardEpgDetails,loadConfig,refreshPlayerEpg,applyDesktopEpgSetting,observeChannelEpg,observeBookmarkEpg,refreshVisibleCardEpg,updateEpgClock,cardEpgHasData,cardEpgStatus,cardEpgIsStale,cardNowStatus});`, context);
   return {context, calls, async flush(){await Promise.all(tasks.splice(0));}};
 }
 test('web EPG labels are translated for every shipped non-English locale', () => {
@@ -86,8 +86,8 @@ test('full-EPG web keeps the original stacked Now and Next cards', () => {
   const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
   const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
   assert.match(html, /class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && isLiveBookmark\(bookmark\)"/);
-  assert.match(html, /\{\{ epgLabels\.epgNow \|\| 'Now' \}\}: \{\{ cardProgramme\(bookmark, 'epgNow'\)\.title \}\}/);
-  assert.match(html, /\{\{ epgLabels\.epgNext \|\| 'Next' \}\}: \{\{ cardProgramme\(bookmark, 'epgNext'\)\.title \}\}/);
+  assert.match(html, /\{\{ epgLabels\.epgNow \|\| 'Now' \}\}: \{\{ cardProgramme\(bookmark, 'epgNow'\)\?\.title \}\}/);
+  assert.match(html, /\{\{ epgLabels\.epgNext \|\| 'Next' \}\}: \{\{ cardProgramme\(bookmark, 'epgNext'\)\?\.title \}\}/);
   assert.match(html, /class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && contentMode === 'itv'"/);
   assert.doesNotMatch(html, /epg-column-header|epg-row-card|epg-now-column|epg-next-column/);
   assert.doesNotMatch(css, /epg-column-header|epg-row-card|full-epg-mode/);
@@ -180,22 +180,73 @@ test('HTTP configuration failures keep the last desktop setting',async()=>{
   await context.loadConfig();assert.equal(context.epgEnabled.value,true);
 });
 
-test('card summaries restore the full-card missing-programme placeholders from main',()=>{
- const context={Vue:{}, createApp(){}, ref:value=>({value}), epgLabels:{value:{epgNoProgrammeDetails:'No programme details'}}, epgTime:{value:new Date('2026-10-16T12:30:00Z').getTime()}};
- vm.createContext(context);
- vm.runInContext(functionSource('const cardProgramme =','const isLiveBookmark =')+'this.cardProgramme=cardProgramme;this.cardProgrammeProgress=cardProgrammeProgress;this.cardProgrammeTime=cardProgrammeTime;',context);
- const item={epgNow:{title:'Current',start:context.epgTime.value-1800000,stop:context.epgTime.value+1800000}};
- assert.equal(context.cardProgrammeProgress(item),0.5);
- assert.equal(context.cardProgramme({},'epgNow').title,'No programme details');
- assert.equal(context.cardProgramme({},'epgNext').title,'No programme details');
- assert.ok(context.cardProgrammeTime(context.cardProgramme({},'epgNow')).includes(' – '));
- assert.ok(context.cardProgrammeTime(item.epgNow).includes(' – '));
- assert.equal(context.cardProgramme(item,'epgNext').title,'No programme details');assert.equal(context.cardProgrammeProgress({}),0.5);
+test('card summaries never fabricate programmes, times or progress',()=>{
+ const {context}=harness();
+ vm.runInContext('Object.assign(this,{cardProgramme,cardProgrammeTime,cardProgrammeProgress});',context);
+ context.epgTime.value=2_000_000;
+ const now={title:'Real programme',start:1_000_000,stop:3_000_000};
+ assert.equal(context.cardProgrammeProgress({epgNow:now}),0.5);
+ for(const item of [{},{epgNext:now},{epgNow:{...now,title:'No programme details'}},
+   {epgNow:{...now,title:'No details available'}},{epgNow:{...now,title:'  '}}]) {
+   assert.equal(context.cardProgramme(item,'epgNow'),null);
+   assert.equal(context.cardProgrammeProgress(item),null);
+ }
+ assert.equal(context.cardProgrammeTime(null),'');
+ for(const [start,stop] of [[0,0],[3,2],[NaN,4],[1,Infinity]]) {
+   const programme={title:'Real programme',start,stop};
+   assert.equal(context.cardProgrammeTime(programme),'');
+   assert.equal(context.cardProgrammeProgress({epgNow:programme}),null);
+ }
+ assert.equal(context.cardProgramme({epgNow:now},'epgNext'),null);
+ assert.ok(context.cardProgrammeTime(now).includes(' – '));
 });
 
-test('missing guide details keep both Now and Next blocks in web cards',()=>{
+test('unavailable guide status distinguishes cached real data from empty data',()=>{
+ const {context}=harness();
+ const unavailable={epgLoaded:true,epgSourceStatus:'UNAVAILABLE'};
+ assert.equal(context.cardEpgIsStale(unavailable),false);
+ assert.equal(context.cardEpgStatus(unavailable),context.epgLabels.value.epgNoGuide);
+ const placeholder={epgLoaded:true,epgNow:{title:'No details available',start:1,stop:100},epgNext:{title:'No details available',start:100,stop:200}};
+ assert.equal(context.cardEpgHasData(placeholder),false);
+ assert.equal(context.cardEpgStatus(placeholder),context.epgLabels.value.epgNoGuide);
+ const stalePlaceholder={...placeholder,epgSourceStatus:'STALE'};
+ assert.equal(context.cardEpgIsStale(stalePlaceholder),false);
+ assert.equal(context.cardEpgStatus(stalePlaceholder),context.epgLabels.value.epgNoGuide);
+ const cached={...unavailable,epgNow:{title:'Cached programme',start:1,stop:100}};
+ assert.equal(context.cardEpgIsStale(cached),true);
+ assert.equal(context.cardEpgStatus(cached),context.epgLabels.value.epgSourceStale);
+});
+
+test('web templates guard absent programme titles, times and progress',()=>{
  const html=fs.readFileSync('api-server/src/main/resources/web/index.html','utf8');
- assert.equal((html.match(/cardProgramme\((?:bookmark|channel), 'epgNow'\)\.title/g)||[]).length,4);
- assert.equal((html.match(/cardProgramme\((?:bookmark|channel), 'epgNext'\)\.title/g)||[]).length,4);
- assert.equal((html.match(/cardProgrammeProgress\((?:bookmark|channel)\)/g)||[]).length,2);
+ for(const item of ['bookmark','channel']) {
+   assert.ok(html.includes(`v-if="cardProgrammeProgress(${item}) !== null"`));
+   for(const slot of ['epgNow','epgNext']) assert.ok(html.includes(`v-if="cardProgramme(${item}, '${slot}')"`));
+ }
+});
+
+test('a thousand catalogue bindings fetch only twelve visible cards with one request at a time', async()=>{
+ const {context,calls}=harness();context.epgEnabled.value=true;
+ let active=0,maximum=0;
+ context.fetch=async(url)=>{
+   calls.push({url:String(url)}); maximum=Math.max(maximum,++active);
+   await Promise.resolve(); --active;
+   return {ok:true,json:async()=>({now:{title:'Real guide',start:1,stop:9999999999999}})};
+ };
+ const channels=Array.from({length:1000},(_,i)=>({dbId:`row-${i}`,categoryId:'category'}));
+ channels.forEach((channel,i)=>context.observeChannelEpg({visible:i<12},channel));
+ await context.refreshVisibleCardEpg();
+ assert.equal(calls.length,12);assert.equal(maximum,1);
+ const rebound={...channels[0],epgNow:null};
+ context.observeChannelEpg(null,channels[0]);context.observeChannelEpg({},rebound);
+ await context.refreshVisibleCardEpg();
+ assert.equal(calls.length,12);assert.equal(rebound.epgNow.title,'Real guide');
+ const before=calls.length;context.updateEpgClock(Date.now()+60000);
+ assert.equal(calls.length,before);
+});
+
+test('hidden web catalogues do not start guide work',async()=>{
+ const {context,calls}=harness();context.epgEnabled.value=true;
+ context.observeChannelEpg({},{dbId:'hidden',categoryId:'category'});
+ context.document.hidden=true;await context.refreshVisibleCardEpg();assert.equal(calls.length,0);
 });

@@ -18,6 +18,23 @@ class EpgRefreshSourceCardsTest extends DbBackedUiTest {
         return new SourceProgress(id, "same.example", id + ".xml.gz", status, detail, 123, 5);
     }
 
+    @Test void stagedDataIsLabelledAsUnpublishedUntilCommit() throws Exception {
+        runOnFxThread(() -> {
+            var cards = new EpgRefreshProgressDialog.SourceCards();
+            cards.update(List.of(source("one", "Staging", "123 programmes")));
+            var card = cards.cards.get("one");
+            cards.update(List.of(source("one", "Staged", "123 programmes")));
+            assertEquals(com.uiptv.util.I18n.tr("epgRefreshStaged"), card.status.getText());
+            assertEquals(1, card.body.getChildren().size());
+            cards.update(List.of(source("one", "Publishing", "")));
+            assertEquals(com.uiptv.util.I18n.tr("epgRefreshPublishing"), card.status.getText());
+            cards.update(List.of(source("one", "Completed", "")));
+            assertEquals(com.uiptv.util.I18n.tr("epgRefreshCompleted"), card.status.getText());
+            assertSame(card, cards.cards.get("one"));
+            return null;
+        });
+    }
+
     @Test void sameHostCardsKeepIdentityAndManualExpansionDuringPolling() throws Exception {
         runOnFxThread(() -> {
             var cards = new EpgRefreshProgressDialog.SourceCards();

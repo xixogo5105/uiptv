@@ -104,7 +104,8 @@ class UiptvSyncSchemaTest {
                 "globalEpgSource",
                 "epgMappingsJson",
                 "epgRefreshIntervalHours",
-                "epgSchedulerIntervalMinutes"
+                "epgSchedulerIntervalMinutes",
+                "globalEpgRefreshIntervalHours"
             ),
             UiptvSyncSchema.configurationColumns
         )
@@ -134,6 +135,7 @@ class UiptvSyncSchemaTest {
         assertTrue("themeMode" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("vlcVout" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("httpsServerEnabled" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("globalEpgRefreshIntervalHours" in UiptvSyncSchema.androidPortableConfigurationColumns)
     }
 
     @Test

@@ -15,6 +15,58 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class AndroidEpgTest {
+    @Test fun globalFeedCooldownIsConfigurableAndAvoidsAnotherNetworkRequest() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val helper = AndroidUiptvDatabaseHelper(context)
+        val db = helper.writableDatabase
+        val preferences = AndroidDataStorePreferencesRepository(context)
+        val accountId = 987654322L
+        val source = "http://127.0.0.1:1/cooldown.xml"
+        val sourceId = java.security.MessageDigest.getInstance("SHA-256").digest("xml:$source".toByteArray())
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        val now = System.currentTimeMillis()
+        val previous = db.rawQuery("SELECT globalEpgSource,globalEpgRefreshIntervalHours FROM Configuration LIMIT 1", null).use {
+            if (it.moveToFirst()) it.getString(0).orEmpty() to it.getString(1).orEmpty() else "" to "6"
+        }
+        val wasEnabled = preferences.load().epgEnabled
+        fun values(vararg pairs: Pair<String, String>) = android.content.ContentValues().apply {
+            pairs.forEach { (key, value) -> put(key, value) }
+        }
+        try {
+            preferences.saveEpgEnabled(true)
+            val configValues = values("globalEpgSource" to source, "globalEpgRefreshIntervalHours" to "6")
+            if (db.update("Configuration", configValues, null, null) == 0) db.insertOrThrow("Configuration", null, configValues)
+            db.delete("epg_source", "source_id=?", arrayOf(sourceId))
+            db.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning,last_attempt_at) VALUES(?,0,0,'',?)",
+                arrayOf<Any?>(sourceId, now - 3_600_000L))
+            db.insertOrThrow("Account", null, values(
+                "id" to accountId.toString(), "accountName" to "Global cooldown fixture", "type" to "M3U8_LOCAL",
+                "url" to "", "username" to "", "password" to "", "macAddress" to "", "epg" to "", "m3u8Path" to ""
+            ))
+
+            val repository = AndroidEpgRepository(context, helper, preferences)
+            assertEquals(6, repository.globalRefreshIntervalHours())
+            MobileEpgCache.clear()
+            assertEquals(MobileEpgStatus.UNAVAILABLE, repository.schedule(accountId, "station", "Station").status)
+            val lastAttempt = db.rawQuery("SELECT last_attempt_at FROM epg_source WHERE source_id=?", arrayOf(sourceId)).use {
+                it.moveToFirst(); it.getLong(0)
+            }
+            assertEquals("An on-demand channel read must honor the global cooldown without opening the URL again.",
+                now - 3_600_000L, lastAttempt)
+
+            repository.saveGlobalRefreshIntervalHours(12)
+            assertEquals(12, repository.globalRefreshIntervalHours())
+        } finally {
+            MobileEpgCache.clear()
+            db.delete("Account", "id=?", arrayOf(accountId.toString()))
+            db.delete("epg_source", "source_id=?", arrayOf(sourceId))
+            val restoreValues = values("globalEpgSource" to previous.first, "globalEpgRefreshIntervalHours" to previous.second)
+            if (db.update("Configuration", restoreValues, null, null) == 0) db.insertOrThrow("Configuration", null, restoreValues)
+            preferences.saveEpgEnabled(wasEnabled)
+            helper.close()
+        }
+    }
+
     @Test fun sharedGuidesResolveAccountsCreatedLaterAcrossProviderTypes() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File.createTempFile("epg-shared-fixture", ".db", context.cacheDir)
@@ -24,7 +76,7 @@ class AndroidEpgTest {
             val now = System.currentTimeMillis()
             db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES('','{}')")
             db.execSQL("INSERT INTO epg_shared_source VALUES('shared:fixture',40,'IN','')")
-            db.execSQL("INSERT INTO epg_source VALUES('shared:fixture',?,?, '')",arrayOf<Any>(now,now+3600000))
+            db.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning) VALUES('shared:fixture',?,?, '')",arrayOf<Any>(now,now+3600000))
             db.execSQL("INSERT INTO epg_alias VALUES('shared:fixture',0,'star sports 1 hd','guide')")
             val output = java.io.ByteArrayOutputStream()
             java.util.zip.DeflaterOutputStream(output).use { it.write("Real description".toByteArray()) }
@@ -54,7 +106,7 @@ class AndroidEpgTest {
             val now=System.currentTimeMillis()
             db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES(?,?)",arrayOf(source,"{}"))
             db.execSQL("INSERT INTO Account(id,accountName,type,epg) VALUES(?,?,?,?)",arrayOf("999","Fixture","M3U8_LOCAL",""))
-            db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)",arrayOf<Any>(sourceId,now,now+3600000,""))
+            db.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning) VALUES(?,?,?,?)",arrayOf<Any>(sourceId,now,now+3600000,""))
             db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)",arrayOf<Any>(sourceId,0,"station","guide-station"))
             val output=java.io.ByteArrayOutputStream()
             java.util.zip.DeflaterOutputStream(output).use { it.write("Description".toByteArray()) }
@@ -87,7 +139,7 @@ class AndroidEpgTest {
             val now = System.currentTimeMillis()
             db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES(?,?)", arrayOf(source,"{}"))
             db.execSQL("INSERT INTO Account(id,accountName,type,epg) VALUES(?,?,?,?)", arrayOf("999","Fixture","M3U8_LOCAL",""))
-            db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)", arrayOf<Any>(sourceId,now,now+3600000,""))
+            db.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning) VALUES(?,?,?,?)", arrayOf<Any>(sourceId,now,now+3600000,""))
             db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)", arrayOf<Any>(sourceId,0,"bbc two hd","BBC.Two.HD.uk"))
             db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)", arrayOf<Any>(sourceId,1,"bbc two","BBC.Two.HD.uk"))
             db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)", arrayOf<Any>(sourceId,0,"bbc two","empty-sd"))
@@ -136,7 +188,7 @@ class AndroidEpgTest {
             val categoryId = db.insertOrThrow("Category", null, values("accountId" to accountId.toString(), "categoryId" to "provider-category", "title" to "Fixture"))
             val channelId = db.insertOrThrow("Channel", null, values("categoryId" to categoryId.toString(), "channelId" to "provider-stream",
                 "name" to "Synced station", "extraJson" to "{\"xmltv_id\":\"station\"}"))
-            db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)", arrayOf<Any>(source, now, now + 1_800_000, ""))
+            db.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning) VALUES(?,?,?,?)", arrayOf<Any>(source, now, now + 1_800_000, ""))
             // Golden signature is verified by the Java EpgPersistentCacheTest as well.
             val signature = "6c5946350f540c3a39861441107fbca5da02de06bc25b0b1e2175b100a6d48ad"
             db.execSQL("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)", arrayOf<Any>(accountId.toString(), "provider-stream", signature, source, "station", 0))
@@ -294,42 +346,67 @@ class AndroidEpgTest {
     @Test fun downloadedXmltvPersistsAcrossRestartExpiresAndRetainsLastValidFeed() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val helper = AndroidUiptvDatabaseHelper(context)
+        val db = helper.writableDatabase
         val preferences = AndroidDataStorePreferencesRepository(context)
+        val previousPreferences = preferences.load()
         preferences.saveEpgEnabled(true)
         preferences.saveRemoteEndpoint("", 8888)
         val now = Instant.now(); val format = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC)
         val xml = "<tv><programme channel='stream-id' start='${format.format(now.minusSeconds(60))}' stop='${format.format(now.plusSeconds(3600))}'><title>Disk fixture</title></programme></tv>"
         val responses = mutableMapOf("xml" to xml)
+        val previousConfig = db.rawQuery(
+            "SELECT globalEpgSource,globalEpgRefreshIntervalHours FROM Configuration LIMIT 1", null
+        ).use { if (it.moveToFirst()) it.getString(0).orEmpty() to it.getString(1).orEmpty() else "" to "6" }
         com.uiptv.mobile.android.AndroidUiptvDatabaseCompatibilityTest.TestHttpServer(responses).use { server ->
             val accounts = AndroidSQLiteAccountRepository(helper)
             val account = accounts.saveAccount(MobileAccount(accountName = "Disk EPG fixture", type = MobileAccountType.M3U8_LOCAL))
             val repository = AndroidEpgRepository(context, helper, preferences)
             val source = "http://127.0.0.1:${server.port}/guide?action=xml&secret=private"
+            val sourceId = java.security.MessageDigest.getInstance("SHA-256").digest("xml:$source".toByteArray())
+                .joinToString("") { "%02x".format(it.toInt() and 255) }
             val field = AndroidEpgRepository::class.java.getDeclaredField("guides").apply { isAccessible = true }
             fun discardMemory() {
                 (field.get(null) as MutableMap<*, *>).clear()
                 com.uiptv.mobile.shared.epg.MobileEpgCache.clear(account.id!!, "stream-id")
             }
+            fun expireGlobalCooldown() {
+                val values = android.content.ContentValues().apply {
+                    put("last_attempt_at", System.currentTimeMillis() - 2 * 3_600_000L)
+                }
+                assertEquals(1, db.update("epg_source", values, "source_id=?", arrayOf(sourceId)))
+            }
             val hash = java.security.MessageDigest.getInstance("SHA-256").digest(source.toByteArray())
                 .joinToString("") { "%02x".format(it.toInt() and 255) }
             val cached = File(context.filesDir, "epg/epg-$hash.xml")
             try {
-                repository.clearCache(); repository.saveGlobalSource(source)
+                repository.clearCache(); repository.saveGlobalSource(source); repository.saveGlobalRefreshIntervalHours(1)
                 assertEquals("Disk fixture", repository.schedule(account.id!!, "stream-id", "Station").programmes.first().title)
                 assertTrue(cached.isFile); assertFalse(cached.name.contains("private"))
                 discardMemory()
                 val restarted = AndroidEpgRepository(context, helper, preferences)
                 assertEquals("Disk fixture", restarted.schedule(account.id!!, "stream-id", "Station").programmes.first().title)
                 assertEquals(1, server.requests.size)
-                cached.setLastModified(System.currentTimeMillis() - 25 * 3600_000L); discardMemory()
+                cached.setLastModified(System.currentTimeMillis() - 25 * 3600_000L); expireGlobalCooldown(); discardMemory()
                 assertEquals("Disk fixture", restarted.schedule(account.id!!, "stream-id", "Station").programmes.first().title)
                 assertEquals(2, server.requests.size)
                 responses["xml"] = "invalid XML"
-                cached.setLastModified(System.currentTimeMillis() - 25 * 3600_000L); discardMemory()
+                cached.setLastModified(System.currentTimeMillis() - 25 * 3600_000L); expireGlobalCooldown(); discardMemory()
                 assertEquals(MobileEpgStatus.STALE, restarted.schedule(account.id!!, "stream-id", "Station").status)
+                assertEquals(3, server.requests.size)
                 assertEquals(xml, cached.readText())
                 restarted.clearCache(); assertFalse(cached.exists())
-            } finally { repository.clearCache(); preferences.saveEpgEnabled(false); accounts.deleteAccount(account.id!!); helper.close() }
+            } finally {
+                repository.clearCache()
+                repository.saveGlobalSource(previousConfig.first)
+                repository.saveGlobalRefreshIntervalHours(previousConfig.second.toIntOrNull() ?: 6)
+                db.delete("epg_source", "source_id=?", arrayOf(sourceId))
+                preferences.saveEpgEnabled(previousPreferences.epgEnabled)
+                preferences.saveRemoteEndpoint(
+                    previousPreferences.remoteEndpoint.host, previousPreferences.remoteEndpoint.port
+                )
+                accounts.deleteAccount(account.id!!)
+                helper.close()
+            }
         }
     }
 

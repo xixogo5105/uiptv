@@ -207,6 +207,13 @@ public class ChannelListUI extends HBox implements SearchTarget {
         scrollFocusedChannelIntoView();
     }
 
+    /** Rebinds the currently open live-channel cards to the newly published cached guide. */
+    public void refreshCardsAfterManualEpgRefresh() {
+        if (disposed.get() || listAction != Account.AccountAction.itv) return;
+        channelGrid.refresh();
+        cardEpg.queue();
+    }
+
     public void scrollFocusedChannelIntoView() {
         channelGrid.scrollFocusedItemIntoView();
     }
@@ -663,18 +670,21 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyChannelGridSizing() {
+        boolean cardEpgVisible = EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+                && listAction == Account.AccountAction.itv;
+        channelGrid.setEpgCardSizingEnabled(cardEpgVisible);
         channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
         if (!thumbnailsEnabled) {
             channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
                     && listAction == Account.AccountAction.itv ? 150 : 42);
-            channelGrid.setCardWidthRange(240, 760);
+            channelGrid.setCardWidthRange(cardEpgVisible ? 288 : 240, cardEpgVisible ? 912 : 760);
             channelGrid.setGaps(16, 6);
             return;
         }
         channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
                 && listAction == Account.AccountAction.itv ? 168 : 76);
         if (mediaDrawerMode) {
-            channelGrid.setCardWidthRange(260, 520);
+            channelGrid.setCardWidthRange(cardEpgVisible ? 312 : 260, cardEpgVisible ? 624 : 520);
             channelGrid.setGaps(7, 7);
             return;
         }
@@ -683,7 +693,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             channelGrid.setGaps(18, 16);
             return;
         }
-        channelGrid.setCardWidthRange(255, 345);
+        channelGrid.setCardWidthRange(cardEpgVisible ? 306 : 255, cardEpgVisible ? 414 : 345);
         channelGrid.setGaps(16, 14);
     }
 

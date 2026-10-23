@@ -59,6 +59,7 @@ class EpgResolutionTest extends DbBackedTest {
         var normalized = EpgSchedules.normalize(List.of(movie, godzilla, godzilla));
         assertEquals(List.of(godzilla, new EpgProgramme("Movie", "", 3000, 4000)), normalized);
         assertEquals(1, EpgSchedules.normalize(List.of(godzilla, new EpgProgramme("Movie", "", 1500, 2000))).size());
+        assertTrue(EpgSchedules.isGenericTitle("No details available"));
     }
     @Test void nativeCatalogueDoesNotDownloadXmlBeforeChannelNativeResolution() {
         account.setType(AccountType.XTREME_API); account.setEpg("https://example.invalid/account.xml");

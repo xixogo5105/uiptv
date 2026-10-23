@@ -109,7 +109,8 @@ CREATE TABLE IF NOT EXISTS Configuration
     globalEpgSource TEXT default '',
     epgMappingsJson TEXT default '{}',
     epgRefreshIntervalHours TEXT default '2',
-    epgSchedulerIntervalMinutes TEXT default '3'
+    epgSchedulerIntervalMinutes TEXT default '3',
+    globalEpgRefreshIntervalHours TEXT default '6'
 );
 
 CREATE TABLE IF NOT EXISTS Account
@@ -720,7 +721,8 @@ CREATE TABLE IF NOT EXISTS epg_source (
     source_id TEXT PRIMARY KEY,
     refreshed_at INTEGER NOT NULL,
     retry_at INTEGER NOT NULL,
-    warning TEXT NOT NULL DEFAULT ''
+    warning TEXT NOT NULL DEFAULT '',
+    last_attempt_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS epg_programme (
     source_id TEXT NOT NULL,

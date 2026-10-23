@@ -13,6 +13,13 @@ public class EpgCacheRefreshService {
     static long refreshMillis() {
         return TimeUnit.HOURS.toMillis(ConfigurationService.getInstance().read().normalizedEpgRefreshHours());
     }
+    static long globalRefreshMillis() {
+        return TimeUnit.HOURS.toMillis(ConfigurationService.getInstance().read().normalizedGlobalEpgRefreshIntervalHours());
+    }
+    private static Set<String> globalSourceIds() {
+        return EpgApplicationService.globalSources(ConfigurationService.getInstance().read().getGlobalEpgSource())
+                .stream().map(EpgCacheApplicationService::sourceId).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
     private static long schedulerIntervalMillis() {
         return TimeUnit.MINUTES.toMillis(ConfigurationService.getInstance().read().normalizedEpgSchedulerIntervalMinutes());
     }
@@ -299,14 +306,17 @@ public class EpgCacheRefreshService {
         // requested only by the player after a stream link resolves; polling
         // bookmarks or visible catalogue rows creates large repeated HTTP bursts.
         var loader = new EpgApplicationService();
+        Set<String> globalSources = globalSourceIds();
         for(Account account:accounts) {
             refreshVisible(token);
             if(!current(token) || !loader.isEnabled()) return;
             List<String> sources = loader.cacheSources(account);
             if (sources.isEmpty()) continue;
             long now = System.currentTimeMillis();
-            boolean sourceDue = sources.stream().anyMatch(source -> due(
-                    new EpgCacheDb().sourceState(EpgCacheApplicationService.sourceId(source)), now));
+            boolean sourceDue = sources.stream().anyMatch(source -> {
+                String sourceId = EpgCacheApplicationService.sourceId(source);
+                return due(new EpgCacheDb().sourceState(sourceId), now, globalSources.contains(sourceId));
+            });
             if (!sourceDue) continue;
             account.setAction(Account.AccountAction.itv);
             Map<String,Channel> channels=new LinkedHashMap<>();
@@ -320,6 +330,12 @@ public class EpgCacheRefreshService {
     private static boolean due(EpgCacheDb.SourceState state,long now) {
         long retry=state.warning().isBlank() ? Math.min(state.retryAt(),state.refreshedAt()+refreshMillis()) : state.retryAt();
         return retry<=now;
+    }
+    private static boolean due(EpgCacheDb.SourceState state, long now, boolean global) {
+        if (!global) return due(state, now);
+        long lastAttempt = state.lastAttemptAt() > 0 ? state.lastAttemptAt() : state.refreshedAt();
+        return lastAttempt + globalRefreshMillis() <= now
+                && (state.warning().isBlank() || state.retryAt() <= now);
     }
     /** Explicit refresh boundary, also usable by import/contract tests without starting timers. */
     public void refreshAccount(Account account,List<Channel> channels) {
@@ -361,20 +377,23 @@ public class EpgCacheRefreshService {
         // recreated for every XMLTV source, which made a 400k-channel catalogue do
         // the same normalisation and rule work once per source.
         List<EpgCacheDb.Match> mappings = null;
+        Set<String> globalSources = globalSourceIds();
         int importedSources = 0;
         boolean mappingPublished = false;
         boolean needsConsolidatedMapping = false;
         for(String source:sources) {
             if(!current(token) || !loader.isEnabled()) return;
             String id=EpgCacheApplicationService.sourceId(source);
+            boolean global = globalSources.contains(id);
             long now=System.currentTimeMillis();
-            if(!due(db.sourceState(id),now)) continue;
+            if(!due(db.sourceState(id),now,global)) continue;
             try {
                 if (mappings == null) {
                     mappings = EpgCacheApplicationService.matches(account, channels, sources);
                 }
                 try (XmltvGuide guide=loader.downloadSource(source)) {
-                commit(token,() -> db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()));
+                long interval = global ? globalRefreshMillis() : refreshMillis();
+                commit(token,() -> db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+interval));
                 importedSources++;
                 if (!mappingPublished && mappings != null && current(token)) {
                     // Publish the first ready account/global source before waiting on
@@ -393,7 +412,8 @@ public class EpgCacheRefreshService {
                 return;
             } catch (java.io.IOException | javax.xml.stream.XMLStreamException | RuntimeException error) {
                 if(!current(token)) return;
-                commit(token,() -> db.failed(id,now+FAILURE_MS,EpgApplicationService.warning(error)));
+                long retryDelay = global ? globalRefreshMillis() : FAILURE_MS;
+                commit(token,() -> db.failed(id,now+retryDelay,EpgApplicationService.warning(error)));
                 AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG source refresh failed; retaining cached programmes.");
             }
         }
