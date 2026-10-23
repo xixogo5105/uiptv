@@ -6,6 +6,12 @@ When disabled, the relevant client skips guide downloads, native schedule reques
 
 The optional **playback-only EPG** mode is configured on desktop alongside the main EPG switch, and Android has its own local setting. The web UI follows the desktop values exposed by its read-only `/config` API; it has no EPG status, enable/disable control or playback-only toggle of its own. When the desktop setting is enabled, playback-only mode keeps catalogue and bookmark rows plain, performs no background guide refreshes or catalogue guide lookups, and fetches guide data only for the playing channel. Disabling the main EPG switch also disables this mode.
 
+## Manual refresh publication and progress
+
+Manual XMLTV refresh prepares downloaded feeds in private SQLite temporary tables, keeping the live guide readable. After downloading, it maps the cached catalogue once and publishes all successful feeds, mappings and notifications in one transaction. A failed download keeps that source's previous guide; a failed mapping or cancellation discards the unpublished batch. This avoids repeatedly matching the entire catalogue after every XML file. Provider-native schedules retain their bounded cache/playback lifecycle.
+
+The nonmodal progress window uses content-driven card heights. Source titles and statuses stay in the header; processing stages and their wrapping details occupy separate columns below. Duplicate saving rows are combined. Source cards open when processing starts and preserve manual expansion/collapse. The run summary wraps across the bottom of the sources section. Active and staged feeds use an in-progress segment; green, yellow and red segments represent final results.
+
 ## Sources and matching
 
 For each live channel, try these sources in order:

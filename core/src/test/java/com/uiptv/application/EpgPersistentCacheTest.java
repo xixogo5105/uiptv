@@ -87,6 +87,66 @@ class EpgPersistentCacheTest extends DbBackedTest {
                         "atomic-success-account", "atomic-success-channel"))));
     }
 
+    @Test void stagedSourcesAreInvisibleAndRollbackTogetherOnMappingFailure() throws Exception {
+        long now = System.currentTimeMillis();
+        var identity = new EpgCacheDb.Identity("staged-account", "channel", "old");
+        source("staged-one", "old-guide", List.of(p("Last good", now - 1000, now + 3600000)), now);
+        db.mapChannels(List.of(match(identity, "old-guide", List.of("staged-one"))), now);
+        var previousState = db.sourceState("staged-one");
+        var revision = EpgChangeNotifications.snapshot().revision();
+        try (var staged = db.stageSources()) {
+            var guide = new XmltvGuide(Map.of("new-guide", List.of(p("New", now - 1000, now + 3600000))), Map.of());
+            staged.add("staged-one", guide, now + 1, now + 7200000, _ -> { });
+            staged.add("staged-two", guide, now + 1, now + 7200000, _ -> { });
+            assertEquals("Last good", title(identity, now), "Staging must not replace the visible guide");
+            assertEquals(previousState, db.sourceState("staged-one"));
+            assertEquals(0, db.sourceState("staged-two").refreshedAt());
+            try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
+                statement.execute("CREATE TRIGGER fail_staged_mapping BEFORE INSERT ON epg_channel_mapping "
+                        + "WHEN NEW.account_id='staged-account' BEGIN SELECT RAISE(ABORT,'forced failure'); END");
+            }
+            try {
+                assertThrows(RuntimeException.class, () -> staged.publish(List.of(match(
+                        new EpgCacheDb.Identity("staged-account", "channel", "new"), "new-guide",
+                        List.of("staged-one", "staged-two"))), now, _ -> { }));
+            } finally {
+                try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
+                    statement.execute("DROP TRIGGER fail_staged_mapping");
+                }
+            }
+        }
+        assertEquals("Last good", title(identity, now));
+        assertEquals(previousState, db.sourceState("staged-one"));
+        assertEquals(0, db.sourceState("staged-two").refreshedAt());
+        assertEquals(revision, EpgChangeNotifications.snapshot().revision());
+    }
+
+    @Test void stagedSourcesPublishWithOneMappingPassAndDiscardCancelledWork() {
+        long now = System.currentTimeMillis();
+        var guide = new XmltvGuide(Map.of("guide", List.of(p("Ready", now - 1000, now + 3600000))), Map.of());
+        try (var cancelled = db.stageSources()) {
+            cancelled.add("cancelled-source", guide, now, now + 7200000, _ -> { });
+        }
+        assertEquals(0, db.sourceState("cancelled-source").refreshedAt());
+        var identity = new EpgCacheDb.Identity("batch-account", "channel", "signature");
+        var before = EpgChangeNotifications.snapshot();
+        List<Long> scanned = new ArrayList<>();
+        try (var staged = db.stageSources()) {
+            staged.add("batch-one", guide, now, now + 7200000, _ -> { });
+            staged.add("batch-two", guide, now, now + 7200000, _ -> { });
+            var report = staged.publish(List.of(match(identity, "guide", List.of("batch-one", "batch-two"))),
+                    now, scanned::add);
+            assertEquals(Map.of("batch-one", 1, "batch-two", 1), report.mappedBySource());
+            assertEquals(1, report.mappedChannels());
+        }
+        assertEquals(List.of(1L), scanned, "The catalogue must be scanned once for the entire batch");
+        assertEquals("Ready", title(identity, now));
+        assertEquals(now, db.sourceState("batch-one").refreshedAt());
+        assertEquals(now, db.sourceState("batch-two").refreshedAt());
+        assertEquals(2, EpgChangeNotifications.replay(before.revision(), before.databaseGeneration()).stream()
+                .filter(event -> event.kind() == EpgChangeNotifications.Kind.SOURCE_IMPORT).count());
+    }
+
     @Test void oldSpacedAliasesMatchAnnotatedChannelsWithoutDownloadingAgain() {
         long now = System.currentTimeMillis();
         var identity = new EpgCacheDb.Identity("account", "BBCTwo.uk", "signature");
@@ -400,6 +460,45 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals("COMPLETED", snapshot.status(), snapshot.message());
         assertEquals("New title", cache.schedule(account,channel).getFirst().title(), "Manual refresh must replace the source without clearing the previous guide first");
         assertEquals(1,ChannelDb.get().getCachedLiveChannels(account.getDbId()).size(),"Catalog stays intact");
+    }
+
+    @Test void manualJobRollsBackItsDownloadedFeedWhenFinalMappingFails() throws Exception {
+        Account account = account("job-rollback");
+        Path feed = xml("job-rollback.xml", "Last good");
+        account.setEpg(feed.toString());
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("job-rollback");
+        account.setAction(Account.AccountAction.itv);
+        CategoryDb.get().saveAll(List.of(new Category("live", "Live", "Live", false, 0)), account);
+        String category = CategoryDb.get().getCategories(account).getFirst().getDbId();
+        Channel channel = channel("station", "Station");
+        ChannelDb.get().saveAll(List.of(channel), category, account);
+        refresh.refreshAccount(account, List.of(channel));
+        assertEquals("Last good", cache.schedule(account, channel).getFirst().title());
+        var before = EpgChangeNotifications.snapshot();
+        xml("job-rollback.xml", "Must roll back");
+        Files.writeString(feed, Files.readString(feed).replace("'station'", "'new-guide'"));
+        try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
+            statement.execute("CREATE TRIGGER fail_job_mapping BEFORE INSERT ON epg_channel_mapping "
+                    + "BEGIN SELECT RAISE(ABORT,'forced job mapping failure'); END");
+        }
+        try {
+            var job = EpgRefreshJobService.start();
+            var snapshot = EpgRefreshJobService.get(job.id());
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (snapshot.finishedAt() == 0 && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+                snapshot = EpgRefreshJobService.get(job.id());
+            }
+            assertEquals("COMPLETED_WITH_WARNINGS", snapshot.status());
+            assertEquals("Failed", snapshot.sources().getFirst().status());
+            assertEquals("Last good", cache.schedule(account, channel).getFirst().title());
+            assertEquals(before.revision(), EpgChangeNotifications.snapshot().revision());
+        } finally {
+            try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
+                statement.execute("DROP TRIGGER fail_job_mapping");
+            }
+        }
     }
 
     @Test void manualRefreshReportsAccountPreparationProgress() throws Exception {

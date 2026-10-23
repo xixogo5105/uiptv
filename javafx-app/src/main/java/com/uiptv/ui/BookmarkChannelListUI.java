@@ -99,6 +99,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private volatile boolean reloadInProgress = false;
     private volatile boolean loadedOnce = false;
     private volatile boolean recentItemsLoaded = false;
+    /** Recent playback is applied when the user returns to the view, not during playback startup. */
+    private volatile boolean recentRefreshPending = false;
     private volatile boolean reloadRequestedWhileReloading = false;
     private boolean changeListenerRegistered = false;
     private boolean accountChangeListenerRegistered = false;
@@ -118,6 +120,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             return;
         }
         if (revision != lastKnownBookmarkRevision) {
+            if (RECENT_CATEGORY_ID.equals(selectedCategoryId())) {
+                // Recording playback updates the history ordering.  Do not replace the
+                // visible card objects while the user is activating one of them: doing so
+                // moves the row and drops ResponsiveCardGrid's activated indicator.
+                recentRefreshPending = true;
+                lastKnownBookmarkRevision = revision;
+                return;
+            }
             forceReload();
         }
     });
@@ -141,12 +151,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 releaseTransientState();
             } else if (isVisible()) {
                 ensureLoaded();
+                applyDeferredRecentRefresh();
                 requestContentFocus();
             }
         });
         visibleProperty().addListener((obs, oldVisible, newVisible) -> {
             if (Boolean.TRUE.equals(newVisible) && getScene() != null) {
                 ensureLoaded();
+                applyDeferredRecentRefresh();
                 requestContentFocus();
             }
         });
@@ -529,7 +541,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         pageScroll.setFitToWidth(true);
         pageScroll.setPannable(true);
         pageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         pageScroll.setFocusTraversable(false);
         pageScroll.setMinSize(0, 0);
         pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -1083,9 +1095,38 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void setupCategoryPillListener() {
         categoryPillBar.selectedItemProperty().addListener((_, _, _) -> {
+            applyDeferredRecentRefresh();
             filterView();
             updateRecentActions();
         });
+    }
+
+    private void applyDeferredRecentRefresh() {
+        if (!recentRefreshPending) {
+            return;
+        }
+        recentRefreshPending = false;
+        refreshRecentItemsFromService();
+    }
+
+    private void refreshRecentItemsFromService() {
+        Thread thread = new Thread(() -> {
+            try {
+                List<BookmarkItem> refreshed = resolveRecentBookmarkItems();
+                runLater(() -> {
+                    recentBookmarkItems.clear();
+                    recentBookmarkItems.addAll(refreshed);
+                    recentItemsLoaded = true;
+                    if (RECENT_CATEGORY_ID.equals(selectedCategoryId())) {
+                        filterView();
+                    }
+                });
+            } catch (Exception _) {
+                // Keep the current list visible if history cannot be read immediately.
+            }
+        }, "bookmark-recent-deferred-refresh");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void setupSearchTextFieldListener() {
@@ -1551,10 +1592,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 BookmarkService.getInstance().recordRecentPlayback(bookmark);
                 List<BookmarkItem> recentItems = resolveRecentBookmarkItems();
                 runLater(() -> {
-                    recentBookmarkItems.clear();
-                    recentBookmarkItems.addAll(recentItems);
                     if (RECENT_CATEGORY_ID.equals(selectedCategoryId())) {
-                        filterView();
+                        recentRefreshPending = true;
+                    } else {
+                        recentBookmarkItems.clear();
+                        recentBookmarkItems.addAll(recentItems);
+                        recentItemsLoaded = true;
                     }
                 });
             } catch (Exception _) {

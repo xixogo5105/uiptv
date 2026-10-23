@@ -89,7 +89,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected static final int ASPECT_RATIO_FIT = 0;
     protected static final int ASPECT_RATIO_FILL = 1;
     protected static final int ASPECT_RATIO_STRETCH = 2;
-    protected int aspectRatioMode = ASPECT_RATIO_FIT; // 0=Fit, 1=Fill (Zoom), 2=Stretch
+    protected int aspectRatioMode = ASPECT_RATIO_FIT; // 0=Fit, 1=Crop, 2=Stretch
     protected boolean isUserSeeking = false;
 
     protected final BooleanProperty pip = new SimpleBooleanProperty(false);
@@ -1323,9 +1323,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     private void updateAspectRatioButtonState() {
         String tooltipText = switch (aspectRatioMode) {
-            case ASPECT_RATIO_FILL -> "Fill";
-            case ASPECT_RATIO_STRETCH -> "Stretch";
-            default -> "Fit";
+            case ASPECT_RATIO_FILL -> I18n.tr("playerScaleCrop");
+            case ASPECT_RATIO_STRETCH -> I18n.tr("playerScaleStretch");
+            default -> I18n.tr("autoFit");
         };
         ImageView icon = switch (aspectRatioMode) {
             case ASPECT_RATIO_FILL -> aspectRatioFillIcon;
@@ -1333,6 +1333,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             default -> aspectRatioIcon;
         };
         btnAspectRatio.setGraphic(icon);
+        btnAspectRatio.setAccessibleText(tooltipText);
         if (btnAspectRatio.getTooltip() != null) {
             btnAspectRatio.getTooltip().setText(tooltipText);
         }
@@ -1932,9 +1933,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         pipIcon = createIconView("picture-in-picture.png", true);
         pipExitIcon = createIconView("picture-in-picture-exit.png", false);
         layoutModeIcon = createLayoutModeIcon();
-        aspectRatioIcon = createIconView("aspect-ratio.png", true);
-        aspectRatioFillIcon = createIconView("aspect-ratio-fill.png", true);
-        aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
+        aspectRatioIcon = createIconView("video-scale-fit.png", false);
+        aspectRatioFillIcon = createIconView("video-scale-crop.png", false);
+        aspectRatioStretchIcon = createIconView("video-scale-stretch.png", false);
         hideBarIcon = createIconView("arrow-down.png", true);
     }
 

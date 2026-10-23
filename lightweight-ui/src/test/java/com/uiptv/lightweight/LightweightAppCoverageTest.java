@@ -25,6 +25,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -53,8 +55,9 @@ class LightweightAppCoverageTest {
     }
 
     @AfterEach
-    void releaseDatabase() {
+    void releaseDatabase() throws IOException {
         SQLConnection.releaseMemory();
+        Files.deleteIfExists(tempDir.resolve("lightweight.db"));
     }
 
     @Test

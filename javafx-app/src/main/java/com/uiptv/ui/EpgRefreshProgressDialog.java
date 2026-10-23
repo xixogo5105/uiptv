@@ -10,13 +10,15 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Separator;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -30,7 +32,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 /** Shows account preparation and source-by-source work; closing leaves the refresh running. */
 final class EpgRefreshProgressDialog {
@@ -45,13 +46,14 @@ final class EpgRefreshProgressDialog {
         Stage stage = new Stage();
         Window ownerWindow = owner.getScene() == null ? null : owner.getScene().getWindow();
         if (ownerWindow != null) stage.initOwner(ownerWindow);
-        stage.initModality(Modality.WINDOW_MODAL);
+        stage.initModality(Modality.NONE);
         stage.setTitle(I18n.tr("epgRefreshGuide"));
         Label title = new Label(I18n.tr("epgRefreshGuide"));
         title.getStyleClass().add("management-popup-title");
         Label phase = new Label();
         phase.getStyleClass().add("management-popup-subtitle");
         VBox header = new VBox(3, title, phase);
+        header.setMinHeight(Region.USE_PREF_SIZE);
         header.getStyleClass().add("management-popup-header");
 
         Label count = new Label();
@@ -80,9 +82,7 @@ final class EpgRefreshProgressDialog {
         HBox.setHgrow(current, Priority.ALWAYS);
         current.setMinWidth(0);
         current.setMaxWidth(Double.MAX_VALUE);
-        VBox progressCard = new VBox(12, progressRow, progressDetails);
-        progressCard.getStyleClass().addAll("management-popup-card", "reload-progress-card", "verification-progress-card");
-        progressCard.setFillWidth(true);
+        VBox progressCard = createProgressCard(progressRow, progressDetails);
 
         Label sourceHeading = new Label(I18n.tr("epgRefreshSourcesHeading"));
         sourceHeading.getStyleClass().add("management-popup-section-title");
@@ -93,20 +93,38 @@ final class EpgRefreshProgressDialog {
         preparing.getStyleClass().add("epg-refresh-preparing");
         preparing.setWrapText(true);
 
-        ListView<EpgRefreshJobService.SourceProgress> sources = new ListView<>();
-        sources.getStyleClass().add("epg-refresh-source-list");
+        SourceCards sourceCards = new SourceCards();
+        ScrollPane sources = new ScrollPane(sourceCards);
+        sources.setFitToWidth(true);
+        sources.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sources.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        sources.getStyleClass().addAll("transparent-scroll-pane", "epg-refresh-source-list");
         sources.setMinHeight(0);
         sources.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        String[] expandedSourceId = {activeSourceId(initial.sources())};
-        String[] previousActiveSourceId = {null};
-        boolean[] previousTerminal = {terminal(initial.status())};
-        if (previousTerminal[0]) expandedSourceId[0] = null;
-        sources.setCellFactory(_ -> new SourceCell(expandedSourceId, sourceId -> {
-            expandedSourceId[0] = Objects.equals(expandedSourceId[0], sourceId) ? null : sourceId;
-            sources.refresh();
-        }));
         VBox.setVgrow(sources, Priority.ALWAYS);
-        StackPane sourceContent = new StackPane(sources, preparing);
+
+        Label summaryTitle = new Label(I18n.tr("autoRunSummary"));
+        summaryTitle.getStyleClass().add("management-popup-section-title");
+        Label summaryCompleted = summaryLine();
+        Label summaryGood = summaryLine();
+        Label summaryPartial = summaryLine();
+        Label summaryFailed = summaryLine();
+        Label summaryProgrammes = summaryLine();
+        VBox summaryCard = createSummaryCard(summaryTitle, summaryCompleted, summaryGood, summaryPartial,
+                summaryFailed, summaryProgrammes);
+        summaryCard.setVisible(false);
+        summaryCard.setManaged(false);
+        Separator summarySeparator = new Separator();
+        summarySeparator.getStyleClass().add("epg-refresh-summary-separator");
+        summarySeparator.setVisible(false);
+        summarySeparator.setManaged(false);
+
+        VBox sourceListAndSummary = new VBox(9, sources, summarySeparator, summaryCard);
+        sourceListAndSummary.setMinHeight(0);
+        sourceListAndSummary.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        sourceListAndSummary.setFillWidth(true);
+        VBox.setVgrow(sources, Priority.ALWAYS);
+        StackPane sourceContent = new StackPane(sourceListAndSummary, preparing);
         sourceContent.setAlignment(Pos.CENTER);
         sourceContent.setMinHeight(0);
         VBox.setVgrow(sourceContent, Priority.ALWAYS);
@@ -122,16 +140,7 @@ final class EpgRefreshProgressDialog {
         footer.getStyleClass().add("management-popup-footer");
         footer.setAlignment(Pos.CENTER_RIGHT);
 
-        VBox main = new VBox(14, header, progressCard, sourcesCard);
-        main.setMinSize(0, 0);
-        VBox.setVgrow(sourcesCard, Priority.ALWAYS);
-        BorderPane root = new BorderPane();
-        root.getStyleClass().addAll("management-popup-root", "reload-cache-popup", "verification-progress-root");
-        root.setPadding(new Insets(18));
-        root.setCenter(main);
-        BorderPane.setMargin(footer, new Insets(14, 0, 0, 0));
-        root.setBottom(footer);
-        root.setMinSize(0, 0);
+        BorderPane root = createLayout(header, progressCard, sourcesCard, footer);
         Scene scene = new Scene(root, SCENE_WIDTH, SCENE_HEIGHT);
         RootApplication.applyThemeToPopupScene(scene);
         stage.setScene(scene);
@@ -156,20 +165,7 @@ final class EpgRefreshProgressDialog {
         Runnable update = () -> {
             var snapshot = EpgRefreshJobService.get(initial.id());
             if (snapshot == null) return;
-            int activeIndexToScroll = -1;
-            boolean snapshotTerminal = terminal(snapshot.status());
-            String activeId = activeSourceId(snapshot.sources());
-            if (!snapshotTerminal && !Objects.equals(activeId, previousActiveSourceId[0])) {
-                previousActiveSourceId[0] = activeId;
-                if (activeId != null) {
-                    expandedSourceId[0] = activeId;
-                    activeIndexToScroll = sourceIndex(snapshot.sources(), activeId);
-                }
-            } else if (snapshotTerminal && !previousTerminal[0]) {
-                previousActiveSourceId[0] = null;
-                expandedSourceId[0] = null;
-            }
-            previousTerminal[0] = snapshotTerminal;
+            sourceCards.update(snapshot.sources());
             String localizedStage = localizedStage(snapshot.stage());
             phase.setText(localizedStage);
             if (!snapshot.stage().equals(previousStage[0]) || !snapshot.currentSource().equals(previousSource[0])) {
@@ -205,9 +201,12 @@ final class EpgRefreshProgressDialog {
                         if ("Completed".equals(source.status())) progress.updateSegment(index, SegmentStatus.SUCCESS);
                         else if ("No matches".equals(source.status())) progress.updateSegment(index, SegmentStatus.WARNING);
                         else if ("Failed".equals(source.status())) progress.updateSegment(index, SegmentStatus.FAILURE);
+                        else if (!"Pending".equals(source.status())) progress.updateSegment(index, SegmentStatus.PROCESSING);
                     }
                 }
-                current.setText(snapshot.currentSource().isBlank() ? ""
+            current.setText(terminal(snapshot.status()) ? "" : !snapshot.currentAccount().isBlank()
+                        ? I18n.tr("epgRefreshCurrentAccount", snapshot.currentAccount())
+                        : snapshot.currentSource().isBlank() ? ""
                         : I18n.tr("epgRefreshCurrentSource", snapshot.currentSource()));
                 preparing.setText("");
             }
@@ -221,15 +220,24 @@ final class EpgRefreshProgressDialog {
             message.setText(snapshot.message());
             message.setVisible(!snapshot.message().isBlank());
             message.setManaged(!snapshot.message().isBlank());
-            if (!sources.getItems().equals(snapshot.sources())) sources.getItems().setAll(snapshot.sources());
             boolean showSources = !preparingAccounts && !snapshot.sources().isEmpty();
             sources.setVisible(showSources);
             sources.setManaged(showSources);
+            boolean showSummary = !preparingAccounts && terminal(snapshot.status()) && !snapshot.sources().isEmpty();
+            summaryCompleted.setText(I18n.tr("reloadSummaryCompleted", snapshot.completed(), snapshot.total()));
+            summaryGood.setText(I18n.tr("reloadSummaryGood", countSources(snapshot.sources(), "Completed", "Saved")));
+            summaryPartial.setText(I18n.tr("reloadSummaryYellow", countSources(snapshot.sources(), "No matches")));
+            summaryFailed.setText(I18n.tr("reloadSummaryBad", countSources(snapshot.sources(), "Failed")));
+            long totalProgrammes = snapshot.sources().stream().mapToLong(EpgRefreshJobService.SourceProgress::programmes).sum();
+            summaryProgrammes.setText(I18n.tr("epgRefreshProcessedProgrammesDetail", I18n.formatNumber(Long.toString(totalProgrammes))));
+            summaryCard.setVisible(showSummary);
+            summaryCard.setManaged(showSummary);
+            summarySeparator.setVisible(showSummary);
+            summarySeparator.setManaged(showSummary);
             boolean showPreparing = !showSources;
             if (showPreparing && !preparingAccounts) preparing.setText(localizedStage);
             preparing.setVisible(showPreparing);
             preparing.setManaged(showPreparing);
-            if (activeIndexToScroll >= 0) sources.scrollTo(activeIndexToScroll);
             if (terminal(snapshot.status())) {
                 action.setDisable(false);
                 action.setText(I18n.tr("commonClose"));
@@ -246,6 +254,38 @@ final class EpgRefreshProgressDialog {
         update.run();
         poll.play();
         stage.show();
+    }
+
+    static VBox createProgressCard(Region progressRow, Region progressDetails) {
+        VBox card = new VBox(12, progressRow, progressDetails);
+        card.getStyleClass().addAll("management-popup-card", "epg-refresh-progress-card", "verification-progress-card");
+        card.setFillWidth(true);
+        card.setMinHeight(Region.USE_PREF_SIZE);
+        return card;
+    }
+
+    static VBox createSummaryCard(Label title, Label... statistics) {
+        FlowPane stats = new FlowPane(24, 8, statistics);
+        VBox card = new VBox(10, title, stats);
+        card.getStyleClass().addAll("reload-summary-box", "epg-refresh-run-summary");
+        card.setPadding(new Insets(10));
+        card.setMinHeight(Region.USE_PREF_SIZE);
+        return card;
+    }
+
+    static BorderPane createLayout(VBox header, VBox progressCard, VBox sourcesCard, HBox footer) {
+        header.setMinHeight(Region.USE_PREF_SIZE);
+        VBox main = new VBox(14, header, progressCard, sourcesCard);
+        main.setMinSize(0, 0);
+        VBox.setVgrow(sourcesCard, Priority.ALWAYS);
+        BorderPane root = new BorderPane();
+        root.getStyleClass().addAll("management-popup-root", "reload-cache-popup", "verification-progress-root");
+        root.setPadding(new Insets(18));
+        root.setCenter(main);
+        BorderPane.setMargin(footer, new Insets(14, 0, 0, 0));
+        root.setBottom(footer);
+        root.setMinSize(0, 0);
+        return root;
     }
 
     private static boolean configureProgress(SegmentedProgressBar progress, String[] currentPhase,
@@ -265,20 +305,21 @@ final class EpgRefreshProgressDialog {
         return spacer;
     }
 
+    private static Label summaryLine() {
+        Label label = new Label();
+        label.setWrapText(true);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.getStyleClass().add("epg-refresh-summary-line");
+        return label;
+    }
+
+    private static long countSources(java.util.List<EpgRefreshJobService.SourceProgress> sources, String... statuses) {
+        java.util.Set<String> accepted = java.util.Set.of(statuses);
+        return sources.stream().filter(source -> accepted.contains(source.status())).count();
+    }
+
     private static boolean terminal(String status) {
         return !"PREPARING".equals(status) && !"RUNNING".equals(status);
-    }
-
-    private static String activeSourceId(java.util.List<EpgRefreshJobService.SourceProgress> sources) {
-        return sources.stream().filter(source -> isActiveSourceStatus(source.status()))
-                .map(EpgRefreshJobService.SourceProgress::id).findFirst().orElse(null);
-    }
-
-    private static int sourceIndex(java.util.List<EpgRefreshJobService.SourceProgress> sources, String id) {
-        for (int index = 0; index < sources.size(); index++) {
-            if (Objects.equals(sources.get(index).id(), id)) return index;
-        }
-        return -1;
     }
 
     private static boolean isActiveSourceStatus(String status) {
@@ -299,7 +340,8 @@ final class EpgRefreshProgressDialog {
             case "Loading cached channels" -> I18n.tr("epgRefreshLoadingCachedChannels");
             case "Saving" -> I18n.tr("epgRefreshSaving");
             case "Source unavailable" -> I18n.tr("epgSourceUnavailable");
-            case "Completed", "Saved" -> I18n.tr("epgRefreshCompleted");
+            case "Completed" -> I18n.tr("epgRefreshCompleted");
+            case "Saved" -> I18n.tr("reloadSaved");
             case "No sources configured" -> I18n.tr("epgRefreshNoSources");
             case "No matches" -> I18n.tr("epgRefreshNoMatches");
             case "Cancelled" -> I18n.tr("epgRefreshCancelled");
@@ -312,7 +354,8 @@ final class EpgRefreshProgressDialog {
     private static String localizedSourceStatus(String status) {
         return switch (status) {
             case "Pending" -> I18n.tr("epgRefreshPending");
-            case "Completed", "Saved" -> I18n.tr("epgRefreshCompleted");
+            case "Completed" -> I18n.tr("epgRefreshCompleted");
+            case "Saved" -> I18n.tr("reloadSaved");
             case "No matches" -> I18n.tr("epgRefreshNoMatches");
             case "Failed" -> I18n.tr("autoFailed2");
             default -> localizedStage(status);
@@ -337,123 +380,142 @@ final class EpgRefreshProgressDialog {
                 : "%02d:%02d".formatted(minutes, remainder);
     }
 
-    private static final class SourceCell extends ListCell<EpgRefreshJobService.SourceProgress> {
-        private final String[] expandedSourceId;
-        private final Consumer<String> expansionRequested;
-        private final VBox card = new VBox();
-        private final Button header = new Button();
-        private final HBox headerRow = new HBox(10);
-        private final Label icon = new Label();
-        private final VBox titleBox = new VBox(2);
-        private final Label name = new Label();
-        private final Label fileName = new Label();
-        private final Label summary = new Label();
-        private final Label status = new Label();
-        private final Label arrow = new Label();
-        private final Label detail = new Label();
-        private String sourceId;
+    /** Stable source identities: polling never replaces nodes or changes a clicked card. */
+    static final class SourceCards extends VBox {
+        final Map<String, SourceCard> cards = new java.util.LinkedHashMap<>();
 
-        private SourceCell(String[] expandedSourceId, Consumer<String> expansionRequested) {
-            this.expandedSourceId = expandedSourceId;
-            this.expansionRequested = expansionRequested;
-            name.getStyleClass().addAll("epg-refresh-source-name", "reload-account-title");
-            name.setMinWidth(0);
-            name.setMaxWidth(Double.MAX_VALUE);
-            fileName.getStyleClass().add("epg-refresh-source-filename");
-            fileName.setWrapText(true);
-            fileName.setMinWidth(0);
-            fileName.setMaxWidth(Double.MAX_VALUE);
-            summary.getStyleClass().add("epg-refresh-source-summary");
-            summary.setWrapText(true);
-            summary.setMinWidth(0);
-            summary.setMaxWidth(Double.MAX_VALUE);
-            titleBox.getChildren().setAll(name, fileName, summary);
-            titleBox.setMinWidth(0);
-            titleBox.setMaxWidth(Double.MAX_VALUE);
-            HBox.setHgrow(titleBox, Priority.ALWAYS);
-
-            icon.getStyleClass().add("epg-refresh-source-icon");
-            icon.setMinWidth(24);
-            icon.setAlignment(Pos.CENTER);
-            status.getStyleClass().add("epg-refresh-source-status");
-            status.setWrapText(true);
-            status.setMinWidth(0);
-            status.setMaxWidth(320);
-            arrow.getStyleClass().add("epg-refresh-source-chevron");
-            arrow.setMinWidth(18);
-            arrow.setAlignment(Pos.CENTER);
-            headerRow.setAlignment(Pos.CENTER_LEFT);
-            headerRow.setMaxWidth(Double.MAX_VALUE);
-            headerRow.getChildren().setAll(icon, titleBox, status, arrow);
-
-            header.getStyleClass().add("epg-refresh-source-header");
-            header.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-            header.setGraphic(headerRow);
-            header.setAlignment(Pos.CENTER_LEFT);
-            header.setMaxWidth(Double.MAX_VALUE);
-            header.setFocusTraversable(true);
-            header.setOnAction(_ -> {
-                if (sourceId != null) expansionRequested.accept(sourceId);
-            });
-
-            detail.getStyleClass().addAll("management-popup-subtitle", "epg-refresh-source-detail");
-            detail.setWrapText(true);
-            detail.setMinWidth(0);
-            detail.setMaxWidth(Double.MAX_VALUE);
-            VBox body = new VBox(detail);
-            body.getStyleClass().add("epg-refresh-source-body");
-            body.setMinWidth(0);
-            body.setMaxWidth(Double.MAX_VALUE);
-            card.getStyleClass().addAll("reload-log-root", "epg-refresh-source-card");
-            card.getChildren().setAll(header, body);
-            card.setFillWidth(true);
-            card.setMinWidth(0);
-            card.setMaxWidth(Double.MAX_VALUE);
-            card.prefWidthProperty().bind(widthProperty().subtract(20));
+        SourceCards() {
+            super(8);
+            setFillWidth(true);
+            setMinWidth(0);
         }
 
-        @Override
-        protected void updateItem(EpgRefreshJobService.SourceProgress item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null) {
-                setGraphic(null);
-                setText(null);
-                sourceId = null;
-                return;
+        void update(java.util.List<EpgRefreshJobService.SourceProgress> sources) {
+            for (var source : sources) {
+                SourceCard card = cards.computeIfAbsent(source.id(), id -> {
+                    SourceCard created = new SourceCard(id);
+                    getChildren().add(created);
+                    return created;
+                });
+                card.update(source);
             }
-            sourceId = item.id();
-            name.setText(item.name());
-            fileName.setText(item.fileName());
-            fileName.setVisible(!item.fileName().isBlank());
-            fileName.setManaged(!item.fileName().isBlank());
-            boolean completed = "Completed".equals(item.status()) || "Saved".equals(item.status());
+        }
+    }
+
+    static final class SourceCard extends VBox {
+        final String sourceId;
+        final HBox header = new HBox(8);
+        final Label name = new Label();
+        final Label status = new Label();
+        final Label arrow = new Label("▸");
+        final VBox body = new VBox(6);
+        private final Map<String, SourceStep> steps = new java.util.LinkedHashMap<>();
+        private Boolean userExpanded;
+        private boolean started;
+
+        SourceCard(String sourceId) {
+            super(6);
+            this.sourceId = sourceId;
+            getStyleClass().addAll("reload-log-root", "epg-refresh-source-card");
+            setMinHeight(Region.USE_PREF_SIZE);
+            header.getStyleClass().add("reload-log-header");
+            header.setAlignment(Pos.CENTER_LEFT);
+            header.setFocusTraversable(true);
+            header.setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
+            name.getStyleClass().add("reload-account-title");
+            name.setMinWidth(0);
+            name.setWrapText(true);
+            name.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(name, Priority.ALWAYS);
+            status.setMinWidth(Region.USE_PREF_SIZE);
+            status.getStyleClass().add("reload-status-label");
+            arrow.setMinWidth(18);
+            header.getChildren().setAll(name, status, arrow);
+            header.setOnMouseClicked(event -> toggle());
+            header.setOnKeyPressed(event -> {
+                if (event.getCode() == javafx.scene.input.KeyCode.ENTER
+                        || event.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                    toggle();
+                    event.consume();
+                }
+            });
+            body.getStyleClass().addAll("reload-log-body", "epg-refresh-source-body");
+            body.setMinHeight(Region.USE_PREF_SIZE);
+            getChildren().setAll(header, body);
+            renderExpansion();
+        }
+
+        void toggle() {
+            userExpanded = !body.isManaged();
+            renderExpansion();
+        }
+
+        private void renderExpansion() {
+            boolean expanded = userExpanded == null ? started : userExpanded;
+            body.setVisible(expanded);
+            body.setManaged(expanded);
+            arrow.setText(expanded ? "▾" : "▸");
+        }
+
+        void update(EpgRefreshJobService.SourceProgress item) {
+            name.setText(item.fileName().isBlank() ? item.name() : item.name() + " · " + item.fileName());
+            status.setText(localizedSourceStatus(item.status()));
+            boolean completed = "Completed".equals(item.status());
             boolean failed = "Failed".equals(item.status());
             boolean warning = "No matches".equals(item.status());
-            boolean active = isActiveSourceStatus(item.status());
-            icon.setText(completed ? "✓" : failed ? "✕" : warning ? "!" : active ? "◌" : "•");
-            icon.getStyleClass().setAll("epg-refresh-source-icon",
-                    completed ? "success" : failed ? "failure" : warning ? "warning" : active ? "active" : "pending");
-            status.setText(localizedSourceStatus(item.status()));
-            status.getStyleClass().setAll("epg-refresh-source-status");
-            if (completed) status.getStyleClass().add("success");
-            else if (failed) status.getStyleClass().add("failure");
-            else if (warning) status.getStyleClass().add("warning");
-            else if (active) status.getStyleClass().add("active");
-            boolean expanded = Objects.equals(expandedSourceId[0], item.id());
-            arrow.setText(expanded ? "▾" : "▸");
-            String detailText = localizedSourceDetail(item.detail());
-            detail.setText(detailText.isBlank() ? localizedSourceStatus(item.status()) : detailText);
-            boolean showCollapsedSummary = !expanded && !active && !detailText.isBlank();
-            summary.setText(detailText);
-            summary.setVisible(showCollapsedSummary);
-            summary.setManaged(showCollapsedSummary);
-            header.setAccessibleText(item.name() + (item.fileName().isBlank() ? "" : " " + item.fileName())
-                    + ", " + localizedSourceStatus(item.status()));
-            header.setAccessibleHelp(detail.getText());
-            detail.setVisible(expanded);
-            detail.setManaged(expanded);
-            setGraphic(card);
-            setText(null);
+            status.getStyleClass().setAll("reload-status-label", completed ? "reload-status-done"
+                    : failed ? "reload-status-bad" : warning ? "reload-status-yellow"
+                    : isActiveSourceStatus(item.status()) ? "reload-status-running" : "reload-status-queued");
+            if (!"Pending".equals(item.status())) started = true;
+            String detail = localizedSourceDetail(item.detail());
+            if (detail.isBlank() && (completed || warning)) {
+                detail = warning ? I18n.tr("epgRefreshNoMatchesDetail", I18n.formatNumber(Long.toString(item.programmes())))
+                        : I18n.tr("epgRefreshImportedDetail", I18n.formatNumber(Long.toString(item.programmes())),
+                                I18n.formatNumber(Integer.toString(item.matchedChannels())));
+            }
+            if (!"Pending".equals(item.status())) {
+                String stepKey = "Saved".equals(item.status()) ? "Saving" : item.status();
+                SourceStep step = steps.computeIfAbsent(stepKey, key -> {
+                    SourceStep line = new SourceStep();
+                    body.getChildren().add(line);
+                    return line;
+                });
+                step.stage.setText(localizedSourceStatus(item.status()));
+                step.detail.setText(detail);
+            }
+            header.setAccessibleText(name.getText() + ", " + status.getText());
+            renderExpansion();
+        }
+    }
+
+    static final class SourceStep extends GridPane {
+        final Label stage = new Label();
+        final Label detail = new Label();
+
+        SourceStep() {
+            getStyleClass().add("epg-refresh-step");
+            setMinWidth(0);
+            setMinHeight(Region.USE_PREF_SIZE);
+            setMaxWidth(Double.MAX_VALUE);
+            ColumnConstraints stageColumn = new ColumnConstraints();
+            stageColumn.setPercentWidth(28);
+            stageColumn.setMinWidth(0);
+            ColumnConstraints detailColumn = new ColumnConstraints();
+            detailColumn.setPercentWidth(72);
+            detailColumn.setMinWidth(0);
+            getColumnConstraints().setAll(stageColumn, detailColumn);
+            for (Label label : java.util.List.of(stage, detail)) {
+                label.setWrapText(true);
+                label.setMinWidth(0);
+                label.setMinHeight(Region.USE_PREF_SIZE);
+                label.setMaxWidth(Double.MAX_VALUE);
+                label.getStyleClass().add("epg-refresh-source-summary");
+            }
+            detail.setPadding(new Insets(0, 0, 0, 12));
+            add(stage, 0, 0);
+            add(detail, 1, 0);
+            GridPane.setValignment(stage, javafx.geometry.VPos.TOP);
+            GridPane.setValignment(detail, javafx.geometry.VPos.TOP);
         }
     }
 }

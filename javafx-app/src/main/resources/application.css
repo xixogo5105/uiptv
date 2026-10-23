@@ -427,6 +427,10 @@
     -fx-background-color: linear-gradient(to right, #22c55e, #16a34a);
 }
 
+.progress-bar-segment.processing {
+    -fx-background-color: -uiptv-accent;
+}
+
 .progress-bar-segment.warning {
     -fx-background-color: linear-gradient(to right, #fbbf24, #f59e0b);
 }
@@ -547,7 +551,10 @@
 
 .epg-refresh-source-card {
     -fx-spacing: 0;
-    -fx-min-height: 48;
+}
+
+.epg-refresh-progress-card {
+    -fx-padding: 12 16;
 }
 
 .epg-refresh-source-header {
@@ -556,7 +563,7 @@
     -fx-border-width: 1;
     -fx-background-radius: 14;
     -fx-border-radius: 14;
-    -fx-padding: 9 11 9 11;
+    -fx-padding: 6 10 6 10;
     -fx-alignment: center-left;
     -fx-cursor: hand;
     -fx-text-fill: -uiptv-text-primary;
@@ -569,17 +576,17 @@
 }
 
 .epg-refresh-source-body {
-    -fx-padding: 2 12 10 45;
+    -fx-padding: 3 12 9 12;
 }
 
 .epg-refresh-source-name {
     -fx-text-fill: -uiptv-text-primary;
     -fx-font-weight: bold;
+    -fx-font-size: 1em;
 }
 
 .epg-refresh-source-filename {
     -fx-text-fill: -uiptv-text-secondary;
-    -fx-font-family: "Monospaced";
     -fx-font-size: 0.96em;
 }
 
@@ -588,36 +595,15 @@
     -fx-font-size: 0.96em;
 }
 
-.epg-refresh-source-detail {
-    -fx-text-fill: -uiptv-text-primary;
-    -fx-font-size: 1.02em;
-}
-
 .epg-refresh-source-chevron {
     -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: bold;
 }
 
-.epg-refresh-source-icon {
-    -fx-font-size: 20px;
-    -fx-font-weight: bold;
-    -fx-text-fill: -uiptv-text-secondary;
-}
-
-.epg-refresh-source-icon.success {
-    -fx-text-fill: #15803d;
-}
-
-.epg-refresh-source-icon.failure {
-    -fx-text-fill: #b91c1c;
-}
-
-.epg-refresh-source-icon.warning,
 .epg-refresh-source-status.warning {
     -fx-text-fill: #a16207;
 }
 
-.epg-refresh-source-icon.active,
 .epg-refresh-source-status.active {
     -fx-text-fill: #0b79d0;
 }
@@ -625,6 +611,7 @@
 .epg-refresh-source-status {
     -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: bold;
+    -fx-font-size: 0.9em;
 }
 
 .epg-refresh-source-status.success {
@@ -633,6 +620,19 @@
 
 .epg-refresh-source-status.failure {
     -fx-text-fill: #b91c1c;
+}
+
+.epg-refresh-run-summary {
+    -fx-spacing: 5;
+}
+
+.epg-refresh-summary-line {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
+}
+
+.epg-refresh-summary-separator {
+    -fx-opacity: 0.65;
 }
 
 .verification-mac-card {
@@ -5218,6 +5218,28 @@
 .epg-programme-progress .track { -fx-background-color: -uiptv-surface-muted; -fx-background-radius: 3; }
 .epg-programme-progress .bar { -fx-background-color: #32b8dd; -fx-padding: 2; -fx-background-radius: 3; -fx-background-insets: 0; }
 .live-guide-selected-programme { -fx-background-color: -uiptv-surface-muted; -fx-background-radius: 8; -fx-padding: 10 12; }
+
+.reload-log-body.epg-refresh-source-body {
+    -fx-padding: 4 14 12 14;
+    -fx-spacing: 8;
+}
+
+.reload-log-root.epg-refresh-source-card {
+    -fx-padding: 0;
+    -fx-spacing: 0;
+}
+
+.epg-refresh-source-card > .reload-log-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 10 14;
+}
+
+.epg-refresh-source-card > .reload-log-header:hover,
+.epg-refresh-source-card > .reload-log-header:focused {
+    -fx-background-color: -uiptv-surface-hover;
+}
 
 .player-epg-panel.compact .epg-programme-title { -fx-font-size: 14; }
 .epg-programme-card .hyperlink { -fx-padding: 0; -fx-font-size: 11; }

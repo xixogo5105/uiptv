@@ -12,6 +12,7 @@ public class SegmentedProgressBar extends HBox {
     private static final String STYLE_CLASS_EMPTY = "empty";
 
     public enum SegmentStatus {
+        PROCESSING,
         SUCCESS,
         WARNING,
         FAILURE
@@ -60,8 +61,9 @@ public class SegmentedProgressBar extends HBox {
                 Node node = getChildren().get(index);
                 if (node instanceof Region) {
                     SegmentStatus effective = status == null ? SegmentStatus.FAILURE : status;
-                    node.getStyleClass().removeAll("progress-bar-segment-default", "success", "warning", "failure");
+                    node.getStyleClass().removeAll("progress-bar-segment-default", "processing", "success", "warning", "failure");
                     node.getStyleClass().add(switch (effective) {
+                        case PROCESSING -> "processing";
                         case SUCCESS -> "success";
                         case WARNING -> "warning";
                         case FAILURE -> "failure";

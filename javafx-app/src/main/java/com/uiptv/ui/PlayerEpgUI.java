@@ -209,9 +209,10 @@ public class PlayerEpgUI extends VBox {
     void display(PlayerEpgApplicationService.Result result) {
         if (Objects.equals(displayed, result)) { updateProgress(); return; }
         boolean hasGuide = result != null && (result.now() != null || result.next() != null);
-        boolean guideStateAvailable = result != null && ("NO_MATCH".equals(result.guideStatus())
-                || "UNAVAILABLE".equals(result.guideStatus()));
-        boolean available = hasGuide || guideStateAvailable;
+        // A channel without a current or upcoming programme has no adjacent
+        // player content to show. In particular, do not leave its channel name
+        // or an empty panel below the video for NO_MATCH/UNAVAILABLE states.
+        boolean available = hasGuide;
         setVisible(available); setManaged(available);
         if (!available) {
             boundaryWake.stop();

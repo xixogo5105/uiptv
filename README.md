@@ -17,6 +17,8 @@ The desktop application is the hub. Its shared core manages accounts, imports, l
 
 Core principle: keep the experience simple, plain, and practical while giving the whole household a dependable content system behind the playback screen.
 
+The EPG repair pass preserves the existing guide engine while making manual feed publication atomic and matching the catalogue once per batch. See [EPG behavior](EPG.md) and the [repair validation record](docs/EPG_REPAIR_VALIDATION.md) for the implemented requirements and verification limits.
+
 ## Think ecosystem, not just player
 
 The UIPTV ecosystem has a simple flow:
@@ -239,3 +241,5 @@ This is a personal project developed for fun. Optional EPG supports native Stalk
 Merge requests for bug fixes or new features are always welcome.
 
 Donations are neither needed nor accepted. If you wish to contribute, please consider donating to one of your favorite open-source projects, such as **[Linux Mint](https://www.linuxmint.com/donors.php)** or **[Ubuntu](https://ubuntu.com/download/desktop/thank-you#contributions-form)**.
+
+The desktop embedded player shares Android’s three video scaling modes and Stremio scale icons: **Fit** shows the whole image with its original proportions, **Crop** fills the player while trimming the excess, and **Stretch** fills the player without preserving proportions. The scale button cycles through these modes. Icon attribution is bundled with the desktop resources.

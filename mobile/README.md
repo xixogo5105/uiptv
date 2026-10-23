@@ -15,6 +15,8 @@ The shared mobile interface uses Material 3 Compose controls. Account forms use 
 
 Android EPG is enabled separately on the device and stays off until enabled in Settings. Full EPG mode keeps schedules in the channel browsing flow: selecting a live channel opens its programme schedule in a Material 3 bottom sheet; there is no separate Live Guide screen. Playback-only mode limits guide lookups to the channel being played and requires EPG to be enabled. The Android cache-clear action is under advanced EPG maintenance. Desktop's **Refresh EPG** action is a separate job that downloads configured XMLTV feeds and mappings; it does not force a refresh request for every Xtream or Stalker channel. Provider-native schedules continue through the normal bounded cache and playback lifecycle.
 
+Desktop manual refresh now stages XMLTV feeds and publishes them with one atomic channel-mapping pass. Android's local EPG enable/playback-only settings and contextual programme sheet continue to use the mobile lifecycle described above. Shared mobile tests remain headless; attached-device checks are reported separately.
+
 ## Local Requirements
 
 - End users installing a built APK do not need Android SDK, Gradle, or any other build tools. The APK packages the required libmpv and FFmpeg native libraries.

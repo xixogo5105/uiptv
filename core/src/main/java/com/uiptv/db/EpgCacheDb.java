@@ -16,6 +16,98 @@ public final class EpgCacheDb {
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,
                         List<String> sources, String nativeSource) { }
     public record SourceState(long refreshedAt, long retryAt, String warning) { }
+
+    /** Private, disk-backed staging keeps downloads invisible until one atomic mapping publication. */
+    public StagedSources stageSources() { return new StagedSources(); }
+
+    public final class StagedSources implements AutoCloseable {
+        private static final List<String> TABLES = List.of("epg_source", "epg_programme", "epg_alias", "epg_channel_icon");
+        private final Connection connection;
+        private final Set<String> sources = new LinkedHashSet<>();
+        private boolean published;
+
+        private StagedSources() {
+            Connection opened = null;
+            try {
+                opened = open(true);
+                try (var statement = opened.createStatement()) {
+                    statement.execute("PRAGMA temp_store=FILE");
+                    for (String table : TABLES) {
+                        // Derive temporary tables from the installed schema rather than maintaining column lists.
+                        try (var schema = opened.prepareStatement("SELECT sql FROM main.sqlite_schema WHERE type='table' AND name=?")) {
+                            schema.setString(1, table);
+                            try (var rows = schema.executeQuery()) {
+                                if (!rows.next()) throw new SQLException("Missing EPG cache table");
+                                statement.execute(rows.getString(1).replaceFirst("(?i)CREATE TABLE", "CREATE TEMP TABLE"));
+                            }
+                        }
+                    }
+                }
+                connection = opened;
+            } catch (SQLException error) {
+                if (opened != null) try { opened.close(); } catch (SQLException close) { error.addSuppressed(close); }
+                throw failure(error);
+            }
+        }
+
+        public void add(String sourceId, com.uiptv.application.XmltvGuide guide, long now, long retryAt,
+                        java.util.function.LongConsumer processed) {
+            if (published) throw new IllegalStateException("EPG batch already published");
+            try {
+                connection.setAutoCommit(false);
+                replaceSource(connection, sourceId, guide.programmes(), guide.names(), guide.qualityNames(),
+                        guide.icons(), now, retryAt, processed);
+                connection.commit();
+                sources.add(sourceId);
+            } catch (Exception error) {
+                try { connection.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
+                if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                throw failure(error);
+            }
+        }
+
+        /** All validated sources, mappings, and journal entries commit or roll back together. */
+        public MappingReport publish(Collection<Match> matches, long now,
+                                     java.util.function.LongConsumer processed) {
+            if (published) throw new IllegalStateException("EPG batch already published");
+            List<EpgChangeNotifications.Notification> notifications = new ArrayList<>();
+            MappingResult mapping;
+            try {
+                connection.setAutoCommit(false);
+                for (String source : sources) {
+                    if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+                    for (String table : TABLES) {
+                        deleteSourceRows(connection, "main." + table, source);
+                        try (var copy = connection.prepareStatement("INSERT INTO main." + table
+                                + " SELECT * FROM temp." + table + " WHERE source_id=?")) {
+                            copy.setString(1, source);
+                            copy.executeUpdate();
+                        }
+                    }
+                    notifications.add(EpgChangeNotifications.create(connection,
+                            EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(source), Set.of(), Set.of()));
+                }
+                // Removing the shadows makes all mapping reads resolve against the newly published main tables.
+                try (var statement = connection.createStatement()) {
+                    for (String table : TABLES) statement.execute("DROP TABLE temp." + table);
+                }
+                mapping = mapChannelsInTransaction(connection, uniqueMatches(matches), now, false, processed, true);
+                if (mapping.notification() != null) notifications.add(mapping.notification());
+                connection.commit();
+                published = true;
+            } catch (Exception error) {
+                try { connection.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
+                if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                throw failure(error);
+            }
+            notifications.forEach(EpgChangeNotifications::publish);
+            return new MappingReport(mapping.changed(), mapping.mappedChannels(), mapping.mappedBySource());
+        }
+
+        @Override public void close() {
+            try { connection.close(); } catch (SQLException error) { throw failure(error); }
+        }
+    }
     public static Path path() { return Path.of(SQLConnection.getDatabasePath()); }
 
     private Connection open(boolean write) throws SQLException {
@@ -93,7 +185,7 @@ public final class EpgCacheDb {
                         processedProgrammes);
                 EpgChangeNotifications.Notification sourceNotification = EpgChangeNotifications.create(c,
                         EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(sourceId), programmes.keySet(), identities);
-                MappingResult mapping = mapChannelsInTransaction(c, uniqueMatches, now, false, processedMappings);
+                MappingResult mapping = mapChannelsInTransaction(c, uniqueMatches, now, false, processedMappings, false);
                 mappedChannels = mapping.mappedChannels();
                 notifications.add(sourceNotification);
                 if (mapping.notification() != null) notifications.add(mapping.notification());
@@ -245,12 +337,31 @@ public final class EpgCacheDb {
     }
     public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings,
                                java.util.function.LongConsumer processed) {
+        return mapChannelsInternal(matches, now, preserveExistingMappings, processed, false).changed();
+    }
+
+    /**
+     * Maps a prepared channel set once and reports the usable guide count per source.
+     * The per-source counts let refresh UIs keep their source cards without forcing a
+     * second full mapping pass.
+     */
+    public MappingReport mapChannelsWithReport(List<Match> matches, long now,
+                                                boolean preserveExistingMappings,
+                                                java.util.function.LongConsumer processed) {
+        return mapChannelsInternal(matches, now, preserveExistingMappings, processed, true);
+    }
+
+    private MappingReport mapChannelsInternal(List<Match> matches, long now,
+                                               boolean preserveExistingMappings,
+                                               java.util.function.LongConsumer processed,
+                                               boolean collectSourceCounts) {
         List<Match> unique = uniqueMatches(matches);
         MappingResult result;
         try (Connection c = open(true)) {
             c.setAutoCommit(false);
             try {
-                result = mapChannelsInTransaction(c, unique, now, preserveExistingMappings, processed);
+                result = mapChannelsInTransaction(c, unique, now, preserveExistingMappings, processed,
+                        collectSourceCounts);
                 c.commit();
             } catch (Exception error) {
                 c.rollback();
@@ -258,10 +369,12 @@ public final class EpgCacheDb {
             }
         } catch (Exception error) { throw failure(error); }
         if (result.notification() != null) EpgChangeNotifications.publish(result.notification());
-        return result.changed();
+        return new MappingReport(result.changed(), result.mappedChannels(), result.mappedBySource());
     }
 
-    private record MappingResult(boolean changed, int mappedChannels,
+    public record MappingReport(boolean changed, int mappedChannels, Map<String, Integer> mappedBySource) { }
+
+    private record MappingResult(boolean changed, int mappedChannels, Map<String, Integer> mappedBySource,
                                  EpgChangeNotifications.Notification notification) { }
 
     private static List<Match> uniqueMatches(Collection<Match> matches) {
@@ -277,10 +390,12 @@ public final class EpgCacheDb {
 
     private MappingResult mapChannelsInTransaction(Connection c, Collection<Match> matches, long now,
                                                     boolean preserveExistingMappings,
-                                                    java.util.function.LongConsumer processed)
+                                                    java.util.function.LongConsumer processed,
+                                                    boolean collectSourceCounts)
             throws SQLException {
         boolean changed = false;
         int mappedChannels = 0;
+        Map<String, Integer> mappedBySource = new LinkedHashMap<>();
         Set<EpgChangeNotifications.ProviderIdentity> changedIdentities = new LinkedHashSet<>();
         try (var direct = c.prepareStatement("WITH target(source,id,now) AS (VALUES(?,?,?)) SELECT id FROM target t WHERE EXISTS(SELECT 1 FROM epg_programme WHERE source_id=t.source AND guide_channel_id=t.id AND stops_at>t.now) OR EXISTS(SELECT 1 FROM epg_channel_icon WHERE source_id=t.source AND guide_channel_id=t.id) LIMIT 1");
              var alias = c.prepareStatement("SELECT guide_channel_id FROM epg_alias WHERE source_id=? AND kind=? AND name=?");
@@ -318,7 +433,19 @@ public final class EpgCacheDb {
                         }
                     }
                 }
-                if (hasUsableProgramme(usable, links, now)) mappedChannels++;
+                boolean usableChannel;
+                if (collectSourceCounts) {
+                    usableChannel = false;
+                    for (Link link : links) {
+                        if (hasUsableProgramme(usable, List.of(link), now)) {
+                            usableChannel = true;
+                            mappedBySource.merge(link.source(), 1, Integer::sum);
+                        }
+                    }
+                } else {
+                    usableChannel = hasUsableProgramme(usable, links, now);
+                }
+                if (usableChannel) mappedChannels++;
                 scanned++;
                 if (scanned % 100 == 0) processed.accept(scanned);
             }
@@ -327,7 +454,7 @@ public final class EpgCacheDb {
             processed.accept(scanned);
             EpgChangeNotifications.Notification notification = changed
                     ? EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.MAPPING, Set.of(), Set.of(), changedIdentities) : null;
-            return new MappingResult(changed, mappedChannels, notification);
+            return new MappingResult(changed, mappedChannels, Map.copyOf(mappedBySource), notification);
         }
     }
 

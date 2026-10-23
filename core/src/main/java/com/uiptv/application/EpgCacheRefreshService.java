@@ -358,14 +358,36 @@ public class EpgCacheRefreshService {
     private void refreshXml(Account account,List<Channel> channels,List<String> sources,Token token) {
         var loader = new EpgApplicationService();
         var db = new EpgCacheDb();
+        // Build the account match index once per refresh cycle.  Previously this was
+        // recreated for every XMLTV source, which made a 400k-channel catalogue do
+        // the same normalisation and rule work once per source.
+        List<EpgCacheDb.Match> mappings = null;
+        int importedSources = 0;
+        boolean mappingPublished = false;
+        boolean needsConsolidatedMapping = false;
         for(String source:sources) {
             if(!current(token) || !loader.isEnabled()) return;
             String id=EpgCacheApplicationService.sourceId(source);
             long now=System.currentTimeMillis();
             if(!due(db.sourceState(id),now)) continue;
             try {
+                if (mappings == null) {
+                    mappings = EpgCacheApplicationService.matches(account, channels, sources);
+                }
                 XmltvGuide guide=loader.downloadSource(source);
-                commit(token,() -> { db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()); db.mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis()); });
+                commit(token,() -> db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()));
+                importedSources++;
+                if (!mappingPublished && mappings != null && current(token)) {
+                    // Publish the first ready account/global source before waiting on
+                    // the remaining feeds. This preserves incremental visibility for
+                    // the card and guide readers while still avoiding one pass per source.
+                    List<EpgCacheDb.Match> preparedMappings = mappings;
+                    commit(token, () -> db.mapChannelsWithReport(preparedMappings,
+                            System.currentTimeMillis(), false, _ -> { }));
+                    mappingPublished = true;
+                } else {
+                    needsConsolidatedMapping = true;
+                }
             } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 return;
@@ -373,6 +395,20 @@ public class EpgCacheRefreshService {
                 if(!current(token)) return;
                 commit(token,() -> db.failed(id,now+FAILURE_MS,EpgApplicationService.warning(error)));
                 AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG source refresh failed; retaining cached programmes.");
+            }
+        }
+        // All imported source tables are now visible.  Resolve links once against
+        // the complete source set so source priority and last-good data are kept,
+        // without scanning every account channel once per XMLTV file.
+        if (importedSources > 0 && mappings != null && needsConsolidatedMapping && current(token)) {
+            List<EpgCacheDb.Match> preparedMappings = mappings;
+            try {
+                commit(token, () -> db.mapChannelsWithReport(preparedMappings, System.currentTimeMillis(), false, _ -> { }));
+            } catch (RuntimeException error) {
+                if (current(token)) {
+                    AppLog.addWarningLog(EpgCacheRefreshService.class,
+                            "EPG source imports completed but the consolidated channel mapping pass failed; retaining imported guides.");
+                }
             }
         }
     }

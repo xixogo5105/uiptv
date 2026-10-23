@@ -40,6 +40,9 @@ class PlayerEpgUITest extends DbBackedUiTest {
             for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
             ImageIO.write(image, "png", Path.of("target/epg-player-desktop-preview.png").toFile());
             panel.display(new PlayerEpgApplicationService.Result("No guide", null, null)); assertFalse(panel.isManaged());
+            panel.display(new PlayerEpgApplicationService.Result("No guide", null, null, "NO_MATCH"));
+            assertFalse(panel.isVisible());
+            assertFalse(panel.isManaged());
             return null;
         });
     }
