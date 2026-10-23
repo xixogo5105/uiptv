@@ -115,13 +115,12 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                                 CardEpgSupport.display(panel, null, null);
                                 assertTrue(panel.isManaged()); assertTrue(panel.isVisible()); assertTrue(card.isManaged());
                                 if (panel instanceof HBox columns) {
-                                    assertEquals(2, columns.getChildren().size());
-                                    var nowColumn = (VBox) columns.getChildren().getFirst();
-                                    var nextColumn = (VBox) columns.getChildren().getLast();
-                                    assertEquals(I18n.tr("epgNoGuide"),
-                                            ((Label) ((VBox) nowColumn.getChildren().getFirst()).getChildren().getFirst()).getText());
-                                    assertEquals("—",
-                                            ((Label) ((VBox) nextColumn.getChildren().getFirst()).getChildren().getFirst()).getText());
+                                    assertEquals(1, columns.getChildren().size(),
+                                            "An empty guide uses one centered message instead of separate Now and Next placeholders.");
+                                    Label placeholder = (Label) columns.getChildren().getFirst();
+                                    assertEquals(I18n.tr("epgNoGuide"), placeholder.getText());
+                                    assertEquals(javafx.geometry.Pos.CENTER, columns.getAlignment());
+                                    assertTrue(placeholder.getStyleClass().contains("epg-programme-placeholder"));
                                     assertFalse(panel.lookup(".progress-bar") instanceof ProgressBar);
                                 } else {
                                     assertEquals(2, panel.getChildren().size());

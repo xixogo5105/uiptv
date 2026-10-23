@@ -7,7 +7,6 @@ import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
-import com.uiptv.util.ServerUrlUtil;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -248,12 +247,7 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
 
     private void toggleServerAction() {
         try {
-            boolean running = configurationApplicationService.isServerRunning();
-            if (running) {
-                configurationApplicationService.stopServer();
-            } else {
-                configurationApplicationService.startServer();
-            }
+            LightweightAppLogic.toggleServer(configurationApplicationService);
             refreshServerStatus();
         } catch (Exception e) {
             AppLog.addErrorLog(LightweightApp.class, "Server toggle failed: " + e.getMessage());
@@ -262,7 +256,8 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
     }
 
     private void refreshServerStatus() {
-        boolean running = configurationApplicationService.isServerRunning();
+        LightweightAppLogic.ServerStatus status = LightweightAppLogic.readServerStatus(configurationApplicationService);
+        boolean running = status.running();
         if (serverStatusLabel != null) {
             if (running) {
                 serverStatusLabel.setText("Webserver Running");
@@ -275,11 +270,11 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
             }
         }
         if (httpPortLabel != null) {
-            httpPortLabel.setText("HTTP: " + ServerUrlUtil.getConfiguredServerPort());
+            httpPortLabel.setText("HTTP: " + status.httpPort());
         }
         if (httpsPortLabel != null) {
-            if (ServerUrlUtil.isHttpsServerEnabled()) {
-                httpsPortLabel.setText("HTTPS: " + ServerUrlUtil.getConfiguredHttpsServerPort());
+            if (status.httpsEnabled()) {
+                httpsPortLabel.setText("HTTPS: " + status.httpsPort());
                 httpsPortLabel.setVisible(true);
                 httpsPortLabel.setManaged(true);
             } else {
@@ -343,7 +338,7 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
     }
 
     private void updateClearButtonVisibility() {
-        boolean visible = logsVisible || !logEntries.isEmpty();
+        boolean visible = LightweightAppLogic.shouldShowClearButton(logsVisible, logEntries.size());
         clearButton.setVisible(visible);
         clearButton.setManaged(visible);
     }
@@ -352,7 +347,7 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
         Configuration configuration = configurationService.read();
         ThemeMode mode = configuration == null ? ThemeMode.LIGHT : configuration.resolveThemeMode();
         root.getStyleClass().remove("dark-theme");
-        if (mode == ThemeMode.DARK || (mode.isSystem() && isDarkSystemScheme())) {
+        if (LightweightAppLogic.isDarkTheme(mode, mode.isSystem() && isDarkSystemScheme())) {
             root.getStyleClass().add("dark-theme");
         }
     }

@@ -450,6 +450,17 @@ final class CardEpgSupport {
                                      long now, boolean sourceWarning, boolean compact) {
         panel.getChildren().clear();
         if (panel instanceof HBox columns) {
+            if (current == null && next == null) {
+                Label placeholder = programmePlaceholder(sourceWarning
+                        ? I18n.tr("epgSourceUnavailable") : I18n.tr("epgNoGuide"));
+                columns.setAlignment(javafx.geometry.Pos.CENTER);
+                columns.getChildren().setAll(placeholder);
+                HBox.setHgrow(placeholder, Priority.ALWAYS);
+                panel.setVisible(true);
+                panel.setManaged(true);
+                return;
+            }
+            columns.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
             VBox nowColumn = new VBox(3);
             nowColumn.getStyleClass().add("epg-programme-column");
             nowColumn.setMinWidth(0); nowColumn.setMaxWidth(Double.MAX_VALUE);
@@ -457,8 +468,7 @@ final class CardEpgSupport {
             nextColumn.getStyleClass().add("epg-programme-column");
             nextColumn.setMinWidth(0); nextColumn.setMaxWidth(Double.MAX_VALUE);
             String missingNow = current != null ? ""
-                    : next != null ? "—"
-                    : sourceWarning ? I18n.tr("epgSourceUnavailable") : I18n.tr("epgNoGuide");
+                    : sourceWarning ? I18n.tr("epgSourceUnavailable") : "";
             nowColumn.getChildren().add(programmeSummary(current, missingNow));
             if (current != null) {
                 double fraction = current.stop() <= current.start() ? 0
@@ -469,7 +479,7 @@ final class CardEpgSupport {
                 nowColumn.getChildren().add(progress);
             }
             if (sourceWarning && (current != null || next != null)) nowColumn.getChildren().add(sourceWarningLabel(true));
-            nextColumn.getChildren().add(programmeSummary(next, next == null ? "—" : ""));
+            if (next != null) nextColumn.getChildren().add(programmeSummary(next, ""));
             HBox.setHgrow(nowColumn, Priority.ALWAYS);
             HBox.setHgrow(nextColumn, Priority.ALWAYS);
             if (compact) columns.getChildren().setAll(nowColumn);
@@ -494,6 +504,21 @@ final class CardEpgSupport {
     private static Label sourceWarningLabel(boolean hasGuide) {
         Label label = new Label(I18n.tr(hasGuide ? "epgSourceStale" : "epgSourceUnavailable"));
         label.getStyleClass().add("epg-programme-time");
+        return label;
+    }
+
+    private static Label programmePlaceholder(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().addAll("epg-programme-time", "epg-programme-placeholder");
+        label.setMinWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setAlignment(javafx.geometry.Pos.CENTER);
+        label.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        label.setWrapText(true);
+        Tooltip tooltip = new Tooltip(text);
+        tooltip.setWrapText(true);
+        tooltip.setMaxWidth(400);
+        label.setTooltip(tooltip);
         return label;
     }
 
@@ -524,13 +549,12 @@ final class CardEpgSupport {
         Label label = new Label(I18n.tr("epgLoading"));
         label.getStyleClass().add("epg-programme-time");
         if (panel instanceof HBox row) {
-            VBox now = new VBox(3, new HBox(6, loading, label));
-            now.getStyleClass().add("epg-programme-column");
-            VBox next = programmeSummary(null, "—");
-            next.getStyleClass().add("epg-programme-column");
-            HBox.setHgrow(now, Priority.ALWAYS); HBox.setHgrow(next, Priority.ALWAYS);
-            if (compact) row.getChildren().setAll(now);
-            else row.getChildren().setAll(now, next);
+            HBox status = new HBox(6, loading, label);
+            status.setAlignment(javafx.geometry.Pos.CENTER);
+            status.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(status, Priority.ALWAYS);
+            row.setAlignment(javafx.geometry.Pos.CENTER);
+            row.getChildren().setAll(status);
         } else ((VBox) panel).getChildren().setAll(new HBox(6, loading, label));
         panel.setVisible(true); panel.setManaged(true);
     }
@@ -540,11 +564,13 @@ final class CardEpgSupport {
         Label label = new Label(I18n.tr("epgSourceUnavailable"));
         label.getStyleClass().add("epg-programme-time");
         if (panel instanceof HBox row) {
-            VBox now = new VBox(2, label); now.getStyleClass().add("epg-programme-column");
-            VBox next = programmeSummary(null, "—"); next.getStyleClass().add("epg-programme-column");
-            HBox.setHgrow(now, Priority.ALWAYS); HBox.setHgrow(next, Priority.ALWAYS);
-            if (compact) row.getChildren().setAll(now);
-            else row.getChildren().setAll(now, next);
+            label.setMaxWidth(Double.MAX_VALUE);
+            label.setAlignment(javafx.geometry.Pos.CENTER);
+            label.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            label.setWrapText(true);
+            HBox.setHgrow(label, Priority.ALWAYS);
+            row.setAlignment(javafx.geometry.Pos.CENTER);
+            row.getChildren().setAll(label);
         } else panel.getChildren().add(label);
         panel.setVisible(true); panel.setManaged(true);
     }

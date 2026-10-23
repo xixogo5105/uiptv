@@ -27,6 +27,7 @@ public class AppHeaderNavigation extends HBox {
     private static final String STYLE_ACTIVE = "app-header-nav-button-active";
     private static final String STYLE_ICON_ONLY = "app-header-nav-button-icon-only";
     private static final double NAV_BUTTON_SIZE = 34;
+    private static final double NAV_ICON_CONTAINER_SIZE = 20;
 
     private final HBox brand = new HBox(10);
     private final HBox tabs = new HBox(4);
@@ -416,6 +417,9 @@ public class AppHeaderNavigation extends HBox {
 
         public BadgeIconContainer(SVGPath icon, Label badgeLabel) {
             this.badgeLabel = badgeLabel;
+            setMinSize(NAV_ICON_CONTAINER_SIZE, NAV_ICON_CONTAINER_SIZE);
+            setPrefSize(NAV_ICON_CONTAINER_SIZE, NAV_ICON_CONTAINER_SIZE);
+            setMaxSize(NAV_ICON_CONTAINER_SIZE, NAV_ICON_CONTAINER_SIZE);
             getChildren().add(icon);
             if (badgeLabel != null) {
                 getChildren().add(badgeLabel);
@@ -444,8 +448,11 @@ public class AppHeaderNavigation extends HBox {
             }
             double badgeWidth = badgeLabel.prefWidth(-1);
             double badgeHeight = badgeLabel.prefHeight(-1);
-            double x = getWidth() - (badgeWidth / 2.0) + 4;
-            double y = - (badgeHeight / 2.0) - 4;
+            // Anchor the badge at the icon container's upper-right corner. The container
+            // has a fixed icon-sized footprint, so this stays in the same place whether
+            // the button also shows its title or is in icon-only mode.
+            double x = getWidth() - badgeWidth / 2.0;
+            double y = -badgeHeight / 2.0;
             badgeLabel.resizeRelocate(x, y, badgeWidth, badgeHeight);
         }
     }
