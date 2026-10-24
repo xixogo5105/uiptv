@@ -5,6 +5,14 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync('api-server/src/main/resources/web/javascript/spa.js', 'utf8');
 
+test('stacked player breakpoint and narrow-viewport state both use 920px', () => {
+    const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
+    const narrowViewportChecks = source.match(/matchMedia\('\(max-width: 920px\)'\)/g) || [];
+
+    assert.equal(narrowViewportChecks.length, 2, 'initial state and resize handling must share the 920px breakpoint');
+    assert.match(css, /@media \(max-width: 920px\) \{[\s\S]*?\.app-shell:not\(\.player-expanded\) \.content-shell \{\s*display: flex;/);
+});
+
 test('NATIVE_PROXY strategy routes backend-identified formats to the matching player', () => {
     const hint = source.indexOf("strategyHint === 'NATIVE_PROXY'");
     const override = source.indexOf("if (override === 'proxy')", hint);
@@ -77,11 +85,11 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     assert.match(off, /circle cx="8" cy="8" r="4" fill="#8a97a5"/);
     assert.match(source, /broadcast-on\.svg\?v=20261017b/);
     assert.match(source, /broadcast-off\.svg\?v=20261017b/);
-    assert.match(html, /spa\.js\?v=20261024topPlayerHeight3/);
-    assert.match(html, /spa\.css\?v=20261024topPlayerHeight4/);
+    assert.match(html, /spa\.js\?v=20261024singleColumnScroll3/);
+    assert.match(html, /spa\.css\?v=20261024singleColumnScroll3/);
     assert.match(html, /class="broadcast-indicator"/);
     assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
     assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v114'/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v117'/);
 });
 

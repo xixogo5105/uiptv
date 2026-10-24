@@ -2245,27 +2245,6 @@ a[href] {
         max-width: none;
     }
 
-    .content-shell {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .content-shell.player-hidden {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1fr);
-    }
-
-    .content-shell.wide-view {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .content-shell.wide-view .player-panel {
-        max-height: min(42vh, 420px);
-        height: auto;
-        overflow-y: hidden;
-    }
-
     /* Mobile single-column view: collapse button groups into dropdowns */
     .bookmark-tabs,
     .account-type-tabs,
@@ -2279,29 +2258,6 @@ a[href] {
         display: flex;
     }
 
-    .content-shell:not(.player-hidden) .content-stage {
-        grid-row: 2;
-    }
-
-    .content-shell.player-hidden .content-stage {
-        grid-row: 1;
-    }
-
-    .player-panel {
-        grid-row: 1;
-        max-height: min(42vh, 420px);
-        overflow: hidden;
-        overflow-y: hidden;
-        scrollbar-gutter: auto;
-    }
-
-    .player-panel #player-wrapper {
-        min-height: 0;
-    }
-
-    .player-panel .uiptv-shared-player {
-        display: none !important;
-    }
 }
 
 @media (max-width: 920px) {
@@ -3260,26 +3216,6 @@ body {
     z-index: 5;
 }
 
-/* Top-mounted players have no EPG panel and need a definite video row.
-   Keep the catalogue scrollable below, including on short landscape screens. */
-@media (max-width: 1180px) {
-    .app-shell:not(.player-expanded) .content-shell:not(.player-hidden) {
-        grid-template-rows: minmax(min(260px, 70%), 65%) minmax(0, 1fr);
-    }
-
-    .app-shell:not(.player-expanded) .content-shell > .player-panel {
-        height: 100%;
-        max-height: none;
-        grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .app-shell:not(.player-expanded) .player-panel #player-wrapper {
-        height: 100%;
-        min-height: 0;
-        aspect-ratio: auto;
-    }
-}
-
 /* Landscape windows are short enough that the regular three-row mobile header
    leaves very little room for playback. Put its controls on one compact row. */
 @media (max-width: 920px) and (max-height: 500px) {
@@ -3322,28 +3258,112 @@ body {
         grid-row: 1;
     }
 
-    .app-shell:not(.player-expanded) .content-shell:not(.player-hidden) {
-        grid-template-rows: minmax(min(220px, 82%), 82%) minmax(0, 1fr);
-    }
-
     .app-shell:not(.player-expanded) .content-shell > .player-panel {
         gap: 6px;
         padding: 8px;
     }
 }
 
-@media (max-width: 1180px) and (max-height: 500px) {
-    .workspace {
-        gap: 8px;
-        padding: 8px;
+/* In the stacked layout, make the player and the full catalogue one page-like
+   column. The outer content shell owns scrolling so lists below the player
+   remain reachable even when the viewport is short. */
+@media (max-width: 920px) {
+    .app-shell:not(.player-expanded) .content-shell {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        height: 100%;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-gutter: auto;
     }
 
-    .app-shell:not(.player-expanded) .content-shell:not(.player-hidden) {
-        grid-template-rows: minmax(min(220px, 82%), 82%) minmax(0, 1fr);
+    .app-shell:not(.player-expanded) .content-shell > .player-panel,
+    .app-shell:not(.player-expanded) .content-shell > .content-stage {
+        position: static;
+        order: 0;
+        flex: 0 0 auto;
+        width: 100%;
+        max-height: none;
+        height: auto;
+        overflow: visible;
+        scrollbar-gutter: auto;
     }
 
     .app-shell:not(.player-expanded) .content-shell > .player-panel {
-        gap: 6px;
-        padding: 8px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        align-content: start;
+    }
+
+    .app-shell:not(.player-expanded) .player-panel .uiptv-shared-player {
+        display: none !important;
+    }
+
+    .app-shell:not(.player-expanded) .content-shell > .content-stage {
+        order: 1;
+    }
+
+    .app-shell:not(.player-expanded) .content-shell.player-hidden > .content-stage {
+        min-height: 100%;
+    }
+
+    .app-shell:not(.player-expanded) .content-shell #player-wrapper {
+        grid-column: 1;
+        grid-row: auto;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        aspect-ratio: 16 / 9;
+    }
+
+    .app-shell:not(.player-expanded) .content-stage .content-screen {
+        height: auto;
+        min-height: 0;
+        grid-template-rows: auto auto auto;
+        align-content: start;
+        overflow: visible;
+    }
+
+    .app-shell:not(.player-expanded) .content-stage.watching-stage > .content-screen.watching-screen {
+        min-height: 0;
+        grid-template-rows: auto auto;
+    }
+
+    .app-shell:not(.player-expanded) .content-stage .scroll-area,
+    .app-shell:not(.player-expanded) .content-stage .panel-list {
+        height: auto;
+        max-height: none;
+        min-height: 0;
+        overflow: visible;
+        padding-right: 0;
+        scrollbar-gutter: auto;
+    }
+
+    .app-shell:not(.player-expanded) .content-stage .accounts-drilldown,
+    .app-shell:not(.player-expanded) .content-stage .watching-layout,
+    .app-shell:not(.player-expanded) .content-stage .watching-detail-layout {
+        height: auto;
+        min-height: 0;
+        grid-template-rows: auto;
+        align-content: start;
+        overflow: visible;
+    }
+
+    .app-shell:not(.player-expanded) .content-stage .accounts-drilldown.series-episodes-layout {
+        grid-template-rows: auto;
+    }
+
+    .app-shell:not(.player-expanded) .content-stage .browser-panel {
+        height: auto;
+        min-height: 0;
+        grid-template-rows: auto auto;
+        align-content: start;
+        overflow: visible;
     }
 }

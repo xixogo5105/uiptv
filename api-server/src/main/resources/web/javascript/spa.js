@@ -219,10 +219,10 @@ createApp({
             episodeDisplayMode.value = mode;
             persistEpisodeDisplayModePreference(mode);
         };
-        const narrowViewport = ref(typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1180px)').matches);
+        const narrowViewport = ref(typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 920px)').matches);
         const syncNarrowViewport = () => {
             if (typeof window.matchMedia === 'function') {
-                narrowViewport.value = window.matchMedia('(max-width: 1180px)').matches;
+                narrowViewport.value = window.matchMedia('(max-width: 920px)').matches;
             }
         };
         if (!readCookieValue(WIDE_VIEW_COOKIE_NAME)) {
