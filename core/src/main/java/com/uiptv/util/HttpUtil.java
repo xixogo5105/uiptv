@@ -228,9 +228,13 @@ public class HttpUtil {
                                                 String body, RequestOptions options,
                                                 InetAddress[] validatedAddresses) throws IOException {
         URI uri = URI.create(url);
-        if (uri.getHost() == null || validatedAddresses == null || validatedAddresses.length == 0)
+        // URI.getHost() rejects provider DNS labels containing underscores, although
+        // they resolve normally and Apache HttpClient can request them. Use URL's
+        // authority parser here, matching the proxy's validated destination.
+        String host = uri.toURL().getHost();
+        if (host == null || host.isBlank() || validatedAddresses == null || validatedAddresses.length == 0)
             throw new IOException("No validated destination address is available.");
-        PINNED_DNS.set(Map.of(uri.getHost().toLowerCase(Locale.ROOT), validatedAddresses.clone()));
+        PINNED_DNS.set(Map.of(host.toLowerCase(Locale.ROOT), validatedAddresses.clone()));
         try {
             return openStream(url, headers, method, body, options, PROXY_HTTP_CLIENT);
         } finally {

@@ -80,7 +80,8 @@ final class PlaybackMediaInspector {
         if (path.endsWith(".mp4") || path.endsWith(".m4v")) {
             return new MediaInfo(STRATEGY_NATIVE, "mp4", "", "", 0L);
         }
-        if (path.endsWith(".mkv") || path.endsWith(".avi") || path.endsWith(".wmv")) {
+        if (path.endsWith(".mkv")) return new MediaInfo("mkv", "matroska", "", "", 0L);
+        if (path.endsWith(".avi") || path.endsWith(".wmv")) {
             return new MediaInfo(STRATEGY_UNSUPPORTED, "container", "", "", 0L);
         }
         return null;
@@ -141,7 +142,7 @@ final class PlaybackMediaInspector {
         if (type.contains("dash+xml")) return new MediaFormat("dash", "dash");
         if (type.contains("mp2t") || hasTransportStreamSync(bytes)) return new MediaFormat(STRATEGY_MPEGTS, STRATEGY_MPEGTS);
         if (type.contains("video/mp4") || hasMp4Signature(bytes)) return new MediaFormat(STRATEGY_NATIVE, "mp4");
-        if (type.contains("matroska") || hasMatroskaSignature(bytes)) return new MediaFormat(STRATEGY_UNSUPPORTED, "matroska");
+        if (type.contains("matroska") || hasMatroskaSignature(bytes)) return new MediaFormat("mkv", "matroska");
         if (type.contains("mpeg") || hasMpegProgramStreamSignature(bytes)) return new MediaFormat(STRATEGY_UNSUPPORTED, "mpeg");
         return new MediaFormat(STRATEGY_UNKNOWN, "");
     }

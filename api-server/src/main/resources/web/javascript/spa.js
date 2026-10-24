@@ -275,6 +275,7 @@ createApp({
 
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
+        let mkvPlayer = null;
         const hlsPlayer = ref(null);
         const videoJsPlayer = shallowRef(null);
         const videoPlayer = ref(null);
@@ -3591,6 +3592,10 @@ createApp({
                 playbackInFlight = false;
                 pendingPlaybackKey.value = '';
             }
+            if (mkvPlayer) {
+                mkvPlayer.destroy();
+                mkvPlayer = null;
+            }
             if (playerInstance.value) {
                 try {
                     await playerInstance.value.destroy();
@@ -3709,6 +3714,7 @@ createApp({
 
         const initPlayer = async (channel, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
+            channel = {...channel, url: normalizeWebPlaybackUrl(channel.url)};
             const uri = channel.url;
             if (!uri) {
                 console.error('No URL provided for playback.');
@@ -3743,12 +3749,34 @@ createApp({
             const canNative = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
             const hasDRM = channel.drm != null;
             const strategyHint = String(channel.strategyHint || '').trim().toUpperCase();
-            const mediaStrategy = String(channel?.mediaInfo?.strategy || '').trim().toLowerCase();
+            let mediaStrategy = String(channel?.mediaInfo?.strategy || '').trim().toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
             let isTs = isTsLikeUrl(uri, manifestType, channel.mode || currentChannel.value?.mode);
             let isHls = playbackUtils.isHlsLikeUrl(uri, manifestType);
             let isDash = playbackUtils.isDashLikeUrl(uri, manifestType);
             const prefersNativeHls = canNative && (isIos || isSafari);
+
+            // Short provider links can redirect to HLS/DASH without a file suffix.
+            // Probe only unresolved automatic routes; known formats and DRM keep their path.
+            if (!hasDRM && override === 'auto' && (!mediaStrategy || mediaStrategy === 'unknown')
+                && !isTs && !isHls && !isDash) {
+                const probeUrl = playbackUtils.buildProxyStreamUrl(uri) || uri;
+                const detected = await playbackUtils.probeStreamFormat(probeUrl, playbackRequestState.controller?.signal);
+                throwIfPlaybackSuperseded(requestId);
+                if (detected) {
+                    mediaStrategy = detected;
+                    isHls = detected === 'hls';
+                    isDash = detected === 'dash';
+                    isTs = detected === 'mpegts';
+                    channel = {...channel, url: probeUrl,
+                        manifestType: isHls ? 'm3u8' : isDash ? 'mpd' : channel.manifestType};
+                }
+            }
+
+            if (!hasDRM && override === 'auto' && (mediaStrategy === 'mkv' || playbackUtils.isMkvLikeUrl(uri))) {
+                await loadMkv(channel, requestId);
+                return;
+            }
 
             // Follow the server's explicit same-origin route. Chromium needs an
             // adaptive player for proxied HLS instead of native HLS playback.
@@ -3920,6 +3948,43 @@ createApp({
                 return '';
             } finally {
                 clearTimeout(timeoutId);
+            }
+        };
+
+        const loadMkv = async (channel, requestId) => {
+            throwIfPlaybackSuperseded(requestId);
+            const video = ensureVideoElement();
+            window.UIPTVModernPlayer.syncControls(video);
+            bindPlaybackEvents(video);
+            let rejectFailure;
+            const failed = new Promise((_, reject) => { rejectFailure = reject; });
+            const player = new window.UIPTVMkvPlayer.MkvPlayer(video,
+                playbackUtils.buildProxyStreamUrl(channel.url) || channel.url, {
+                    label: key => epgLabel(key),
+                    onError: error => {
+                        if (mkvPlayer !== player || !isCurrentPlaybackRequest(requestId)) return;
+                        playbackError.value = epgLabel('webMkvPlaybackFailed');
+                        video.pause();
+                        isPlaying.value = false;
+                        rejectFailure(error);
+                    }
+                });
+            mkvPlayer = player;
+            try {
+                await withPlaybackStartupTimeout(Promise.race([(async () => {
+                    await player.start();
+                    throwIfPlaybackSuperseded(requestId);
+                    await withPlaybackMediaError(video, () => playWithGestureFallback(() => video.play()), 'MKV');
+                })(), failed]), 'MKV');
+                throwIfPlaybackSuperseded(requestId);
+                playbackMode.value = 'MKV';
+            } catch (error) {
+                player.destroy();
+                if (mkvPlayer === player) mkvPlayer = null;
+                if (error?.name === 'AbortError') throw error;
+                const unsupported = epgLabel('webMkvUnsupportedCodec').split('{codec}')[0];
+                throw new Error(unsupported && error.message?.startsWith(unsupported)
+                    ? error.message : epgLabel('webMkvPlaybackFailed'));
             }
         };
 
@@ -5377,7 +5442,7 @@ createApp({
             showOverlay,
             showBookmarkModal,
             playerExpanded,
-            wideViewActive,
+            wideViewActive, narrowViewport,
             contentStageNarrow,
             isCompactDrilldown,
             isExpandedPlayerAccordion,

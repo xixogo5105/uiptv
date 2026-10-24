@@ -763,7 +763,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             URI resolved = URI.create(playlistUrl).resolve(trimmed);
             String scheme = resolved.getScheme();
             if (!("http".equalsIgnoreCase(scheme) || SCHEME_HTTPS.equalsIgnoreCase(scheme))
-                    || isBlank(resolved.getHost())) {
+                    || isBlank(hostOf(resolved))) {
                 return candidate;
             }
             String absolute = resolved.toString();

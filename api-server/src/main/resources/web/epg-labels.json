@@ -23,7 +23,10 @@
     "epgWebHideDetails": "پروگرام کی تفصیلات چھپائیں",
     "epgWebNoUpcoming": "اگلا کوئی پروگرام نہیں",
     "epgWebScheduleFailed": "یہ شیڈول لوڈ نہیں ہو سکا۔",
-    "epgWebPlayerNowNext": "ابھی اور اگلا"
+    "epgWebPlayerNowNext": "ابھی اور اگلا",
+    "webMkvUnsupportedCodec": "یہ براؤزر MKV کوڈیک نہیں چلا سکتا: {codec}۔",
+    "webMkvPlaybackFailed": "MKV چلانے میں ناکامی ہوئی۔",
+    "webMkvUnavailable": "اس براؤزر میں MKV چلانا دستیاب نہیں ہے۔"
   },
   "ur": {
     "settings": "ترتیبات",
@@ -49,7 +52,10 @@
     "epgWebHideDetails": "پروگرام کی تفصیلات چھپائیں",
     "epgWebNoUpcoming": "اگلا کوئی پروگرام نہیں",
     "epgWebScheduleFailed": "یہ شیڈول لوڈ نہیں ہو سکا۔",
-    "epgWebPlayerNowNext": "ابھی اور اگلا"
+    "epgWebPlayerNowNext": "ابھی اور اگلا",
+    "webMkvUnsupportedCodec": "یہ براؤزر MKV کوڈیک نہیں چلا سکتا: {codec}۔",
+    "webMkvPlaybackFailed": "MKV چلانے میں ناکامی ہوئی۔",
+    "webMkvUnavailable": "اس براؤزر میں MKV چلانا دستیاب نہیں ہے۔"
   },
   "pt_PT": {
     "settings": "Definições",
@@ -75,7 +81,10 @@
     "epgWebHideDetails": "Ocultar detalhes do programa",
     "epgWebNoUpcoming": "Não existem programas seguintes",
     "epgWebScheduleFailed": "Não foi possível carregar esta programação.",
-    "epgWebPlayerNowNext": "Agora e a seguir"
+    "epgWebPlayerNowNext": "Agora e a seguir",
+    "webMkvUnsupportedCodec": "Este navegador não consegue reproduzir o codec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Falha na reprodução de MKV.",
+    "webMkvUnavailable": "A reprodução de MKV não está disponível neste navegador."
   },
   "pt": {
     "settings": "Definições",
@@ -101,7 +110,10 @@
     "epgWebHideDetails": "Ocultar detalhes do programa",
     "epgWebNoUpcoming": "Não existem programas seguintes",
     "epgWebScheduleFailed": "Não foi possível carregar esta programação.",
-    "epgWebPlayerNowNext": "Agora e a seguir"
+    "epgWebPlayerNowNext": "Agora e a seguir",
+    "webMkvUnsupportedCodec": "Este navegador não consegue reproduzir o codec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Falha na reprodução de MKV.",
+    "webMkvUnavailable": "A reprodução de MKV não está disponível neste navegador."
   },
   "en_US": {
     "settings": "Settings",
@@ -127,7 +139,10 @@
     "epgWebHideDetails": "Hide programme details",
     "epgWebNoUpcoming": "No upcoming programme",
     "epgWebScheduleFailed": "Unable to load this schedule.",
-    "epgWebPlayerNowNext": "Now and Next"
+    "epgWebPlayerNowNext": "Now and Next",
+    "webMkvUnsupportedCodec": "This browser cannot play the MKV codec: {codec}.",
+    "webMkvPlaybackFailed": "MKV playback failed.",
+    "webMkvUnavailable": "MKV playback is unavailable in this browser."
   },
   "en": {
     "settings": "Settings",
@@ -153,7 +168,10 @@
     "epgWebHideDetails": "Hide programme details",
     "epgWebNoUpcoming": "No upcoming programme",
     "epgWebScheduleFailed": "Unable to load this schedule.",
-    "epgWebPlayerNowNext": "Now and Next"
+    "epgWebPlayerNowNext": "Now and Next",
+    "webMkvUnsupportedCodec": "This browser cannot play the MKV codec: {codec}.",
+    "webMkvPlaybackFailed": "MKV playback failed.",
+    "webMkvUnavailable": "MKV playback is unavailable in this browser."
   },
   "bn_BD": {
     "settings": "সেটিংস",
@@ -179,7 +197,10 @@
     "epgWebHideDetails": "অনুষ্ঠানের বিবরণ লুকান",
     "epgWebNoUpcoming": "আসন্ন অনুষ্ঠান নেই",
     "epgWebScheduleFailed": "এই সময়সূচি লোড করা যায়নি।",
-    "epgWebPlayerNowNext": "এখন ও পরবর্তী"
+    "epgWebPlayerNowNext": "এখন ও পরবর্তী",
+    "webMkvUnsupportedCodec": "এই ব্রাউজারটি MKV কোডেক চালাতে পারে না: {codec}।",
+    "webMkvPlaybackFailed": "MKV চালানো ব্যর্থ হয়েছে।",
+    "webMkvUnavailable": "এই ব্রাউজারে MKV চালানো উপলব্ধ নেই।"
   },
   "bn": {
     "settings": "সেটিংস",
@@ -205,7 +226,10 @@
     "epgWebHideDetails": "অনুষ্ঠানের বিবরণ লুকান",
     "epgWebNoUpcoming": "আসন্ন অনুষ্ঠান নেই",
     "epgWebScheduleFailed": "এই সময়সূচি লোড করা যায়নি।",
-    "epgWebPlayerNowNext": "এখন ও পরবর্তী"
+    "epgWebPlayerNowNext": "এখন ও পরবর্তী",
+    "webMkvUnsupportedCodec": "এই ব্রাউজারটি MKV কোডেক চালাতে পারে না: {codec}।",
+    "webMkvPlaybackFailed": "MKV চালানো ব্যর্থ হয়েছে।",
+    "webMkvUnavailable": "এই ব্রাউজারে MKV চালানো উপলব্ধ নেই।"
   },
   "ml_IN": {
     "settings": "ക്രമീകരണങ്ങൾ",
@@ -231,7 +255,10 @@
     "epgWebHideDetails": "പരിപാടിയുടെ വിശദാംശങ്ങൾ മറയ്ക്കുക",
     "epgWebNoUpcoming": "അടുത്ത പരിപാടിയില്ല",
     "epgWebScheduleFailed": "ഈ പരിപാടിപ്പട്ടിക ലോഡ് ചെയ്യാനായില്ല.",
-    "epgWebPlayerNowNext": "ഇപ്പോഴും അടുത്തതും"
+    "epgWebPlayerNowNext": "ഇപ്പോഴും അടുത്തതും",
+    "webMkvUnsupportedCodec": "ഈ ബ്രൗസറിന് MKV കോഡെക് പ്ലേ ചെയ്യാനാകില്ല: {codec}.",
+    "webMkvPlaybackFailed": "MKV പ്ലേബാക്ക് പരാജയപ്പെട്ടു.",
+    "webMkvUnavailable": "ഈ ബ്രൗസറിൽ MKV പ്ലേബാക്ക് ലഭ്യമല്ല."
   },
   "ml": {
     "settings": "ക്രമീകരണങ്ങൾ",
@@ -257,7 +284,10 @@
     "epgWebHideDetails": "പരിപാടിയുടെ വിശദാംശങ്ങൾ മറയ്ക്കുക",
     "epgWebNoUpcoming": "അടുത്ത പരിപാടിയില്ല",
     "epgWebScheduleFailed": "ഈ പരിപാടിപ്പട്ടിക ലോഡ് ചെയ്യാനായില്ല.",
-    "epgWebPlayerNowNext": "ഇപ്പോഴും അടുത്തതും"
+    "epgWebPlayerNowNext": "ഇപ്പോഴും അടുത്തതും",
+    "webMkvUnsupportedCodec": "ഈ ബ്രൗസറിന് MKV കോഡെക് പ്ലേ ചെയ്യാനാകില്ല: {codec}.",
+    "webMkvPlaybackFailed": "MKV പ്ലേബാക്ക് പരാജയപ്പെട്ടു.",
+    "webMkvUnavailable": "ഈ ബ്രൗസറിൽ MKV പ്ലേബാക്ക് ലഭ്യമല്ല."
   },
   "vi_VN": {
     "settings": "Cài đặt",
@@ -283,7 +313,10 @@
     "epgWebHideDetails": "Ẩn chi tiết chương trình",
     "epgWebNoUpcoming": "Không có chương trình tiếp theo",
     "epgWebScheduleFailed": "Không thể tải lịch này.",
-    "epgWebPlayerNowNext": "Hiện tại và tiếp theo"
+    "epgWebPlayerNowNext": "Hiện tại và tiếp theo",
+    "webMkvUnsupportedCodec": "Trình duyệt này không thể phát bộ mã hóa MKV: {codec}.",
+    "webMkvPlaybackFailed": "Phát MKV thất bại.",
+    "webMkvUnavailable": "Trình duyệt này không hỗ trợ phát MKV."
   },
   "vi": {
     "settings": "Cài đặt",
@@ -309,7 +342,10 @@
     "epgWebHideDetails": "Ẩn chi tiết chương trình",
     "epgWebNoUpcoming": "Không có chương trình tiếp theo",
     "epgWebScheduleFailed": "Không thể tải lịch này.",
-    "epgWebPlayerNowNext": "Hiện tại và tiếp theo"
+    "epgWebPlayerNowNext": "Hiện tại và tiếp theo",
+    "webMkvUnsupportedCodec": "Trình duyệt này không thể phát bộ mã hóa MKV: {codec}.",
+    "webMkvPlaybackFailed": "Phát MKV thất bại.",
+    "webMkvUnavailable": "Trình duyệt này không hỗ trợ phát MKV."
   },
   "zh_TW": {
     "settings": "設定",
@@ -335,7 +371,10 @@
     "epgWebHideDetails": "隱藏節目詳細資料",
     "epgWebNoUpcoming": "沒有後續節目",
     "epgWebScheduleFailed": "無法載入此節目表。",
-    "epgWebPlayerNowNext": "目前與下一個節目"
+    "epgWebPlayerNowNext": "目前與下一個節目",
+    "webMkvUnsupportedCodec": "此瀏覽器無法播放 MKV 編解碼器：{codec}。",
+    "webMkvPlaybackFailed": "MKV 播放失敗。",
+    "webMkvUnavailable": "此瀏覽器不支援 MKV 播放。"
   },
   "zh": {
     "settings": "設定",
@@ -361,7 +400,10 @@
     "epgWebHideDetails": "隐藏节目详情",
     "epgWebNoUpcoming": "没有后续节目",
     "epgWebScheduleFailed": "无法加载此节目单。",
-    "epgWebPlayerNowNext": "当前和下一节目"
+    "epgWebPlayerNowNext": "当前和下一节目",
+    "webMkvUnsupportedCodec": "此浏览器无法播放 MKV 编解码器：{codec}。",
+    "webMkvPlaybackFailed": "MKV 播放失败。",
+    "webMkvUnavailable": "此浏览器不支持 MKV 播放。"
   },
   "pt_BR": {
     "settings": "Configurações",
@@ -387,7 +429,10 @@
     "epgWebHideDetails": "Ocultar detalhes do programa",
     "epgWebNoUpcoming": "Não há próximos programas",
     "epgWebScheduleFailed": "Não foi possível carregar esta programação.",
-    "epgWebPlayerNowNext": "Agora e a seguir"
+    "epgWebPlayerNowNext": "Agora e a seguir",
+    "webMkvUnsupportedCodec": "Este navegador não consegue reproduzir o codec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Falha na reprodução de MKV.",
+    "webMkvUnavailable": "A reprodução de MKV não está disponível neste navegador."
   },
   "ja_JP": {
     "settings": "設定",
@@ -413,7 +458,10 @@
     "epgWebHideDetails": "番組詳細を非表示",
     "epgWebNoUpcoming": "次の番組はありません",
     "epgWebScheduleFailed": "番組表を読み込めませんでした。",
-    "epgWebPlayerNowNext": "現在と次の番組"
+    "epgWebPlayerNowNext": "現在と次の番組",
+    "webMkvUnsupportedCodec": "このブラウザーではMKVのコーデックを再生できません：{codec}。",
+    "webMkvPlaybackFailed": "MKVの再生に失敗しました。",
+    "webMkvUnavailable": "このブラウザーではMKVを再生できません。"
   },
   "ja": {
     "settings": "設定",
@@ -439,7 +487,10 @@
     "epgWebHideDetails": "番組詳細を非表示",
     "epgWebNoUpcoming": "次の番組はありません",
     "epgWebScheduleFailed": "番組表を読み込めませんでした。",
-    "epgWebPlayerNowNext": "現在と次の番組"
+    "epgWebPlayerNowNext": "現在と次の番組",
+    "webMkvUnsupportedCodec": "このブラウザーではMKVのコーデックを再生できません：{codec}。",
+    "webMkvPlaybackFailed": "MKVの再生に失敗しました。",
+    "webMkvUnavailable": "このブラウザーではMKVを再生できません。"
   },
   "de_DE": {
     "settings": "Einstellungen",
@@ -465,7 +516,10 @@
     "epgWebHideDetails": "Sendungsdetails ausblenden",
     "epgWebNoUpcoming": "Keine nächste Sendung",
     "epgWebScheduleFailed": "Dieser Programmplan konnte nicht geladen werden.",
-    "epgWebPlayerNowNext": "Jetzt und als Nächstes"
+    "epgWebPlayerNowNext": "Jetzt und als Nächstes",
+    "webMkvUnsupportedCodec": "Dieser Browser kann den MKV-Codec nicht wiedergeben: {codec}.",
+    "webMkvPlaybackFailed": "MKV-Wiedergabe fehlgeschlagen.",
+    "webMkvUnavailable": "Die MKV-Wiedergabe ist in diesem Browser nicht verfügbar."
   },
   "de": {
     "settings": "Einstellungen",
@@ -491,7 +545,10 @@
     "epgWebHideDetails": "Sendungsdetails ausblenden",
     "epgWebNoUpcoming": "Keine nächste Sendung",
     "epgWebScheduleFailed": "Dieser Programmplan konnte nicht geladen werden.",
-    "epgWebPlayerNowNext": "Jetzt und als Nächstes"
+    "epgWebPlayerNowNext": "Jetzt und als Nächstes",
+    "webMkvUnsupportedCodec": "Dieser Browser kann den MKV-Codec nicht wiedergeben: {codec}.",
+    "webMkvPlaybackFailed": "MKV-Wiedergabe fehlgeschlagen.",
+    "webMkvUnavailable": "Die MKV-Wiedergabe ist in diesem Browser nicht verfügbar."
   },
   "te_IN": {
     "settings": "సెట్టింగ్‌లు",
@@ -517,7 +574,10 @@
     "epgWebHideDetails": "కార్యక్రమ వివరాలను దాచండి",
     "epgWebNoUpcoming": "తదుపరి కార్యక్రమం లేదు",
     "epgWebScheduleFailed": "ఈ కార్యక్రమ షెడ్యూల్‌ను లోడ్ చేయలేకపోయింది.",
-    "epgWebPlayerNowNext": "ఇప్పుడు మరియు తదుపరి"
+    "epgWebPlayerNowNext": "ఇప్పుడు మరియు తదుపరి",
+    "webMkvUnsupportedCodec": "ఈ బ్రౌజర్ MKV కోడెక్‌ను ప్లే చేయలేదు: {codec}.",
+    "webMkvPlaybackFailed": "MKV ప్లేబ్యాక్ విఫలమైంది.",
+    "webMkvUnavailable": "ఈ బ్రౌజర్‌లో MKV ప్లేబ్యాక్ అందుబాటులో లేదు."
   },
   "te": {
     "settings": "సెట్టింగ్‌లు",
@@ -543,7 +603,10 @@
     "epgWebHideDetails": "కార్యక్రమ వివరాలను దాచండి",
     "epgWebNoUpcoming": "తదుపరి కార్యక్రమం లేదు",
     "epgWebScheduleFailed": "ఈ కార్యక్రమ షెడ్యూల్‌ను లోడ్ చేయలేకపోయింది.",
-    "epgWebPlayerNowNext": "ఇప్పుడు మరియు తదుపరి"
+    "epgWebPlayerNowNext": "ఇప్పుడు మరియు తదుపరి",
+    "webMkvUnsupportedCodec": "ఈ బ్రౌజర్ MKV కోడెక్‌ను ప్లే చేయలేదు: {codec}.",
+    "webMkvPlaybackFailed": "MKV ప్లేబ్యాక్ విఫలమైంది.",
+    "webMkvUnavailable": "ఈ బ్రౌజర్‌లో MKV ప్లేబ్యాక్ అందుబాటులో లేదు."
   },
   "fr_FR": {
     "settings": "Paramètres",
@@ -569,7 +632,10 @@
     "epgWebHideDetails": "Masquer les détails du programme",
     "epgWebNoUpcoming": "Aucun programme à venir",
     "epgWebScheduleFailed": "Impossible de charger ce programme.",
-    "epgWebPlayerNowNext": "En cours et ensuite"
+    "epgWebPlayerNowNext": "En cours et ensuite",
+    "webMkvUnsupportedCodec": "Ce navigateur ne peut pas lire le codec MKV : {codec}.",
+    "webMkvPlaybackFailed": "Échec de la lecture MKV.",
+    "webMkvUnavailable": "La lecture MKV est indisponible dans ce navigateur."
   },
   "fr": {
     "settings": "Paramètres",
@@ -595,7 +661,10 @@
     "epgWebHideDetails": "Masquer les détails du programme",
     "epgWebNoUpcoming": "Aucun programme à venir",
     "epgWebScheduleFailed": "Impossible de charger ce programme.",
-    "epgWebPlayerNowNext": "En cours et ensuite"
+    "epgWebPlayerNowNext": "En cours et ensuite",
+    "webMkvUnsupportedCodec": "Ce navigateur ne peut pas lire le codec MKV : {codec}.",
+    "webMkvPlaybackFailed": "Échec de la lecture MKV.",
+    "webMkvUnavailable": "La lecture MKV est indisponible dans ce navigateur."
   },
   "zh_CN": {
     "settings": "设置",
@@ -621,7 +690,10 @@
     "epgWebHideDetails": "隐藏节目详情",
     "epgWebNoUpcoming": "没有后续节目",
     "epgWebScheduleFailed": "无法加载此节目单。",
-    "epgWebPlayerNowNext": "当前和下一节目"
+    "epgWebPlayerNowNext": "当前和下一节目",
+    "webMkvUnsupportedCodec": "此浏览器无法播放 MKV 编解码器：{codec}。",
+    "webMkvPlaybackFailed": "MKV 播放失败。",
+    "webMkvUnavailable": "此浏览器不支持 MKV 播放。"
   },
   "ta_IN": {
     "settings": "அமைப்புகள்",
@@ -647,7 +719,10 @@
     "epgWebHideDetails": "நிகழ்ச்சி விவரங்களை மறை",
     "epgWebNoUpcoming": "அடுத்த நிகழ்ச்சி இல்லை",
     "epgWebScheduleFailed": "இந்த நிகழ்ச்சி அட்டவணையை ஏற்ற முடியவில்லை.",
-    "epgWebPlayerNowNext": "இப்போதும் அடுத்ததும்"
+    "epgWebPlayerNowNext": "இப்போதும் அடுத்ததும்",
+    "webMkvUnsupportedCodec": "இந்த உலாவியால் MKV கோடெக்கை இயக்க முடியாது: {codec}.",
+    "webMkvPlaybackFailed": "MKV இயக்கம் தோல்வியடைந்தது.",
+    "webMkvUnavailable": "இந்த உலாவியில் MKV இயக்கம் கிடைக்கவில்லை."
   },
   "ta": {
     "settings": "அமைப்புகள்",
@@ -673,7 +748,10 @@
     "epgWebHideDetails": "நிகழ்ச்சி விவரங்களை மறை",
     "epgWebNoUpcoming": "அடுத்த நிகழ்ச்சி இல்லை",
     "epgWebScheduleFailed": "இந்த நிகழ்ச்சி அட்டவணையை ஏற்ற முடியவில்லை.",
-    "epgWebPlayerNowNext": "இப்போதும் அடுத்ததும்"
+    "epgWebPlayerNowNext": "இப்போதும் அடுத்ததும்",
+    "webMkvUnsupportedCodec": "இந்த உலாவியால் MKV கோடெக்கை இயக்க முடியாது: {codec}.",
+    "webMkvPlaybackFailed": "MKV இயக்கம் தோல்வியடைந்தது.",
+    "webMkvUnavailable": "இந்த உலாவியில் MKV இயக்கம் கிடைக்கவில்லை."
   },
   "id_ID": {
     "settings": "Pengaturan",
@@ -699,7 +777,10 @@
     "epgWebHideDetails": "Sembunyikan detail program",
     "epgWebNoUpcoming": "Tidak ada program berikutnya",
     "epgWebScheduleFailed": "Jadwal ini tidak dapat dimuat.",
-    "epgWebPlayerNowNext": "Sekarang dan berikutnya"
+    "epgWebPlayerNowNext": "Sekarang dan berikutnya",
+    "webMkvUnsupportedCodec": "Browser ini tidak dapat memutar kodek MKV: {codec}.",
+    "webMkvPlaybackFailed": "Pemutaran MKV gagal.",
+    "webMkvUnavailable": "Pemutaran MKV tidak tersedia di browser ini."
   },
   "id": {
     "settings": "Pengaturan",
@@ -725,7 +806,10 @@
     "epgWebHideDetails": "Sembunyikan detail program",
     "epgWebNoUpcoming": "Tidak ada program berikutnya",
     "epgWebScheduleFailed": "Jadwal ini tidak dapat dimuat.",
-    "epgWebPlayerNowNext": "Sekarang dan berikutnya"
+    "epgWebPlayerNowNext": "Sekarang dan berikutnya",
+    "webMkvUnsupportedCodec": "Browser ini tidak dapat memutar kodek MKV: {codec}.",
+    "webMkvPlaybackFailed": "Pemutaran MKV gagal.",
+    "webMkvUnavailable": "Pemutaran MKV tidak tersedia di browser ini."
   },
   "it_IT": {
     "settings": "Impostazioni",
@@ -751,7 +835,10 @@
     "epgWebHideDetails": "Nascondi dettagli programma",
     "epgWebNoUpcoming": "Nessun programma in arrivo",
     "epgWebScheduleFailed": "Impossibile caricare questo palinsesto.",
-    "epgWebPlayerNowNext": "Ora e prossimo"
+    "epgWebPlayerNowNext": "Ora e prossimo",
+    "webMkvUnsupportedCodec": "Questo browser non può riprodurre il codec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Riproduzione MKV non riuscita.",
+    "webMkvUnavailable": "La riproduzione MKV non è disponibile in questo browser."
   },
   "it": {
     "settings": "Impostazioni",
@@ -777,7 +864,10 @@
     "epgWebHideDetails": "Nascondi dettagli programma",
     "epgWebNoUpcoming": "Nessun programma in arrivo",
     "epgWebScheduleFailed": "Impossibile caricare questo palinsesto.",
-    "epgWebPlayerNowNext": "Ora e prossimo"
+    "epgWebPlayerNowNext": "Ora e prossimo",
+    "webMkvUnsupportedCodec": "Questo browser non può riprodurre il codec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Riproduzione MKV non riuscita.",
+    "webMkvUnavailable": "La riproduzione MKV non è disponibile in questo browser."
   },
   "ko_KR": {
     "settings": "설정",
@@ -803,7 +893,10 @@
     "epgWebHideDetails": "프로그램 세부정보 숨기기",
     "epgWebNoUpcoming": "다음 프로그램이 없습니다",
     "epgWebScheduleFailed": "편성표를 불러올 수 없습니다.",
-    "epgWebPlayerNowNext": "현재 및 다음"
+    "epgWebPlayerNowNext": "현재 및 다음",
+    "webMkvUnsupportedCodec": "이 브라우저는 MKV 코덱을 재생할 수 없습니다: {codec}.",
+    "webMkvPlaybackFailed": "MKV 재생에 실패했습니다.",
+    "webMkvUnavailable": "이 브라우저에서는 MKV 재생을 사용할 수 없습니다."
   },
   "ko": {
     "settings": "설정",
@@ -829,7 +922,10 @@
     "epgWebHideDetails": "프로그램 세부정보 숨기기",
     "epgWebNoUpcoming": "다음 프로그램이 없습니다",
     "epgWebScheduleFailed": "편성표를 불러올 수 없습니다.",
-    "epgWebPlayerNowNext": "현재 및 다음"
+    "epgWebPlayerNowNext": "현재 및 다음",
+    "webMkvUnsupportedCodec": "이 브라우저는 MKV 코덱을 재생할 수 없습니다: {codec}.",
+    "webMkvPlaybackFailed": "MKV 재생에 실패했습니다.",
+    "webMkvUnavailable": "이 브라우저에서는 MKV 재생을 사용할 수 없습니다."
   },
   "tr_TR": {
     "settings": "Ayarlar",
@@ -855,7 +951,10 @@
     "epgWebHideDetails": "Program ayrıntılarını gizle",
     "epgWebNoUpcoming": "Yaklaşan program yok",
     "epgWebScheduleFailed": "Bu yayın akışı yüklenemedi.",
-    "epgWebPlayerNowNext": "Şimdi ve sıradaki"
+    "epgWebPlayerNowNext": "Şimdi ve sıradaki",
+    "webMkvUnsupportedCodec": "Bu tarayıcı MKV kodeğini oynatamıyor: {codec}.",
+    "webMkvPlaybackFailed": "MKV oynatılamadı.",
+    "webMkvUnavailable": "Bu tarayıcıda MKV oynatma kullanılamıyor."
   },
   "tr": {
     "settings": "Ayarlar",
@@ -881,7 +980,10 @@
     "epgWebHideDetails": "Program ayrıntılarını gizle",
     "epgWebNoUpcoming": "Yaklaşan program yok",
     "epgWebScheduleFailed": "Bu yayın akışı yüklenemedi.",
-    "epgWebPlayerNowNext": "Şimdi ve sıradaki"
+    "epgWebPlayerNowNext": "Şimdi ve sıradaki",
+    "webMkvUnsupportedCodec": "Bu tarayıcı MKV kodeğini oynatamıyor: {codec}.",
+    "webMkvPlaybackFailed": "MKV oynatılamadı.",
+    "webMkvUnavailable": "Bu tarayıcıda MKV oynatma kullanılamıyor."
   },
   "en_GB": {
     "settings": "Settings",
@@ -907,7 +1009,10 @@
     "epgWebHideDetails": "Hide programme details",
     "epgWebNoUpcoming": "No upcoming programme",
     "epgWebScheduleFailed": "Unable to load this schedule.",
-    "epgWebPlayerNowNext": "Now and Next"
+    "epgWebPlayerNowNext": "Now and Next",
+    "webMkvUnsupportedCodec": "This browser cannot play the MKV codec: {codec}.",
+    "webMkvPlaybackFailed": "MKV playback failed.",
+    "webMkvUnavailable": "MKV playback is unavailable in this browser."
   },
   "hi_IN": {
     "settings": "सेटिंग्स",
@@ -933,7 +1038,10 @@
     "epgWebHideDetails": "कार्यक्रम का विवरण छिपाएँ",
     "epgWebNoUpcoming": "आगे कोई कार्यक्रम नहीं",
     "epgWebScheduleFailed": "यह कार्यक्रम सूची लोड नहीं हो सकी।",
-    "epgWebPlayerNowNext": "अभी और अगला"
+    "epgWebPlayerNowNext": "अभी और अगला",
+    "webMkvUnsupportedCodec": "यह ब्राउज़र MKV कोडेक नहीं चला सकता: {codec}।",
+    "webMkvPlaybackFailed": "MKV प्लेबैक विफल हुआ।",
+    "webMkvUnavailable": "इस ब्राउज़र में MKV प्लेबैक उपलब्ध नहीं है।"
   },
   "hi": {
     "settings": "सेटिंग्स",
@@ -959,7 +1067,10 @@
     "epgWebHideDetails": "कार्यक्रम का विवरण छिपाएँ",
     "epgWebNoUpcoming": "आगे कोई कार्यक्रम नहीं",
     "epgWebScheduleFailed": "यह कार्यक्रम सूची लोड नहीं हो सकी।",
-    "epgWebPlayerNowNext": "अभी और अगला"
+    "epgWebPlayerNowNext": "अभी और अगला",
+    "webMkvUnsupportedCodec": "यह ब्राउज़र MKV कोडेक नहीं चला सकता: {codec}।",
+    "webMkvPlaybackFailed": "MKV प्लेबैक विफल हुआ।",
+    "webMkvUnavailable": "इस ब्राउज़र में MKV प्लेबैक उपलब्ध नहीं है।"
   },
   "pa_IN": {
     "settings": "ਸੈਟਿੰਗਾਂ",
@@ -985,7 +1096,10 @@
     "epgWebHideDetails": "ਪ੍ਰੋਗਰਾਮ ਦੇ ਵੇਰਵੇ ਲੁਕਾਓ",
     "epgWebNoUpcoming": "ਅਗਲਾ ਪ੍ਰੋਗਰਾਮ ਨਹੀਂ",
     "epgWebScheduleFailed": "ਇਹ ਸਮਾਂ-ਸੂਚੀ ਲੋਡ ਨਹੀਂ ਹੋ ਸਕੀ।",
-    "epgWebPlayerNowNext": "ਹੁਣ ਅਤੇ ਅਗਲਾ"
+    "epgWebPlayerNowNext": "ਹੁਣ ਅਤੇ ਅਗਲਾ",
+    "webMkvUnsupportedCodec": "ਇਹ ਬ੍ਰਾਊਜ਼ਰ MKV ਕੋਡੈਕ ਨਹੀਂ ਚਲਾ ਸਕਦਾ: {codec}।",
+    "webMkvPlaybackFailed": "MKV ਪਲੇਬੈਕ ਅਸਫਲ ਰਿਹਾ।",
+    "webMkvUnavailable": "ਇਸ ਬ੍ਰਾਊਜ਼ਰ ਵਿੱਚ MKV ਪਲੇਬੈਕ ਉਪਲਬਧ ਨਹੀਂ ਹੈ।"
   },
   "pa": {
     "settings": "ਸੈਟਿੰਗਾਂ",
@@ -1011,7 +1125,10 @@
     "epgWebHideDetails": "ਪ੍ਰੋਗਰਾਮ ਦੇ ਵੇਰਵੇ ਲੁਕਾਓ",
     "epgWebNoUpcoming": "ਅਗਲਾ ਪ੍ਰੋਗਰਾਮ ਨਹੀਂ",
     "epgWebScheduleFailed": "ਇਹ ਸਮਾਂ-ਸੂਚੀ ਲੋਡ ਨਹੀਂ ਹੋ ਸਕੀ।",
-    "epgWebPlayerNowNext": "ਹੁਣ ਅਤੇ ਅਗਲਾ"
+    "epgWebPlayerNowNext": "ਹੁਣ ਅਤੇ ਅਗਲਾ",
+    "webMkvUnsupportedCodec": "ਇਹ ਬ੍ਰਾਊਜ਼ਰ MKV ਕੋਡੈਕ ਨਹੀਂ ਚਲਾ ਸਕਦਾ: {codec}।",
+    "webMkvPlaybackFailed": "MKV ਪਲੇਬੈਕ ਅਸਫਲ ਰਿਹਾ।",
+    "webMkvUnavailable": "ਇਸ ਬ੍ਰਾਊਜ਼ਰ ਵਿੱਚ MKV ਪਲੇਬੈਕ ਉਪਲਬਧ ਨਹੀਂ ਹੈ।"
   },
   "th_TH": {
     "settings": "การตั้งค่า",
@@ -1037,7 +1154,10 @@
     "epgWebHideDetails": "ซ่อนรายละเอียดรายการ",
     "epgWebNoUpcoming": "ไม่มีรายการถัดไป",
     "epgWebScheduleFailed": "โหลดตารางรายการนี้ไม่ได้",
-    "epgWebPlayerNowNext": "รายการปัจจุบันและถัดไป"
+    "epgWebPlayerNowNext": "รายการปัจจุบันและถัดไป",
+    "webMkvUnsupportedCodec": "เบราว์เซอร์นี้ไม่สามารถเล่นตัวแปลงสัญญาณ MKV ได้: {codec}",
+    "webMkvPlaybackFailed": "การเล่น MKV ล้มเหลว",
+    "webMkvUnavailable": "เบราว์เซอร์นี้ไม่รองรับการเล่น MKV"
   },
   "th": {
     "settings": "การตั้งค่า",
@@ -1063,7 +1183,10 @@
     "epgWebHideDetails": "ซ่อนรายละเอียดรายการ",
     "epgWebNoUpcoming": "ไม่มีรายการถัดไป",
     "epgWebScheduleFailed": "โหลดตารางรายการนี้ไม่ได้",
-    "epgWebPlayerNowNext": "รายการปัจจุบันและถัดไป"
+    "epgWebPlayerNowNext": "รายการปัจจุบันและถัดไป",
+    "webMkvUnsupportedCodec": "เบราว์เซอร์นี้ไม่สามารถเล่นตัวแปลงสัญญาณ MKV ได้: {codec}",
+    "webMkvPlaybackFailed": "การเล่น MKV ล้มเหลว",
+    "webMkvUnavailable": "เบราว์เซอร์นี้ไม่รองรับการเล่น MKV"
   },
   "uk_UA": {
     "settings": "Налаштування",
@@ -1089,7 +1212,10 @@
     "epgWebHideDetails": "Приховати відомості про програму",
     "epgWebNoUpcoming": "Наступних програм немає",
     "epgWebScheduleFailed": "Не вдалося завантажити цю телепрограму.",
-    "epgWebPlayerNowNext": "Зараз і далі"
+    "epgWebPlayerNowNext": "Зараз і далі",
+    "webMkvUnsupportedCodec": "Цей браузер не може відтворити кодек MKV: {codec}.",
+    "webMkvPlaybackFailed": "Помилка відтворення MKV.",
+    "webMkvUnavailable": "Відтворення MKV недоступне в цьому браузері."
   },
   "uk": {
     "settings": "Налаштування",
@@ -1115,7 +1241,10 @@
     "epgWebHideDetails": "Приховати відомості про програму",
     "epgWebNoUpcoming": "Наступних програм немає",
     "epgWebScheduleFailed": "Не вдалося завантажити цю телепрограму.",
-    "epgWebPlayerNowNext": "Зараз і далі"
+    "epgWebPlayerNowNext": "Зараз і далі",
+    "webMkvUnsupportedCodec": "Цей браузер не може відтворити кодек MKV: {codec}.",
+    "webMkvPlaybackFailed": "Помилка відтворення MKV.",
+    "webMkvUnavailable": "Відтворення MKV недоступне в цьому браузері."
   },
   "ru_RU": {
     "settings": "Настройки",
@@ -1141,7 +1270,10 @@
     "epgWebHideDetails": "Скрыть сведения о программе",
     "epgWebNoUpcoming": "Нет следующей программы",
     "epgWebScheduleFailed": "Не удалось загрузить эту телепрограмму.",
-    "epgWebPlayerNowNext": "Сейчас и далее"
+    "epgWebPlayerNowNext": "Сейчас и далее",
+    "webMkvUnsupportedCodec": "Этот браузер не может воспроизвести кодек MKV: {codec}.",
+    "webMkvPlaybackFailed": "Ошибка воспроизведения MKV.",
+    "webMkvUnavailable": "Воспроизведение MKV недоступно в этом браузере."
   },
   "ru": {
     "settings": "Настройки",
@@ -1167,7 +1299,10 @@
     "epgWebHideDetails": "Скрыть сведения о программе",
     "epgWebNoUpcoming": "Нет следующей программы",
     "epgWebScheduleFailed": "Не удалось загрузить эту телепрограмму.",
-    "epgWebPlayerNowNext": "Сейчас и далее"
+    "epgWebPlayerNowNext": "Сейчас и далее",
+    "webMkvUnsupportedCodec": "Этот браузер не может воспроизвести кодек MKV: {codec}.",
+    "webMkvPlaybackFailed": "Ошибка воспроизведения MKV.",
+    "webMkvUnavailable": "Воспроизведение MKV недоступно в этом браузере."
   },
   "ar_SA": {
     "settings": "الإعدادات",
@@ -1193,7 +1328,10 @@
     "epgWebHideDetails": "إخفاء تفاصيل البرنامج",
     "epgWebNoUpcoming": "لا توجد برامج قادمة",
     "epgWebScheduleFailed": "تعذّر تحميل هذا الجدول.",
-    "epgWebPlayerNowNext": "الآن والقادم"
+    "epgWebPlayerNowNext": "الآن والقادم",
+    "webMkvUnsupportedCodec": "لا يستطيع هذا المتصفح تشغيل ترميز MKV: {codec}.",
+    "webMkvPlaybackFailed": "فشل تشغيل MKV.",
+    "webMkvUnavailable": "تشغيل MKV غير متاح في هذا المتصفح."
   },
   "ar": {
     "settings": "الإعدادات",
@@ -1219,7 +1357,10 @@
     "epgWebHideDetails": "إخفاء تفاصيل البرنامج",
     "epgWebNoUpcoming": "لا توجد برامج قادمة",
     "epgWebScheduleFailed": "تعذّر تحميل هذا الجدول.",
-    "epgWebPlayerNowNext": "الآن والقادم"
+    "epgWebPlayerNowNext": "الآن والقادم",
+    "webMkvUnsupportedCodec": "لا يستطيع هذا المتصفح تشغيل ترميز MKV: {codec}.",
+    "webMkvPlaybackFailed": "فشل تشغيل MKV.",
+    "webMkvUnavailable": "تشغيل MKV غير متاح في هذا المتصفح."
   },
   "es_ES": {
     "settings": "Configuración",
@@ -1245,7 +1386,10 @@
     "epgWebHideDetails": "Ocultar detalles del programa",
     "epgWebNoUpcoming": "No hay próximos programas",
     "epgWebScheduleFailed": "No se pudo cargar esta programación.",
-    "epgWebPlayerNowNext": "Ahora y después"
+    "epgWebPlayerNowNext": "Ahora y después",
+    "webMkvUnsupportedCodec": "Este navegador no puede reproducir el códec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Error al reproducir MKV.",
+    "webMkvUnavailable": "La reproducción MKV no está disponible en este navegador."
   },
   "es": {
     "settings": "Configuración",
@@ -1271,6 +1415,9 @@
     "epgWebHideDetails": "Ocultar detalles del programa",
     "epgWebNoUpcoming": "No hay próximos programas",
     "epgWebScheduleFailed": "No se pudo cargar esta programación.",
-    "epgWebPlayerNowNext": "Ahora y después"
+    "epgWebPlayerNowNext": "Ahora y después",
+    "webMkvUnsupportedCodec": "Este navegador no puede reproducir el códec MKV: {codec}.",
+    "webMkvPlaybackFailed": "Error al reproducir MKV.",
+    "webMkvUnavailable": "La reproducción MKV no está disponible en este navegador."
   }
 }

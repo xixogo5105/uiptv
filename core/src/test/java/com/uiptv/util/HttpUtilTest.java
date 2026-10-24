@@ -25,6 +25,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HttpUtilTest {
 
     @Test
+    void pinnedStreamSupportsProviderHostnamesWithUnderscores() throws Exception {
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicReference<String> host = new AtomicReference<>();
+        server.createContext("/mono.m3u8", exchange -> {
+            host.set(exchange.getRequestHeaders().getFirst("Host"));
+            byte[] body = "#EXTM3U\nsegment.ts\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (var out = exchange.getResponseBody()) { out.write(body); }
+        });
+        server.start();
+        try {
+            int port = server.getAddress().getPort();
+            String url = "http://edge_test.invalid:" + port + "/mono.m3u8";
+            try (var response = HttpUtil.openStreamPinned(url, Map.of(), "GET", null,
+                    HttpUtil.RequestOptions.streamingProxy(),
+                    new java.net.InetAddress[]{java.net.InetAddress.getByName("127.0.0.1")})) {
+                assertEquals(200, response.statusCode());
+                assertTrue(new String(response.bodyStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).startsWith("#EXTM3U"));
+                assertEquals("edge_test.invalid:" + port, host.get());
+            }
+        } finally { server.stop(0); }
+    }
+
+    @Test
     void formatHttpLog_redactsSensitiveHeadersAndFormatsEmptyBinaryAndParams() {
         HttpUtil.HttpResult response = new HttpUtil.HttpResult(
                 "post",

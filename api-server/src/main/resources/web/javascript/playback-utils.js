@@ -17,6 +17,61 @@
         return candidates;
     };
 
+    const probeStreamFormat = async (url, signal) => {
+        const controller = new AbortController();
+        const cancel = () => controller.abort();
+        if (signal?.aborted) return '';
+        signal?.addEventListener('abort', cancel, {once: true});
+        const timeout = setTimeout(cancel, 4000);
+        let response, reader;
+        try {
+            response = await fetch(url, {signal: controller.signal,
+                headers: {Range: 'bytes=0-2047', Accept: '*/*'}});
+            if (!response.ok) return '';
+            const type = String(response.headers.get('content-type') || '').toLowerCase();
+            if (type.includes('mpegurl')) return 'hls';
+            if (type.includes('dash+xml')) return 'dash';
+            if (type.includes('mp2t')) return 'mpegts';
+            if (type.includes('matroska')) return 'mkv';
+            if (type.includes('video/mp4')) return 'native';
+            if (!response.body) return '';
+            reader = response.body.getReader();
+            const prefix = new Uint8Array(2048);
+            let length = 0;
+            while (length < prefix.length) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                const count = Math.min(value.length, prefix.length - length);
+                prefix.set(value.subarray(0, count), length);
+                length += count;
+                const text = new TextDecoder().decode(prefix.subarray(0, length)).trimStart();
+                if (text.startsWith('#EXTM3U')) return 'hls';
+                if (text.includes('<MPD')) return 'dash';
+                if (length >= 8 && prefix[4] === 102 && prefix[5] === 116 && prefix[6] === 121 && prefix[7] === 112) return 'native';
+                if (length >= 4 && prefix[0] === 0x1a && prefix[1] === 0x45 && prefix[2] === 0xdf && prefix[3] === 0xa3) return 'mkv';
+                if (length >= 377 && prefix[0] === 0x47 && prefix[188] === 0x47 && prefix[376] === 0x47) return 'mpegts';
+            }
+            return '';
+        } catch (_) {
+            return '';
+        } finally {
+            // A provider may ignore Range and send an endless live body.
+            controller.abort();
+            if (reader) await reader.cancel().catch(() => {});
+            else if (response?.body) await response.body.cancel().catch(() => {});
+            clearTimeout(timeout);
+            signal?.removeEventListener('abort', cancel);
+        }
+    };
+
+    const isMkvLikeUrl = url => getSourceUrlCandidates(url).some(value => {
+        try {
+            const parsed = new URL(value, window.location.origin);
+            return /\.mkv$/i.test(parsed.pathname) || /\.mkv$/i.test(parsed.searchParams.get('stream') || '')
+                || /^mkv$/i.test(parsed.searchParams.get('extension') || '');
+        } catch (_) { return false; }
+    });
+
     const isTsLikeUrl = (url, manifestType = '', mode = '') => {
         const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
         const normalizedMode = String(mode || '').trim().toLowerCase();
@@ -100,6 +155,14 @@
     const normalizeWebPlaybackUrl = (rawUrl) => {
         const value = String(rawUrl || '').trim();
         if (!value) return value;
+        try {
+            const parsed = new URL(value, window.location.origin);
+            if (parsed.pathname === '/proxy-stream' && parsed.searchParams.has('src')) {
+                // The backend may publish its LAN address while this page uses localhost,
+                // HTTPS, or a reverse proxy. Keep media on the browser's own origin.
+                return window.location.origin + parsed.pathname + parsed.search;
+            }
+        } catch (_) { /* Retain the original URL when it cannot be parsed. */ }
         return downgradeHttpsToHttpForKnownPaths(value);
     };
 
@@ -275,6 +338,8 @@
     const notifyPlayerClose = (detail = {}) => emitPlayerEvent('uiptv:player:close', detail);
 
     window.UIPTVPlaybackUtils = {
+        probeStreamFormat,
+        isMkvLikeUrl,
         isTsLikeUrl,
         isHlsLikeUrl,
         isDashLikeUrl,

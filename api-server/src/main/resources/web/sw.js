@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v105';
+const CACHE_NAME = 'uiptv-cache-v114';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -24,6 +24,7 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/shaka-player@5.2.14/dist/shaka-player.compiled.js',
   'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js',
   '/javascript/modern-player.js',
+  '/javascript/mkv-player.js',
   'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/video.js',
   'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/media/hlsjs-video.js',
   'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/media/dash-video.js'

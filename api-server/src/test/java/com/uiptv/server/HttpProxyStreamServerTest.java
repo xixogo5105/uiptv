@@ -52,6 +52,17 @@ class HttpProxyStreamServerTest {
     }
 
     @Test
+    void hlsUrisOnUnderscoreCdnHostsRemainProxied() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer();
+        String source = "http://edge_test.example/path/mono.m3u8?token=abc";
+        String rewritten = new String((byte[]) invoke(handler, "rewriteHlsPlaylist",
+                new Class[]{byte[].class, String.class},
+                "#EXTM3U\nsegment.ts\n".getBytes(StandardCharsets.UTF_8), source), StandardCharsets.UTF_8);
+        assertTrue(rewritten.contains("/proxy-stream?src=" + URLEncoder.encode(
+                "http://edge_test.example/path/segment.ts", StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void headRequestsRemainHeadUpstream() throws Exception {
         AtomicInteger requestCount = new AtomicInteger();
         AtomicReference<String> upstreamMethod = new AtomicReference<>();

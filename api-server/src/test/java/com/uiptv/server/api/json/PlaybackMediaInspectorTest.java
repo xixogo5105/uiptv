@@ -32,10 +32,13 @@ class PlaybackMediaInspectorTest {
     }
 
     @Test
-    void identifiesHlsAndRejectsContainersTheBrowserCannotOpenDirectly() {
+    void identifiesHlsAndRoutesMatroskaToBrowserRemuxer() {
         assertEquals("hls", PlaybackMediaInspector.classifyResponse("application/vnd.apple.mpegurl", new byte[0]).strategy());
         byte[] matroska = {(byte) 0x1a, 0x45, (byte) 0xdf, (byte) 0xa3};
-        assertEquals("unsupported", PlaybackMediaInspector.classifyResponse("application/octet-stream", matroska).strategy());
+        assertEquals("mkv", PlaybackMediaInspector.classifyResponse("application/octet-stream", matroska).strategy());
+        assertEquals("mkv", PlaybackMediaInspector.classifyResponse("video/x-matroska", new byte[0]).strategy());
+        assertEquals("mkv", PlaybackMediaInspector.inferUrlFormatHint("http://provider/episode.mkv?token=abc").strategy());
+        assertEquals("unsupported", PlaybackMediaInspector.inferUrlFormatHint("http://provider/movie.avi").strategy());
         assertEquals("dash", PlaybackMediaInspector.classifyResponse("application/dash+xml", new byte[0]).strategy());
     }
 
