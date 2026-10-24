@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261024singleScroll1" rel="stylesheet">
+    <link href="/css/spa.css?v=20261024seriesUnifiedPanel1" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js"></script>
@@ -278,7 +278,7 @@
                         </div>
                     </div>
 
-                    <div :class="{ 'series-episodes-layout': viewState === 'episodes' && contentMode === 'series', 'series-details-collapsed': isExpandedPlayerAccordion && seriesDetailCollapsed, 'series-details-open': isExpandedPlayerAccordion && !seriesDetailCollapsed }" class="accounts-drilldown" v-else>
+                    <div :class="{ 'series-episodes-layout': viewState === 'episodes' && contentMode === 'series' }" class="accounts-drilldown" v-else>
                         <section aria-label="Categories" class="browser-panel account-category-panel" v-show="!isCompactDrilldown || wideDrilldownPanel === 'categories'">
                             <header class="panel-heading">
                                 <strong>Categories</strong>
@@ -406,74 +406,53 @@
                         </section>
 
                         <template v-if="viewState === 'episodes' && contentMode === 'series'">
-                            <section :class="{ 'series-details-collapsed': isExpandedPlayerAccordion && seriesDetailCollapsed }" aria-label="Series details" class="browser-panel account-series-detail-panel watching-detail-panel">
-                                <button :aria-expanded="!isExpandedPlayerAccordion || !seriesDetailCollapsed" @click="toggleSeriesDetailCollapsed" class="panel-heading watching-detail-toggle" type="button">
-                                    <template v-if="isExpandedPlayerAccordion && seriesDetailCollapsed">
-                                        <strong class="watching-detail-summary-title">{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</strong>
-                                        <span>{{ currentAccountName }}</span>
-                                    </template>
-                                    <template v-else>
-                                        <strong>Details</strong>
-                                        <span>{{ currentAccountName }}</span>
-                                    </template>
-                                </button>
-                                <div class="panel-list" v-if="!isExpandedPlayerAccordion || !seriesDetailCollapsed">
-                                <div v-if="seriesDetail" class="series-detail-panel">
-                                    <article class="detail-card series-detail-card">
-                                        <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
-                                        <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="poster-fallback">
-                                            <i class="bi bi-collection-play"></i>
-                                        </div>
-                                        <div class="content-copy">
-                                            <div class="title-line">{{ seriesDetail.name || 'Series' }}</div>
-                                            <div class="meta-line" v-if="seriesDetailLoading">
-                                                <span class="spinner-border spinner-border-sm"></span>
-                                                Loading series details...
-                                            </div>
-                                            <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
-                                            <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
-                                            <div class="series-meta-list">
-                                                <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
-                                                <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
-                                                <span v-if="seriesDetail.director">Director: {{ seriesDetail.director }}</span>
-                                                <span v-if="seriesDetail.cast">Cast: {{ seriesDetail.cast }}</span>
-                                            </div>
-                                            <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button">
-                                                <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
-                                                <i class="bi bi-collection-play" v-else></i>
-                                                <span>{{ bingeWatchButtonLabel }}</span>
-                                            </button>
-                                        </div>
-                                    </article>
-                                </div>
-                                <div class="empty-state compact" v-else>
-                                    <i class="bi bi-collection-play"></i>
-                                    <strong>Loading series</strong>
-                                    <span>Series details will appear when ready.</span>
-                                </div>
-                                </div>
-                            </section>
-
-                            <section :class="{ 'episodes-collapsed': isExpandedPlayerAccordion && !seriesDetailCollapsed }" aria-label="Episodes" class="browser-panel account-series-episodes-panel watching-episodes-panel">
+                            <section aria-label="Series and episodes" class="browser-panel account-series-panel watching-episodes-panel">
                                 <header class="panel-heading episodes-panel-heading">
                                     <div class="episodes-heading-left">
-                                        <button :aria-expanded="!isExpandedPlayerAccordion || seriesDetailCollapsed" @click="toggleSeriesDetailCollapsed" class="watching-detail-toggle episodes-collapse-toggle" type="button">
-                                            <template v-if="isExpandedPlayerAccordion && !seriesDetailCollapsed">
-                                                <strong class="watching-detail-summary-title">{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</strong>
-                                            </template>
-                                            <template v-else>
-                                                <strong>Episodes</strong>
-                                            </template>
-                                        </button>
+                                        <strong>Episodes</strong>
                                         <div aria-label="Episode display style" class="episode-display-toggle" role="group">
-                                            <button :aria-pressed="episodeDisplayMode === 'immersive'" :class="{ active: episodeDisplayMode === 'immersive' }" @click.stop="setEpisodeDisplayMode('immersive')" type="button">Immersive</button>
-                                            <button :aria-pressed="episodeDisplayMode === 'compact'" :class="{ active: episodeDisplayMode === 'compact' }" @click.stop="setEpisodeDisplayMode('compact')" type="button">Compact</button>
+                                            <button :aria-pressed="episodeDisplayMode === 'immersive'" :class="{ active: episodeDisplayMode === 'immersive' }" @click="setEpisodeDisplayMode('immersive')" type="button">Immersive</button>
+                                            <button :aria-pressed="episodeDisplayMode === 'compact'" :class="{ active: episodeDisplayMode === 'compact' }" @click="setEpisodeDisplayMode('compact')" type="button">Compact</button>
                                         </div>
                                     </div>
-                                    <span>{{ isExpandedPlayerAccordion && !seriesDetailCollapsed ? currentAccountName : (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
+                                    <span>{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
                                 </header>
 
-                                <div class="panel-list" v-if="!isExpandedPlayerAccordion || seriesDetailCollapsed">
+                                <div class="panel-list">
+                                    <div v-if="seriesDetail" class="series-detail-panel">
+                                        <article class="detail-card series-detail-card">
+                                            <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
+                                            <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="poster-fallback">
+                                                <i class="bi bi-collection-play"></i>
+                                            </div>
+                                            <div class="content-copy">
+                                                <div class="title-line">{{ seriesDetail.name || 'Series' }}</div>
+                                                <div class="meta-line" v-if="seriesDetailLoading">
+                                                    <span class="spinner-border spinner-border-sm"></span>
+                                                    Loading series details...
+                                                </div>
+                                                <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
+                                                <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
+                                                <div class="series-meta-list">
+                                                    <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
+                                                    <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
+                                                    <span v-if="seriesDetail.director">Director: {{ seriesDetail.director }}</span>
+                                                    <span v-if="seriesDetail.cast">Cast: {{ seriesDetail.cast }}</span>
+                                                </div>
+                                                <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button">
+                                                    <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
+                                                    <i class="bi bi-collection-play" v-else></i>
+                                                    <span>{{ bingeWatchButtonLabel }}</span>
+                                                </button>
+                                            </div>
+                                        </article>
+                                    </div>
+                                    <div class="empty-state compact" v-else>
+                                        <i class="bi bi-collection-play"></i>
+                                        <strong>Loading series</strong>
+                                        <span>Series details will appear when ready.</span>
+                                    </div>
+
                                 <div class="chip-row season-row" v-if="contentMode === 'series' && seriesSeasonTabs.length > 0">
                                     <button
                                             :class="{ active: selectedSeriesSeason === tab.value }"

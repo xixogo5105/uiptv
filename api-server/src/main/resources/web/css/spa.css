@@ -1103,31 +1103,11 @@ a[href] {
 }
 
 .accounts-drilldown.series-episodes-layout {
-    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
 }
 
 .accounts-drilldown.series-episodes-layout > .account-category-panel {
     grid-row: 1 / -1;
-}
-
-.accounts-drilldown.series-episodes-layout.series-details-collapsed {
-    grid-template-rows: auto minmax(0, 1fr);
-}
-
-.accounts-drilldown.series-episodes-layout.series-details-open {
-    grid-template-rows: minmax(0, 1fr) auto;
-}
-
-.account-series-detail-panel.series-details-collapsed {
-    grid-template-rows: auto;
-    height: auto;
-    align-self: start;
-}
-
-.account-series-episodes-panel.episodes-collapsed {
-    grid-template-rows: auto;
-    height: auto;
-    align-self: start;
 }
 
 .account-category-panel {
@@ -2139,7 +2119,7 @@ a[href] {
 
     .accounts-drilldown.series-episodes-layout {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: repeat(2, minmax(0, 1fr));
+        grid-template-rows: minmax(0, 1fr);
     }
 
     .accounts-drilldown.series-episodes-layout > .account-category-panel {
@@ -2158,13 +2138,6 @@ a[href] {
         grid-template-rows: minmax(0, 1fr) auto;
     }
 
-    .accounts-drilldown.series-episodes-layout.series-details-collapsed {
-        grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .accounts-drilldown.series-episodes-layout.series-details-open {
-        grid-template-rows: minmax(0, 1fr) auto;
-    }
 }
 
 /* Inside container queries, collapse drilldown to single column */
@@ -2175,7 +2148,7 @@ a[href] {
     }
 
     .accounts-drilldown.series-episodes-layout {
-        grid-template-rows: repeat(2, minmax(0, 1fr));
+        grid-template-rows: minmax(0, 1fr);
     }
 
     .accounts-drilldown.series-episodes-layout > .account-category-panel {
@@ -2190,13 +2163,6 @@ a[href] {
         grid-template-rows: minmax(0, 1fr) auto;
     }
 
-    .accounts-drilldown.series-episodes-layout.series-details-collapsed {
-        grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .accounts-drilldown.series-episodes-layout.series-details-open {
-        grid-template-rows: minmax(0, 1fr) auto;
-    }
 }
 
 /* When content area has moderate space (520-800px), 2-column grids */
@@ -2357,7 +2323,7 @@ a[href] {
     }
 
     .accounts-drilldown.series-episodes-layout {
-        grid-template-rows: repeat(2, minmax(0, 1fr));
+        grid-template-rows: minmax(0, 1fr);
     }
 
     .accounts-drilldown.series-episodes-layout > .account-category-panel {
@@ -2369,14 +2335,6 @@ a[href] {
     }
 
     .watching-detail-layout.series-details-open {
-        grid-template-rows: minmax(0, 1fr) auto;
-    }
-
-    .accounts-drilldown.series-episodes-layout.series-details-collapsed {
-        grid-template-rows: auto minmax(0, 1fr);
-    }
-
-    .accounts-drilldown.series-episodes-layout.series-details-open {
         grid-template-rows: minmax(0, 1fr) auto;
     }
 
@@ -2905,9 +2863,11 @@ body {
     }
 }
 
-/* Keep Watching Now aligned with the desktop cards and let the content shell scroll the view. */
+/* Keep Watching Now aligned with the desktop cards and let one page scroller own the view. */
 .content-stage.watching-stage {
-    overflow: visible;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .content-stage.watching-stage > .content-screen.watching-screen {
@@ -3254,142 +3214,9 @@ body {
     }
 }
 
-/* The content shell owns the app's single vertical scroll area. */
-.content-shell {
-    min-height: 0;
-    height: 100%;
-    grid-template-rows: auto;
-    align-items: start;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    -webkit-overflow-scrolling: touch;
-}
-
-.content-stage {
-    height: auto;
-    min-height: 0;
-    align-self: start;
-    overflow: visible;
-}
-
-.content-shell > .content-stage {
-    overflow: visible;
-}
-
-.content-screen {
-    height: auto;
-    min-height: 100%;
-    grid-template-rows: auto auto auto;
-    align-content: start;
-    overflow: visible;
-}
-
-.scroll-area,
-.panel-list {
-    height: auto;
-    max-height: none;
-    min-height: 0;
-    overflow: visible;
-    padding-right: 0;
-    scrollbar-gutter: auto;
-}
-
-.accounts-drilldown {
-    height: auto;
-    min-height: 0;
-    overflow: visible;
-}
-
-.accounts-drilldown.series-episodes-layout {
-    grid-template-rows: auto auto;
-    grid-auto-rows: auto;
-}
-
-.accounts-drilldown.series-episodes-layout.series-details-collapsed,
-.accounts-drilldown.series-episodes-layout.series-details-open {
-    grid-template-rows: auto auto;
-}
-
-.accounts-drilldown > .browser-panel {
-    height: auto;
-    min-height: 0;
-    grid-template-rows: auto auto;
-    overflow: visible;
-}
-
-.accounts-drilldown > .browser-panel.series-details-collapsed,
-.accounts-drilldown > .browser-panel.episodes-collapsed {
-    grid-template-rows: auto;
-}
-
+/* Keep the player visible while its adjacent content is scrolled. */
 .content-shell > .player-panel {
     position: sticky;
     top: 0;
     z-index: 5;
-    align-self: start;
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    scrollbar-gutter: auto;
-}
-
-.content-shell.wide-view > .player-panel {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-}
-
-.content-shell.wide-view #player-wrapper {
-    height: auto;
-    min-height: 220px;
-}
-
-.player-panel .player-epg-panel {
-    max-height: none;
-    overflow: visible;
-}
-
-.content-shell:not(.wide-view):has(.player-epg-panel) {
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-}
-
-.content-shell:not(.wide-view):has(.player-epg-panel) .content-stage {
-    height: auto;
-    overflow: visible;
-}
-
-@media (max-width: 1180px) {
-    .content-shell {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .content-shell > .player-panel,
-    .content-shell > .content-stage {
-        width: 100%;
-        flex: 0 0 auto;
-    }
-
-    .content-shell:not(.player-hidden) > .player-panel {
-        order: 0;
-    }
-
-    .content-shell:not(.player-hidden) > .content-stage {
-        order: 1;
-    }
-
-    .content-shell.player-hidden > .content-stage {
-        order: 0;
-    }
-
-    .content-shell.wide-view > .player-panel {
-        height: auto;
-        max-height: none;
-        overflow: visible;
-    }
 }
