@@ -558,7 +558,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals(1,ChannelDb.get().getCachedLiveChannels(account.getDbId()).size(),"Catalog stays intact");
     }
 
-    @Test void manualJobRollsBackItsDownloadedFeedWhenFinalMappingFails() throws Exception {
+    @Test void manualJobKeepsPublishedFeedWhenFinalMappingFails() throws Exception {
         Account account = account("job-rollback");
         Path feed = xml("job-rollback.xml", "Last good");
         account.setEpg(feed.toString());
@@ -587,9 +587,11 @@ class EpgPersistentCacheTest extends DbBackedTest {
                 snapshot = EpgRefreshJobService.get(job.id());
             }
             assertEquals("COMPLETED_WITH_WARNINGS", snapshot.status());
-            assertEquals("Failed", snapshot.sources().getFirst().status());
-            assertEquals("Last good", cache.schedule(account, channel).getFirst().title());
-            assertEquals(before.revision(), EpgChangeNotifications.snapshot().revision());
+            assertEquals("Saved", snapshot.sources().getFirst().status());
+            assertTrue(db.sourceState(EpgCacheApplicationService.sourceId(feed.toString())).refreshedAt() > 0);
+            assertTrue(cache.schedule(account, channel).isEmpty(),
+                    "The old mapping remains, while the newly downloaded guide data stays cached");
+            assertTrue(EpgChangeNotifications.snapshot().revision() > before.revision());
         } finally {
             try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
                 statement.execute("DROP TRIGGER fail_job_mapping");
@@ -621,7 +623,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertTrue(snapshot.message().contains("Provider-native schedules"));
     }
 
-    @Test void stagedManualFeedIsNotSavedAndCancellationKeepsPublishedData() throws Exception {
+    @Test void manualRefreshPublishesEachSuccessfulFeedBeforeLaterSourcesAndCancellationKeepsIt() throws Exception {
         long now = System.currentTimeMillis();
         Path feed = xml("staged-progress.xml", "Unpublished update");
         String sourceId = EpgCacheApplicationService.sourceId(feed.toString());
@@ -650,9 +652,13 @@ class EpgPersistentCacheTest extends DbBackedTest {
             started = EpgRefreshJobService.start();
             assertTrue(entered.await(5, TimeUnit.SECONDS));
             var snapshot = EpgRefreshJobService.get(started.id());
-            assertEquals("Staged", snapshot.sources().stream().filter(item -> item.id().equals(sourceId)).findFirst().orElseThrow().status());
+            assertEquals("Saved", snapshot.sources().stream()
+                    .filter(item -> item.id().equals(sourceId)).findFirst().orElseThrow().status());
             assertEquals(0, snapshot.completed());
-            assertEquals("Last good", title(identity, now));
+            assertEquals("Unpublished update", title(identity, now),
+                    "A successful source must become visible before the next source finishes");
+            assertTrue(EpgChangeNotifications.snapshot().revision() > revision,
+                    "Publishing a source must notify live EPG observers immediately");
             assertTrue(EpgRefreshJobService.cancel(started.id()));
             release.countDown();
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -662,9 +668,10 @@ class EpgPersistentCacheTest extends DbBackedTest {
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
             } while (System.nanoTime() < deadline);
             assertEquals("CANCELLED", snapshot.status());
-            assertEquals("Last good", title(identity, now));
-            assertEquals(previous, db.sourceState(sourceId));
-            assertEquals(revision, EpgChangeNotifications.snapshot().revision());
+            assertEquals("Unpublished update", title(identity, now),
+                    "Cancelling a later source must not undo an already published source");
+            assertTrue(db.sourceState(sourceId).refreshedAt() > previous.refreshedAt());
+            assertTrue(EpgChangeNotifications.snapshot().revision() > revision);
         } finally {
             if (started != null) EpgRefreshJobService.cancel(started.id());
             release.countDown(); server.stop(0);

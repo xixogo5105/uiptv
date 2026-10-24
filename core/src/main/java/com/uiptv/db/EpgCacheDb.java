@@ -23,7 +23,7 @@ public final class EpgCacheDb {
         }
     }
 
-    /** Private, disk-backed staging keeps downloads invisible until one atomic mapping publication. */
+    /** Disk-backed staging supports atomic per-source publication with its channel mappings. */
     public StagedSources stageSources() { return new StagedSources(); }
 
     public final class StagedSources implements AutoCloseable {
@@ -95,6 +95,59 @@ public final class EpgCacheDb {
                 }
                 clearUnmatchedMappings(connection);
                 // Removing the shadows makes all mapping reads resolve against the newly published main tables.
+                try (var statement = connection.createStatement()) {
+                    for (String table : TABLES) statement.execute("DROP TABLE temp." + table);
+                }
+                mapping = mapChannelsInTransaction(connection, uniqueMatches(matches), now, false, processed, true);
+                if (mapping.notification() != null) notifications.add(mapping.notification());
+                connection.commit();
+                published = true;
+            } catch (Exception error) {
+                try { connection.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
+                if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                throw failure(error);
+            }
+            notifications.forEach(EpgChangeNotifications::publish);
+            return new MappingReport(mapping.changed(), mapping.mappedChannels(), mapping.mappedBySource());
+        }
+
+        /** Publish one validated source immediately while keeping its replacement atomic. */
+        public void publishSourceData(String source) {
+            if (published) throw new IllegalStateException("EPG batch already published");
+            if (!sources.contains(source)) throw new IllegalArgumentException("EPG source has not been staged");
+            EpgChangeNotifications.Notification notification;
+            try {
+                connection.setAutoCommit(false);
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+                for (String table : TABLES) {
+                    deleteSourceRows(connection, "main." + table, source);
+                    try (var copy = connection.prepareStatement("INSERT INTO main." + table
+                            + " SELECT * FROM temp." + table + " WHERE source_id=?")) {
+                        copy.setString(1, source);
+                        copy.executeUpdate();
+                    }
+                }
+                clearUnmatchedMappings(connection);
+                notification = EpgChangeNotifications.create(connection,
+                        EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(source), Set.of(), Set.of());
+                connection.commit();
+            } catch (Exception error) {
+                try { connection.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
+                if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                throw failure(error);
+            }
+            EpgChangeNotifications.publish(notification);
+        }
+
+        /** Refresh channel links once after all source contents have been published. */
+        public MappingReport publishMappings(Collection<Match> matches, long now,
+                                              java.util.function.LongConsumer processed) {
+            if (published) throw new IllegalStateException("EPG batch already published");
+            List<EpgChangeNotifications.Notification> notifications = new ArrayList<>(1);
+            MappingResult mapping;
+            try {
+                connection.setAutoCommit(false);
+                clearUnmatchedMappings(connection);
                 try (var statement = connection.createStatement()) {
                     for (String table : TABLES) statement.execute("DROP TABLE temp." + table);
                 }

@@ -129,6 +129,12 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 source.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, filterCategoriesList, filterChannelsList, pauseFiltering, cacheExpiryDays, enableThumbnails, publishedM3uCategoryMode, filterLockUnlockDurationMinutes) VALUES(1, '/desktop/player', '1', 'sports,news', 'kids', '1', '9', '1', 'ALL', '30')")
             }
             helper.writableDatabase.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, enableThumbnails) VALUES(1, 'mobile-player', '0', '0')")
+            helper.writableDatabase.execSQL("INSERT INTO Account(id, accountName, type) VALUES(99, 'Mobile-only stale account', 'M3U8_URL')")
+            helper.writableDatabase.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(98, 'mobile-stale-category', '99', 'itv', 'Mobile-only stale category')")
+            helper.writableDatabase.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(97, 'mobile-stale-channel', '98', 'Mobile-only stale channel', 'https://example.invalid/stale')")
+            helper.writableDatabase.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName) VALUES(96, '99', 'series', 'mobile-stale-category', 'mobile-stale-series', 'old-episode', 'Old episode')")
+            helper.writableDatabase.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle) VALUES(95, '99', 'mobile-stale-category', 'mobile-stale-series', 'Old mobile series')")
+            helper.writableDatabase.execSQL("INSERT INTO epg_source(source_id, refreshed_at, retry_at, warning) VALUES('mobile-only-stale-source', 1, 1, '')")
 
             com.uiptv.mobile.shared.epg.MobileEpgCache.put(7, "live-one",
                 com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.NO_MATCH),
@@ -143,6 +149,12 @@ class AndroidUiptvDatabaseCompatibilityTest {
             assertEquals(1, target.countRows("epg_channel_mapping", "account_id='7' AND provider_channel_id='live-one'"))
             assertEquals(1, target.countRows("epg_channel_icon", "icon_url='https://example.invalid/icon.png'"))
             assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
+            assertEquals("Target-only accounts must not survive a full clone", 0, target.countRows("Account", "id = 99"))
+            assertEquals("Target-only categories must not survive a full clone", 0, target.countRows("Category", "id = 98"))
+            assertEquals("Target-only channels must not survive a full clone", 0, target.countRows("Channel", "id = 97"))
+            assertEquals("Target-only Watching state must not survive a full clone", 0, target.countRows("SeriesWatchState", "id = 96"))
+            assertEquals("Target-only Watching snapshots must not survive a full clone", 0, target.countRows("SeriesWatchingNowSnapshot", "id = 95"))
+            assertEquals("Target-only EPG cache rows must not survive a full clone", 0, target.countRows("epg_source", "source_id = 'mobile-only-stale-source'"))
             assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
             assertEquals(1, target.countRows("Category", "id = 12 AND accountId = '7' AND title = 'Live Desktop'"))
             assertEquals(1, target.countRows("Channel", "id = 13 AND categoryId = '12' AND name = 'Live One'"))
@@ -531,6 +543,10 @@ class AndroidUiptvDatabaseCompatibilityTest {
         db.execSQL("INSERT INTO VodWatchState(id, accountId, categoryId, vodId, vodName, vodCmd, vodLogo, updatedAt) VALUES(1301, ?, 'movies', 'm1', 'Resume Movie', 'https://stream.test/movie', '', 99)", arrayOf(accountId.toString()))
         db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle, seriesPoster, updatedAt) VALUES(1401, ?, 'series', 's1', 'Resume Series', '', 100)", arrayOf(accountId.toString()))
         db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle, seriesPoster, updatedAt) VALUES(1402, ?, 'series', 's1', 'Resume Series Duplicate', '', 98)", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle, seriesPoster, updatedAt) VALUES(1403, ?, 'series', 'stale-series', 'Stale Snapshot', '', 97)", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName, updatedAt) VALUES(1404, ?, 'series', 'series', 's1', 'episode-1', 'Pilot', 100)", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName, updatedAt) VALUES(1405, ?, 'series', 'legacy-series', 's1:legacy', 'old-episode', 'Old Pilot', 98)", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName, updatedAt) VALUES(1406, ?, 'series', 'uncached-series', '99999', 'old-episode', 'Old Episode', 96)", arrayOf(accountId.toString()))
 
         val repository = AndroidSQLiteBrowseRepository(helper)
         val snapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, 1102, "News")

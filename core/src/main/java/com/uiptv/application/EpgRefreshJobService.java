@@ -119,8 +119,8 @@ public final class EpgRefreshJobService {
         }
         synchronized void sourceImported(SourceWork source, long programmes) {
             sources.put(source.id, new SourceProgress(source.id, source.source, source.name, source.fileName,
-                    "Staged", I18n.tr("epgRefreshProcessedProgrammesDetail", programmes), programmes, 0));
-            stage("Staged");
+                    "Saved", I18n.tr("epgRefreshProcessedProgrammesDetail", programmes), programmes, 0));
+            stage("Saved");
         }
         synchronized Snapshot snapshot() {
             return new Snapshot(id, status, stage, completed, total, currentSource, message,
@@ -238,6 +238,8 @@ public final class EpgRefreshJobService {
                                     });
                         });
                         if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
+                        EpgCacheRefreshService.commit(token, () -> staged.publishSourceData(source.id));
+                        if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                         imported.add(new SuccessfulSource(source, programmes.get()));
                         job.sourceImported(source, programmes.get());
                         }
@@ -267,10 +269,11 @@ public final class EpgRefreshJobService {
                         java.util.concurrent.atomic.AtomicReference<EpgCacheDb.MappingReport> report =
                                 new java.util.concurrent.atomic.AtomicReference<>();
                         job.update(progressSource, "Publishing", "");
-                        EpgCacheRefreshService.commit(token, () -> report.set(staged.publish(
+                        EpgCacheRefreshService.commit(token, () -> report.set(staged.publishMappings(
                                 mappings, System.currentTimeMillis(),
                                 scanned -> job.update(progressSource, "Publishing",
                                         I18n.tr("epgRefreshMatchedChannelsDetail", scanned)))));
+                        if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                         EpgCacheDb.MappingReport mapping = report.get();
                         for (SuccessfulSource success : imported) {
                             int matched = mapping == null ? 0
@@ -290,12 +293,14 @@ public final class EpgRefreshJobService {
                     } catch (RuntimeException error) {
                         if (!EpgCacheRefreshService.current(token)) throw new InterruptedException("Refresh cancelled");
                         String warning = EpgApplicationService.warning(error);
-                        failures += imported.size();
+                        failures++;
+                        job.warnings++;
                         for (SuccessfulSource success : imported) {
-                            job.sourceFinished(success.source(), "Failed", warning, success.programmes(), 0);
+                            job.sourceFinished(success.source(), "Saved", warning,
+                                    success.programmes(), 0);
                         }
                         AppLog.addWarningLog(EpgRefreshJobService.class,
-                                "EPG publication failed; previous sources and mappings retained (" + warning + ").");
+                                "EPG channel matching failed after source data was saved (" + warning + ").");
                     }
                 }
             }

@@ -1100,8 +1100,9 @@ class AndroidSQLiteBrowseRepository(
             SELECT sw.id, CAST(sw.accountId AS INTEGER) AS accountId, acc.accountName,
                 sw.categoryId, sw.seriesId, sw.updatedAt,
                 sw.seriesChannelSnapshot, sw.seriesEpisodeSnapshot,
-                s.categoryDbId, s.seriesTitle, s.seriesPoster,
-                sc.name AS cachedSeriesTitle, sc.logo AS cachedSeriesPoster, sc.extraJson AS seriesExtraJson,
+                s.id AS snapshotId, s.categoryDbId, s.seriesTitle, s.seriesPoster,
+                sc.id AS resolvedSeriesRowId, sc.name AS cachedSeriesTitle,
+                sc.logo AS cachedSeriesPoster, sc.extraJson AS seriesExtraJson,
                 cat.id AS resolvedCategoryRowId
             FROM SeriesWatchState sw
             JOIN (
@@ -1139,6 +1140,18 @@ class AndroidSQLiteBrowseRepository(
                         cursor.string("seriesId"),
                         "Untitled Series"
                     )
+                    val seriesId = cursor.string("seriesId")
+                    val hasResolvedSeriesInfo = cursor.long("snapshotId") > 0 ||
+                        cursor.long("resolvedSeriesRowId") > 0 ||
+                        firstNonBlank(
+                            cursor.string("seriesTitle"),
+                            cursor.string("cachedSeriesTitle"),
+                            channelSnapshot.title,
+                            episodeSnapshot.seriesTitle
+                        ).isNotBlank()
+                    if (seriesId.isNotBlank() && seriesId.all { it.isDigit() } && !hasResolvedSeriesInfo) {
+                        continue
+                    }
                     val logo = firstNonBlank(
                         cursor.string("seriesPoster"),
                         cursor.string("cachedSeriesPoster"),
@@ -1171,60 +1184,8 @@ class AndroidSQLiteBrowseRepository(
                 }
             }
         }
-        val watchStateKeys = fromWatchState.map { "${it.accountId}|${it.categoryProviderId}|${it.contentId}" }.toSet()
-        val snapshotOnly = loadSeriesSnapshotWatchingNowRows(db, watchStateKeys)
-        return (fromWatchState + snapshotOnly).distinctBy { it.watchingNowIdentityKey() }
+        return fromWatchState.distinctBy { it.watchingNowIdentityKey() }
     }
-
-    private fun loadSeriesSnapshotWatchingNowRows(
-        db: SQLiteDatabase,
-        excludedKeys: Set<String>
-    ): List<MobileWatchingNowItem> =
-        db.rawQuery(
-            """
-            SELECT s.id, CAST(s.accountId AS INTEGER) AS accountId, acc.accountName, s.seriesTitle,
-                s.categoryId, s.categoryDbId, s.seriesId, s.seriesPoster, s.updatedAt,
-                sc.extraJson AS seriesExtraJson
-            FROM SeriesWatchingNowSnapshot s
-            LEFT JOIN Account acc ON CAST(s.accountId AS INTEGER) = acc.id
-            LEFT JOIN SeriesChannel sc ON sc.accountId = s.accountId
-                AND sc.categoryId = s.categoryId
-                AND sc.channelId = s.seriesId
-            ORDER BY s.updatedAt DESC
-            """.trimIndent(),
-            null
-        ).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) {
-                    val key = "${cursor.long("accountId")}|${cursor.string("categoryId")}|${cursor.string("seriesId")}"
-                    if (key in excludedKeys) {
-                        continue
-                    }
-                    val extra = jsonObjectOrNull(cursor.string("seriesExtraJson"))
-                    add(
-                        MobileWatchingNowItem(
-                            rowId = cursor.long("id"),
-                            accountId = cursor.long("accountId"),
-                            accountName = cursor.string("accountName"),
-                            mode = BrowseMode.SERIES,
-                            title = cursor.string("seriesTitle").ifBlank { cursor.string("seriesId").ifBlank { "Untitled Series" } },
-                            subtitle = cursor.string("accountName"),
-                            logo = cursor.string("seriesPoster"),
-                            updatedAtEpochSeconds = cursor.long("updatedAt"),
-                            categoryProviderId = cursor.string("categoryId"),
-                            categoryRowId = cursor.string("categoryDbId").toLongOrNull() ?: 0,
-                            contentId = cursor.string("seriesId"),
-                            plot = extra?.firstCleanString("plot", "description", "overview").orEmpty(),
-                            releaseDate = extra?.firstCleanString("releaseDate", "release_date", "released", "year").orEmpty(),
-                            rating = extra?.firstCleanString("rating", "rating_imdb").orEmpty(),
-                            duration = extra?.firstCleanString("duration", "runtime", "time").orEmpty(),
-                            genre = extra?.firstCleanString("genre").orEmpty(),
-                            imdbUrl = extra?.firstCleanString("imdbUrl").orEmpty()
-                        )
-                    )
-                }
-            }
-        }
 
     private fun loadSeriesEpisodesFromDb(
         db: SQLiteDatabase,
@@ -1955,7 +1916,25 @@ class AndroidSQLiteBrowseRepository(
 
     private fun MobileWatchingNowItem.watchingNowIdentityKey(): String {
         val contentKey = contentId.ifBlank { rowId.toString() }
-        return "${mode.name}|$accountId|$categoryProviderId|$contentKey"
+        val normalizedContentKey = if (mode == BrowseMode.SERIES) {
+            normalizeWatchingSeriesIdentity(contentKey)
+        } else {
+            contentKey
+        }
+        val categoryKey = if (mode == BrowseMode.SERIES) "" else "$categoryProviderId|"
+        return "${mode.name}|$accountId|$categoryKey$normalizedContentKey"
+    }
+
+    private fun normalizeWatchingSeriesIdentity(seriesId: String): String {
+        val normalized = seriesId.trim()
+        if (!normalized.contains(':')) return normalized
+        val parts = normalized.split(':').map { it.trim() }.filter { it.isNotEmpty() }
+        if (parts.isEmpty()) return normalized
+        return if (parts.all { part -> part.all { it.isDigit() } }) {
+            parts.last()
+        } else {
+            parts.first()
+        }
     }
 
     private fun Cursor.string(column: String): String {
