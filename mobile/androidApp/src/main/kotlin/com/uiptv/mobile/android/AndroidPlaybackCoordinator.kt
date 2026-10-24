@@ -222,7 +222,10 @@ class AndroidPlaybackCoordinator(
     }
 
     private suspend fun launch(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
-        val playableTarget = resolvePlayableTarget(target).withSanitizedPlaybackUrl()
+        val providerTarget = resolvePlayableTarget(target).withSanitizedPlaybackUrl()
+        val playableTarget = if (player.usesNativeActivity()) {
+            resolveAndroidStreamTarget(providerTarget)
+        } else providerTarget
         if (!playableTarget.url.isPlayableNetworkUrl()) {
             return PlaybackLaunchResult(false, "No direct playable URL is cached for ${target.title}. Refresh this account on Android or choose a direct stream.")
         }

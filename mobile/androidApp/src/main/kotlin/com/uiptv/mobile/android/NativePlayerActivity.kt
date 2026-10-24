@@ -160,11 +160,12 @@ class NativePlayerActivity : Activity() {
         withContext(Dispatchers.IO) {
             val databaseHelper = AndroidUiptvDatabaseHelper(this@NativePlayerActivity)
             try {
-                AndroidPlaybackCoordinator(
+                val resolved = AndroidPlaybackCoordinator(
                     context = this@NativePlayerActivity,
                     preferences = AndroidDataStorePreferencesRepository(this@NativePlayerActivity),
                     databaseHelper = databaseHelper
                 ).resolvePlayableTarget(target)
+                resolveAndroidStreamTarget(resolved)
             } finally {
                 databaseHelper.close()
             }

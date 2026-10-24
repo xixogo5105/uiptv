@@ -178,6 +178,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var mpvAudioCodec = ""
     private var lastLoggedVideoDetailsKey = ""
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val hlsProxyLock = Any()
+    private var hlsProxy: EmbeddedHlsProxy? = null
+    private var streamLoadGeneration = 0L
     private var currentTarget: PlaybackTarget? = null
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
@@ -583,6 +586,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     override fun onDestroy() {
         activityDestroyed = true
+        streamLoadGeneration += 1
+        val proxy = synchronized(hlsProxyLock) { hlsProxy.also { hlsProxy = null } }
+        proxy?.let { Thread({ it.close() }, "uiptv-hls-close").start() }
         MobilePlaybackIndicator.clear(currentTarget)
         if (playbackStarted || playbackTimeMs > 0L) {
             (currentTarget ?: targetFromIntent())?.let(::markOpened)
@@ -707,8 +713,22 @@ class MpvEmbeddedPlayerActivity : Activity() {
         applyZoomMode(zoomModeIndex, showFeedback = false)
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(audioRequestVersion)
-        Log.d(LogTag, "mpv loading stream ${streamUrl.safeStreamDescriptor()}")
-        player.runCatchingCommand("loadfile", streamUrl, "replace")
+        val generation = ++streamLoadGeneration
+        playbackScope.launch {
+            val playbackUrl = withContext(Dispatchers.IO) {
+                if (playbackTarget.manifestType.equals("hls", true) || Uri.parse(streamUrl).path.orEmpty().endsWith(".m3u8", true)) {
+                    synchronized(hlsProxyLock) {
+                        if (activityDestroyed) return@withContext streamUrl
+                        val proxy = hlsProxy ?: EmbeddedHlsProxy().also { hlsProxy = it }
+                        proxy.playbackUrl(streamUrl)
+                    }
+                } else streamUrl
+            }
+            if (!activityDestroyed && generation == streamLoadGeneration) {
+                Log.d(LogTag, "mpv loading stream ${playbackUrl.safeStreamDescriptor()}")
+                player.runCatchingCommand("loadfile", playbackUrl, "replace")
+            }
+        }
     }
 
     private fun playNextBingeIfNeeded(): Boolean {
@@ -754,11 +774,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
         withContext(Dispatchers.IO) {
             val databaseHelper = AndroidUiptvDatabaseHelper(this@MpvEmbeddedPlayerActivity)
             try {
-                AndroidPlaybackCoordinator(
+                val resolved = AndroidPlaybackCoordinator(
                     context = this@MpvEmbeddedPlayerActivity,
                     preferences = preferencesRepository,
                     databaseHelper = databaseHelper
                 ).resolvePlayableTarget(target)
+                resolveAndroidStreamTarget(resolved)
             } finally {
                 databaseHelper.close()
             }
@@ -2634,6 +2655,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             title = intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty(),
             url = intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty(),
             logo = intent.getStringExtra(NativePlayerActivity.EXTRA_LOGO).orEmpty(),
+            manifestType = intent.getStringExtra(NativePlayerActivity.EXTRA_MANIFEST_TYPE).orEmpty(),
             seriesId = intent.getStringExtra(NativePlayerActivity.EXTRA_SERIES_ID).orEmpty(),
             seriesTitle = intent.getStringExtra(NativePlayerActivity.EXTRA_SERIES_TITLE).orEmpty(),
             episodeId = intent.getStringExtra(NativePlayerActivity.EXTRA_EPISODE_ID).orEmpty(),
