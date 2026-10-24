@@ -6,6 +6,7 @@ import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
@@ -27,6 +28,8 @@ final class CardEpgSupport {
     private final Map<Region, Binding> attached = new IdentityHashMap<>();
     private final Map<Region, Supplier<LiveGuideApplicationService.Row>> pending = new WeakHashMap<>();
     private final Map<Region, javafx.beans.value.ChangeListener<Bounds>> cardBoundsListeners = new IdentityHashMap<>();
+    private final Map<Node, javafx.beans.value.ChangeListener<Boolean>> ancestorVisibilityListeners = new IdentityHashMap<>();
+    private final Map<Node, javafx.beans.value.ChangeListener<Parent>> ancestorParentListeners = new IdentityHashMap<>();
     private final PauseTransition pulse = new PauseTransition(Duration.millis(40));
     private final PauseTransition layoutRetry = new PauseTransition(Duration.millis(120));
     private final Timeline clock = new Timeline(new KeyFrame(Duration.minutes(1), _ -> { updateProgress(); queue(); }));
@@ -40,6 +43,7 @@ final class CardEpgSupport {
     private final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
     private int layoutRetryAttempts;
     private javafx.stage.Popup popup;
+    private boolean hierarchyRefreshScheduled;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private static final class Binding {
@@ -69,18 +73,15 @@ final class CardEpgSupport {
         });
         clock.setCycleCount(Animation.INDEFINITE);
         owner.sceneProperty().addListener((_, _, scene) -> {
+            refreshAncestorListeners();
             if (scene == null) stop();
-            else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
-                clock.play(); retryAfterLayout(); queue();
-            }
+            else scheduleHierarchyRefresh();
         });
         owner.visibleProperty().addListener((_, _, visible) -> {
             if (!visible.booleanValue()) stop();
-            else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
-                attached.keySet().forEach(card -> { observeScroll(card); observeCardBounds(card); });
-                restoreSummaries(); clock.play(); retryAfterLayout(); queue();
-            }
+            else scheduleHierarchyRefresh();
         });
+        refreshAncestorListeners();
         // Do not observe the owner's complete layout bounds here. Rendering an
         // EPG panel changes the grid's layout bounds, which would queue another
         // EPG refresh and rebuild the panel again. That feedback loop keeps
@@ -92,6 +93,62 @@ final class CardEpgSupport {
             else { clock.play(); retryAfterLayout(); queue(); }
                 attached.values().forEach(binding -> binding.refreshAt = 0);
         });
+    }
+
+    /**
+     * A card grid can stay attached to the scene while its tab or detail-page
+     * ancestor is hidden. Observe the whole parent chain so a cache refresh queued
+     * behind Settings resumes as soon as the user returns to the cards.
+     */
+    private void refreshAncestorListeners() {
+        Set<Node> ancestors = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Node node = owner; node != null; node = node.getParent()) ancestors.add(node);
+
+        for (Node node : new ArrayList<>(ancestorVisibilityListeners.keySet())) {
+            if (ancestors.contains(node)) continue;
+            node.visibleProperty().removeListener(ancestorVisibilityListeners.remove(node));
+            node.parentProperty().removeListener(ancestorParentListeners.remove(node));
+        }
+        for (Node node : ancestors) {
+            if (ancestorVisibilityListeners.containsKey(node)) continue;
+            javafx.beans.value.ChangeListener<Boolean> visibilityListener = (_, _, visible) -> {
+                if (Boolean.TRUE.equals(visible)) scheduleHierarchyRefresh();
+                else stop();
+            };
+            javafx.beans.value.ChangeListener<Parent> parentListener = (_, _, _) -> refreshAncestorListeners();
+            ancestorVisibilityListeners.put(node, visibilityListener);
+            ancestorParentListeners.put(node, parentListener);
+            node.visibleProperty().addListener(visibilityListener);
+            node.parentProperty().addListener(parentListener);
+        }
+    }
+
+    private void scheduleHierarchyRefresh() {
+        if (hierarchyRefreshScheduled) return;
+        hierarchyRefreshScheduled = true;
+        try {
+            Platform.runLater(() -> {
+                hierarchyRefreshScheduled = false;
+                if (!ownerVisibleInHierarchy() || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
+                attached.keySet().forEach(card -> { observeScroll(card); observeCardBounds(card); });
+                restoreSummaries();
+                clock.play();
+                retryAfterLayout();
+                queue();
+            });
+        } catch (IllegalStateException _) {
+            hierarchyRefreshScheduled = false;
+        }
+    }
+
+    private boolean ownerVisibleInHierarchy() {
+        if (owner.getScene() == null) return false;
+        for (Node node = owner; node != null; node = node.getParent()) {
+            if (!node.isVisible()) return false;
+        }
+        var window = owner.getScene().getWindow();
+        return window == null || window.isShowing()
+                && (!(window instanceof javafx.stage.Stage stage) || !stage.isIconified());
     }
 
     Region bind(Region card, Supplier<LiveGuideApplicationService.Row> source) {

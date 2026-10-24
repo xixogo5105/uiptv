@@ -190,6 +190,7 @@ createApp({
         };
         const WIDE_VIEW_COOKIE_NAME = 'uiptv_wide_view_mode';
         const SERIES_DETAIL_COLLAPSED_COOKIE_NAME = 'uiptv_series_detail_collapsed';
+        const EPISODE_DISPLAY_MODE_COOKIE_NAME = 'uiptv_episode_display_mode';
         const WIDE_VIEW_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
         const readCookieValue = (name) => {
             const prefix = `${encodeURIComponent(name)}=`;
@@ -207,7 +208,17 @@ createApp({
         const persistSeriesDetailCollapsedPreference = (collapsed) => {
             document.cookie = `${encodeURIComponent(SERIES_DETAIL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
         };
+        const readEpisodeDisplayModePreference = () => readCookieValue(EPISODE_DISPLAY_MODE_COOKIE_NAME) === 'immersive' ? 'immersive' : 'compact';
+        const persistEpisodeDisplayModePreference = (mode) => {
+            document.cookie = `${encodeURIComponent(EPISODE_DISPLAY_MODE_COOKIE_NAME)}=${mode}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+        };
         const wideViewActive = ref(readWideViewPreference());
+        const episodeDisplayMode = ref(readEpisodeDisplayModePreference());
+        const setEpisodeDisplayMode = (mode) => {
+            if (mode !== 'compact' && mode !== 'immersive') return;
+            episodeDisplayMode.value = mode;
+            persistEpisodeDisplayModePreference(mode);
+        };
         const narrowViewport = ref(typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1180px)').matches);
         const syncNarrowViewport = () => {
             if (typeof window.matchMedia === 'function') {
@@ -216,6 +227,9 @@ createApp({
         };
         if (!readCookieValue(WIDE_VIEW_COOKIE_NAME)) {
             persistWideViewPreference(wideViewActive.value);
+        }
+        if (!readCookieValue(EPISODE_DISPLAY_MODE_COOKIE_NAME)) {
+            persistEpisodeDisplayModePreference(episodeDisplayMode.value);
         }
         const seriesDetailCollapsed = ref(readSeriesDetailCollapsedPreference());
         const contentStageNarrow = ref(false);
@@ -5486,7 +5500,9 @@ createApp({
             formatAudioTrackLabel,
             formatTextTrackLabel,
             seriesDetailCollapsed,
-            toggleSeriesDetailCollapsed
+            toggleSeriesDetailCollapsed,
+            episodeDisplayMode,
+            setEpisodeDisplayMode
         };
     }
 }).mount('#app');

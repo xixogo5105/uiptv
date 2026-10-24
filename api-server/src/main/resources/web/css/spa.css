@@ -1540,8 +1540,9 @@ a[href] {
 }
 
 .episode-thumb {
-    width: 74px;
-    height: 48px;
+    width: auto;
+    height: auto;
+    object-fit: scale-down;
 }
 
 .resume-card {
@@ -1585,15 +1586,55 @@ a[href] {
     display: flex;
     flex: 0 0 auto;
     flex-direction: row;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 10px;
     min-height: 78px;
     height: auto;
     overflow: hidden;
 }
 
+.episode-card > .episode-thumb,
 .episode-card > .logo-box {
+    box-sizing: border-box;
+    width: clamp(96px, 28%, 280px);
+    min-width: 96px;
+    max-width: 280px;
+    height: auto;
+    min-height: 0;
+    align-self: stretch;
+    flex: 0 0 clamp(96px, 28%, 280px);
+}
+
+.episode-card > .episode-thumb {
+    object-fit: scale-down;
+    object-position: left center;
+}
+
+.episode-card.episode-card-immersive {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.episode-card.episode-card-immersive > .episode-thumb,
+.episode-card.episode-card-immersive > .logo-box {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
     flex: 0 0 auto;
+}
+
+.episode-card.episode-card-immersive > .episode-thumb {
+    object-fit: cover;
+    object-position: center;
+}
+
+.episode-card.episode-card-immersive > .content-copy {
+    flex: 0 0 auto;
+    width: 100%;
 }
 
 .episode-card > .content-copy {
@@ -1657,8 +1698,73 @@ a[href] {
 }
 
 .episode-card .logo-box {
-    width: 74px;
-    height: 48px;
+    display: grid;
+}
+
+.episodes-panel-heading,
+.episodes-heading-left,
+.episode-display-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.episodes-panel-heading {
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.episodes-heading-left {
+    min-width: 0;
+    gap: 10px;
+}
+
+.episode-display-toggle {
+    flex: 0 0 auto;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.episode-display-toggle > button {
+    padding: 3px 8px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.76rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.episode-display-toggle > button.active {
+    background: var(--accent-soft);
+    color: var(--text);
+    font-weight: 700;
+}
+
+.episode-display-toggle > button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.episodes-panel-heading > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.episodes-heading-left > .episodes-collapse-toggle {
+    display: flex;
+    align-items: center;
+    width: auto;
+    min-width: 0;
+    flex: 0 1 auto;
 }
 
 .player-panel {
@@ -2799,11 +2905,9 @@ body {
     }
 }
 
-/* Keep Watching Now aligned with the desktop cards and let one page scroller own the view. */
+/* Keep Watching Now aligned with the desktop cards and let the content shell scroll the view. */
 .content-stage.watching-stage {
-    overflow: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
 }
 
 .content-stage.watching-stage > .content-screen.watching-screen {
@@ -3147,5 +3251,145 @@ body {
     .content-stage.watching-stage .watching-detail-layout,
     .content-shell.wide-view:not(.player-hidden) .content-stage.watching-stage .watching-detail-layout {
         grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* The content shell owns the app's single vertical scroll area. */
+.content-shell {
+    min-height: 0;
+    height: 100%;
+    grid-template-rows: auto;
+    align-items: start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+}
+
+.content-stage {
+    height: auto;
+    min-height: 0;
+    align-self: start;
+    overflow: visible;
+}
+
+.content-shell > .content-stage {
+    overflow: visible;
+}
+
+.content-screen {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: auto auto auto;
+    align-content: start;
+    overflow: visible;
+}
+
+.scroll-area,
+.panel-list {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    padding-right: 0;
+    scrollbar-gutter: auto;
+}
+
+.accounts-drilldown {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+.accounts-drilldown.series-episodes-layout {
+    grid-template-rows: auto auto;
+    grid-auto-rows: auto;
+}
+
+.accounts-drilldown.series-episodes-layout.series-details-collapsed,
+.accounts-drilldown.series-episodes-layout.series-details-open {
+    grid-template-rows: auto auto;
+}
+
+.accounts-drilldown > .browser-panel {
+    height: auto;
+    min-height: 0;
+    grid-template-rows: auto auto;
+    overflow: visible;
+}
+
+.accounts-drilldown > .browser-panel.series-details-collapsed,
+.accounts-drilldown > .browser-panel.episodes-collapsed {
+    grid-template-rows: auto;
+}
+
+.content-shell > .player-panel {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    align-self: start;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    scrollbar-gutter: auto;
+}
+
+.content-shell.wide-view > .player-panel {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+}
+
+.content-shell.wide-view #player-wrapper {
+    height: auto;
+    min-height: 220px;
+}
+
+.player-panel .player-epg-panel {
+    max-height: none;
+    overflow: visible;
+}
+
+.content-shell:not(.wide-view):has(.player-epg-panel) {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.content-shell:not(.wide-view):has(.player-epg-panel) .content-stage {
+    height: auto;
+    overflow: visible;
+}
+
+@media (max-width: 1180px) {
+    .content-shell {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .content-shell > .player-panel,
+    .content-shell > .content-stage {
+        width: 100%;
+        flex: 0 0 auto;
+    }
+
+    .content-shell:not(.player-hidden) > .player-panel {
+        order: 0;
+    }
+
+    .content-shell:not(.player-hidden) > .content-stage {
+        order: 1;
+    }
+
+    .content-shell.player-hidden > .content-stage {
+        order: 0;
+    }
+
+    .content-shell.wide-view > .player-panel {
+        height: auto;
+        max-height: none;
+        overflow: visible;
     }
 }

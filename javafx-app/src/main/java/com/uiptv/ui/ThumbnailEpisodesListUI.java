@@ -65,6 +65,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private static final String STYLE_CLASS_BUTTON = "button";
     private static final double SERIES_EPISODE_LOADING_INDICATOR_SIZE = 24;
     private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
+    private static final int EPISODE_POSTER_FIT_WIDTH = 240;
+    private static final int EPISODE_POSTER_FIT_HEIGHT = 135;
+    private static final double SINGLE_COLUMN_EPISODE_CARD_WIDTH = 720;
     private static final String I18N_AUTO_LOADING_IMDB_DETAILS = "autoLoadingIMDbDetails";
     private static final String STYLE_CLASS_STRONG_LABEL = "strong-label";
     private static final String STYLE_CLASS_UIPTV_CARD = "uiptv-card";
@@ -880,18 +883,20 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         ImageView poster = createEpisodePoster(row);
         StackPane posterWrap = new StackPane(poster);
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMinWidth(110);
-        posterWrap.setPrefWidth(110);
+        posterWrap.setAlignment(Pos.CENTER_LEFT);
+        posterWrap.setMinWidth(EPISODE_POSTER_FIT_WIDTH);
+        posterWrap.setPrefWidth(EPISODE_POSTER_FIT_WIDTH);
+        posterWrap.setMaxWidth(EPISODE_POSTER_FIT_WIDTH);
 
         VBox text = new VBox(4);
+        text.setMinWidth(0);
         text.setMaxWidth(Double.MAX_VALUE);
         text.setFillWidth(true);
         HBox.setHgrow(text, Priority.ALWAYS);
 
         HBox badges = new HBox(4);
-        badges.setAlignment(Pos.TOP_RIGHT);
-        badges.getChildren().add(createWatchingBadge(row, true));
+        badges.setAlignment(Pos.CENTER_RIGHT);
+        Label watchingBadge = createWatchingBadge(row, false);
         PlayingCardIndicator playingIndicator = new PlayingCardIndicator();
         playingIndicatorsByItem.put(row, playingIndicator);
         updatePlayingIndicator(row, playingIndicator);
@@ -906,25 +911,27 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             rowMenu.show(playButton, Side.BOTTOM, 0, 0);
         });
         badges.getChildren().add(playButton);
-
-        HBox actionRow = new HBox();
-        actionRow.setAlignment(Pos.TOP_RIGHT);
-        Region actionSpacer = new Region();
-        HBox.setHgrow(actionSpacer, Priority.ALWAYS);
-        actionRow.getChildren().addAll(actionSpacer, badges);
+        badges.getChildren().add(watchingBadge);
 
         Label title = new Label(buildEpisodeDisplayTitle(row.getSeason(), row.getEpisodeNumber(), row.getEpisodeName()));
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
+        title.setMinWidth(0);
         title.setMinHeight(Region.USE_PREF_SIZE);
         title.getStyleClass().add(STYLE_CLASS_STRONG_LABEL);
-        text.getChildren().addAll(actionRow, title);
+        HBox titleRow = new HBox(8, title, badges);
+        titleRow.setAlignment(Pos.TOP_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+        text.getChildren().add(titleRow);
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         addEpisodeMetaLabels(text, row, cardLabels);
+        addEpisodePlotLabel(text, row, cardLabels);
         top.getChildren().addAll(posterWrap, text);
         root.getChildren().add(top);
-        addEpisodePlotLabel(root, row, cardLabels);
+        configureResponsiveEpisodeCardLayout(root, top, posterWrap, poster, text);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
@@ -948,6 +955,48 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return root;
+    }
+
+    private void configureResponsiveEpisodeCardLayout(
+            VBox root, HBox horizontalRow, StackPane posterWrap, ImageView poster, VBox text) {
+        Runnable updateLayout = () -> {
+            double availableWidth = Math.max(0, root.getWidth() - root.getInsets().getLeft() - root.getInsets().getRight());
+            boolean singleColumn = availableWidth <= SINGLE_COLUMN_EPISODE_CARD_WIDTH;
+            boolean currentlySingleColumn = root.getChildren().size() == 2
+                    && root.getChildren().get(0) == posterWrap;
+
+            if (singleColumn && !currentlySingleColumn) {
+                horizontalRow.getChildren().clear();
+                root.getChildren().setAll(posterWrap, text);
+            } else if (!singleColumn && currentlySingleColumn) {
+                root.getChildren().clear();
+                horizontalRow.getChildren().setAll(posterWrap, text);
+                root.getChildren().setAll(horizontalRow);
+            }
+
+            if (singleColumn) {
+                posterWrap.setMinWidth(0);
+                posterWrap.setPrefWidth(availableWidth);
+                posterWrap.setMaxWidth(Double.MAX_VALUE);
+                poster.setFitWidth(availableWidth);
+                poster.setFitHeight(0);
+            } else {
+                posterWrap.setMinWidth(EPISODE_POSTER_FIT_WIDTH);
+                posterWrap.setPrefWidth(EPISODE_POSTER_FIT_WIDTH);
+                posterWrap.setMaxWidth(EPISODE_POSTER_FIT_WIDTH);
+                poster.setFitWidth(EPISODE_POSTER_FIT_WIDTH);
+                poster.setFitHeight(EPISODE_POSTER_FIT_HEIGHT);
+            }
+        };
+        root.widthProperty().addListener((_, _, _) -> {
+            double previousFitWidth = poster.getFitWidth();
+            updateLayout.run();
+            if (Math.abs(previousFitWidth - poster.getFitWidth()) > 0.5) {
+                cardsWindowDirty = true;
+                scheduleCardWindowUpdate();
+            }
+        });
+        updateLayout.run();
     }
 
     private Label createWatchingBadge(EpisodeItem row, boolean fillWidth) {
@@ -1001,6 +1050,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             Label plot = new Label(row.getPlot());
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
+            plot.setMinWidth(0);
             plot.setMinHeight(Region.USE_PREF_SIZE);
             if (watchingNowDetailStylingApplied) {
                 plot.getStyleClass().add("watching-now-episode-plot");
@@ -1044,8 +1094,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         titleBox.setMinWidth(0);
         titleBox.setMaxWidth(Double.MAX_VALUE);
 
-        titleBox.getChildren().add(createWatchingBadge(row, false));
-
         Label meta = new Label(drawerEpisodeMeta(row));
         meta.getStyleClass().add("watching-now-episode-drawer-meta");
         meta.setWrapText(true);
@@ -1058,6 +1106,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         // Create menu button for hover context menu (similar to BookmarkChannelListUI and AccountListUI)
         Button menuButton = createEpisodeMenuButton(row);
         titleBox.getChildren().add(menuButton);
+        titleBox.getChildren().add(createWatchingBadge(row, false));
 
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
@@ -1261,8 +1310,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private ImageView createEpisodePoster(EpisodeItem row) {
         ImageView poster = new ImageView();
-        poster.setFitWidth(96);
-        poster.setFitHeight(96);
+        poster.setFitWidth(EPISODE_POSTER_FIT_WIDTH);
+        poster.setFitHeight(EPISODE_POSTER_FIT_HEIGHT);
         poster.setPreserveRatio(true);
         poster.setSmooth(true);
         refreshEpisodePoster(poster, row);
@@ -1284,7 +1333,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void loadEpisodePoster(ImageView poster, EpisodeItem row, String posterUrl) {
         ImageCacheManager.loadImageAsync(posterUrl, EPISODE_CACHE, null,
-                ImageCacheManager.ImageProfile.THUMBNAIL).thenAccept(image -> Platform.runLater(() -> {
+                ImageCacheManager.ImageProfile.MEDIA_ARTWORK).thenAccept(image -> Platform.runLater(() -> {
                 String currentPrimaryUrl = resolveEpisodePosterUrl(row, "");
                 if (!posterUrl.equals(currentPrimaryUrl) && !posterUrl.equals(resolveEpisodePosterUrl(row, currentPrimaryUrl))) {
                     return;
@@ -1293,8 +1342,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                     poster.setImage(image);
                     poster.setViewport(null);
                     poster.setPreserveRatio(true);
-                    poster.setFitWidth(96);
-                    poster.setFitHeight(96);
+                    cardsWindowDirty = true;
+                    scheduleCardWindowUpdate();
                     return;
                 }
 

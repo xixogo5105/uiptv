@@ -1,10 +1,13 @@
 package com.uiptv.ui;
 
+import com.uiptv.application.EpgSourceBlacklistService;
 import com.uiptv.application.EpgRefreshJobService.SourceProgress;
 import com.uiptv.testsupport.DbBackedUiTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import javafx.scene.control.Button;
 import java.util.List;
+import java.util.UUID;
 import static com.uiptv.testsupport.FxTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -77,6 +80,45 @@ class EpgRefreshSourceCardsTest extends DbBackedUiTest {
             cards.cards.get("two").toggle();
             assertFalse(cards.cards.get("two").body.isManaged());
             assertTrue(cards.cards.get("one").body.isManaged());
+            return null;
+        });
+    }
+
+    @Test void blacklistButtonRemainsStableAndWorksOnTheFirstClick() throws Exception {
+        runOnFxThread(() -> {
+            String source = "https://example.test/guide-" + UUID.randomUUID() + ".xml";
+            var cards = new EpgRefreshProgressDialog.SourceCards();
+            cards.update(List.of(new SourceProgress("one", source, "same.example", "guide.xml", "Failed",
+                    "network failure", 0, 0)));
+            var card = cards.cards.get("one");
+            var failedStep = (EpgRefreshProgressDialog.SourceStep) card.body.getChildren().getFirst();
+            Button failedButton = (Button) failedStep.getChildren().getLast();
+            assertTrue(failedButton.isVisible());
+            assertFalse(failedButton.isDisable());
+
+            for (int i = 0; i < 10; i++) {
+                cards.update(List.of(new SourceProgress("one", source, "same.example", "guide.xml", "Failed",
+                        "network failure", 0, 0)));
+            }
+            assertSame(failedButton, failedStep.getChildren().getLast(),
+                    "Polling must not move the button while the user is clicking it");
+
+            failedButton.fire();
+            assertTrue(EpgSourceBlacklistService.contains(source));
+            assertTrue(failedButton.isDisable());
+            assertEquals(com.uiptv.util.I18n.tr("epgBlacklistAdded"), failedButton.getText());
+            cards.update(List.of(new SourceProgress("one", source, "same.example", "guide.xml", "Failed",
+                    "network failure", 0, 0)));
+            assertTrue(failedButton.isDisable(), "Polling must not re-enable a blacklisted source button");
+            assertEquals(com.uiptv.util.I18n.tr("epgBlacklistAdded"), failedButton.getText());
+
+            cards.update(List.of(new SourceProgress("one", source, "same.example", "guide.xml", "Saved",
+                    "saved", 10, 1)));
+            var savedStep = (EpgRefreshProgressDialog.SourceStep) card.body.getChildren().get(1);
+            Button savedButton = (Button) savedStep.getChildren().getLast();
+            assertNotSame(failedButton, savedButton);
+            assertTrue(savedButton.isVisible(), "The blacklist action should also be available for Saved sources");
+            assertTrue(savedButton.isDisable());
             return null;
         });
     }

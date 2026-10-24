@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261023epgCardRestore1" rel="stylesheet">
+    <link href="/css/spa.css?v=20261024singleScroll1" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js"></script>
@@ -455,16 +455,23 @@
                             </section>
 
                             <section :class="{ 'episodes-collapsed': isExpandedPlayerAccordion && !seriesDetailCollapsed }" aria-label="Episodes" class="browser-panel account-series-episodes-panel watching-episodes-panel">
-                                <button :aria-expanded="!isExpandedPlayerAccordion || seriesDetailCollapsed" @click="toggleSeriesDetailCollapsed" class="panel-heading watching-detail-toggle" type="button">
-                                    <template v-if="isExpandedPlayerAccordion && !seriesDetailCollapsed">
-                                        <strong class="watching-detail-summary-title">{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</strong>
-                                        <span>{{ currentAccountName }}</span>
-                                    </template>
-                                    <template v-else>
-                                        <strong>Episodes</strong>
-                                        <span>{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
-                                    </template>
-                                </button>
+                                <header class="panel-heading episodes-panel-heading">
+                                    <div class="episodes-heading-left">
+                                        <button :aria-expanded="!isExpandedPlayerAccordion || seriesDetailCollapsed" @click="toggleSeriesDetailCollapsed" class="watching-detail-toggle episodes-collapse-toggle" type="button">
+                                            <template v-if="isExpandedPlayerAccordion && !seriesDetailCollapsed">
+                                                <strong class="watching-detail-summary-title">{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</strong>
+                                            </template>
+                                            <template v-else>
+                                                <strong>Episodes</strong>
+                                            </template>
+                                        </button>
+                                        <div aria-label="Episode display style" class="episode-display-toggle" role="group">
+                                            <button :aria-pressed="episodeDisplayMode === 'immersive'" :class="{ active: episodeDisplayMode === 'immersive' }" @click.stop="setEpisodeDisplayMode('immersive')" type="button">Immersive</button>
+                                            <button :aria-pressed="episodeDisplayMode === 'compact'" :class="{ active: episodeDisplayMode === 'compact' }" @click.stop="setEpisodeDisplayMode('compact')" type="button">Compact</button>
+                                        </div>
+                                    </div>
+                                    <span>{{ isExpandedPlayerAccordion && !seriesDetailCollapsed ? currentAccountName : (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
+                                </header>
 
                                 <div class="panel-list" v-if="!isExpandedPlayerAccordion || seriesDetailCollapsed">
                                 <div class="chip-row season-row" v-if="contentMode === 'series' && seriesSeasonTabs.length > 0">
@@ -487,7 +494,7 @@
                                 </article>
                                 <template v-if="!listLoading">
                                     <article
-                                            :class="{ active: isActiveChannel(episode), disabled: isDisabledChannel(episode) }"
+                                            :class="{ active: isActiveChannel(episode), disabled: isDisabledChannel(episode), 'episode-card-immersive': episodeDisplayMode === 'immersive' }"
                                             :data-watched="episode.watched ? '1' : '0'"
                                             :id="getSeriesEpisodeAnchorId(episode)"
                                             :key="episode.dbId || episode.channelId || episode.id"
@@ -690,8 +697,14 @@
                         </section>
 
                         <section aria-label="Episodes" class="browser-panel watching-episodes-panel">
-                            <header class="panel-heading">
-                                <strong>Episodes</strong>
+                            <header class="panel-heading episodes-panel-heading">
+                                <div class="episodes-heading-left">
+                                    <strong>Episodes</strong>
+                                    <div aria-label="Episode display style" class="episode-display-toggle" role="group">
+                                        <button :aria-pressed="episodeDisplayMode === 'immersive'" :class="{ active: episodeDisplayMode === 'immersive' }" @click.stop="setEpisodeDisplayMode('immersive')" type="button">Immersive</button>
+                                        <button :aria-pressed="episodeDisplayMode === 'compact'" :class="{ active: episodeDisplayMode === 'compact' }" @click.stop="setEpisodeDisplayMode('compact')" type="button">Compact</button>
+                                    </div>
+                                </div>
                                 <span>{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
                             </header>
                             <div class="panel-list">
@@ -715,7 +728,7 @@
                                 </article>
                                 <template v-if="!listLoading">
                                     <article
-                                            :class="{ active: isActiveChannel(episode), disabled: isDisabledChannel(episode) }"
+                                            :class="{ active: isActiveChannel(episode), disabled: isDisabledChannel(episode), 'episode-card-immersive': episodeDisplayMode === 'immersive' }"
                                             :data-watched="episode.watched ? '1' : '0'"
                                             :id="getSeriesEpisodeAnchorId(episode)"
                                             :key="episode.dbId || episode.channelId || episode.id"

@@ -27,7 +27,7 @@ public class EpgCacheApplicationService {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
         catch(Exception error) { throw new IllegalStateException(error); }
     }
-    static String sourceId(String source) { return hash("xml:"+source.strip()); }
+    public static String sourceId(String source) { return hash("xml:"+source.strip()); }
     static String nativeSource(Account account, Channel channel) {
         return hash("native:utc-v2:"+account.getDbId()+"|"+account.getType()+"|"+(account.getUrl()==null || account.getUrl().isBlank() ? account.getServerPortalUrl() : account.getUrl())+"|"+account.getUsername()+"|"+account.getPassword()+"|"+account.getMacAddress()+"|"+channel.getChannelId());
     }

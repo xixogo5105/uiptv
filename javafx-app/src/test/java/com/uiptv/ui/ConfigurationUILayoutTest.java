@@ -147,6 +147,56 @@ class ConfigurationUILayoutTest extends DbBackedUiTest {
         assertEquals(40 * scale, pillHeight, 0.01);
     }
 
+    @Test
+    void settingsCardsAnchorActionsToBottomAndAlignWithinEachRow() throws Exception {
+        List<double[]> cards = runOnFxThread(() -> {
+            ConfigurationUI ui = new ConfigurationUI(null, null, null);
+            Scene scene = new Scene(ui, 1800, 1600);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    ConfigurationUILayoutTest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+            ui.resize(1800, 1600);
+            ui.layout();
+            ui.layout();
+
+            List<Node> cardNodes = new ArrayList<>();
+            collectByStyle(ui, "settings-section-card", cardNodes);
+            List<double[]> measurements = new ArrayList<>();
+            for (Node cardNode : cardNodes) {
+                if (!(cardNode instanceof Parent card)) {
+                    continue;
+                }
+                List<Node> children = card.getChildrenUnmodifiable();
+                if (children.isEmpty() || !(children.getLast() instanceof Region actions)) {
+                    continue;
+                }
+                measurements.add(new double[]{
+                        cardNode.getLayoutY(),
+                        cardNode.getLayoutBounds().getHeight(),
+                        actions.getLayoutY() + actions.getLayoutBounds().getHeight(),
+                        cardNode.getLayoutBounds().getHeight() - ((Region) cardNode).getInsets().getBottom()
+                });
+            }
+            scene.setRoot(new Pane());
+            return measurements;
+        });
+        waitForFxEvents();
+
+        assertEquals(8, cards.size());
+        for (double[] card : cards) {
+            assertEquals(card[3], card[2], 1.0, "Save/Restore actions should stay at the card bottom");
+        }
+        for (int first = 0; first < cards.size(); first++) {
+            for (int second = first + 1; second < cards.size(); second++) {
+                if (Math.abs(cards.get(first)[0] - cards.get(second)[0]) <= 0.5) {
+                    assertEquals(cards.get(first)[1], cards.get(second)[1], 1.0,
+                            "Cards in the same row should have the same height");
+                }
+            }
+        }
+    }
+
     private static void collectRowsWithLabelAndPill(Node node, List<Node> found) {
         if (node instanceof Parent parent) {
             boolean hasLabel = parent.getChildrenUnmodifiable().stream().anyMatch(Labeled.class::isInstance);
@@ -174,6 +224,17 @@ class ConfigurationUILayoutTest extends DbBackedUiTest {
             }
         }
         return null;
+    }
+
+    private static void collectByStyle(Node node, String styleClass, List<Node> found) {
+        if (node.getStyleClass().contains(styleClass)) {
+            found.add(node);
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                collectByStyle(child, styleClass, found);
+            }
+        }
     }
 
     private static boolean containsLabeledText(Node node, String text) {

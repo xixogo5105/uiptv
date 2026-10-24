@@ -724,6 +724,12 @@ CREATE TABLE IF NOT EXISTS epg_source (
     warning TEXT NOT NULL DEFAULT '',
     last_attempt_at INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS source_blacklist (
+    source_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS epg_programme (
     source_id TEXT NOT NULL,
     guide_channel_id TEXT NOT NULL,

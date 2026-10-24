@@ -26,6 +26,7 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -45,6 +46,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -118,7 +120,7 @@ public class ConfigurationUI extends VBox {
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
     private final SwitchToggle wideViewSwitch = new SwitchToggle();
     private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
-    private final FlowPane settingsCardPane = new FlowPane();
+    private final FlowPane settingsCardPane = new SettingsCardsFlowPane();
     private final List<SettingsSection> settingsSections = new ArrayList<>();
     private final RadioButton defaultPlayer1 = new RadioButton("");
     private final RadioButton defaultPlayer2 = new RadioButton("");
@@ -172,9 +174,11 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink openSecureServerLink = new Hyperlink(I18n.tr("configOpenSecureWebApp"));
     private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
     private final Button refreshEpgButton = new Button(I18n.tr("epgRefreshGuide"));
+    private final Button manageEpgBlacklistButton = new Button(I18n.tr("epgBlacklistManager"));
     private final Button clearEpgCacheButton = new Button(I18n.tr("configClearCache"));
     private final ProgressIndicator clearEpgActivity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
     private final Label clearEpgStatus = new Label();
+    private PauseTransition clearEpgStatusHideTimer;
     private final MenuButton clearDataMenuButton = new MenuButton(I18n.tr("configClearMenu"));
     private final MenuItem clearCacheMenuItem = new MenuItem(I18n.tr("configClearCache"));
     private final MenuItem clearWatchingNowMenuItem = new MenuItem(I18n.tr("configClearWatchingNow"));
@@ -404,6 +408,10 @@ public class ConfigurationUI extends VBox {
         });
         clearEpgCacheButton.setOnAction(_ -> {
             if (!UIptvAlert.showConfirmationAlert(I18n.tr("epgClearCacheConfirm"))) return;
+            if (clearEpgStatusHideTimer != null) {
+                clearEpgStatusHideTimer.stop();
+                clearEpgStatusHideTimer = null;
+            }
             clearEpgCacheButton.setDisable(true);
             clearEpgActivity.setVisible(true);
             clearEpgActivity.setManaged(true);
@@ -599,7 +607,16 @@ public class ConfigurationUI extends VBox {
             });
             ptReset.play();
         });
-        card.getChildren().setAll(titleRow, section.content(), actions);
+        Node sectionContent = section.content();
+        if (sectionContent instanceof Region contentRegion) {
+            contentRegion.setMaxHeight(Double.MAX_VALUE);
+            VBox.setVgrow(contentRegion, Priority.ALWAYS);
+        }
+        actions.getStyleClass().add("settings-section-card-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMaxWidth(Double.MAX_VALUE);
+        card.setFillWidth(true);
+        card.getChildren().setAll(titleRow, sectionContent, actions);
         return card;
     }
 
@@ -614,6 +631,108 @@ public class ConfigurationUI extends VBox {
                 region.setMinWidth(Math.min(SETTINGS_MIN_COMPACT_CARD_WIDTH, cardWidth));
                 region.setPrefWidth(cardWidth);
                 region.setMaxWidth(cardWidth);
+            }
+        }
+    }
+
+    /**
+     * Keeps cards in the same wrapped row at the same height.  A regular
+     * FlowPane sizes each card to its own preferred height, which leaves the
+     * action buttons at different vertical positions.  The row height is
+     * calculated from the natural card heights and applied only to that row.
+     */
+    private static final class SettingsCardsFlowPane extends FlowPane {
+        private static final double ROW_Y_TOLERANCE = 0.5;
+        private final Map<Region, Double> lastNaturalHeights = new java.util.IdentityHashMap<>();
+        private List<Node> lastChildren = List.of();
+        private double lastWidth = Double.NaN;
+
+        @Override
+        protected void layoutChildren() {
+            List<Node> children = getChildren().stream()
+                    .filter(Node::isManaged)
+                    .toList();
+            boolean needsRowHeights = Double.compare(lastWidth, getWidth()) != 0
+                    || children.size() != lastChildren.size()
+                    || !sameChildren(children)
+                    || naturalHeightsChanged(children);
+
+            if (!needsRowHeights) {
+                super.layoutChildren();
+                return;
+            }
+
+            resetCardHeightConstraints(children);
+            super.layoutChildren();
+
+            Map<Double, List<Region>> rows = new java.util.LinkedHashMap<>();
+            Map<Region, Double> naturalHeights = new java.util.IdentityHashMap<>();
+            for (Node child : children) {
+                if (!(child instanceof Region card)) {
+                    continue;
+                }
+                double naturalHeight = card.prefHeight(card.getWidth());
+                naturalHeights.put(card, naturalHeight);
+                double rowY = card.getLayoutY();
+                Double matchingRow = rows.keySet().stream()
+                        .filter(existingY -> Math.abs(existingY - rowY) <= ROW_Y_TOLERANCE)
+                        .findFirst()
+                        .orElse(null);
+                rows.computeIfAbsent(matchingRow == null ? rowY : matchingRow, _ -> new ArrayList<>()).add(card);
+            }
+
+            for (List<Region> row : rows.values()) {
+                double rowHeight = row.stream()
+                        .mapToDouble(card -> naturalHeights.getOrDefault(card, card.getLayoutBounds().getHeight()))
+                        .max()
+                        .orElse(0);
+                if (rowHeight <= 0) {
+                    continue;
+                }
+                for (Region card : row) {
+                    card.setMinHeight(rowHeight);
+                    card.setMaxHeight(rowHeight);
+                }
+            }
+            super.layoutChildren();
+            lastNaturalHeights.clear();
+            lastNaturalHeights.putAll(naturalHeights);
+            lastChildren = List.copyOf(children);
+            lastWidth = getWidth();
+        }
+
+        private boolean sameChildren(List<Node> children) {
+            if (children.size() != lastChildren.size()) {
+                return false;
+            }
+            for (int index = 0; index < children.size(); index++) {
+                if (children.get(index) != lastChildren.get(index)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private boolean naturalHeightsChanged(List<Node> children) {
+            for (Node child : children) {
+                if (!(child instanceof Region card)) {
+                    continue;
+                }
+                Double previousHeight = lastNaturalHeights.get(card);
+                if (previousHeight == null
+                        || Math.abs(previousHeight - card.prefHeight(card.getWidth())) > ROW_Y_TOLERANCE) {
+                    return true;
+                }
+            }
+            return lastNaturalHeights.size() != children.stream().filter(Region.class::isInstance).count();
+        }
+
+        private void resetCardHeightConstraints(List<Node> children) {
+            for (Node child : children) {
+                if (child instanceof Region card) {
+                    card.setMinHeight(Region.USE_COMPUTED_SIZE);
+                    card.setMaxHeight(Double.MAX_VALUE);
+                }
             }
         }
     }
@@ -716,6 +835,17 @@ public class ConfigurationUI extends VBox {
 
     private Node createSettingSwitchRow(String labelKey, SwitchToggle switchToggle) {
         return createSettingControlRow(labelKey, switchToggle, SETTINGS_SWITCH_WIDTH);
+    }
+
+    private Node createWrappingSettingSwitchRow(String labelKey, SwitchToggle switchToggle) {
+        GridPane row = (GridPane) createSettingSwitchRow(labelKey, switchToggle);
+        Label label = (Label) row.getChildren().getFirst();
+        label.setWrapText(true);
+        label.setTextOverrun(OverrunStyle.CLIP);
+        GridPane.setValignment(label, VPos.TOP);
+        GridPane.setValignment(switchToggle, VPos.CENTER);
+        row.getStyleClass().add("epg-advanced-switch-row");
+        return row;
     }
 
     private Node createSettingSwitchHelpRow(String labelKey, SwitchToggle switchToggle, Hyperlink helpLink) {
@@ -934,6 +1064,7 @@ public class ConfigurationUI extends VBox {
         epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP)));
         globalEpgRefreshIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_REFRESH_INTERVAL_HELP)));
         refreshEpgButton.setDisable(!epgEnabledSwitch.isSelected());
+        manageEpgBlacklistButton.setOnAction(_ -> EpgSourceBlacklistDialog.open(manageEpgBlacklistButton));
         epgEnabledSwitch.selectedProperty().addListener((_, _, enabled) -> refreshEpgButton.setDisable(!enabled));
         clearEpgActivity.setMinSize(22, 22);
         clearEpgActivity.setPrefSize(22, 22);
@@ -948,17 +1079,26 @@ public class ConfigurationUI extends VBox {
         clearEpgRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox advancedOptions = new VBox(10,
-                createSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch),
+                createWrappingSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch),
                 createStackedSettingControlRow("configEpgRefreshInterval", globalEpgRefreshIntervalComboBox),
                 createStackedSettingControlRow("configEpgSchedulerInterval", epgSchedulerIntervalComboBox),
                 clearEpgRow, clearEpgStatus);
+        advancedOptions.getStyleClass().add("epg-advanced-options");
+        clearEpgRow.getStyleClass().add("epg-advanced-action-row");
         TitledPane advanced = new TitledPane(I18n.tr("epgAdvancedSettings"), advancedOptions);
+        advanced.getStyleClass().add("epg-advanced-pane");
+        advanced.setMaxWidth(Double.MAX_VALUE);
         advanced.setExpanded(false);
         advanced.setCollapsible(true);
-        FlowPane actions = createWrappingRow(10, 6, refreshEpgButton);
+        FlowPane actions = createWrappingRow(10, 6, refreshEpgButton, manageEpgBlacklistButton);
+        Label globalEpgHelp = new Label(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
+        globalEpgHelp.setWrapText(true);
+        globalEpgHelp.setMinWidth(0);
+        globalEpgHelp.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeTextNode(globalEpgHelp);
         VBox group = new VBox(12,
                 createSettingSwitchRow("configEnableEpg", epgEnabledSwitch),
-                new Label(I18n.tr(CONFIG_GLOBAL_EPG_HELP)),
+                globalEpgHelp,
                 buildEpgSourceRow(), actions, advanced);
         group.setFillWidth(true);
         return group;
@@ -970,6 +1110,14 @@ public class ConfigurationUI extends VBox {
         clearEpgActivity.setVisible(false);
         clearEpgActivity.setManaged(false);
         clearEpgCacheButton.setDisable(false);
+        clearEpgStatusHideTimer = new PauseTransition(Duration.seconds(10));
+        clearEpgStatusHideTimer.setOnFinished(_ -> {
+            clearEpgStatus.setText("");
+            clearEpgStatus.setVisible(false);
+            clearEpgStatus.setManaged(false);
+            clearEpgStatusHideTimer = null;
+        });
+        clearEpgStatusHideTimer.play();
     }
 
     private Node buildEpgSourceRow() {

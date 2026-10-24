@@ -16,8 +16,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** A cancellable, source-coalesced manual EPG refresh that keeps last-good data. */
 public final class EpgRefreshJobService {
-    public record SourceProgress(String id, String name, String fileName, String status, String detail,
-                                 long programmes, int matchedChannels) { }
+    public record SourceProgress(String id, String source, String name, String fileName, String status, String detail,
+                                 long programmes, int matchedChannels) {
+        public SourceProgress(String id, String name, String fileName, String status, String detail,
+                              long programmes, int matchedChannels) {
+            this(id, "", name, fileName, status, detail, programmes, matchedChannels);
+        }
+    }
     public record Snapshot(String id, String status, String stage, int completed, int total,
                            String currentSource, String message, List<SourceProgress> sources,
                            int preparationCompleted, int preparationTotal, String currentAccount,
@@ -84,7 +89,7 @@ public final class EpgRefreshJobService {
         synchronized void prepare(Collection<SourceWork> work) {
             total = work.size();
             work.forEach(item -> sources.put(item.id,
-                    new SourceProgress(item.id, item.name, item.fileName, "Pending", "", 0, 0)));
+                    new SourceProgress(item.id, item.source, item.name, item.fileName, "Pending", "", 0, 0)));
             status = "RUNNING";
             stage(work.isEmpty() ? "No sources configured" : "Ready");
             currentAccount = "";
@@ -94,14 +99,14 @@ public final class EpgRefreshJobService {
             currentSource = sourceDisplayName(source);
             currentAccount = "";
             SourceProgress previous = sources.get(source.id);
-            sources.put(source.id, new SourceProgress(source.id, source.name, source.fileName, state,
+            sources.put(source.id, new SourceProgress(source.id, source.source, source.name, source.fileName, state,
                     Objects.toString(detail, ""), previous == null ? 0 : previous.programmes(),
                     previous == null ? 0 : previous.matchedChannels()));
             stage(state);
         }
         synchronized void sourceFinished(SourceWork source, String result, String detail,
                                          long programmes, int matchedChannels) {
-            sources.put(source.id, new SourceProgress(source.id, source.name, source.fileName, result,
+            sources.put(source.id, new SourceProgress(source.id, source.source, source.name, source.fileName, result,
                     Objects.toString(detail, ""), programmes, matchedChannels));
             completed++;
             if ("No matches".equals(result) || "Failed".equals(result)) warnings++;
@@ -113,7 +118,7 @@ public final class EpgRefreshJobService {
             message = "";
         }
         synchronized void sourceImported(SourceWork source, long programmes) {
-            sources.put(source.id, new SourceProgress(source.id, source.name, source.fileName,
+            sources.put(source.id, new SourceProgress(source.id, source.source, source.name, source.fileName,
                     "Staged", I18n.tr("epgRefreshProcessedProgrammesDetail", programmes), programmes, 0));
             stage("Staged");
         }
@@ -338,8 +343,8 @@ public final class EpgRefreshJobService {
             job.accountPrepared();
         }
         job.checkingGlobalSources();
-        for (String source : EpgApplicationService.globalSources(
-                ConfigurationService.getInstance().read().getGlobalEpgSource())) {
+        for (String source : EpgSourceBlacklistService.filter(EpgApplicationService.globalSources(
+                ConfigurationService.getInstance().read().getGlobalEpgSource()))) {
             String id = EpgCacheApplicationService.sourceId(source);
             SourceWork work = result.computeIfAbsent(id, _ -> new SourceWork(id, source,
                     sourceLabel(source), sourceFileName(source)));

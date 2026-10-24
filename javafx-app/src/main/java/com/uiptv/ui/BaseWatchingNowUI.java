@@ -80,6 +80,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.imdb.maxEntries", 200);
     private static final double SERIES_EPISODE_LOADING_INDICATOR_SIZE = 24;
     private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
+    private static final int WATCHING_EPISODE_POSTER_WIDTH = 240;
+    private static final int WATCHING_EPISODE_POSTER_HEIGHT = 135;
+    private static final double SINGLE_COLUMN_EPISODE_CARD_WIDTH = 720;
     private final VBox contentBox = new VBox(8);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final ResponsiveCardGrid<SeriesPanelData> seriesGrid = new ResponsiveCardGrid<>(this::createSeriesListCard, true);
@@ -1550,11 +1553,11 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
         if (compact) {
             buildCompactLayout(root, title, badges, row, cardLabels);
+            addEpisodePlotLabel(root, cardLabels, row);
         } else {
             buildStandardLayout(root, title, badges, row, cardLabels);
         }
 
-        addEpisodePlotLabel(root, cardLabels, row);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         attachCardEventHandlers(root, data, row);
         return root;
@@ -1583,13 +1586,12 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         watching.setMaxWidth(Double.MAX_VALUE);
         watching.setVisible(row.watched);
         watching.setManaged(row.watched);
-        badges.getChildren().add(watching);
-        data.watchingLabels.put(row, watching);
-
         Button play = new PlayMenuButton(I18n.tr("autoPlay2"));
         play.getStyleClass().add("episode-play-button");
         play.setOnAction(Event::consume);
         badges.getChildren().add(play);
+        badges.getChildren().add(watching);
+        data.watchingLabels.put(row, watching);
         return badges;
     }
 
@@ -1623,28 +1625,68 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 96,
-                WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.THUMBNAIL);
+        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl,
+                WATCHING_EPISODE_POSTER_WIDTH, WATCHING_EPISODE_POSTER_HEIGHT,
+                WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.MEDIA_ARTWORK);
         StackPane posterWrap = new StackPane(poster);
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMinWidth(110);
-        posterWrap.setPrefWidth(110);
+        posterWrap.setAlignment(Pos.CENTER_LEFT);
+        posterWrap.setMinWidth(WATCHING_EPISODE_POSTER_WIDTH);
+        posterWrap.setPrefWidth(WATCHING_EPISODE_POSTER_WIDTH);
+        posterWrap.setMaxWidth(WATCHING_EPISODE_POSTER_WIDTH);
 
         VBox text = new VBox(4);
+        text.setMinWidth(0);
         text.setMaxWidth(Double.MAX_VALUE);
         text.setFillWidth(true);
         HBox.setHgrow(text, Priority.ALWAYS);
 
-        HBox actionRow = new HBox();
-        actionRow.setAlignment(Pos.TOP_RIGHT);
-        Region actionSpacer = new Region();
-        HBox.setHgrow(actionSpacer, Priority.ALWAYS);
-        actionRow.getChildren().addAll(actionSpacer, badges);
+        HBox titleRow = new HBox(8, title, badges);
+        titleRow.setAlignment(Pos.TOP_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
 
-        text.getChildren().addAll(actionRow, title);
+        text.getChildren().add(titleRow);
         addEpisodeMetadataLabels(text, cardLabels, row);
+        addEpisodePlotLabel(text, cardLabels, row);
         top.getChildren().addAll(posterWrap, text);
         root.getChildren().add(top);
+        configureResponsiveEpisodeCardLayout(root, top, posterWrap, poster, text);
+    }
+
+    private void configureResponsiveEpisodeCardLayout(
+            VBox root, HBox horizontalRow, StackPane posterWrap, ImageView poster, VBox text) {
+        Runnable updateLayout = () -> {
+            double availableWidth = Math.max(0, root.getWidth() - root.getInsets().getLeft() - root.getInsets().getRight());
+            boolean singleColumn = availableWidth <= SINGLE_COLUMN_EPISODE_CARD_WIDTH;
+            boolean currentlySingleColumn = root.getChildren().size() == 2
+                    && root.getChildren().get(0) == posterWrap;
+
+            if (singleColumn && !currentlySingleColumn) {
+                horizontalRow.getChildren().clear();
+                root.getChildren().setAll(posterWrap, text);
+            } else if (!singleColumn && currentlySingleColumn) {
+                root.getChildren().clear();
+                horizontalRow.getChildren().setAll(posterWrap, text);
+                root.getChildren().setAll(horizontalRow);
+            }
+
+            if (singleColumn) {
+                posterWrap.setMinWidth(0);
+                posterWrap.setPrefWidth(availableWidth);
+                posterWrap.setMaxWidth(Double.MAX_VALUE);
+                poster.setFitWidth(availableWidth);
+                poster.setFitHeight(0);
+            } else {
+                posterWrap.setMinWidth(WATCHING_EPISODE_POSTER_WIDTH);
+                posterWrap.setPrefWidth(WATCHING_EPISODE_POSTER_WIDTH);
+                posterWrap.setMaxWidth(WATCHING_EPISODE_POSTER_WIDTH);
+                poster.setFitWidth(WATCHING_EPISODE_POSTER_WIDTH);
+                poster.setFitHeight(WATCHING_EPISODE_POSTER_HEIGHT);
+            }
+        };
+        root.widthProperty().addListener((_, _, _) -> updateLayout.run());
+        updateLayout.run();
     }
 
     private void attachCardEventHandlers(VBox root, SeriesPanelData data, WatchingEpisode row) {

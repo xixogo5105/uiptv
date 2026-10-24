@@ -98,3 +98,4 @@
 0218_add_configuration_epg_scheduler_interval.sql
 0219_add_bookmark_play_history.sql
 0220_add_global_epg_refresh_cooldown.sql
+0221_add_epg_source_blacklist.sql

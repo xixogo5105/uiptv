@@ -2420,6 +2420,69 @@
     -fx-line-spacing: 1.5;
 }
 
+.epg-advanced-pane {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-insets: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-insets: 0;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-padding: 0;
+}
+
+.epg-advanced-pane > .title {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-insets: 0;
+    -fx-background-radius: 13;
+    -fx-border-color: transparent;
+    -fx-padding: 10 12;
+}
+
+.epg-advanced-pane:expanded > .title {
+    -fx-background-radius: 13 13 0 0;
+}
+
+.epg-advanced-pane > .title > .text {
+    -fx-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
+.epg-advanced-pane > .title > .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0 8 0 0;
+}
+
+.epg-advanced-pane > .title > .arrow-button > .arrow {
+    -fx-background-color: -uiptv-text-secondary;
+}
+
+.epg-advanced-pane > .content {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0 0 13 13;
+    -fx-border-color: transparent;
+    -fx-padding: 12;
+}
+
+.epg-advanced-options {
+    -fx-spacing: 12;
+}
+
+.epg-advanced-options .settings-filter-mode-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.epg-advanced-options .combo-box-base {
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+}
+
+.epg-advanced-action-row {
+    -fx-padding: 2 0 0 0;
+}
+
 .settings-inline-action {
     -fx-padding: 6 0 6 0;
     -fx-border-color: transparent;

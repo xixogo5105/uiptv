@@ -366,6 +366,11 @@ public class DatabaseUtils {
                 new DataColumn("warning", "TEXT"),
                 new DataColumn("last_attempt_at", INTEGER_TYPE)
         )));
+        dbStructure.put(DbTable.SOURCE_BLACKLIST_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("source", "TEXT"),
+                new DataColumn("created_at", INTEGER_TYPE)
+        )));
         dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
@@ -510,6 +515,7 @@ public class DatabaseUtils {
         PUBLISHED_M3U_CHANNEL_SELECTION_TABLE("PublishedM3uChannelSelection"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
         BOOKMARK_ORDER_TABLE("BookmarkOrder"),
+        SOURCE_BLACKLIST_TABLE("source_blacklist"),
         EPG_SOURCE_TABLE("epg_source"),
         EPG_PROGRAMME_TABLE("epg_programme"),
         EPG_ALIAS_TABLE("epg_alias"),

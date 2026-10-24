@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.application.EpgRefreshJobService;
+import com.uiptv.application.EpgSourceBlacklistService;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.SegmentedProgressBar;
 import com.uiptv.widget.SegmentedProgressBar.SegmentStatus;
@@ -503,6 +504,8 @@ final class EpgRefreshProgressDialog {
             boolean completed = "Completed".equals(item.status());
             boolean failed = "Failed".equals(item.status());
             boolean warning = "No matches".equals(item.status());
+            boolean canBlacklist = !"Pending".equals(item.status())
+                    && item.source() != null && !item.source().isBlank();
             status.getStyleClass().setAll("reload-status-label", completed ? "reload-status-done"
                     : failed ? "reload-status-bad" : warning ? "reload-status-yellow"
                     : isActiveSourceStatus(item.status()) ? "reload-status-running" : "reload-status-queued");
@@ -515,8 +518,13 @@ final class EpgRefreshProgressDialog {
                         : I18n.tr("epgRefreshImportedDetail", I18n.formatNumber(Long.toString(item.programmes())),
                                 I18n.formatNumber(Integer.toString(item.matchedChannels())));
             }
-            if (!"Pending".equals(item.status())) {
-                String stepKey = "Saved".equals(item.status()) ? "Saving" : "Staged".equals(item.status()) ? "Staging" : item.status();
+            String activeStepKey = "Pending".equals(item.status()) ? null
+                    : "Saved".equals(item.status()) ? "Saving" : "Staged".equals(item.status()) ? "Staging" : item.status();
+            for (var entry : steps.entrySet()) {
+                if (!Objects.equals(entry.getKey(), activeStepKey)) entry.getValue().setBlacklistState(null, false);
+            }
+            if (activeStepKey != null) {
+                String stepKey = activeStepKey;
                 SourceStep step = steps.computeIfAbsent(stepKey, key -> {
                     SourceStep line = new SourceStep();
                     body.getChildren().add(line);
@@ -524,6 +532,9 @@ final class EpgRefreshProgressDialog {
                 });
                 step.stage.setText(localizedSourceStatus(item.status()));
                 step.detail.setText(detail);
+                if (canBlacklist) {
+                    step.setBlacklistState(item.source(), EpgSourceBlacklistService.contains(item.source()));
+                }
             }
             header.setAccessibleText(name.getText() + ", " + status.getText());
             renderExpansion();
@@ -533,6 +544,7 @@ final class EpgRefreshProgressDialog {
     static final class SourceStep extends VBox {
         final Label stage = new Label();
         final Label detail = new Label();
+        private final Button blacklist = new Button(I18n.tr("epgBlacklistSource"));
 
         SourceStep() {
             super(2);
@@ -548,7 +560,68 @@ final class EpgRefreshProgressDialog {
                 label.setMaxWidth(Double.MAX_VALUE);
             }
             detail.getStyleClass().add("epg-refresh-source-summary");
-            getChildren().setAll(stage, detail);
+            blacklist.getStyleClass().add("reload-secondary-button");
+            blacklist.setVisible(false);
+            blacklist.setManaged(false);
+            blacklist.setOnAction(_ -> {
+                if (!(blacklist.getUserData() instanceof String source) || source.isBlank()) return;
+                double scrollPosition = currentScrollPosition();
+                blacklist.setDisable(true);
+                retainCardFocus(scrollPosition);
+                try {
+                    EpgSourceBlacklistService.add(source);
+                    blacklist.setText(I18n.tr("epgBlacklistAdded"));
+                    retainCardFocus(scrollPosition);
+                } catch (RuntimeException error) {
+                    blacklist.setDisable(false);
+                    throw error;
+                }
+            });
+            getChildren().setAll(stage, detail, blacklist);
+        }
+
+        void setBlacklistState(String source, boolean blacklisted) {
+            String normalized = source == null ? "" : source.strip();
+            boolean visible = !normalized.isBlank();
+            blacklist.setUserData(normalized);
+            blacklist.setVisible(visible);
+            blacklist.setManaged(visible);
+            blacklist.setDisable(visible && blacklisted);
+            blacklist.setText(visible && blacklisted
+                    ? I18n.tr("epgBlacklistAdded") : I18n.tr("epgBlacklistSource"));
+        }
+
+        private double currentScrollPosition() {
+            ScrollPane scrollPane = findScrollPane();
+            return scrollPane == null ? Double.NaN : scrollPane.getVvalue();
+        }
+
+        private void retainCardFocus(double scrollPosition) {
+            SourceCard card = parentCard();
+            if (card == null) return;
+            ScrollPane scrollPane = findScrollPane();
+            Platform.runLater(() -> {
+                if (card.getScene() == null) return;
+                card.header.requestFocus();
+                if (scrollPane != null && !Double.isNaN(scrollPosition)) {
+                    Platform.runLater(() -> {
+                        if (scrollPane.getScene() != null) scrollPane.setVvalue(scrollPosition);
+                    });
+                }
+            });
+        }
+
+        private SourceCard parentCard() {
+            return getParent() instanceof VBox body && body.getParent() instanceof SourceCard card ? card : null;
+        }
+
+        private ScrollPane findScrollPane() {
+            javafx.scene.Node node = parentCard();
+            while (node != null) {
+                if (node instanceof ScrollPane scrollPane) return scrollPane;
+                node = node.getParent();
+            }
+            return null;
         }
     }
 }

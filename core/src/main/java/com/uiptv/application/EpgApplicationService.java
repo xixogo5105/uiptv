@@ -126,7 +126,7 @@ public class EpgApplicationService {
         }
         sources.addAll(globalSources(account.getEpg()));
         sources.addAll(globalSources(com.uiptv.service.ConfigurationService.getInstance().read().getGlobalEpgSource()));
-        return sources.stream().filter(source -> source != null && !source.isBlank()).toList();
+        return EpgSourceBlacklistService.filter(sources);
     }
 
     /** Stream one bounded source for the background database importer. */

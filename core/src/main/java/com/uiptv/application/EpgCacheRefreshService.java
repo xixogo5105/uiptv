@@ -17,7 +17,8 @@ public class EpgCacheRefreshService {
         return TimeUnit.HOURS.toMillis(ConfigurationService.getInstance().read().normalizedGlobalEpgRefreshIntervalHours());
     }
     private static Set<String> globalSourceIds() {
-        return EpgApplicationService.globalSources(ConfigurationService.getInstance().read().getGlobalEpgSource())
+        return EpgSourceBlacklistService.filter(EpgApplicationService.globalSources(
+                        ConfigurationService.getInstance().read().getGlobalEpgSource()))
                 .stream().map(EpgCacheApplicationService::sourceId).collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
     private static long schedulerIntervalMillis() {
@@ -381,7 +382,7 @@ public class EpgCacheRefreshService {
         int importedSources = 0;
         boolean mappingPublished = false;
         boolean needsConsolidatedMapping = false;
-        for(String source:sources) {
+        for(String source:EpgSourceBlacklistService.filter(sources)) {
             if(!current(token) || !loader.isEnabled()) return;
             String id=EpgCacheApplicationService.sourceId(source);
             boolean global = globalSources.contains(id);
