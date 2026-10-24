@@ -2798,3 +2798,354 @@ body {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Keep Watching Now aligned with the desktop cards and let one page scroller own the view. */
+.content-stage.watching-stage {
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.content-stage.watching-stage > .content-screen.watching-screen {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: auto auto;
+    align-content: start;
+    overflow: visible;
+}
+
+.watching-screen .watching-toolbar {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.watching-screen .watching-detail-toolbar {
+    justify-content: space-between;
+}
+
+.watching-screen .watching-detail-toolbar h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1.25;
+    font-weight: 750;
+}
+
+.watching-screen .watching-detail-toolbar p {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
+.content-stage.watching-stage .watching-layout,
+.content-stage.watching-stage .watching-detail-layout {
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+}
+
+.content-stage.watching-stage .watching-detail-layout {
+    grid-template-columns: clamp(280px, 32%, 360px) minmax(420px, 1fr);
+    align-items: start;
+}
+
+.content-shell.wide-view:not(.player-hidden) .content-stage.watching-stage .watching-detail-layout {
+    grid-template-columns: clamp(280px, 32%, 360px) minmax(420px, 1fr);
+}
+
+.content-stage.watching-stage .watching-list-panel {
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+}
+
+.content-stage.watching-stage .watching-detail-panel,
+.content-stage.watching-stage .watching-episodes-panel {
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+}
+
+.content-stage.watching-stage .watching-detail-panel,
+.content-stage.watching-stage .watching-episodes-panel {
+    display: block;
+}
+
+.content-stage.watching-stage .watching-list-panel > .panel-list,
+.content-stage.watching-stage .watching-detail-panel > .panel-list,
+.content-stage.watching-stage .watching-episodes-panel > .panel-list {
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    scrollbar-gutter: auto;
+}
+
+.content-stage.watching-stage .watching-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+    align-content: start;
+    gap: 18px 16px;
+}
+
+.watching-card-grid > .loading-card,
+.watching-card-grid > .empty-state {
+    grid-column: 1 / -1;
+}
+
+.watching-media-card {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 248px;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 152px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: start;
+    align-items: start;
+    gap: 8px 16px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    overflow: visible;
+    background: var(--surface-high);
+}
+
+.watching-media-card.active {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface-high));
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--outline));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.watching-poster-frame {
+    box-sizing: border-box;
+    grid-column: 1;
+    grid-row: 1;
+    width: 152px;
+    min-width: 152px;
+    height: 220px;
+    padding: 8px;
+    display: grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--outline) 24%, transparent);
+    border-radius: 10px;
+    background: linear-gradient(145deg, var(--surface-highest), var(--surface-high));
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--shadow) 64%, transparent);
+}
+
+.watching-poster-frame > .poster-thumb,
+.watching-poster-frame > .poster-fallback {
+    box-sizing: border-box;
+    width: 136px;
+    min-width: 136px;
+    max-width: 136px;
+    height: 204px;
+    min-height: 204px;
+    max-height: 204px;
+    border-radius: 4px;
+}
+
+.watching-poster-frame > .poster-thumb {
+    object-fit: cover;
+}
+
+.watching-poster-frame > .poster-fallback.small {
+    font-size: 2rem;
+}
+
+.watching-media-card > .watching-card-copy {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    overflow: visible;
+}
+
+.watching-card-title-row {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.watching-card-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text);
+    font-size: 1.08rem;
+    font-weight: 650;
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+}
+
+.watching-card-account {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.watching-card-icon-button {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.watching-card-icon-button:hover,
+.watching-card-icon-button:focus-visible {
+    border-color: var(--outline-soft);
+    background: var(--surface-highest);
+    color: var(--text);
+}
+
+.watching-card-remove {
+    color: #dc2626;
+}
+
+.watching-card-metadata {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.watching-card-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border: 1px solid color-mix(in srgb, var(--outline) 22%, transparent);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.2;
+}
+
+.watching-card-open {
+    min-height: 36px;
+    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 9%, var(--surface-high));
+    color: var(--primary);
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.watching-card-open:hover,
+.watching-card-open:focus-visible {
+    background: color-mix(in srgb, var(--primary) 15%, var(--surface-high));
+}
+
+.watching-imdb-badge {
+    padding: 6px 11px;
+    border-radius: 7px;
+    background: #facc15;
+    color: #111827;
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.watching-vod-card .watching-card-plot {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    margin: 2px 0 0;
+    color: var(--muted);
+    line-height: 1.42;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+.watching-card-menu {
+    position: absolute;
+    z-index: 30;
+    top: 34px;
+    right: 0;
+    min-width: 190px;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--outline-soft);
+    border-radius: 10px;
+    background: var(--surface-highest);
+    box-shadow: 0 10px 24px var(--shadow);
+}
+
+.watching-card-menu > button {
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.watching-card-menu > button:hover,
+.watching-card-menu > button:focus-visible {
+    background: var(--surface);
+}
+
+.content-stage.watching-stage .watching-detail-panel .panel-heading,
+.content-stage.watching-stage .watching-episodes-panel .panel-heading {
+    margin-bottom: 10px;
+}
+
+.content-stage.watching-stage .series-detail-card {
+    align-items: stretch;
+}
+
+.content-stage.watching-stage .series-detail-card > .poster-img,
+.content-stage.watching-stage .series-detail-card > .poster-fallback {
+    width: min(100%, 260px);
+    max-width: 260px;
+    height: auto;
+    aspect-ratio: 2 / 3;
+    align-self: center;
+}
+
+.content-stage.watching-stage .series-detail-card > .poster-img {
+    object-fit: cover;
+}
+
+.content-stage.watching-stage .series-detail-card > .poster-fallback {
+    font-size: 3rem;
+}
+
+@container content-stage (max-width: 840px) {
+    .content-stage.watching-stage .watching-detail-layout,
+    .content-shell.wide-view:not(.player-hidden) .content-stage.watching-stage .watching-detail-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

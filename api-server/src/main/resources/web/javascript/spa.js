@@ -119,6 +119,7 @@ createApp({
         const watchingNowLoadingMessage = ref('Loading Watching Now...');
         const watchingNowVodRows = ref([]);
         const selectedWatchingNowVodKey = ref('');
+        const watchingNowActionMenuKey = ref('');
         const watchingNowVodLoadedAt = ref(0);
         const WATCHING_NOW_VOD_CACHE_TTL_MS = 120000;
         let watchingNowVodFetchPromise = null;
@@ -189,8 +190,6 @@ createApp({
         };
         const WIDE_VIEW_COOKIE_NAME = 'uiptv_wide_view_mode';
         const SERIES_DETAIL_COLLAPSED_COOKIE_NAME = 'uiptv_series_detail_collapsed';
-        const WATCHING_NOW_SERIES_PANEL_COLLAPSED_COOKIE_NAME = 'uiptv_watching_now_series_panel_collapsed';
-        const WATCHING_NOW_EPISODES_PANEL_COLLAPSED_COOKIE_NAME = 'uiptv_watching_now_episodes_panel_collapsed';
         const WIDE_VIEW_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
         const readCookieValue = (name) => {
             const prefix = `${encodeURIComponent(name)}=`;
@@ -208,14 +207,6 @@ createApp({
         const persistSeriesDetailCollapsedPreference = (collapsed) => {
             document.cookie = `${encodeURIComponent(SERIES_DETAIL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
         };
-        const readWatchingNowSeriesPanelCollapsedPreference = () => readCookieValue(WATCHING_NOW_SERIES_PANEL_COLLAPSED_COOKIE_NAME) === 'collapsed';
-        const persistWatchingNowSeriesPanelCollapsedPreference = (collapsed) => {
-            document.cookie = `${encodeURIComponent(WATCHING_NOW_SERIES_PANEL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
-        };
-        const readWatchingNowEpisodesPanelCollapsedPreference = () => readCookieValue(WATCHING_NOW_EPISODES_PANEL_COLLAPSED_COOKIE_NAME) === 'collapsed';
-        const persistWatchingNowEpisodesPanelCollapsedPreference = (collapsed) => {
-            document.cookie = `${encodeURIComponent(WATCHING_NOW_EPISODES_PANEL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
-        };
         const wideViewActive = ref(readWideViewPreference());
         const narrowViewport = ref(typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1180px)').matches);
         const syncNarrowViewport = () => {
@@ -227,11 +218,6 @@ createApp({
             persistWideViewPreference(wideViewActive.value);
         }
         const seriesDetailCollapsed = ref(readSeriesDetailCollapsedPreference());
-        const watchingNowSeriesPanelCollapsed = ref(readWatchingNowSeriesPanelCollapsedPreference());
-        const watchingNowEpisodesPanelCollapsed = ref(readWatchingNowEpisodesPanelCollapsedPreference());
-        const isWatchingNowEpisodesPanelCollapsed = computed(() => isExpandedPlayerAccordion.value
-            ? !watchingNowSeriesPanelCollapsed.value
-            : watchingNowEpisodesPanelCollapsed.value);
         const contentStageNarrow = ref(false);
         const isCompactDrilldown = computed(() => wideViewActive.value || contentStageNarrow.value);
         const wideDrilldownPanel = ref('categories');
@@ -260,18 +246,6 @@ createApp({
         const toggleSeriesDetailCollapsed = () => {
             seriesDetailCollapsed.value = !seriesDetailCollapsed.value;
             persistSeriesDetailCollapsedPreference(seriesDetailCollapsed.value);
-        };
-        const toggleWatchingNowSeriesPanelCollapsed = () => {
-            watchingNowSeriesPanelCollapsed.value = !watchingNowSeriesPanelCollapsed.value;
-            persistWatchingNowSeriesPanelCollapsedPreference(watchingNowSeriesPanelCollapsed.value);
-        };
-        const toggleWatchingNowEpisodesPanelCollapsed = () => {
-            if (isExpandedPlayerAccordion.value) {
-                toggleWatchingNowSeriesPanelCollapsed();
-                return;
-            }
-            watchingNowEpisodesPanelCollapsed.value = !watchingNowEpisodesPanelCollapsed.value;
-            persistWatchingNowEpisodesPanelCollapsedPreference(watchingNowEpisodesPanelCollapsed.value);
         };
         const playerManuallyHidden = ref(false);
         const listLoading = ref(false);
@@ -2306,10 +2280,71 @@ createApp({
 
         const setWatchingNowTab = (tab) => {
             watchingNowTab.value = ['vod', 'series'].includes(tab) ? tab : 'series';
+            watchingNowActionMenuKey.value = '';
+        };
+
+        const toggleWatchingNowVodMenu = (row) => {
+            const key = String(row?.key || '');
+            watchingNowActionMenuKey.value = watchingNowActionMenuKey.value === key ? '' : key;
+        };
+
+        const removeWatchingNowSeriesRow = async (row) => {
+            if (!row?.accountId || !row?.seriesId) return;
+            const title = String(row.seriesTitle || 'this series');
+            if (!window.confirm(`Remove ${title} from Watching Now?`)) return;
+            try {
+                const response = await fetch(`${window.location.origin}/watchingNowSeriesAction`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        accountId: row.accountId,
+                        categoryId: row.categoryId || '',
+                        seriesId: row.seriesId
+                    })
+                });
+                if (!response.ok) throw new Error('Failed to remove series from Watching Now');
+                const key = String(row.key || '');
+                watchingNowRows.value = watchingNowRows.value.filter(item => String(item?.key || '') !== key);
+                watchingNowLoadedAt.value = Date.now();
+                if (selectedWatchingNowKey.value === key) {
+                    selectedWatchingNowKey.value = '';
+                    watchingNowDrilldown.value = false;
+                }
+                await loadWatchingNow({force: true, background: true});
+            } catch (error) {
+                console.error('Failed to remove Watching Now series', error);
+            }
+        };
+
+        const removeWatchingNowVodRow = async (row) => {
+            if (!row?.accountId || !row?.vodId) return;
+            const title = String(row.vodName || 'this VOD');
+            if (!window.confirm(`Remove ${title} from Watching Now?`)) return;
+            try {
+                const response = await fetch(`${window.location.origin}/watchingNowVodAction`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        accountId: row.accountId,
+                        categoryId: row.categoryId || '',
+                        vodId: row.vodId
+                    })
+                });
+                if (!response.ok) throw new Error('Failed to remove VOD from Watching Now');
+                const key = String(row.key || '');
+                watchingNowVodRows.value = watchingNowVodRows.value.filter(item => String(item?.key || '') !== key);
+                watchingNowVodLoadedAt.value = Date.now();
+                if (selectedWatchingNowVodKey.value === key) selectedWatchingNowVodKey.value = '';
+                watchingNowActionMenuKey.value = '';
+                await loadWatchingNowVod({force: true, background: true});
+            } catch (error) {
+                console.error('Failed to remove Watching Now VOD', error);
+            }
         };
 
         const openWatchingNowSeriesDetail = async (row) => {
             if (!row) return;
+            watchingNowActionMenuKey.value = '';
             watchingNowTab.value = 'series';
             selectedWatchingNowKey.value = String(row.key || '');
             watchingNowDrilldown.value = true;
@@ -2337,6 +2372,7 @@ createApp({
 
         const playWatchingNowVodRow = (row) => {
             if (!row) return;
+            watchingNowActionMenuKey.value = '';
             watchingNowTab.value = 'vod';
             selectedWatchingNowVodKey.value = String(row.key || '');
             contentMode.value = 'vod';
@@ -5396,6 +5432,10 @@ createApp({
             handleChannelSelection,
             playBookmark,
             playWatchingNowVodRow,
+            removeWatchingNowSeriesRow,
+            toggleWatchingNowVodMenu,
+            watchingNowActionMenuKey,
+            removeWatchingNowVodRow,
             openWatchingNowSeriesDetail,
             goBackToWatchingNow,
             goToMainWebsite,
@@ -5446,11 +5486,7 @@ createApp({
             formatAudioTrackLabel,
             formatTextTrackLabel,
             seriesDetailCollapsed,
-            toggleSeriesDetailCollapsed,
-            watchingNowSeriesPanelCollapsed,
-            toggleWatchingNowSeriesPanelCollapsed,
-            isWatchingNowEpisodesPanelCollapsed,
-            toggleWatchingNowEpisodesPanelCollapsed
+            toggleSeriesDetailCollapsed
         };
     }
 }).mount('#app');

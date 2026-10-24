@@ -10,6 +10,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
+import com.uiptv.util.PlayerPathDisplayName;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
 import javafx.scene.Cursor;
@@ -61,16 +62,19 @@ public final class PlaybackUIService {
     }
 
     public static List<PlayerOption> getConfiguredPlayerOptions() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        return getConfiguredPlayerOptions(ConfigurationService.getInstance().read());
+    }
+
+    static List<PlayerOption> getConfiguredPlayerOptions(Configuration configuration) {
         String player1 = configuration == null ? "" : configuration.getPlayerPath1();
         String player2 = configuration == null ? "" : configuration.getPlayerPath2();
         String player3 = configuration == null ? "" : configuration.getPlayerPath3();
         return List.of(
                 new PlayerOption(I18n.tr("autoEmbeddedPlayer"), EMBEDDED_PLAYER_PATH),
                 new PlayerOption(I18n.tr("configDefaultWebBrowserPlayer"), WEB_BROWSER_PLAYER_PATH),
-                new PlayerOption(I18n.tr("autoPlayer1"), player1),
-                new PlayerOption(I18n.tr("autoPlayer2"), player2),
-                new PlayerOption(I18n.tr("autoPlayer3"), player3)
+                new PlayerOption(PlayerPathDisplayName.withPlayerName(I18n.tr("autoPlayer1"), player1), player1),
+                new PlayerOption(PlayerPathDisplayName.withPlayerName(I18n.tr("autoPlayer2"), player2), player2),
+                new PlayerOption(PlayerPathDisplayName.withPlayerName(I18n.tr("autoPlayer3"), player3), player3)
         );
     }
 

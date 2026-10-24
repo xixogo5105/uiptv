@@ -3,7 +3,9 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -13,6 +15,22 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlaybackUIServiceTest {
+
+    @Test
+    void configuredPlayerOptionsAppendNamesFromPortablePaths() {
+        Configuration configuration = new Configuration();
+        configuration.setPlayerPath1("/usr/lib/mpv");
+        configuration.setPlayerPath2("C:\\Program Files\\VLC\\vlc.exe");
+        configuration.setPlayerPath3("");
+
+        var options = PlaybackUIService.getConfiguredPlayerOptions(configuration);
+
+        assertEquals(I18n.tr("autoPlayer1") + " (mpv)", options.get(2).label());
+        assertEquals(I18n.tr("autoPlayer2") + " (vlc)", options.get(3).label());
+        assertEquals(I18n.tr("autoPlayer3"), options.get(4).label());
+        assertEquals("/usr/lib/mpv", options.get(2).playerPath());
+        assertEquals("C:\\Program Files\\VLC\\vlc.exe", options.get(3).playerPath());
+    }
 
     @Test
     void playbackRequest_defaultsAreApplied() throws Exception {

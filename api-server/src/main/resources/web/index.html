@@ -104,7 +104,7 @@
         </header>
 
         <div :class="{ 'player-hidden': !playerPanelVisible, 'wide-view': wideViewActive }" class="content-shell">
-            <section aria-label="Content browser" class="content-stage">
+            <section :class="{ 'watching-stage': activeTab === 'watchingNow' }" aria-label="Content browser" class="content-stage">
                 <section class="content-screen" v-if="activeTab === 'bookmarks'">
                     <div class="screen-heading">
                         <div>
@@ -523,30 +523,26 @@
                 </section>
 
                 <section class="content-screen watching-screen" v-if="activeTab === 'watchingNow'">
-                    <div class="screen-heading">
+                    <div class="watching-toolbar" v-if="!watchingNowDrilldown">
+                        <div aria-label="Watching Now" class="segmented" role="group">
+                            <button :class="{ active: watchingNowTab === 'series' }" @click="setWatchingNowTab('series')" type="button">Series</button>
+                            <button :class="{ active: watchingNowTab === 'vod' }" @click="setWatchingNowTab('vod')" type="button">VOD</button>
+                        </div>
+                    </div>
+                    <div class="watching-toolbar watching-detail-toolbar" v-else>
                         <div>
                             <h1>Watching Now</h1>
-                            <p>{{ watchingNowDrilldown ? 'Continue the selected series.' : 'Resume series and movies from the same content browser.' }}</p>
+                            <p>Continue the selected series.</p>
                         </div>
-                        <div aria-label="Watching Now" class="segmented" role="group" v-if="!watchingNowDrilldown">
-                            <button :class="{ active: watchingNowTab === 'series' }" @click="setWatchingNowTab('series')" type="button">Series</button>
-                            <button :class="{ active: watchingNowTab === 'vod' }" @click="setWatchingNowTab('vod')" type="button">Movies</button>
-                        </div>
-                        <div class="drilldown-actions" v-else>
-                            <button @click="goBackToWatchingNow" class="soft-button" type="button">
-                                <i class="bi bi-arrow-left"></i>
-                                <span>Watching Now</span>
-                            </button>
-                        </div>
+                        <button @click="goBackToWatchingNow" class="soft-button" type="button">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>Watching Now</span>
+                        </button>
                     </div>
 
                     <div class="watching-layout" v-if="!watchingNowDrilldown">
-                        <section class="browser-panel watching-list-panel">
-                            <header class="panel-heading">
-                                <strong>{{ watchingNowTab === 'series' ? 'Series' : 'Movies' }}</strong>
-                                <span>{{ watchingNowTab === 'series' ? filteredWatchingNowRows.length : filteredWatchingNowVodRows.length }} entries</span>
-                            </header>
-                            <div class="panel-list" v-if="watchingNowTab === 'series'">
+                        <section class="watching-list-panel" aria-label="Watching Now items">
+                            <div class="panel-list watching-card-grid" v-if="watchingNowTab === 'series'">
                                 <article class="row-card loading-card" v-if="watchingNowLoading && watchingNowRows.length === 0">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
@@ -558,20 +554,34 @@
                                             :class="{ active: selectedWatchingNowKey === row.key || isActiveWatchingNowRow(row) }"
                                             :key="row.key"
                                             @click="openWatchingNowSeriesDetail(row)"
-                                            class="row-card resume-card"
+                                            class="row-card resume-card watching-media-card watching-series-card"
                                             v-for="row in filteredWatchingNowRows">
-                                        <img :src="row.seriesPoster" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.seriesPoster">
-                                        <div :style="{ display: row.seriesPoster ? 'none' : '' }" class="poster-fallback small">
-                                            {{ (row.seriesTitle || 'S').slice(0, 2).toUpperCase() }}
+                                        <div class="watching-poster-frame">
+                                            <img :src="row.seriesPoster" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.seriesPoster">
+                                            <div :style="{ display: row.seriesPoster ? 'none' : '' }" class="poster-fallback small">
+                                                {{ (row.seriesTitle || 'S').slice(0, 2).toUpperCase() }}
+                                            </div>
                                         </div>
-                                        <div class="content-copy">
-                                            <div class="title-line">
-                                                {{ row.seriesTitle }}
+                                        <div class="content-copy watching-card-copy">
+                                            <div class="watching-card-title-row">
+                                                <span class="watching-card-title">{{ row.seriesTitle }}</span>
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveWatchingNowRow(row)">
                                                     <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                                 </span>
+                                                <button @click.stop="removeWatchingNowSeriesRow(row)" :aria-label="'Remove ' + row.seriesTitle + ' from Watching Now'" class="watching-card-icon-button watching-card-remove" title="Remove from Watching Now" type="button">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
                                             </div>
-                                            <div class="meta-line">{{ row.accountName }}</div>
+                                            <div class="meta-line watching-card-account">{{ row.accountName }}</div>
+                                            <div class="watching-card-metadata">
+                                                <span class="watching-card-chip">Series</span>
+                                                <span class="watching-card-chip" v-if="row.season">Season {{ row.season }}</span>
+                                                <span class="watching-card-chip" v-if="row.episodeNum">Episode {{ row.episodeNum }}</span>
+                                            </div>
+                                            <button @click.stop="openWatchingNowSeriesDetail(row)" class="watching-card-open" type="button">
+                                                <i class="bi bi-collection-play"></i>
+                                                <span>View Episodes...</span>
+                                            </button>
                                         </div>
                                     </article>
                                 </template>
@@ -582,7 +592,7 @@
                                 </div>
                             </div>
 
-                            <div class="panel-list" v-else>
+                            <div class="panel-list watching-card-grid" v-else>
                                 <article class="row-card loading-card" v-if="watchingNowVodLoading && watchingNowVodRows.length === 0">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
@@ -594,46 +604,55 @@
                                             :class="{ active: selectedWatchingNowVodKey === row.key || isActiveWatchingNowVodRow(row) }"
                                             :key="row.key"
                                             @click="playWatchingNowVodRow(row)"
-                                            class="row-card resume-card"
+                                            class="row-card resume-card watching-media-card watching-vod-card"
                                             v-for="row in filteredWatchingNowVodRows">
-                                        <img :src="row.vodLogo" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.vodLogo">
-                                        <div :style="{ display: row.vodLogo ? 'none' : '' }" class="poster-fallback small">
-                                            {{ (row.vodName || 'M').slice(0, 2).toUpperCase() }}
+                                        <div class="watching-poster-frame">
+                                            <img :src="row.vodLogo" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.vodLogo">
+                                            <div :style="{ display: row.vodLogo ? 'none' : '' }" class="poster-fallback small">
+                                                {{ (row.vodName || 'M').slice(0, 2).toUpperCase() }}
+                                            </div>
                                         </div>
-                                        <div class="content-copy">
-                                            <div class="title-line">
-                                                {{ row.vodName }}
+                                        <div class="content-copy watching-card-copy">
+                                            <div class="watching-card-title-row">
+                                                <span class="watching-card-title">{{ row.vodName }}</span>
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveWatchingNowVodRow(row)">
                                                     <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                                 </span>
+                                                <button @click.stop="toggleWatchingNowVodMenu(row)" :aria-expanded="watchingNowActionMenuKey === row.key" :aria-label="'More actions for ' + row.vodName" class="watching-card-icon-button" title="More actions" type="button">
+                                                    <i class="bi bi-three-dots"></i>
+                                                </button>
+                                                <div class="watching-card-menu" v-if="watchingNowActionMenuKey === row.key">
+                                                    <button @click.stop="playWatchingNowVodRow(row); watchingNowActionMenuKey = ''" type="button">Play</button>
+                                                    <button @click.stop="removeWatchingNowVodRow(row)" type="button">Remove from Watching Now</button>
+                                                </div>
                                             </div>
-                                            <div class="meta-line">{{ row.accountName }}</div>
-                                            <div class="meta-line clamp" v-if="getVodPlot(row)">{{ getVodPlot(row) }}</div>
+                                            <div class="meta-line watching-card-account">{{ row.accountName }}</div>
+                                            <div class="watching-imdb-badge" v-if="formatRating(row.rating)">IMDb {{ formatRating(row.rating) }}</div>
+                                            <div class="watching-card-metadata" v-if="formatRating(row.rating) || row.releaseDate || row.duration">
+                                                <span class="watching-card-chip" v-if="formatRating(row.rating)">IMDb: {{ formatRating(row.rating) }}</span>
+                                                <span class="watching-card-chip" v-if="row.releaseDate">Release: {{ formatShortDate(row.releaseDate) }}</span>
+                                                <span class="watching-card-chip" v-if="row.duration">Duration: {{ row.duration }}</span>
+                                            </div>
                                         </div>
+                                        <div class="watching-card-plot" v-if="getVodPlot(row)">{{ getVodPlot(row) }}</div>
                                     </article>
                                 </template>
                                 <div class="empty-state" v-if="!watchingNowVodLoading && filteredWatchingNowVodRows.length === 0">
                                     <i class="bi bi-film"></i>
-                                    <strong>No currently watched movies</strong>
+                                    <strong>No currently watched VOD</strong>
                                     <span>Movies appear here after playback starts.</span>
                                 </div>
                             </div>
                         </section>
                     </div>
 
-                    <div :class="{ 'series-details-collapsed': watchingNowSeriesPanelCollapsed, 'series-details-open': isExpandedPlayerAccordion && !watchingNowSeriesPanelCollapsed }" class="watching-detail-layout" v-if="watchingNowDrilldown">
-                        <section :class="{ 'series-details-collapsed': watchingNowSeriesPanelCollapsed }" class="browser-panel watching-detail-panel">
-                            <button :aria-expanded="!watchingNowSeriesPanelCollapsed" @click="toggleWatchingNowSeriesPanelCollapsed" class="panel-heading watching-detail-toggle" type="button">
-                                <template v-if="watchingNowSeriesPanelCollapsed && seriesDetail">
-                                    <strong class="watching-detail-summary-title">{{ seriesDetail.name || 'Series' }}</strong>
-                                    <span>{{ currentAccountName }}</span>
-                                </template>
-                                <template v-else>
-                                    <strong>Details</strong>
-                                    <span>{{ currentAccountName }}</span>
-                                </template>
-                            </button>
-                            <div class="panel-list" v-if="!watchingNowSeriesPanelCollapsed">
+                    <div class="watching-detail-layout" v-if="watchingNowDrilldown">
+                        <section class="browser-panel watching-detail-panel" aria-label="Series details">
+                            <header class="panel-heading">
+                                <strong>Details</strong>
+                                <span>{{ currentAccountName }}</span>
+                            </header>
+                            <div class="panel-list">
                                 <div v-if="seriesDetail" class="series-detail-panel">
                                     <article class="detail-card series-detail-card">
                                         <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
@@ -659,7 +678,7 @@
                                                 <i class="bi bi-collection-play" v-else></i>
                                                 <span>{{ bingeWatchButtonLabel }}</span>
                                             </button>
-</div>
+                                        </div>
                                     </article>
                                 </div>
                                 <div class="empty-state compact" v-else>
@@ -670,18 +689,12 @@
                             </div>
                         </section>
 
-                        <section :class="{ 'episodes-collapsed': isWatchingNowEpisodesPanelCollapsed }" aria-label="Episodes" class="browser-panel watching-episodes-panel">
-                            <button :aria-expanded="!isWatchingNowEpisodesPanelCollapsed" @click="toggleWatchingNowEpisodesPanelCollapsed" class="panel-heading watching-detail-toggle" type="button">
-                                <template v-if="isWatchingNowEpisodesPanelCollapsed">
-                                    <strong class="watching-detail-summary-title">{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</strong>
-                                    <span>{{ currentAccountName }}</span>
-                                </template>
-                                <template v-else>
-                                    <strong>Episodes</strong>
-                                    <span>{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
-                                </template>
-                            </button>
-                            <div class="panel-list" v-if="!isWatchingNowEpisodesPanelCollapsed">
+                        <section aria-label="Episodes" class="browser-panel watching-episodes-panel">
+                            <header class="panel-heading">
+                                <strong>Episodes</strong>
+                                <span>{{ (seriesDetail && seriesDetail.name) || currentChannelName || 'Series' }}</span>
+                            </header>
+                            <div class="panel-list">
                                 <div class="chip-row season-row" v-if="seriesSeasonTabs.length > 0">
                                     <button
                                             :class="{ active: selectedSeriesSeason === tab.value }"
@@ -713,31 +726,26 @@
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(getEpisodeDisplayTitle(episode, idx), 'EP') }}
                                         </div>
-                                            <div class="content-copy">
-                                                <div class="title-line">
-                                                    {{ getEpisodeDisplayTitle(episode, idx) }}
-                                                    <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(episode)">
-                                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                                    </span>
-                                                    <span class="pill" v-if="episode.watched">WATCHED</span>
-                                                </div>
-                                                <div class="meta-line">{{ getEpisodeSubtitle(episode) }}</div>
+                                        <div class="content-copy">
+                                            <div class="title-line">
+                                                {{ getEpisodeDisplayTitle(episode, idx) }}
+                                                <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(episode)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
+                                                <span class="pill" v-if="episode.watched">WATCHED</span>
                                             </div>
-                                        </article>
-                                        <div class="empty-state compact" v-if="filteredSeriesEpisodes.length === 0">
-                                            <i class="bi bi-collection-play"></i>
-                                            <strong>No episodes</strong>
-                                            <span>Try another season or refresh Watching Now.</span>
+                                            <div class="meta-line">{{ getEpisodeSubtitle(episode) }}</div>
                                         </div>
+                                    </article>
+                                    <div class="empty-state compact" v-if="filteredSeriesEpisodes.length === 0">
+                                        <i class="bi bi-collection-play"></i>
+                                        <strong>No episodes</strong>
+                                        <span>Try another season or refresh Watching Now.</span>
+                                    </div>
                                 </template>
                             </div>
                         </section>
                     </div>
-
-                    <footer class="screen-status">
-                        <span>{{ watchingNowDrilldown ? 'Watching Now series detail' : watchingNowTab === 'live' ? 'Select a channel or programme to play live TV.' : 'Watching Now keeps existing series and movie resume behavior.' }}</span>
-                        <span class="status-progress" aria-hidden="true"><span></span></span>
-                    </footer>
                 </section>
             </section>
 
