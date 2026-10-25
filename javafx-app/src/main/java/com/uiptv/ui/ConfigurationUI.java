@@ -179,10 +179,14 @@ public class ConfigurationUI extends VBox {
     private final ProgressIndicator clearEpgActivity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
     private final Label clearEpgStatus = new Label();
     private PauseTransition clearEpgStatusHideTimer;
+    private boolean clearOperationInProgress;
     private final MenuButton clearDataMenuButton = new MenuButton(I18n.tr("configClearMenu"));
     private final MenuItem clearCacheMenuItem = new MenuItem(I18n.tr("configClearCache"));
     private final MenuItem clearWatchingNowMenuItem = new MenuItem(I18n.tr("configClearWatchingNow"));
     private final MenuItem clearRecentMenuItem = new MenuItem(I18n.tr("configClearRecent"));
+    private final ProgressIndicator clearDataActivity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
+    private final Label clearDataStatus = new Label();
+    private PauseTransition clearDataStatusHideTimer;
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
     private final Hyperlink importDatabaseButton = new Hyperlink(I18n.tr(CONFIG_IMPORT_DATABASE));
     private final Hyperlink exportDatabaseButton = new Hyperlink(I18n.tr(CONFIG_EXPORT_DATABASE));
@@ -408,6 +412,7 @@ public class ConfigurationUI extends VBox {
         });
         clearEpgCacheButton.setOnAction(_ -> {
             if (!UIptvAlert.showConfirmationAlert(I18n.tr("epgClearCacheConfirm"))) return;
+            if (!beginClearOperation()) return;
             if (clearEpgStatusHideTimer != null) {
                 clearEpgStatusHideTimer.stop();
                 clearEpgStatusHideTimer = null;
@@ -425,16 +430,26 @@ public class ConfigurationUI extends VBox {
                 }
             };
             clearEpgStatus.textProperty().bind(clearing.messageProperty());
-            clearing.setOnSucceeded(_ -> finishEpgClear(I18n.tr("configCacheCleared")));
-            clearing.setOnFailed(_ -> finishEpgClear(I18n.tr("configCacheClearFailed")));
+            clearing.setOnSucceeded(_ -> finishEpgClear(I18n.tr("epgMobileCacheCleared")));
+            clearing.setOnFailed(_ -> finishEpgClear(I18n.tr("epgMobileCacheClearFailed")));
             Thread.ofVirtual().name("epg-clear-cache").start(clearing);
         });
         clearDataMenuButton.getItems().setAll(clearCacheMenuItem, clearWatchingNowMenuItem, clearRecentMenuItem);
         clearDataMenuButton.getStyleClass().add("settings-clear-menu-button");
         clearDataMenuButton.setMaxWidth(Region.USE_PREF_SIZE);
         FlowPane clearButtons = createWrappingRow(10, 6, clearDataMenuButton);
+        clearDataActivity.setMinSize(22, 22);
+        clearDataActivity.setPrefSize(22, 22);
+        clearDataActivity.setMaxSize(22, 22);
+        clearDataActivity.setVisible(false);
+        clearDataActivity.setManaged(false);
+        clearDataStatus.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
+        clearDataStatus.setWrapText(true);
+        clearDataStatus.setVisible(false);
+        clearDataStatus.setManaged(false);
+        HBox clearDataStatusRow = new HBox(10, clearDataActivity, clearDataStatus);
         reloadCacheButton.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox cacheGroup = new VBox(10, cacheExpiryRow, clearButtons, reloadCacheButton);
+        VBox cacheGroup = new VBox(10, cacheExpiryRow, clearButtons, clearDataStatusRow, reloadCacheButton);
         refreshConfigurationBlockTitles();
 
         openServerLink.setVisible(false);
@@ -1105,6 +1120,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void finishEpgClear(String result) {
+        endClearOperation();
         clearEpgStatus.textProperty().unbind();
         clearEpgStatus.setText(result);
         clearEpgActivity.setVisible(false);
@@ -1403,12 +1419,7 @@ public class ConfigurationUI extends VBox {
     private void addClearCacheButtonClickHandler() {
         clearCacheMenuItem.setOnAction(event -> {
             if (UIptvAlert.showConfirmationAlert(I18n.tr("configCacheClearConfirm"))) {
-                try {
-                    cacheService.clearAllCache();
-                    showMessageAlert(I18n.tr("configCacheCleared"));
-                } catch (Exception _) {
-                    showMessageAlert(I18n.tr("configCacheClearFailed"));
-                }
+                runClearDataInBackground("configCacheCleared", "configCacheClearFailed", cacheService::clearAllCache);
             }
         });
     }
@@ -1416,12 +1427,8 @@ public class ConfigurationUI extends VBox {
     private void addClearWatchingNowButtonClickHandler() {
         clearWatchingNowMenuItem.setOnAction(event -> {
             if (UIptvAlert.showConfirmationAlert(I18n.tr("configWatchNowConfirm"))) {
-                try {
-                    clearWatchingNowStates();
-                    showMessageAlert(I18n.tr("configWatchNowCleared"));
-                } catch (Exception _) {
-                    showMessageAlert(I18n.tr("configWatchNowClearFailed"));
-                }
+                runClearDataInBackground("configWatchNowCleared", "configWatchNowClearFailed",
+                        ConfigurationUI::clearWatchingNowStates);
             }
         });
         clearRecentMenuItem.setOnAction(event -> clearRecentItems());
@@ -1429,13 +1436,62 @@ public class ConfigurationUI extends VBox {
 
     private void clearRecentItems() {
         if (UIptvAlert.showConfirmationAlert(I18n.tr("configRecentClearConfirm"))) {
-            try {
-                BookmarkService.getInstance().clearRecentBookmarks();
-                showMessageAlert(I18n.tr("configRecentCleared"));
-            } catch (Exception _) {
-                showMessageAlert(I18n.tr("configRecentClearFailed"));
-            }
+            runClearDataInBackground("configRecentCleared", "configRecentClearFailed",
+                    () -> BookmarkService.getInstance().clearRecentBookmarks());
         }
+    }
+
+    private void runClearDataInBackground(String successKey, String failureKey, Runnable operation) {
+        if (!beginClearOperation()) return;
+        if (clearDataStatusHideTimer != null) {
+            clearDataStatusHideTimer.stop();
+            clearDataStatusHideTimer = null;
+        }
+        clearDataMenuButton.setDisable(true);
+        clearDataActivity.setVisible(true);
+        clearDataActivity.setManaged(true);
+        clearDataStatus.setVisible(true);
+        clearDataStatus.setManaged(true);
+        clearDataStatus.setText("");
+
+        Task<Void> clearing = new Task<>() {
+            @Override protected Void call() {
+                operation.run();
+                return null;
+            }
+        };
+        clearing.setOnSucceeded(_ -> finishClearData(I18n.tr(successKey)));
+        clearing.setOnFailed(_ -> finishClearData(I18n.tr(failureKey)));
+        Thread.ofVirtual().name("clear-settings-data").start(clearing);
+    }
+
+    private void finishClearData(String result) {
+        endClearOperation();
+        clearDataActivity.setVisible(false);
+        clearDataActivity.setManaged(false);
+        clearDataStatus.setText(result);
+        clearDataStatusHideTimer = new PauseTransition(Duration.seconds(10));
+        clearDataStatusHideTimer.setOnFinished(_ -> {
+            clearDataStatus.setText("");
+            clearDataStatus.setVisible(false);
+            clearDataStatus.setManaged(false);
+            clearDataStatusHideTimer = null;
+        });
+        clearDataStatusHideTimer.play();
+    }
+
+    private boolean beginClearOperation() {
+        if (clearOperationInProgress) return false;
+        clearOperationInProgress = true;
+        clearDataMenuButton.setDisable(true);
+        clearEpgCacheButton.setDisable(true);
+        return true;
+    }
+
+    private void endClearOperation() {
+        clearOperationInProgress = false;
+        clearDataMenuButton.setDisable(false);
+        clearEpgCacheButton.setDisable(false);
     }
 
     private void addStartServerButtonClickHandler() {

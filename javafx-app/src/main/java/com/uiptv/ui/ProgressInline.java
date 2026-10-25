@@ -649,14 +649,10 @@ public class ProgressInline extends BorderPane {
         Platform.runLater(() -> {
             String targetMac = macAddress == null ? "" : macAddress.trim();
             if (targetMac.isBlank()) return;
-
-            for (Node node : messageContainer.getChildren()) {
+            messageContainer.getChildren().removeIf(node -> {
                 String cardId = (String) node.getProperties().get(MAC_ADDRESS_PROPERTY);
-                if (targetMac.equalsIgnoreCase(cardId)) {
-                    messageContainer.getChildren().remove(node);
-                    break;
-                }
-            }
+                return targetMac.equalsIgnoreCase(cardId);
+            });
         });
     }
 }

@@ -3,6 +3,7 @@ package com.uiptv.mobile.shared.sync
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import com.uiptv.mobile.shared.settings.MobileBackupArchive
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -16,6 +17,10 @@ class AndroidRemoteSyncPullService(
     private val preferences: AndroidPreferencesRepository,
     private val epochSeconds: () -> Long = { System.currentTimeMillis() / 1000L }
 ) {
+    private companion object {
+        const val LOG_TAG = "UIPTVRemoteSync"
+    }
+
     suspend fun checkConnection(host: String, port: Int): Boolean {
         preferences.saveRemoteEndpoint(host, port)
         return client.health(buildRemoteSyncBaseUrl(host, port))
@@ -27,26 +32,35 @@ class AndroidRemoteSyncPullService(
         onProgress: (RemoteSyncProgress) -> Unit
     ): RemoteSyncPullResult {
         preferences.saveRemoteEndpoint(host, port)
-        if (client is AndroidRemoteSyncClient) {
-            val result = pullFromDesktopStreaming(
-                baseUrl = buildRemoteSyncBaseUrl(host, port),
-                verificationCode = createFourDigitVerificationCode { max -> Random.nextInt(max) },
-                onProgress = onProgress
-            )
+        var step = RemoteSyncProgressStep.CONNECTING
+        val trackedProgress: (RemoteSyncProgress) -> Unit = { progress ->
+            step = progress.step
+            Log.i(LOG_TAG, "Remote sync progress: ${progress.step}${progress.message.takeIf(String::isNotBlank)?.let { " ($it)" }.orEmpty()}")
+            onProgress(progress)
+        }
+        Log.i(LOG_TAG, "Starting remote database sync from ${buildRemoteSyncBaseUrl(host, port)}")
+        try {
+            val result = if (client is AndroidRemoteSyncClient) {
+                pullFromDesktopStreaming(
+                    baseUrl = buildRemoteSyncBaseUrl(host, port),
+                    verificationCode = createFourDigitVerificationCode { max -> Random.nextInt(max) },
+                    onProgress = trackedProgress
+                )
+            } else {
+                PullFromDesktopSyncUseCase(client, snapshotApplier).pull(
+                    baseUrl = buildRemoteSyncBaseUrl(host, port),
+                    verificationCode = createFourDigitVerificationCode { max -> Random.nextInt(max) },
+                    onProgress = trackedProgress
+                )
+            }
             preferences.markRemoteSyncSucceeded(epochSeconds())
             preferences.setFirstRunCompleted(true)
+            Log.i(LOG_TAG, "Remote database sync completed successfully")
             return result
+        } catch (ex: Throwable) {
+            Log.e(LOG_TAG, "Remote database sync failed during $step: ${ex.message ?: ex::class.java.simpleName}", ex)
+            throw ex
         }
-
-        val useCase = PullFromDesktopSyncUseCase(client, snapshotApplier)
-        val result = useCase.pull(
-            baseUrl = buildRemoteSyncBaseUrl(host, port),
-            verificationCode = createFourDigitVerificationCode { max -> Random.nextInt(max) },
-            onProgress = onProgress
-        )
-        preferences.markRemoteSyncSucceeded(epochSeconds())
-        preferences.setFirstRunCompleted(true)
-        return result
     }
 
     private suspend fun pullFromDesktopStreaming(
@@ -62,6 +76,7 @@ class AndroidRemoteSyncPullService(
         val transferFile = snapshotApplier.createTempTransferFile()
         var payloadFile: File? = null
         var snapshotFile: File? = null
+        var keepAlive: AutoCloseable? = null
         try {
             val session = streamingClient.request(
                 baseUrl = baseUrl,
@@ -72,13 +87,15 @@ class AndroidRemoteSyncPullService(
                 )
             )
             sessionId = session.sessionId
+            keepAlive = streamingClient.openKeepAlive(baseUrl, sessionId)
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.WAITING_FOR_APPROVAL, verificationCode))
 
             val readySession = waitForDownload(baseUrl, sessionId)
             sessionId = readySession.sessionId.ifBlank { sessionId }
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.DOWNLOADING, verificationCode))
-            streamingClient.downloadToFile(baseUrl, sessionId, transferFile)
+            val transferBytes = streamingClient.downloadToFile(baseUrl, sessionId, transferFile)
+            Log.i(LOG_TAG, "Downloaded remote sync transfer: $transferBytes bytes")
             val transferOptions = readySession.options
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode, "Preparing backup"))
             val payloadForSync = withContext(Dispatchers.IO) {
@@ -89,9 +106,10 @@ class AndroidRemoteSyncPullService(
                 extractTransferSnapshot(payloadForSync, transferOptions)
             }
             snapshotFile = snapshotForSync
+            Log.i(LOG_TAG, "Prepared remote database snapshot: ${snapshotForSync.length()} bytes")
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode, "Applying"))
-            val report = snapshotApplier.applyFile(snapshotForSync)
+            val report = snapshotApplier.applyFile(snapshotForSync, consumeSnapshotFile = true)
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.COMPLETING_REMOTE, verificationCode))
             streamingClient.complete(baseUrl, sessionId, success = true, message = "Remote database sync completed.")
@@ -111,6 +129,7 @@ class AndroidRemoteSyncPullService(
             }
             throw ex
         } finally {
+            keepAlive?.close()
             transferFile.delete()
             payloadFile?.takeUnless { it == transferFile }?.delete()
             snapshotFile?.takeUnless { it == payloadFile || it == transferFile }?.delete()

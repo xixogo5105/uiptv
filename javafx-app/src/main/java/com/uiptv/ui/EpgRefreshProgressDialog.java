@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.application.EpgCacheApplicationService;
 import com.uiptv.application.EpgRefreshJobService;
 import com.uiptv.application.EpgSourceBlacklistService;
 import com.uiptv.util.I18n;
@@ -29,9 +30,16 @@ import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 /** Shows account preparation and source-by-source work; closing leaves the refresh running. */
 final class EpgRefreshProgressDialog {
@@ -45,6 +53,7 @@ final class EpgRefreshProgressDialog {
     }
 
     static void open(javafx.scene.control.Control owner, Runnable finished, Runnable guidesRefreshed) {
+        BlacklistChanges blacklistChanges = new BlacklistChanges();
         var initial = EpgRefreshJobService.start();
         var completionReported = new AtomicBoolean();
         var refreshReported = new AtomicBoolean();
@@ -99,7 +108,7 @@ final class EpgRefreshProgressDialog {
         preparing.getStyleClass().add("epg-refresh-preparing");
         preparing.setWrapText(true);
 
-        SourceCards sourceCards = new SourceCards();
+        SourceCards sourceCards = new SourceCards(blacklistChanges::add);
         ScrollPane sources = new ScrollPane(sourceCards);
         sources.setFitToWidth(true);
         sources.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -142,9 +151,37 @@ final class EpgRefreshProgressDialog {
 
         Button action = new Button(I18n.tr("autoCancel"));
         action.getStyleClass().add("reload-secondary-button");
-        HBox footer = new HBox(action);
+        Button blacklistFailed = new Button(I18n.tr("epgBlacklistFailed"));
+        Button blacklistUnsuccessful = new Button(I18n.tr("epgBlacklistUnsuccessful"));
+        Button resetBlacklist = new Button(I18n.tr("epgBlacklistReset"));
+        for (Button button : List.of(blacklistFailed, blacklistUnsuccessful, resetBlacklist)) {
+            button.getStyleClass().add("reload-secondary-button");
+        }
+        FlowPane bulkActions = new FlowPane(8, 8, blacklistFailed, blacklistUnsuccessful, resetBlacklist);
+        bulkActions.setAlignment(Pos.CENTER_LEFT);
+        bulkActions.setMaxWidth(Double.MAX_VALUE);
+        bulkActions.setVisible(false);
+        bulkActions.setManaged(false);
+        Region footerSpacer = spacer();
+        HBox footer = new HBox(10, bulkActions, footerSpacer, action);
         footer.getStyleClass().add("management-popup-footer");
-        footer.setAlignment(Pos.CENTER_RIGHT);
+        footer.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(bulkActions, Priority.ALWAYS);
+
+        blacklistFailed.setOnAction(_ -> blacklistSources(initial.id(), sourceCards, blacklistChanges,
+                resetBlacklist, blacklistChanges::blacklistFailed));
+        blacklistUnsuccessful.setOnAction(_ -> blacklistSources(initial.id(), sourceCards, blacklistChanges,
+                resetBlacklist, blacklistChanges::blacklistUnsuccessful));
+        resetBlacklist.setOnAction(_ -> {
+            try {
+                blacklistChanges.reset();
+            } catch (RuntimeException error) {
+                showErrorAlert(I18n.tr("autoFailed"));
+            }
+            var latest = EpgRefreshJobService.get(initial.id());
+            if (latest != null) sourceCards.update(latest.sources());
+            resetBlacklist.setDisable(!blacklistChanges.hasChanges());
+        });
 
         BorderPane root = createLayout(header, progressCard, sourcesCard, footer);
         Scene scene = new Scene(root, SCENE_WIDTH, SCENE_HEIGHT);
@@ -230,6 +267,13 @@ final class EpgRefreshProgressDialog {
             sources.setVisible(showSources);
             sources.setManaged(showSources);
             boolean showSummary = !preparingAccounts && terminal(snapshot.status()) && !snapshot.sources().isEmpty();
+            boolean showBulkActions = terminal(snapshot.status()) && !snapshot.sources().isEmpty();
+            bulkActions.setVisible(showBulkActions);
+            bulkActions.setManaged(showBulkActions);
+            blacklistFailed.setDisable(snapshot.sources().stream().noneMatch(source -> "Failed".equals(source.status())));
+            blacklistUnsuccessful.setDisable(snapshot.sources().stream().noneMatch(source ->
+                    "Failed".equals(source.status()) || "No matches".equals(source.status())));
+            resetBlacklist.setDisable(!blacklistChanges.hasChanges());
             summaryCompleted.setText(I18n.tr("reloadSummaryCompleted", snapshot.completed(), snapshot.total()));
             summaryGood.setText(I18n.tr("reloadSummaryGood", countSources(snapshot.sources(), "Completed", "Saved")));
             summaryPartial.setText(I18n.tr("reloadSummaryYellow", countSources(snapshot.sources(), "No matches")));
@@ -322,6 +366,19 @@ final class EpgRefreshProgressDialog {
     private static long countSources(java.util.List<EpgRefreshJobService.SourceProgress> sources, String... statuses) {
         java.util.Set<String> accepted = java.util.Set.of(statuses);
         return sources.stream().filter(source -> accepted.contains(source.status())).count();
+    }
+
+    private static void blacklistSources(String jobId, SourceCards sourceCards, BlacklistChanges changes,
+                                         Button resetButton, Consumer<List<EpgRefreshJobService.SourceProgress>> action) {
+        EpgRefreshJobService.Snapshot snapshot = EpgRefreshJobService.get(jobId);
+        if (snapshot == null || !terminal(snapshot.status())) return;
+        try {
+            action.accept(snapshot.sources());
+        } catch (RuntimeException error) {
+            showErrorAlert(I18n.tr("autoFailed"));
+        }
+        sourceCards.update(snapshot.sources());
+        resetButton.setDisable(!changes.hasChanges());
     }
 
     private static boolean terminal(String status) {
@@ -424,9 +481,15 @@ final class EpgRefreshProgressDialog {
     /** Stable source identities: polling never replaces nodes or changes a clicked card. */
     static final class SourceCards extends VBox {
         final Map<String, SourceCard> cards = new java.util.LinkedHashMap<>();
+        private final Consumer<String> blacklistAction;
 
         SourceCards() {
+            this(EpgSourceBlacklistService::add);
+        }
+
+        SourceCards(Consumer<String> blacklistAction) {
             super(8);
+            this.blacklistAction = blacklistAction;
             setFillWidth(true);
             setMinWidth(0);
         }
@@ -434,12 +497,51 @@ final class EpgRefreshProgressDialog {
         void update(java.util.List<EpgRefreshJobService.SourceProgress> sources) {
             for (var source : sources) {
                 SourceCard card = cards.computeIfAbsent(source.id(), id -> {
-                    SourceCard created = new SourceCard(id);
+                    SourceCard created = new SourceCard(id, blacklistAction);
                     getChildren().add(created);
                     return created;
                 });
                 card.update(source);
             }
+        }
+    }
+
+    static final class BlacklistChanges {
+        private final Set<String> originalSourceIds = new HashSet<>();
+        private final Set<String> sourcesAddedDuringRefresh = new LinkedHashSet<>();
+
+        BlacklistChanges() {
+            EpgSourceBlacklistService.list().forEach(entry -> originalSourceIds.add(entry.sourceId()));
+        }
+
+        void add(String source) {
+            if (source == null || source.isBlank()) return;
+            String normalized = source.strip();
+            String sourceId = EpgCacheApplicationService.sourceId(normalized);
+            if (EpgSourceBlacklistService.contains(normalized)) return;
+            EpgSourceBlacklistService.add(normalized);
+            if (!originalSourceIds.contains(sourceId)) sourcesAddedDuringRefresh.add(sourceId);
+        }
+
+        void blacklistFailed(List<EpgRefreshJobService.SourceProgress> sources) {
+            sources.stream().filter(source -> "Failed".equals(source.status()))
+                    .forEach(source -> add(source.source()));
+        }
+
+        void blacklistUnsuccessful(List<EpgRefreshJobService.SourceProgress> sources) {
+            sources.stream().filter(source -> "Failed".equals(source.status()) || "No matches".equals(source.status()))
+                    .forEach(source -> add(source.source()));
+        }
+
+        void reset() {
+            for (String sourceId : new LinkedHashSet<>(sourcesAddedDuringRefresh)) {
+                EpgSourceBlacklistService.remove(sourceId);
+                sourcesAddedDuringRefresh.remove(sourceId);
+            }
+        }
+
+        boolean hasChanges() {
+            return !sourcesAddedDuringRefresh.isEmpty();
         }
     }
 
@@ -453,10 +555,12 @@ final class EpgRefreshProgressDialog {
         private final Map<String, SourceStep> steps = new java.util.LinkedHashMap<>();
         private Boolean userExpanded;
         private boolean started;
+        private final Consumer<String> blacklistAction;
 
-        SourceCard(String sourceId) {
+        SourceCard(String sourceId, Consumer<String> blacklistAction) {
             super(6);
             this.sourceId = sourceId;
+            this.blacklistAction = blacklistAction;
             getStyleClass().addAll("reload-log-root", "epg-refresh-source-card");
             setMinHeight(Region.USE_PREF_SIZE);
             header.getStyleClass().add("reload-log-header");
@@ -526,7 +630,7 @@ final class EpgRefreshProgressDialog {
             if (activeStepKey != null) {
                 String stepKey = activeStepKey;
                 SourceStep step = steps.computeIfAbsent(stepKey, key -> {
-                    SourceStep line = new SourceStep();
+                    SourceStep line = new SourceStep(blacklistAction);
                     body.getChildren().add(line);
                     return line;
                 });
@@ -547,6 +651,10 @@ final class EpgRefreshProgressDialog {
         private final Button blacklist = new Button(I18n.tr("epgBlacklistSource"));
 
         SourceStep() {
+            this(EpgSourceBlacklistService::add);
+        }
+
+        SourceStep(Consumer<String> blacklistAction) {
             super(2);
             getStyleClass().add("epg-refresh-step");
             setMinWidth(0);
@@ -569,7 +677,7 @@ final class EpgRefreshProgressDialog {
                 blacklist.setDisable(true);
                 retainCardFocus(scrollPosition);
                 try {
-                    EpgSourceBlacklistService.add(source);
+                    blacklistAction.accept(source);
                     blacklist.setText(I18n.tr("epgBlacklistAdded"));
                     retainCardFocus(scrollPosition);
                 } catch (RuntimeException error) {

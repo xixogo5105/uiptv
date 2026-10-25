@@ -7,9 +7,20 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.WebSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.Map;
 
 public class RemoteSyncHttpClient {
@@ -24,6 +35,7 @@ public class RemoteSyncHttpClient {
             DEFAULT_CONNECTION_REQUEST_TIMEOUT_SECONDS,
             DEFAULT_RESPONSE_TIMEOUT_SECONDS
     );
+    private static final HttpClient KEEPALIVE_HTTP_CLIENT = createKeepAliveHttpClient();
 
     public void checkHealth(String baseUrl) throws IOException {
         JSONObject json = executeJson(HttpUtil.sendRequest(baseUrl + "/remote-sync/health", null, "GET", null, REQUEST_OPTIONS));
@@ -52,6 +64,46 @@ public class RemoteSyncHttpClient {
                 REQUEST_OPTIONS
         ));
         return RemoteSyncJson.toSessionState(response);
+    }
+
+    /** Opens a persistent guest connection; the host sends ping frames and renews its lease on pong. */
+    public AutoCloseable openKeepAlive(String baseUrl, String sessionId) throws IOException {
+        String websocketBase = baseUrl.startsWith("https://")
+                ? "wss://" + baseUrl.substring("https://".length())
+                : "ws://" + baseUrl.substring("http://".length());
+        URI uri = URI.create(sessionUrl(websocketBase, "/remote-sync/keepalive", sessionId));
+        try {
+            WebSocket socket = KEEPALIVE_HTTP_CLIENT.newWebSocketBuilder()
+                    .buildAsync(uri, new WebSocket.Listener() {
+                        @Override
+                        public void onOpen(WebSocket webSocket) {
+                            webSocket.request(1);
+                        }
+
+                        @Override
+                        public CompletableFuture<?> onPing(WebSocket webSocket, java.nio.ByteBuffer message) {
+                            webSocket.request(1);
+                            return CompletableFuture.completedFuture(null);
+                        }
+                    }).get(10, TimeUnit.SECONDS);
+            return new KeepAlive(socket);
+        } catch (Exception ex) {
+            Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+            throw new IOException("Could not open remote sync keep-alive with the host", cause);
+        }
+    }
+
+    public static final class KeepAlive implements AutoCloseable {
+        private final WebSocket socket;
+
+        private KeepAlive(WebSocket socket) {
+            this.socket = socket;
+        }
+
+        @Override
+        public void close() {
+            if (!socket.isOutputClosed()) socket.sendClose(WebSocket.NORMAL_CLOSURE, "Sync finished");
+        }
     }
 
     public RemoteSyncExecutionResult uploadSnapshot(String baseUrl, String sessionId, Path snapshotPath) throws IOException {
@@ -114,5 +166,22 @@ public class RemoteSyncHttpClient {
     private static String sessionUrl(String baseUrl, String path, String sessionId) {
         String encodedSessionId = URLEncoder.encode(sessionId == null ? "" : sessionId, StandardCharsets.UTF_8);
         return baseUrl + path + "?sessionId=" + encodedSessionId;
+    }
+
+    private static HttpClient createKeepAliveHttpClient() {
+        try {
+            X509TrustManager trustAll = new X509TrustManager() {
+                @Override public void checkClientTrusted(X509Certificate[] chain, String authType) { }
+                @Override public void checkServerTrusted(X509Certificate[] chain, String authType) { }
+                @Override public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            };
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{trustAll}, new SecureRandom());
+            SSLParameters sslParameters = new SSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm("");
+            return HttpClient.newBuilder().sslContext(sslContext).sslParameters(sslParameters).build();
+        } catch (java.security.GeneralSecurityException ex) {
+            throw new IllegalStateException("Could not initialize the remote sync keep-alive", ex);
+        }
     }
 }

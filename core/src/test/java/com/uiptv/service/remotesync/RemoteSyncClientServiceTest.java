@@ -403,6 +403,11 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         }
 
         @Override
+        public AutoCloseable openKeepAlive(String baseUrl, String sessionId) {
+            return () -> { };
+        }
+
+        @Override
         public RemoteSyncSessionState createSession(String baseUrl, RemoteSyncRequest request) {
             lastRequest = request;
             return nextCreatedState;

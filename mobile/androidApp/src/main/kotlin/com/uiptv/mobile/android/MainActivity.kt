@@ -88,7 +88,10 @@ class MainActivity : ComponentActivity() {
         val playbackCoordinator = AndroidPlaybackCoordinator(this, preferences, databaseHelper)
         val syncService = AndroidRemoteSyncPullService(
             client = AndroidRemoteSyncClient(),
-            snapshotApplier = AndroidSQLiteSnapshotSyncApplier(databaseHelper, cacheDir),
+            snapshotApplier = AndroidSQLiteSnapshotSyncApplier(
+                databaseHelper,
+                databaseHelper.databaseFile().parentFile!!.apply { mkdirs() }
+            ),
             preferences = preferences
         )
         fun notifyLocalDatabaseChanged() {

@@ -27,6 +27,7 @@ public class RemoteSyncSessionService {
     public static final long MAX_TRANSFER_BYTES = 256L * 1024L * 1024L;
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(2);
     private static final Duration TRANSFER_TTL = Duration.ofMinutes(10);
+    private static final Duration MAX_TRANSFER_LIFETIME = Duration.ofHours(2);
     private static final Duration TERMINAL_RETENTION = Duration.ofMinutes(10);
     private static final int MAX_SESSIONS = 128;
     private static final int MAX_SESSIONS_PER_PEER = 5;
@@ -100,6 +101,34 @@ public class RemoteSyncSessionService {
         SessionState session = requireSession(sessionId);
         synchronized (session.monitor) {
             expireIfNeeded(session);
+            return session.toPublicState();
+        }
+    }
+
+    /** Renews an active import lease only after the remote guest answers a host heartbeat. */
+    public RemoteSyncSessionState recordGuestHeartbeat(String sessionId) {
+        SessionState session = requireSession(sessionId);
+        synchronized (session.monitor) {
+            expireIfNeeded(session);
+            if (session.direction != RemoteSyncDirection.IMPORT_FROM_REMOTE) {
+                throw new IllegalStateException("Only remote import sessions accept guest heartbeats");
+            }
+            if (session.status == RemoteSyncStatus.PENDING_APPROVAL) {
+                return session.toPublicState();
+            }
+            if (session.status != RemoteSyncStatus.APPROVED
+                    && session.status != RemoteSyncStatus.READY_FOR_DOWNLOAD) {
+                throw new IllegalStateException("Remote sync session is not active");
+            }
+            Instant now = clock.instant();
+            if (session.maximumExpiresAt == null || !now.isBefore(session.maximumExpiresAt)) {
+                session.expiresAt = now;
+                expireIfNeeded(session);
+                return session.toPublicState();
+            }
+            Instant renewedExpiry = now.plus(TRANSFER_TTL);
+            session.expiresAt = renewedExpiry.isAfter(session.maximumExpiresAt)
+                    ? session.maximumExpiresAt : renewedExpiry;
             return session.toPublicState();
         }
     }
@@ -245,7 +274,9 @@ public class RemoteSyncSessionService {
             session.message = session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE
                     ? "Approved. Preparing snapshot."
                     : "Approved. Ready for upload.";
-            session.expiresAt = clock.instant().plus(TRANSFER_TTL);
+            Instant now = clock.instant();
+            session.maximumExpiresAt = now.plus(MAX_TRANSFER_LIFETIME);
+            session.expiresAt = now.plus(TRANSFER_TTL);
             prepareDownload = session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE;
         }
 
@@ -410,6 +441,7 @@ public class RemoteSyncSessionService {
         private RemoteSyncStatus status;
         private String message;
         private Instant expiresAt;
+        private Instant maximumExpiresAt;
         private Path snapshotPath;
         private Instant terminalAt;
 

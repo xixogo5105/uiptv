@@ -20,8 +20,11 @@ class AndroidSQLiteSnapshotSyncApplier(
         }
     }
 
-    suspend fun applyFile(snapshotFile: File): DatabaseSyncReport = withContext(Dispatchers.IO) {
-        applySnapshotFile(snapshotFile)
+    suspend fun applyFile(
+        snapshotFile: File,
+        consumeSnapshotFile: Boolean = false
+    ): DatabaseSyncReport = withContext(Dispatchers.IO) {
+        applySnapshotFile(snapshotFile, consumeSnapshotFile)
     }
 
     fun createTempSnapshotFile(): File =
@@ -33,20 +36,20 @@ class AndroidSQLiteSnapshotSyncApplier(
     fun apply(snapshotFile: File): DatabaseSyncReport =
         applySnapshotFile(snapshotFile)
 
-    private fun applySnapshotFile(snapshotFile: File): DatabaseSyncReport {
-        val stagedSnapshot = File.createTempFile("uiptv-remote-sync-staged-", ".db", tempDirectory)
+    private fun applySnapshotFile(snapshotFile: File, consumeSnapshotFile: Boolean = false): DatabaseSyncReport {
+        val stagedSnapshot = if (consumeSnapshotFile) snapshotFile
+        else File.createTempFile("uiptv-remote-sync-staged-", ".db", tempDirectory)
         try {
-            snapshotFile.copyTo(stagedSnapshot, overwrite = true)
+            if (!consumeSnapshotFile) snapshotFile.copyTo(stagedSnapshot, overwrite = true)
             migrateAndValidate(stagedSnapshot)
             val report = buildCloneReport(stagedSnapshot)
             checkpointLiveDatabase()
             databaseHelper.close()
             replaceLiveDatabase(stagedSnapshot)
-            reopenAndValidateLiveDatabase()
             com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
             return report
         } finally {
-            stagedSnapshot.delete()
+            if (!consumeSnapshotFile) stagedSnapshot.delete()
         }
     }
 
@@ -110,9 +113,40 @@ class AndroidSQLiteSnapshotSyncApplier(
     private fun replaceLiveDatabase(stagedSnapshot: File) {
         val databaseFile = databaseHelper.databaseFile()
         databaseFile.parentFile?.mkdirs()
+        require(stagedSnapshot.parentFile?.canonicalFile == databaseFile.parentFile?.canonicalFile) {
+            "Staged sync database must be on the same filesystem as the live database."
+        }
+        val backupFile = File.createTempFile("uiptv-remote-previous-", ".db", databaseFile.parentFile)
+        backupFile.delete()
+        val hadLiveDatabase = databaseFile.exists()
+        var movedOldDatabase = false
+        var movedNewDatabase = false
         deleteDatabaseSidecars(databaseFile)
-        stagedSnapshot.copyTo(databaseFile, overwrite = true)
-        deleteDatabaseSidecars(databaseFile)
+        try {
+            if (hadLiveDatabase) {
+                check(databaseFile.renameTo(backupFile)) { "Could not preserve the existing mobile database before sync." }
+                movedOldDatabase = true
+            }
+            check(stagedSnapshot.renameTo(databaseFile)) { "Could not install the downloaded database snapshot." }
+            movedNewDatabase = true
+            deleteDatabaseSidecars(databaseFile)
+            reopenAndValidateLiveDatabase()
+            backupFile.delete()
+        } catch (ex: Throwable) {
+            databaseHelper.close()
+            if (movedNewDatabase) databaseFile.delete()
+            deleteDatabaseSidecars(databaseFile)
+            if (movedOldDatabase) {
+                check(backupFile.renameTo(databaseFile)) {
+                    "Sync failed and the previous mobile database could not be restored from ${backupFile.name}."
+                }
+                deleteDatabaseSidecars(databaseFile)
+                reopenAndValidateLiveDatabase()
+            }
+            throw ex
+        } finally {
+            if (!backupFile.exists() || !movedOldDatabase) backupFile.delete()
+        }
     }
 
     private fun reopenAndValidateLiveDatabase() {

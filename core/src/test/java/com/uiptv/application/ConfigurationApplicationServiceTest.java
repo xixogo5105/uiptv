@@ -37,5 +37,12 @@ class ConfigurationApplicationServiceTest extends DbBackedTest {
         service.clearWatchingNowState();
 
         assertEquals(0, SeriesWatchStateService.getInstance().getAllSeriesLastWatchedByAccount("").size());
+        try (var connection = SQLConnection.connect(); var statement = connection.createStatement();
+             var rows = statement.executeQuery("PRAGMA freelist_count")) {
+            assertEquals(true, rows.next());
+            assertEquals(0, rows.getInt(1));
+        } catch (java.sql.SQLException error) {
+            throw new AssertionError("Unable to verify database compaction", error);
+        }
     }
 }

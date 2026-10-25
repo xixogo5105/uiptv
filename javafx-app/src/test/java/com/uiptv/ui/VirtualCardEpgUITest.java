@@ -33,6 +33,64 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
         assertFalse(runOnFxThread(EpgModeUI::isFeatureEnabled));
     }
 
+    @Test void stoppedCardsRestoreRetainedGuideAfterBecomingVisibleWithoutScrolling() throws Exception {
+        runOnFxThread(() -> {
+            try (var mode = mockStatic(EpgModeUI.class)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                VBox card = new VBox(new Label("Channel"));
+                VBox root = new VBox(card);
+                new Scene(root, 320, 300);
+                root.resize(320, 300);
+                CardEpgSupport support = new CardEpgSupport(root);
+                support.bind(card, () -> null);
+                root.applyCss(); root.layout();
+                Object binding = ((Map<?, ?>) field(support, "attached").get(support)).get(card);
+                long now = System.currentTimeMillis();
+                field(binding, "current").set(binding,
+                        new EpgProgramme("Retained programme", "", now - 60_000, now + 600_000));
+                field(binding, "refreshAt").setLong(binding, now + 600_000);
+                support.stop();
+                Pane panel = (Pane) card.lookup(".virtual-card-epg");
+                assertTrue(panel.getChildren().isEmpty());
+                invoke(support, "cardsToRefresh", new Class<?>[]{long.class}, now);
+                assertTrue(panel.isVisible());
+                assertTrue(panel.lookupAll(".virtual-card-epg-title").stream()
+                        .anyMatch(node -> ((Label) node).getText().contains("Retained programme")));
+                support.stop();
+            }
+            return null;
+        });
+    }
+
+    @Test void cachePublicationInvalidatesDetachedCardsWhenReattached() throws Exception {
+        runOnFxThread(() -> {
+            VBox card = new VBox(new Label("Channel"));
+            VBox root = new VBox(card);
+            CardEpgSupport support = null;
+            try (var mode = mockStatic(EpgModeUI.class, CALLS_REAL_METHODS)) {
+                mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                mode.when(EpgModeUI::isPlaybackOnly).thenReturn(false);
+                support = new CardEpgSupport(root);
+                support.bind(card, () -> null);
+                new Scene(root, 320, 300);
+                Object binding = ((Map<?, ?>) field(support, "attached").get(support)).get(card);
+                field(binding, "refreshAt").setLong(binding, System.currentTimeMillis() + 600_000);
+                root.getChildren().remove(card);
+                Field revision = EpgModeUI.class.getDeclaredField("cacheRevision");
+                revision.setAccessible(true);
+                var property = (javafx.beans.property.LongProperty) revision.get(null);
+                property.set(property.get() + 1);
+                root.getChildren().add(card);
+                assertEquals(0L, field(binding, "refreshAt").getLong(binding),
+                        "Returning virtual cards must read the manually refreshed guide immediately");
+            } finally {
+                if (support != null) support.stop();
+                root.getScene().setRoot(new Pane());
+            }
+            return null;
+        });
+    }
+
     @Test void programmeProgressUsesTheSuppliedClock() throws Exception {
         runOnFxThread(() -> {
             long start = 1_000_000L;

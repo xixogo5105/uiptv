@@ -5,6 +5,8 @@ module com.uiptv.api.server {
     requires org.eclipse.jetty.http;
     requires org.eclipse.jetty.io;
     requires org.eclipse.jetty.util;
+    requires org.eclipse.jetty.websocket.jetty.api;
+    requires org.eclipse.jetty.websocket.jetty.server;
     requires org.json;
     requires org.apache.commons.io;
     requires jdk.httpserver;

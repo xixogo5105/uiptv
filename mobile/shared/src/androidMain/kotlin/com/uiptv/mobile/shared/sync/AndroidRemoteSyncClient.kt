@@ -2,6 +2,11 @@ package com.uiptv.mobile.shared.sync
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import org.json.JSONObject
 import java.io.IOException
 import java.io.File
@@ -12,6 +17,8 @@ import java.net.UnknownHostException
 import java.net.URL
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
@@ -67,6 +74,53 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
             .toString()
         withContext(Dispatchers.IO) {
             executeJson("$baseUrl/remote-sync/complete", "POST", body)
+        }
+    }
+
+    suspend fun openKeepAlive(baseUrl: String, sessionId: String): AutoCloseable = withContext(Dispatchers.IO) {
+        val trustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
+        }
+        val client = OkHttpClient.Builder()
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+        val websocketBase = when {
+            baseUrl.startsWith("https://") -> "wss://${baseUrl.removePrefix("https://")}"
+            else -> "ws://${baseUrl.removePrefix("http://")}"
+        }
+        val url = "$websocketBase/remote-sync/keepalive?sessionId=" +
+                java.net.URLEncoder.encode(sessionId, Charsets.UTF_8.name())
+        val opened = CountDownLatch(1)
+        val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+        val socket = client.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                opened.countDown()
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                failure.set(t)
+                opened.countDown()
+            }
+        })
+        if (!opened.await(10, TimeUnit.SECONDS)) {
+            socket.cancel()
+            client.dispatcher.executorService.shutdownNow()
+            throw IOException("Timed out opening remote sync keep-alive with the host.")
+        }
+        failure.get()?.let { error ->
+            client.dispatcher.executorService.shutdownNow()
+            throw IOException("Could not open remote sync keep-alive with the host: ${error.message}", error)
+        }
+        AutoCloseable {
+            socket.close(1000, "Sync finished")
+            client.dispatcher.executorService.shutdown()
+            client.connectionPool.evictAll()
         }
     }
 

@@ -36,6 +36,7 @@ final class CardEpgSupport {
     private final Map<ScrollPane, javafx.beans.value.ChangeListener<Number>> scrollListeners = new IdentityHashMap<>();
     private final Map<ScrollPane, javafx.beans.value.ChangeListener<Bounds>> viewportBoundsListeners = new IdentityHashMap<>();
     private boolean compactProgrammeRows;
+    private long cacheGeneration;
     private final java.util.concurrent.atomic.AtomicLong nextSummaryFailureLogAt = new java.util.concurrent.atomic.AtomicLong();
     private Thread worker;
     private Thread popupWorker;
@@ -52,6 +53,7 @@ final class CardEpgSupport {
         final boolean programmeRow;
         boolean compact;
         long refreshAt;
+        long cacheGeneration;
         EpgProgramme current;
         EpgProgramme next;
         Binding(Pane panel, Supplier<LiveGuideApplicationService.Row> source, boolean programmeRow, boolean compact) {
@@ -89,9 +91,15 @@ final class CardEpgSupport {
         // Scene, visibility, scroll, cache, and clock changes already cover
         // the meaningful refresh boundaries.
         EpgModeUI.observeCache(owner, () -> {
+            cacheGeneration++;
+            attached.values().forEach(binding -> binding.refreshAt = 0);
             if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) stop();
-            else { clock.play(); retryAfterLayout(); queue(); }
-                attached.values().forEach(binding -> binding.refreshAt = 0);
+            else {
+                refreshMode();
+                clock.play();
+                retryAfterLayout();
+                queue();
+            }
         });
     }
 
@@ -235,6 +243,7 @@ final class CardEpgSupport {
             horizontal.getChildren().setAll(body);
         }
         Binding binding = new Binding(panel, source, programmeRow, compactProgrammeRows);
+        binding.cacheGeneration = cacheGeneration;
         setProgrammeRowColumns(card, binding.compact);
         card.sceneProperty().addListener((_, _, scene) -> {
             if (scene == null) {
@@ -243,6 +252,7 @@ final class CardEpgSupport {
                 queue();
             } else {
                 attached.put(card, binding);
+                if (binding.cacheGeneration != cacheGeneration) binding.refreshAt = 0;
                 if (System.currentTimeMillis() < binding.refreshAt && panel.getChildren().isEmpty()) {
                     displayPanel(panel, binding.current, binding.next, System.currentTimeMillis(),
                             binding.compact);
@@ -359,7 +369,16 @@ final class CardEpgSupport {
     private List<Map.Entry<Region, Binding>> cardsToRefresh(long now) {
         return attached.entrySet().stream().filter(entry -> {
                     boolean cardVisible = visible(entry.getKey());
-                    if (cardVisible) removeCardBoundsListener(entry.getKey());
+                    if (cardVisible) {
+                        removeCardBoundsListener(entry.getKey());
+                        Binding binding = entry.getValue();
+                        // A hidden ancestor may have stopped us before layout made this
+                        // card visible. Restore its retained summary without waiting for
+                        // the next programme boundary or a virtual-grid reattachment.
+                        if (now < binding.refreshAt && binding.panel.getChildren().isEmpty()) {
+                            displayPanel(binding.panel, binding.current, binding.next, now, binding.compact);
+                        }
+                    }
                     return cardVisible && now >= entry.getValue().refreshAt;
                 })
                 .sorted(Comparator
@@ -473,6 +492,7 @@ final class CardEpgSupport {
         current = usableProgramme(current);
         next = usableProgramme(next);
         Binding binding = entry.getValue();
+        binding.cacheGeneration = cacheGeneration;
         boolean unchanged = Objects.equals(binding.current, current) && Objects.equals(binding.next, next)
                 && !binding.panel.getChildren().isEmpty();
         long refreshAt = System.currentTimeMillis() + 30 * 60_000L;

@@ -104,6 +104,17 @@ public class SQLConnection {
         }
     }
 
+    /** Rebuild the database after a successful user-requested clear operation. */
+    public static void vacuum() {
+        try (Connection connection = openConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+            statement.execute("VACUUM");
+            statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+        } catch (SQLException error) {
+            throw new DatabaseAccessException("Unable to compact the database after clearing data", error);
+        }
+    }
+
     private static Connection openConnection() throws SQLException {
         Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         try (Statement statement = conn.createStatement()) {

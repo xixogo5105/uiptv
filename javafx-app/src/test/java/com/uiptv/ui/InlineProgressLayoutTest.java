@@ -362,6 +362,35 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
     }
 
     @Test
+    void removingInvalidMacsClearsAllMatchingVerificationCards() throws Exception {
+        ProgressInline inline = runOnFxThread(() -> {
+            ProgressInline progressInline = new ProgressInline();
+            progressInline.setDefaultMacAddress("00:1A:79:AA:BB:CC");
+            progressInline.addVerificationHeader("00:1A:79:11:22:33", 0, 3);
+            progressInline.addVerificationHeader("00:1A:79:11:22:33", 1, 3);
+            progressInline.addVerificationHeader("00:1A:79:AA:BB:CC", 2, 3);
+            return progressInline;
+        });
+        waitForFxEvents();
+
+        runOnFxThread(() -> {
+            inline.removeVerificationCard("00:1A:79:11:22:33");
+            return null;
+        });
+        waitForFxEvents();
+
+        List<String> remainingMacs = runOnFxThread(() -> {
+            VBox log = findDescendantByStyle(inline, VBox.class, "verification-log-container");
+            return log.getChildren().stream()
+                    .map(node -> (String) node.getProperties().get("macAddress"))
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+        });
+
+        assertEquals(List.of("00:1A:79:AA:BB:CC"), remainingMacs);
+    }
+
+    @Test
     void verificationPauseClockAppearsInFixedFooter() throws Exception {
         ProgressInline inline = runOnFxThread(() -> {
             ProgressInline progressInline = new ProgressInline();

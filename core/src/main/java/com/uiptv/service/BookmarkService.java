@@ -83,6 +83,7 @@ public class BookmarkService {
 
     public void clearRecentBookmarks() {
         BookmarkPlayHistoryDb.clear();
+        com.uiptv.db.SQLConnection.vacuum();
     }
 
     public void remove(String id) {

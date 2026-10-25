@@ -40,6 +40,11 @@
     <groupId>org.eclipse.jetty</groupId>
     <artifactId>jetty-servlet</artifactId>
 </dependency>
+<dependency>
+    <groupId>org.eclipse.jetty.websocket</groupId>
+    <artifactId>websocket-jetty-server</artifactId>
+    <version>${jetty.version}</version>
+</dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>

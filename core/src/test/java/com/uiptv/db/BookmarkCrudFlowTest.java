@@ -125,6 +125,23 @@ class BookmarkCrudFlowTest extends DbBackedTest {
     }
 
     @Test
+    void clearRecentBookmarks_removesHistoryAndCompactsDatabase() throws Exception {
+        BookmarkService service = BookmarkService.getInstance();
+        Bookmark recent = new Bookmark("recent-clear-account", "Fav", "recent-clear-channel",
+                "Recent item", "cmd://recent", "http://portal", "recent-clear-category");
+        service.recordRecentPlayback(recent);
+
+        service.clearRecentBookmarks();
+
+        assertTrue(service.readRecentBookmarks().isEmpty());
+        try (Connection connection = connect(); var statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery("PRAGMA freelist_count")) {
+            assertTrue(rows.next());
+            assertEquals(0, rows.getInt(1));
+        }
+    }
+
+    @Test
     void testBookmarkChangeRevisionIncrementsOnMutations() {
         BookmarkService bookmarkService = BookmarkService.getInstance();
 

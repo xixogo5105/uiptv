@@ -3172,7 +3172,7 @@ private fun RemoteSyncScreen(
                             statusText = "Finished: ${result.report.totalRowsSynced} rows"
                             lastSyncText = "Last sync: now"
                         }.onFailure { ex ->
-                            statusText = "Sync failed"
+                            statusText = "Sync failed: ${ex.message ?: ex::class.simpleName ?: "Unknown error"}"
                         }
                         running = false
                     }

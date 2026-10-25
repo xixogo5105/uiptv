@@ -102,13 +102,14 @@ public class RemoteSyncClientService {
 
         String verificationCode = VerificationCodeGenerator.createFourDigitCode();
         RemoteSyncSessionState session = httpClient.createSession(baseUrl, buildRequest(RemoteSyncDirection.IMPORT_FROM_REMOTE, verificationCode, options));
-        awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.READY_FOR_DOWNLOAD, verificationCode, progressListener);
-
-        notifyProgress(progressListener, RemoteSyncProgressStep.DOWNLOADING, null);
-        Path downloadedTransfer = httpClient.downloadSnapshot(baseUrl, session.sessionId());
+        AutoCloseable keepAlive = httpClient.openKeepAlive(baseUrl, session.sessionId());
+        Path downloadedTransfer = null;
         Path payloadPath = null;
         Path downloadedSnapshot = null;
         try {
+            awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.READY_FOR_DOWNLOAD, verificationCode, progressListener);
+            notifyProgress(progressListener, RemoteSyncProgressStep.DOWNLOADING, null);
+            downloadedTransfer = httpClient.downloadSnapshot(baseUrl, session.sessionId());
             payloadPath = prepareInboundPayload(downloadedTransfer, session.sessionId(), verificationCode, session.options());
             downloadedSnapshot = extractTransferSnapshot(payloadPath, session.options());
             notifyProgress(progressListener, RemoteSyncProgressStep.APPLYING_SYNC, null);
@@ -131,7 +132,13 @@ public class RemoteSyncClientService {
             httpClient.completeSession(baseUrl, session.sessionId(), false, REMOTE_SYNC_FAILED_MESSAGE);
             throw ex;
         } finally {
-            Files.deleteIfExists(downloadedTransfer);
+            try {
+                keepAlive.close();
+            } catch (Exception closeFailure) {
+                AppLog.addWarningLog(RemoteSyncClientService.class,
+                        "Could not close the remote sync host keep-alive: " + closeFailure.getMessage());
+            }
+            if (downloadedTransfer != null) Files.deleteIfExists(downloadedTransfer);
             if (payloadPath != null && !payloadPath.equals(downloadedTransfer)) {
                 Files.deleteIfExists(payloadPath);
             }

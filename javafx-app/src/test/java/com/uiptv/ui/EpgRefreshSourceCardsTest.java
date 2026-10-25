@@ -123,6 +123,63 @@ class EpgRefreshSourceCardsTest extends DbBackedUiTest {
         });
     }
 
+    @Test void bulkBlacklistActionsTargetFailedAndUnsuccessfulSourcesAndCanResetManualChanges() throws Exception {
+        String baselineSource = "https://baseline.test/guide.xml";
+        String failedSource = "https://failed.test/guide.xml";
+        String partialSource = "https://partial.test/guide.xml";
+        String successfulSource = "https://successful.test/guide.xml";
+        EpgSourceBlacklistService.add(baselineSource);
+        List<SourceProgress> sources = List.of(
+                new SourceProgress("failed", failedSource, "failed.test", "failed.xml", "Failed", "network failure", 0, 0),
+                new SourceProgress("partial", partialSource, "partial.test", "partial.xml", "No matches", "no matches", 10, 0),
+                new SourceProgress("successful", successfulSource, "successful.test", "successful.xml", "Completed", "matched", 10, 1)
+        );
+        var changes = new EpgRefreshProgressDialog.BlacklistChanges();
+
+        changes.blacklistFailed(sources);
+        assertTrue(EpgSourceBlacklistService.contains(failedSource));
+        assertFalse(EpgSourceBlacklistService.contains(partialSource));
+        assertFalse(EpgSourceBlacklistService.contains(successfulSource));
+        assertTrue(EpgSourceBlacklistService.contains(baselineSource));
+
+        changes.blacklistUnsuccessful(sources);
+        assertTrue(EpgSourceBlacklistService.contains(partialSource));
+        assertFalse(EpgSourceBlacklistService.contains(successfulSource));
+
+        changes.reset();
+        assertFalse(EpgSourceBlacklistService.contains(failedSource));
+        assertFalse(EpgSourceBlacklistService.contains(partialSource));
+        assertTrue(EpgSourceBlacklistService.contains(baselineSource), "Reset preserves entries that predate this refresh");
+        assertFalse(changes.hasChanges());
+
+        var ui = runOnFxThread(() -> {
+            var cards = new EpgRefreshProgressDialog.SourceCards(changes::add);
+            cards.update(List.of(new SourceProgress("manual", failedSource, "failed.test", "failed.xml",
+                    "Failed", "network failure", 0, 0)));
+            var card = cards.cards.get("manual");
+            var step = (EpgRefreshProgressDialog.SourceStep) card.body.getChildren().getFirst();
+            return new ManualBlacklistAction(cards, (Button) step.getChildren().getLast());
+        });
+        runOnFxThread(() -> {
+            ui.button().fire();
+            return null;
+        });
+        assertTrue(EpgSourceBlacklistService.contains(failedSource));
+        changes.reset();
+        runOnFxThread(() -> {
+            ui.cards().update(List.of(new SourceProgress("manual", failedSource, "failed.test", "failed.xml",
+                    "Failed", "network failure", 0, 0)));
+            return null;
+        });
+        assertFalse(EpgSourceBlacklistService.contains(failedSource));
+        assertTrue(runOnFxThread(() -> !ui.button().isDisable()),
+                "Reset restores the per-source action after a manual blacklist");
+    }
+
+    private record ManualBlacklistAction(EpgRefreshProgressDialog.SourceCards cards,
+                                        Button button) {
+    }
+
     @Test void sourceResultsRenderWithoutClippingInBothThemes() throws Exception {
         runOnFxThread(() -> {
             for (boolean dark : new boolean[]{false, true}) {

@@ -463,6 +463,32 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         assertEquals(RemoteSyncStatus.EXPIRED, service.getSessionState(sessionId).status());
     }
 
+    @Test
+    void guestHeartbeatRenewsReadyImportLeaseDuringLongApply() throws Exception {
+        Path remoteDb = tempDir.resolve("remote-heartbeat-import.db");
+        initializeDatabase(remoteDb);
+        MutableClock clock = new MutableClock(Instant.parse("2026-05-01T10:00:00Z"));
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                snapshotService,
+                DatabaseSyncService.getInstance(),
+                clock,
+                (request, decisionConsumer) -> decisionConsumer.accept(true),
+                new RecordingNotifier()
+        );
+        String sessionId = withDatabase(remoteDb, () -> service.createSession(
+                new RemoteSyncRequest(RemoteSyncDirection.IMPORT_FROM_REMOTE, "4321", "mobile",
+                        new RemoteSyncOptions(false, false)),
+                "10.0.0.9").sessionId());
+
+        assertEquals(RemoteSyncStatus.READY_FOR_DOWNLOAD, service.getSessionState(sessionId).status());
+        clock.advanceSeconds(9 * 60L);
+        assertEquals(RemoteSyncStatus.READY_FOR_DOWNLOAD, service.recordGuestHeartbeat(sessionId).status());
+        clock.advanceSeconds(9 * 60L);
+
+        service.completeImport(sessionId, true, "done after a long local apply");
+        assertEquals(RemoteSyncStatus.COMPLETED, service.getSessionState(sessionId).status());
+    }
+
     private void initializeDatabase(Path path) throws Exception {
         withDatabase(path, () -> ConfigurationService.getInstance().read());
     }

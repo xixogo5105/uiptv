@@ -14,6 +14,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.eclipse.jetty.websocket.server.config.JettyWebSocketServletContainerInitializer;
 
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
@@ -84,6 +85,7 @@ public class UIptvServer {
 
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
         context.setContextPath("/");
+        JettyWebSocketServletContainerInitializer.configure(context, null);
         configureServer(context);
         httpServer.setHandler(context);
     }
@@ -144,6 +146,8 @@ public class UIptvServer {
         addServlet(context, "/remote-sync/health", new HttpRemoteSyncHealthServer());
         addServlet(context, "/remote-sync/request", new HttpRemoteSyncRequestServer());
         addServlet(context, "/remote-sync/status", new HttpRemoteSyncStatusServer());
+        context.addServlet(new ServletHolder(new com.uiptv.server.api.json.RemoteSyncKeepAliveWebSocket()),
+                "/remote-sync/keepalive");
         addServlet(context, "/remote-sync/upload", new HttpRemoteSyncUploadServer());
         addServlet(context, "/remote-sync/download", new HttpRemoteSyncDownloadServer());
         addServlet(context, "/remote-sync/complete", new HttpRemoteSyncCompleteServer());

@@ -29,6 +29,10 @@ public class RemoteSyncApplicationService {
         return remoteSyncSessionService.getSessionState(sessionId);
     }
 
+    public RemoteSyncSessionState recordGuestHeartbeat(String sessionId) {
+        return remoteSyncSessionService.recordGuestHeartbeat(sessionId);
+    }
+
     public RemoteSyncExecutionResult acceptUpload(String sessionId, InputStream requestBody) throws IOException, SQLException {
         return remoteSyncSessionService.acceptUpload(sessionId, requestBody);
     }

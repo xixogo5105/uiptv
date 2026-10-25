@@ -469,7 +469,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals("STALE", result.guideStatus());
         assertEquals("Current programme", result.now().title());
     }
-    @Test void invalidImportRollsBackWholeSourceAndClearDoesNotTouchCatalog() {
+    @Test void invalidImportRollsBackWholeSourceAndClearDoesNotTouchCatalog() throws Exception {
         long now=System.currentTimeMillis(); var id=new EpgCacheDb.Identity("a","provider","signature");
         source("source","guide",List.of(p("Good",now-1000,now+1000)),now); db.mapChannels(List.of(match(id,"guide",List.of("source"))),now);
         List<EpgProgramme> duplicateProgrammes = List.of(
@@ -477,11 +477,24 @@ class EpgPersistentCacheTest extends DbBackedTest {
                 p("Duplicate two", now - 1000, now + 1000));
         assertThrows(DatabaseAccessException.class, () -> source("source", "guide", duplicateProgrammes, now));
         assertEquals("Good",title(id,now));
+        new EpgMappingApplicationService().save("a", "provider", "manual-guide");
         List<String> clearSteps = new ArrayList<>();
         new EpgApplicationService().clearCache(clearSteps::add);
         assertEquals(List.of("epgClearStopping", "epgClearMapping", "epgClearProgrammes",
                 "epgClearFinishing", "epgClearPreparing"), clearSteps);
         assertTrue(db.summaries(List.of(id),now).get(id).isEmpty()); assertEquals(0,db.sourceState("source").refreshedAt());
+        assertEquals("", new EpgMappingApplicationService().read("a", "provider"));
+        try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM epg_channel_mapping")) {
+                assertTrue(rows.next()); assertEquals(0, rows.getInt(1));
+            }
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM epg_change_history")) {
+                assertTrue(rows.next()); assertEquals(1, rows.getInt(1), "Only the clear invalidation event should remain.");
+            }
+            try (var rows = statement.executeQuery("PRAGMA freelist_count")) {
+                assertTrue(rows.next()); assertEquals(0, rows.getInt(1), "Clearing EPG should compact freed SQLite pages.");
+            }
+        }
         assertTrue(Files.exists(testDbFile.toPath()));
     }
     @Test void clearDuringDownloadCannotRepopulateCacheFromObsoleteImport() throws Exception {

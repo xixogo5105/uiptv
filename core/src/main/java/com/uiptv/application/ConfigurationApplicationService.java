@@ -57,6 +57,7 @@ public class ConfigurationApplicationService {
         SeriesWatchStateService.getInstance().clearAllSeriesLastWatched();
         SeriesWatchingNowSnapshotService.getInstance().clearAll();
         VodWatchStateService.getInstance().clearAll();
+        com.uiptv.db.SQLConnection.vacuum();
     }
 
     private static class SingletonHelper {

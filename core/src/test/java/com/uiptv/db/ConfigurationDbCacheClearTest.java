@@ -76,6 +76,11 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         Account secondAfterClear = AccountService.getInstance().getById(second.getDbId());
         assertTrue(firstAfterClear.getServerPortalUrl() == null || firstAfterClear.getServerPortalUrl().isEmpty());
         assertTrue(secondAfterClear.getServerPortalUrl() == null || secondAfterClear.getServerPortalUrl().isEmpty());
+        try (Connection connection = SQLConnection.connect(); var statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery("PRAGMA freelist_count")) {
+            assertTrue(rows.next());
+            assertEquals(0, rows.getInt(1));
+        }
     }
 
     @Test

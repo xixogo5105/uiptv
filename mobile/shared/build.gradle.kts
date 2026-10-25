@@ -97,7 +97,8 @@ val mobileMessageKeys = listOf(
     "epgMobileSourceUnavailable",
     "autoWatching", "commonSearch", "autoManageMACAddresses",
     "configEnableEpg", "epgEnablePlaybackOnly", "epgMobilePlaybackOnlyNeedsEpg",
-    "configGlobalEpgSource", "epgMobileSourcesSyncHelp", "epgMobileSourcesLoadFailed",
+    "configGlobalEpgSource", "configEpgRefreshInterval", "configEpgRefreshIntervalHelp",
+    "epgMobileSourcesSyncHelp", "epgMobileSourcesLoadFailed",
     "epgMobileSettingSaveFailed", "epgMobileModeSaveFailed", "epgMobileSourcesSaved",
     "epgMobileSourcesSaveFailed", "epgMobileSaveSources", "epgAdvancedSettings",
     "epgMobileHideAdvanced", "epgMobileMaintenance", "epgMobileCacheDescription",
@@ -329,6 +330,7 @@ sourceSets.named("commonMain") {
             implementation(libs.androidx.datastore.preferences)
             implementation(libs.androidx.work.runtime.ktx)
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.okhttp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -777,10 +777,13 @@ public final class EpgCacheDb {
             progress.accept("epgClearFinishing");
             for(String table:List.of("epg_alias","epg_channel_icon","epg_shared_source","epg_source"))
                 statement.executeUpdate("DELETE FROM " + table);
+            statement.executeUpdate("DELETE FROM epg_change_history");
+            statement.executeUpdate("UPDATE Configuration SET epgMappingsJson='{}'");
             notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.CACHE_CLEARED, Set.of(), Set.of(), Set.of());
             c.commit();
         } catch(Exception error) { throw failure(error); }
         EpgChangeNotifications.publish(notification);
+        SQLConnection.vacuum();
     }
     private static final class DescriptionCompressor implements AutoCloseable {
         private final java.util.zip.Deflater deflater = new java.util.zip.Deflater(java.util.zip.Deflater.BEST_SPEED);

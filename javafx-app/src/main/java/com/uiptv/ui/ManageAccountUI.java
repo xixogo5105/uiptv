@@ -517,19 +517,27 @@ public class ManageAccountUI extends VBox {
         if (isNotBlank(current)) {
             List<String> macs = new ArrayList<>(Arrays.stream(current.replace(SPACE, "").split(","))
                     .filter(value -> !isBlank(value)).toList());
-            if (macs.removeIf(mac -> mac.equalsIgnoreCase(selectedMac))) updateVerificationMacList(macs, selectedMac);
+            if (macs.removeIf(mac -> mac.equalsIgnoreCase(selectedMac))) updateVerificationMacList(macs);
         }
         progressDialog.removeVerificationCard(selectedMac);
         progressDialog.requestDirectStop();
     }
 
-    private void updateVerificationMacList(List<String> macs, String deletedMac) {
+    private void updateVerificationMacList(List<String> macs) {
+        String previousDefault = macAddress.getValue();
         String newMacs = String.join(", ", macs);
         macAddressList.setText(newMacs);
-        macAddress.getItems().setAll(macs);
-        if (macs.isEmpty()) macAddress.setValue(null);
-        else if (deletedMac.equalsIgnoreCase(macAddress.getValue())) macAddress.setValue(macs.getFirst());
-        setupMacAddressByList(newMacs);
+        if (macs.isEmpty()) {
+            macAddress.getItems().clear();
+            macAddress.setValue(null);
+        } else {
+            macAddress.getItems().setAll(macs);
+            if (!MacAddressVerificationUtils.containsAddress(macs, previousDefault)) {
+                macAddress.setValue(macs.getFirst());
+            } else {
+                macAddress.setValue(previousDefault);
+            }
+        }
         saveAccount(false);
     }
 
@@ -606,7 +614,7 @@ public class ManageAccountUI extends VBox {
         StringBuilder message = new StringBuilder(I18n.tr("manageFoundInvalidMacAddresses", invalidMacsStr)).append("\n");
 
         String currentDefault = macAddress.getValue() != null ? macAddress.getValue() : "";
-        boolean defaultIsInvalid = invalidMacs.contains(currentDefault);
+        boolean defaultIsInvalid = MacAddressVerificationUtils.containsInvalidAddress(invalidMacs, currentDefault);
 
         if (defaultIsInvalid) {
             message.append("\n").append(I18n.tr("manageDefaultMacAddressInvalidAndWillBeRemoved")).append("\n");
@@ -615,29 +623,23 @@ public class ManageAccountUI extends VBox {
         message.append("\n").append(I18n.tr("manageDeleteInvalidMacAddressesQuestion"));
         ButtonType result = showDialog(message.toString());
         if (result == ButtonType.YES) {
-            List<String> validMacs = new ArrayList<>(allMacs);
-            validMacs.removeAll(invalidMacs);
-            String newMacsStr = String.join(", ", validMacs);
-
-            if (defaultIsInvalid && !validMacs.isEmpty()) {
-                macAddress.setValue(validMacs.getFirst());
-            }
-
-            macAddressList.setText(newMacsStr);
-            setupMacAddressByList(newMacsStr);
-            saveAccount(false);
+            List<String> validMacs = MacAddressVerificationUtils.removeInvalidAddresses(allMacs, invalidMacs);
+            updateVerificationMacList(validMacs);
+            invalidMacs.forEach(progressDialog::removeVerificationCard);
         }
     }
 
     private void setupMacAddressByList(String newVal) {
         if (isBlank(newVal)) {
+            macAddress.getItems().clear();
+            macAddress.setValue(null);
             return;
         }
         macAddress.getItems().clear();
         List<String> items = new ArrayList<>(Arrays.stream(newVal.replace(SPACE, "").split(",")).toList());
         Collections.sort(items);
         macAddress.getItems().addAll(items);
-        if (macAddress.getValue() == null || isBlank(macAddress.getValue()) || !macAddress.getValue().toLowerCase().contains(newVal.toLowerCase())) {
+        if (!MacAddressVerificationUtils.containsAddress(items, macAddress.getValue())) {
             macAddress.setValue(newVal.split(",")[0].trim());
         } else {
             macAddress.setValue(macAddress.getValue());
