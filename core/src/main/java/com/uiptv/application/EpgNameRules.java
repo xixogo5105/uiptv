@@ -18,7 +18,7 @@ public final class EpgNameRules {
         String qualityTerms = alternatives(ordered, "quality");
         annotations=Pattern.compile("\\(\\s*(?:"+annotationTerms+")\\s*\\)|\\[\\s*(?:"+annotationTerms+")\\s*\\]", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         qualities=Pattern.compile("(?<![\\p{L}\\p{N}])(?:"+qualityTerms+")(?![\\p{L}\\p{N}])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-        fingerprint = EpgCacheApplicationService.hash(ordered.stream().map(r -> r.scope() + ":" + r.term().length() + ":" + r.term()).collect(java.util.stream.Collectors.joining("\n")));
+        fingerprint = Integer.toHexString(ordered.hashCode());
     }
     private static String alternatives(List<Rule> rules,String scope) {
         return rules.stream().filter(r -> r.scope().equals(scope)).map(Rule::term)

@@ -133,7 +133,6 @@ public class UIptvServer {
         addServlet(context, "/watchingNow", new HttpWatchingNowJsonServer());
         addServlet(context, "/liveGuide", new HttpLiveGuideJsonServer());
         addServlet(context, "/playerEpg", new HttpPlayerEpgJsonServer());
-        addServlet(context, "/epg-events", new HttpEpgChangeEventServer());
         addServlet(context, "/watchingNowSeriesEpisodes", new HttpWatchingNowSeriesEpisodesJsonServer());
         addServlet(context, "/watchingNowSeriesAction", new HttpWatchingNowSeriesActionServer());
         addServlet(context, "/watchingNowVod", new HttpWatchingNowVodJsonServer());
@@ -180,7 +179,6 @@ public class UIptvServer {
         } catch (Exception e) {
             throw new IOException("Failed to start server", e);
         }
-        com.uiptv.application.EpgCacheRefreshService.start();
         addServerStartedLog();
     }
 
@@ -194,13 +192,11 @@ public class UIptvServer {
         } catch (Exception e) {
             throw new IOException("Failed to start server", e);
         }
-        com.uiptv.application.EpgCacheRefreshService.start();
         addServerStartedLog();
         return true;
     }
 
     public static synchronized void stop() {
-        com.uiptv.application.EpgCacheRefreshService.stopServer();
         if (httpServer != null) {
             try {
                 httpServer.stop();

@@ -1,3 +1,5 @@
+> Historical documentation: this cached EPG design was retired by migration 0222. See [current EPG behavior](../EPG.md).
+
 # Persistent EPG cache
 
 EPG records live in the existing application SQLite database. There is no second database. The authoritative table definitions are in `0000_baseline.sql`; migration 0211 adds the tables to existing installations. Migration 0210 adds the source freshness interval, migration 0217 adds playback-only mode, and migration 0218 adds the scheduler check interval. The mobile schema mirror is generated from that baseline.

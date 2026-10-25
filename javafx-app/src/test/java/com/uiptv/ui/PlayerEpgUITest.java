@@ -154,40 +154,20 @@ class PlayerEpgUITest extends DbBackedUiTest {
         });
     }
 
-    @Test void cacheBurstsKeepNarrowPanelVisibleAndCoalesceReads() throws Exception {
+    @Test void repeatedLayoutDoesNotReloadGuideData() throws Exception {
         runOnFxThread(() -> {
-            var featureField = EpgModeUI.class.getDeclaredField("featureEnabled"); featureField.setAccessible(true);
-            var feature = (javafx.beans.property.BooleanProperty)featureField.get(null);
-            boolean enabled = feature.get(); feature.set(true);
-            var account = new com.uiptv.model.Account(); account.setDbId("player-refresh-test"); account.setType(AccountType.M3U8_LOCAL);
-            var channel = new Channel(); channel.setChannelId("provider-id"); channel.setName("Station");
-            com.uiptv.player.MediaPlayerFactory.updateGuideContext(account,channel);
+            com.uiptv.player.MediaPlayerFactory.updateGuideContext(null, null);
             var panel = new PlayerEpgUI(); panel.setCompact(true);
             var root = new VBox(panel); new Scene(root,390,650);
-            try {
-                long now = System.currentTimeMillis();
-                panel.display(new PlayerEpgApplicationService.Result("Station",new EpgProgramme("Current","Details",now-60000,now+3600000),null));
-                root.resize(390,650); root.applyCss(); root.layout();
-                var visibilityChanges = new java.util.concurrent.atomic.AtomicInteger();
-                panel.managedProperty().addListener((_,_,_) -> visibilityChanges.incrementAndGet());
-                Field generationField = PlayerEpgUI.class.getDeclaredField("generation"); generationField.setAccessible(true);
-                var generation = (java.util.concurrent.atomic.AtomicInteger)generationField.get(panel);
-                int before = generation.get();
-                Field revisionField = EpgModeUI.class.getDeclaredField("cacheRevision"); revisionField.setAccessible(true);
-                var revision = (javafx.beans.property.LongProperty)revisionField.get(null);
-                for (int i=0;i<100;i++) revision.set(revision.get()+1);
-                root.layout();
-                assertTrue(panel.isVisible()); assertTrue(panel.isManaged());
-                assertEquals(0,visibilityChanges.get(),"Background updates must not collapse the player EPG panel");
-                assertEquals(before,generation.get(),"Cache bursts must not cancel and restart the reader");
-                Field timerField = PlayerEpgUI.class.getDeclaredField("cacheRefresh"); timerField.setAccessible(true);
-                var timer = (javafx.animation.PauseTransition)timerField.get(panel);
-                assertEquals(javafx.animation.Animation.Status.RUNNING,timer.getStatus());
-                assertTrue(timer.getDuration().toMillis() >= 25000,"Routine reads must be throttled to at most one per 30 seconds");
-            } finally {
-                root.getChildren().clear();
-                com.uiptv.player.MediaPlayerFactory.updateGuideContext(null,null); feature.set(enabled);
-            }
+            long now = System.currentTimeMillis();
+            panel.display(new PlayerEpgApplicationService.Result("Station",new EpgProgramme("Current","Details",now-60000,now+3600000),null));
+            Field generationField = PlayerEpgUI.class.getDeclaredField("generation"); generationField.setAccessible(true);
+            var generation = (java.util.concurrent.atomic.AtomicInteger)generationField.get(panel);
+            int before = generation.get();
+            for (int i=0; i<100; i++) { root.resize(390,650); root.applyCss(); root.layout(); }
+            assertTrue(panel.isVisible()); assertTrue(panel.isManaged());
+            assertEquals(before, generation.get(), "Layout work must not start new live guide requests");
+            root.getChildren().clear();
             return null;
         });
     }

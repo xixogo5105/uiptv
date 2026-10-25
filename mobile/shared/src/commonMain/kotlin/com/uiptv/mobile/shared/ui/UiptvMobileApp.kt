@@ -332,23 +332,7 @@ fun UiptvMobileApp(
     timeZoneOptions: List<String> = DefaultMobileTimeZones
 ) {
     var epgEnabled by remember { mutableStateOf(false) }
-    var epgPlaybackOnly by remember { mutableStateOf(false) }
-    var epgTime by remember { mutableStateOf(System.currentTimeMillis()) }
-    var epgBackgroundCheckIntervalMinutes by remember { mutableIntStateOf(3) }
-    var epgGlobalRefreshIntervalHours by remember { mutableIntStateOf(6) }
-    var epgDataRevision by remember { mutableIntStateOf(0) }
-    LaunchedEffect(epgActions, resumeSignal) {
-        epgEnabled = epgActions.loadEnabled()
-        epgPlaybackOnly = epgActions.loadPlaybackOnly()
-        epgBackgroundCheckIntervalMinutes = epgActions.loadBackgroundCheckIntervalMinutes().coerceIn(1, 60)
-        epgGlobalRefreshIntervalHours = epgActions.loadGlobalRefreshIntervalHours()
-            .takeIf { it in listOf(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168) } ?: 6
-        epgTime = System.currentTimeMillis()
-        epgDataRevision++
-    }
-    LaunchedEffect(epgEnabled, epgPlaybackOnly, isForeground) {
-        while (epgEnabled && !epgPlaybackOnly && isForeground) { epgTime = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
-    }
+    LaunchedEffect(epgActions, resumeSignal) { epgEnabled = epgActions.loadEnabled() }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var selectedBrowseAccount by remember { mutableStateOf<MobileAccount?>(null) }
     var showThumbnails by remember { mutableStateOf(false) }
@@ -394,15 +378,8 @@ fun UiptvMobileApp(
     CompositionLocalProvider(LocalUiptvPalette provides palette,
         LocalEpgState provides EpgUiState(
             enabled = epgEnabled && isForeground,
-            playbackOnly = epgPlaybackOnly,
-            time = epgTime,
-            backgroundCheckIntervalMinutes = epgBackgroundCheckIntervalMinutes,
-            globalRefreshIntervalHours = epgGlobalRefreshIntervalHours,
-            dataRevision = epgDataRevision,
             actions = epgActions,
-            onEnabled = { epgEnabled = it },
-            onPlaybackOnly = { epgPlaybackOnly = it },
-            onDataRefresh = { epgDataRevision++ }
+            onEnabled = { epgEnabled = it }
         )) {
         MaterialTheme(colorScheme = activeColorScheme) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -1316,15 +1293,19 @@ internal fun BrowseItemRow(
     onChoosePlayer: () -> Unit,
     onToggleBookmark: () -> Unit
 ) {
+    var guideOpen by remember { mutableStateOf(false) }
+    var channelMenuOpen by remember { mutableStateOf(false) }
+    val guideEnabled = LocalEpgState.current.enabled && item.mode == BrowseMode.LIVE
+
     val canPlay = item.mode == BrowseMode.SERIES || item.command.isNotBlank()
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
             .combinedClickable(
-                enabled = canPlay,
-                onClick = onPlay,
-                onLongClick = if (item.command.isNotBlank()) onChoosePlayer else null
+                enabled = canPlay || guideEnabled,
+                onClick = { if (canPlay) onPlay() },
+                onLongClick = { if (guideEnabled) channelMenuOpen = true else onChoosePlayer() }
             ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
@@ -1372,12 +1353,14 @@ internal fun BrowseItemRow(
                 Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         )
-        if (item.mode == BrowseMode.LIVE && LocalEpgState.current.enabled && !LocalEpgState.current.playbackOnly) {
-            Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-                MobileEpgChannel(item.accountId, item.channelId, item.name)
-            }
-        }
+
     }
+    if (channelMenuOpen) MobileLiveChannelMenu(item.name,
+        onGuide = { channelMenuOpen = false; guideOpen = true },
+        onChoosePlayer = { channelMenuOpen = false; onChoosePlayer() },
+        onDismiss = { channelMenuOpen = false })
+    if (guideOpen) MobileChannelGuideDialog(item.accountId, item.channelId, item.name) { guideOpen = false }
+
 }
 
 @Composable
@@ -1634,14 +1617,18 @@ internal fun BookmarkRow(
     onChoosePlayer: () -> Unit,
     onRemove: () -> Unit
 ) {
+    var guideOpen by remember { mutableStateOf(false) }
+    var channelMenuOpen by remember { mutableStateOf(false) }
+    val guideEnabled = LocalEpgState.current.enabled && bookmark.mode == BrowseMode.LIVE
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
             .combinedClickable(
-                enabled = bookmark.command.isNotBlank(),
-                onClick = onPlay,
-                onLongClick = onChoosePlayer
+                enabled = bookmark.command.isNotBlank() || guideEnabled,
+                onClick = { if (bookmark.command.isNotBlank()) onPlay() },
+                onLongClick = { if (guideEnabled) channelMenuOpen = true else onChoosePlayer() }
             ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
@@ -1683,12 +1670,14 @@ internal fun BookmarkRow(
                 Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         )
-        if (bookmark.mode == BrowseMode.LIVE && LocalEpgState.current.enabled && !LocalEpgState.current.playbackOnly) {
-            Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
-                MobileEpgChannel(bookmark.accountId, bookmark.channelId, bookmark.channelName)
-            }
-        }
+
     }
+    if (channelMenuOpen) MobileLiveChannelMenu(bookmark.channelName,
+        onGuide = { channelMenuOpen = false; guideOpen = true },
+        onChoosePlayer = { channelMenuOpen = false; onChoosePlayer() },
+        onDismiss = { channelMenuOpen = false })
+    if (guideOpen) MobileChannelGuideDialog(bookmark.accountId, bookmark.channelId, bookmark.channelName) { guideOpen = false }
+
 }
 
 @Composable

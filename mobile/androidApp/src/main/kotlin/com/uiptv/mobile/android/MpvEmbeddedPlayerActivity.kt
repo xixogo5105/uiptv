@@ -21,6 +21,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.text.TextUtils
 import android.util.Rational
@@ -172,6 +173,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var mpvVideoDetails: VideoTrackDetails? = null
     private var playbackTimeMs = 0L
     private var playbackLengthMs = 0L
+    private var lastMpvDiagnosticsAtMs = 0L
     private var mpvPaused = false
     private var mpvHwDecoder = ""
     private var mpvVideoOutput = ""
@@ -568,7 +570,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         epgLoadedKey = null
         playbackScope.launch {
             epgEnabled = preferencesRepository.load().epgEnabled
-            if (epgEnabled && !activityDestroyed) withContext(Dispatchers.Main) { refreshEpg() }
+            if (!activityDestroyed) withContext(Dispatchers.Main) { refreshEpg() }
         }
         showControlsTemporarily()
     }
@@ -576,6 +578,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
     override fun onStop() {
         MobilePlaybackIndicator.clear(currentTarget)
         epgJob?.cancel()
+        epgResult = null
+        epgLoadedKey = null
+        if (::epgDetails.isInitialized) epgDetails.removeAllViews()
+        if (::titleLabel.isInitialized) titleLabel.text = currentTarget?.title.orEmpty()
+        hideEpgPanel()
         stoppingForLifecycle = true
         cancelReconnect()
         overlayHandler.removeCallbacks(updateProgressRunnable)
@@ -1436,7 +1443,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
             showFeedback("Subtitles off")
             return
         }
-        val nextId = MpvTrackSelection.nextSubtitleTrack(trackIds, player.intPropertyOrNull("sid"))
+        val nextId = MpvTrackSelection.nextSubtitleTrack(
+            trackIds,
+            runCatching { player.getPropertyString("sid") }.getOrNull()?.toIntOrNull()
+        )
         runCatching {
             if (nextId == null) player.setPropertyString("sid", "no")
             else player.setPropertyInt("sid", nextId)
@@ -1460,8 +1470,13 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun currentTrackFeedback(trackType: String, idProperty: String, label: String): String {
         val player = mpv ?: return label
-        val id = player.intPropertyOrNull(idProperty)
-        if (id == null) {
+        val subtitleSelection = if (idProperty == "sid") {
+            runCatching { player.getPropertyString(idProperty) }.getOrNull()?.trim()
+        } else null
+        val id = if (idProperty == "sid") subtitleSelection?.toIntOrNull() else player.intPropertyOrNull(idProperty)
+        if ((idProperty == "sid" && subtitleSelection.equals("no", ignoreCase = true)) ||
+            (idProperty != "sid" && id == null)
+        ) {
             return "$label off"
         }
         val trackLabel = player.firstNonBlankString(
@@ -1469,7 +1484,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             "current-tracks/$trackType/lang",
             "current-tracks/$trackType/codec"
         )
-        return listOf(trackLabel, "#$id")
+        return listOf(trackLabel, id?.let { "#$it" })
             .filterNot { it.isNullOrBlank() }
             .joinToString(" ")
             .ifBlank { "selected" }
@@ -1477,7 +1492,30 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun currentTrackIsEnabled(idProperty: String): Boolean {
-        return mpv?.intPropertyOrNull(idProperty) != null
+        val player = mpv ?: return false
+        if (idProperty != "sid") return player.intPropertyOrNull(idProperty) != null
+        val selection = runCatching { player.getPropertyString(idProperty) }.getOrNull()?.trim()
+        return !selection.isNullOrEmpty() && !selection.equals("no", ignoreCase = true)
+    }
+
+    private fun logMpvDiagnosticsIfDue() {
+        if (!BuildConfig.DEBUG || !playbackStarted) return
+        val player = mpv ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastMpvDiagnosticsAtMs < MpvDiagnosticsIntervalMs) return
+        lastMpvDiagnosticsAtMs = now
+        fun intProperty(name: String): String = runCatching { player.getPropertyInt(name) }.getOrNull()?.toString() ?: "?"
+        fun doubleProperty(name: String): String = runCatching { player.getPropertyDouble(name) }
+            .getOrNull()?.let { "%.3f".format(java.util.Locale.ROOT, it) } ?: "?"
+        val displaySync = runCatching { player.getPropertyBoolean("display-sync-active") }.getOrNull()?.toString() ?: "?"
+        Log.d(
+            LogTag,
+            "mpv timing time=${playbackTimeMs}ms fps=${doubleProperty("estimated-vf-fps")} " +
+                "displaySync=$displaySync " +
+                "dropped=${intProperty("frame-drop-count")} decoderDropped=${intProperty("decoder-frame-drop-count")} " +
+                "voDelayed=${intProperty("vo-delayed-frame-count")} cache=${doubleProperty("demuxer-cache-duration")} " +
+                "buffering=${intProperty("cache-buffering-state")} avsync=${doubleProperty("avsync")} hw=$mpvHwDecoder"
+        )
     }
 
     private fun MPVLib.trackIds(type: String): List<Int> = buildList {
@@ -1656,6 +1694,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         updateProgressSeekBarAppearance()
         refreshMpvPlaybackState()
+        logMpvDiagnosticsIfDue()
         val length = playbackLengthMs
         val current = playbackTimeMs.coerceAtLeast(0L)
         completeStreamLoadingIfClockStarted(current)
@@ -1978,15 +2017,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (target.mode != BrowseMode.LIVE) return
         if (!epgEnabled) return
         epgJob = playbackScope.launch {
-            while (true) {
-                val result = epgRepository.schedule(target.accountId, target.channelId, target.title)
-                if (target != currentTarget) return@launch
-                val now = System.currentTimeMillis()
-                displayEpg(result)
-                if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return@launch
-                val boundary = result.programmes.filter { it.stop > now }.minOfOrNull { it.stop } ?: now + 60_000
-                kotlinx.coroutines.delay((boundary - now).coerceIn(1000, 60_000))
-            }
+            val result = try { epgRepository.schedule(target.accountId, target.channelId, target.title) }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.UNAVAILABLE) }
+            if (target == currentTarget) displayEpg(result)
         }
     }
 
@@ -2026,10 +2060,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun showEpgPanel(side: Int = Gravity.END) {
         if (locked || !isLiveStream()) return
-        val result = epgResult ?: return
-        if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return
-        if (result.status != com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE &&
-            result.status != com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE) return
         controlsOverlay.visibility = View.GONE; controlsVisible = false
         hidePlaylistOverlay(); epgPanelSide = side
         (epgPanel.layoutParams as FrameLayout.LayoutParams).apply { gravity = side }
@@ -2084,8 +2114,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val available = result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE ||
             result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE
         epgGuideButton.visibility = View.GONE
-        if (!available) hideEpgPanel()
-        else if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
+        if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
     }
 
     private fun renderEpgDetails() {
@@ -2109,7 +2138,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 contentDescription = "Programme progress"
             })
             text(current.description.ifBlank { "No programme description available" }, 16f, "On-air programme description")
-        } else text(result?.message?.takeIf { it.isNotBlank() } ?: if (result == null) "Loading programme guide…" else "No on-air programme guide available", 16f)
+        } else text(result?.message?.takeIf { it.isNotBlank() } ?: com.uiptv.mobile.shared.i18n.MobileMessages.text(if (result == null && epgEnabled) "epgLoading" else "epgNoGuide"), 16f)
         result?.next(now)?.let { next ->
             text("Up next", 13f); text(next.title, 18f)
             text("${format.format(java.util.Date(next.start))} – ${format.format(java.util.Date(next.stop))}", 14f)
@@ -2430,7 +2459,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         player.observe("hwdec-current", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("current-vo", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("aid", MPVLib.MpvFormat.MPV_FORMAT_INT64)
-        player.observe("sid", MPVLib.MpvFormat.MPV_FORMAT_INT64)
+        player.observe("sid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
     }
 
     private fun attachMpvSurface(surface: Surface) {
@@ -2713,6 +2742,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 1_800L
         private const val ProgressUpdateMs = 1_000L
+        private const val MpvDiagnosticsIntervalMs = 5_000L
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
         private const val LogTag = "UIPTV-MpvEmbedded"

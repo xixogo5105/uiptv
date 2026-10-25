@@ -1,199 +1,61 @@
 package com.uiptv.mobile.shared.epg
 
 import android.content.Context
-import android.content.ContentValues
 import android.net.Uri
+import android.util.Base64
 import com.uiptv.mobile.shared.accounts.*
 import com.uiptv.mobile.shared.cache.*
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
-import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
 import org.json.*
 import java.io.*
 import java.net.*
 import java.time.*
 import java.time.format.DateTimeFormatter
-import android.util.Base64
 import java.util.zip.GZIPInputStream
 
-/** View coroutines own loads; one mutex bounds concurrency and shares source/native results. */
+/** Live account-level requests; no guide data survives the requesting screen/player. */
 class AndroidEpgRepository(
     private val context: Context,
     private val databaseHelper: AndroidUiptvDatabaseHelper,
     private val preferences: AndroidPreferencesRepository
 ) : MobileEpgRepository {
-    private val disk = AndroidEpgDiskCache(context)
     private val stalker = AndroidStalkerCacheReloader(databaseHelper)
     private val xtreme = AndroidXtremeCacheReloader(databaseHelper)
-    private data class GuideCache(val guide: MobileXmltvGuide?, val expires: Long, val stale: Boolean, val message: String = "")
-    private data class NativeCache(val programmes: List<MobileEpgProgramme>, val expires: Long, val stale: Boolean)
 
-    override suspend fun clearCache() = withContext(Dispatchers.IO) {
-        mutex.withLock { synchronized(guideLoads) { guideLoads.values.forEach { it.cancel() }; guideLoads.clear() }; synchronized(guides) { guides.clear() }; disk.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
-        com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
-        val db = databaseHelper.writableDatabase
-        db.beginTransaction()
-        try {
-            for (table in com.uiptv.mobile.shared.db.UiptvSyncSchema.desktopTablesPreservedButHiddenInV1) db.delete(table, null, null)
-            db.setTransactionSuccessful()
-        } finally { db.endTransaction() }
-    }
-    suspend fun icon(accountId: Long, providerChannelId: String, name: String = ""): String = withContext(Dispatchers.IO) {
-        if (!preferences.load().epgEnabled) return@withContext ""
-        val cloned = AndroidSyncedEpgCache(databaseHelper.readableDatabase)
-        cloned.icon(accountId, providerChannelId).takeIf { it.isNotBlank() }?.let { return@withContext it }
-        cloned.matchedIcon(accountId, providerChannelId, name).takeIf { it.isNotBlank() }?.let { return@withContext it }
-        val request = mutex.withLock {
-            val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
-                ?: return@withContext ""
-            val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
-                .getOrNull().orEmpty().trim()
-            val id = MobileXmltvGuide.usableGuideIdentity(override.ifBlank { guideId(account, providerChannelId) })
-            val sources = linkedSetOf<String>().apply {
-                addAll(discover(account))
-                addAll(splitSources(account.epg))
-                addAll(splitSources(config("globalEpgSource")))
-            }
-            Triple(id, if (override.isBlank()) name else "", sources.filter { it.isNotBlank() })
-        }
-        val host = preferences.load().remoteEndpoint.host
-        val nameRules=AndroidEpgNameRules.read(databaseHelper.readableDatabase)
-        for (source in request.third) {
-            ensureActive()
-            val guide = sharedGuide(resolveDesktopSource(source, host), System.currentTimeMillis()).await().guide ?: continue
-            guide.withNameRules(nameRules).iconForChannel(request.first, request.second).takeIf { it.isNotBlank() }?.let { return@withContext it }
-        }
-        ""
-    }
-    override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
-    suspend fun globalRefreshIntervalHours(): Int = withContext(Dispatchers.IO) {
-        normalizeGlobalRefreshHours(config("globalEpgRefreshIntervalHours"))
-    }
-    suspend fun saveGlobalRefreshIntervalHours(hours: Int) = withContext(Dispatchers.IO) {
-        require(hours in GLOBAL_REFRESH_HOURS)
-        saveConfig("globalEpgRefreshIntervalHours", hours.toString())
-        synchronized(guides) { guides.clear() }
-        MobileEpgCache.clear()
-        Unit
-    }
-    suspend fun backgroundCheckIntervalMinutes(): Int = withContext(Dispatchers.IO) {
-        config("epgSchedulerIntervalMinutes").toIntOrNull()
-            ?.takeIf { it in listOf(1, 2, 3, 5, 10, 15, 30, 60) } ?: 3
-    }
-    override suspend fun saveGlobalSource(source: String) = withContext(Dispatchers.IO) {
-        require(splitSources(source).all { !it.contains("://") || it.startsWith("http://", true) ||
-            it.startsWith("https://", true) || it.startsWith("content://", true) || it.startsWith("file://", true) }) {
-            "Use an XMLTV HTTP/HTTPS URL or local file."
-        }
-        saveConfig("globalEpgSource", source.trim())
-        MobileEpgCache.clear()
-        Unit
-    }
-    override suspend fun saveMapping(accountId: Long, providerChannelId: String, guideId: String): Unit = withContext(Dispatchers.IO) {
-        mutex.withLock {
-            val mappings = runCatching { JSONObject(config("epgMappingsJson")) }.getOrDefault(JSONObject())
-            val account = mappings.optJSONObject(accountId.toString()) ?: JSONObject()
-            if (guideId.isBlank()) account.remove(providerChannelId) else account.put(providerChannelId, guideId.trim())
-            mappings.put(accountId.toString(), account)
-            saveConfig("epgMappingsJson", mappings.toString())
-            MobileEpgCache.clear(accountId, providerChannelId)
-        }
-    }
     override suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult = withContext(Dispatchers.IO) {
-        if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
+        val settings = preferences.load()
+        if (!settings.epgEnabled) return@withContext MobileEpgResult()
+        val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
+            ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
         val now = System.currentTimeMillis()
-        MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
-            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext applyTvgShift(accountId, providerChannelId, it)
+        ensureActive()
+        val native = nativeSchedule(account, providerChannelId, now)
+        ensureActive()
+        if (native.any { it.stop > now && !MobileEpgSchedules.isGenericTitle(it.title) }) {
+            return@withContext applyTvgShift(accountId, providerChannelId, MobileEpgResult(MobileEpgStatus.AVAILABLE, native))
         }
-        val cloned = AndroidSyncedEpgCache(databaseHelper.readableDatabase)
-        val synced = cloned.read(accountId, providerChannelId, now)
-            ?: cloned.matchCloned(accountId, providerChannelId, name, now)
-        if (synced != null) {
-            MobileEpgCache.put(MobileEpgCache.key(accountId, providerChannelId), synced.result, now,
-                MobileEpgCache.ttlFor(synced.result, now))
-            return@withContext applyTvgShift(accountId, providerChannelId, synced.result)
-        }
-        val desktopHost = preferences.load().remoteEndpoint.host
-        // Only serve results that carry real programme data. A cached DISABLED/NO_MATCH/UNAVAILABLE
-        // verdict would be stale the moment EPG is enabled, a mapping is saved or a source is
-        // updated, so those are recomputed every time (cheap: the guide parse and native schedule
-        // caches are still hit).
-        MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
-            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext applyTvgShift(accountId, providerChannelId, it)
-        }
-        val request = mutex.withLock {
+        val id = guideId(account, providerChannelId)
+        val sources = splitSources(account.epg).ifEmpty { discover(account) }
+        var failed = false
+        for (configured in sources) {
             ensureActive()
-            if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
-            val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
-                ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
-            val key = account to providerChannelId
-            val cached = native[key]
-            val schedules = if (cached != null && now < cached.expires) cached else {
-                val programmes = try { nativeSchedule(account, providerChannelId, now) }
-                catch (e: CancellationException) { throw e }
-                catch (_: Exception) { emptyList() }
-                val stale = programmes.isEmpty() && cached != null && cached.programmes.any { it.stop > now }
-                NativeCache(if (stale) cached.programmes else programmes, now + 30 * 60_000L, stale)
-                    .also { native[key] = it }
-            }
-            val hasNativeProgramme = schedules.programmes.any { it.stop > now }
-            val hasMeaningfulNativeProgramme = schedules.programmes.any {
-                it.stop > now && !MobileEpgSchedules.isGenericTitle(it.title)
-            }
-            if (hasNativeProgramme && hasMeaningfulNativeProgramme) {
-                val result = MobileEpgResult(
-                    if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
-                MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withContext applyTvgShift(accountId, providerChannelId, result)
-            }
-            // Native schedules above retain precedence over shared public guides.
-            cloned.matchCloned(accountId, providerChannelId, name, now, shared = true)?.let { shared ->
-                val result = if (hasNativeProgramme) shared.result.copy(
-                    programmes = MobileEpgSchedules.preferSources(listOf(schedules.programmes, shared.result.programmes))
-                ) else shared.result
-                MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withContext applyTvgShift(accountId, providerChannelId, result)
-            }
-            if (hasNativeProgramme) {
-                val result = MobileEpgResult(
-                    if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
-                MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withContext applyTvgShift(accountId, providerChannelId, result)
-            }
-            val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
-                .getOrNull().orEmpty()
-            val id = MobileXmltvGuide.usableGuideIdentity(override.ifBlank { guideId(account, providerChannelId) })
-            val sources = linkedSetOf<String>().apply {
-                addAll(discover(account))
-                addAll(splitSources(account.epg))
-                addAll(splitSources(config("globalEpgSource")))
-            }
-            Triple(id, sources.filter { it.isNotBlank() }.map { resolveDesktopSource(it, desktopHost) }, override)
-        }
-        val (id, sources, override) = request
-            val nameRules=AndroidEpgNameRules.read(databaseHelper.readableDatabase)
-            var failed = false
-            var message = ""
-            var result: MobileEpgResult = MobileEpgResult(MobileEpgStatus.NO_MATCH, message = message)
-            for (source in sources) {
-                ensureActive()
-                val guide = sharedGuide(source, now).await()
-                if (guide.guide == null) { failed = true; message = guide.message; continue }
-                val programmes = guide.guide.withNameRules(nameRules).forChannel(id, if (override.isBlank()) name else "")
-                if (programmes.any { it.stop > now }) {
-                    result = MobileEpgResult(if (guide.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, programmes)
-                    break
+            val source = resolveDesktopSource(configured, settings.remoteEndpoint.host)
+            try {
+                val programmes = open(source).buffered().use { buffered ->
+                    buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
+                    val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
+                    AndroidXmltvReader.read(LimitedStream(xml), now, source, id, name).forChannel(id, name)
                 }
-            }
-            if (result.status == MobileEpgStatus.NO_MATCH && failed) result = MobileEpgResult(MobileEpgStatus.UNAVAILABLE, message = message)
-            if (result.status == MobileEpgStatus.AVAILABLE || result.status == MobileEpgStatus.STALE) {
-                MobileEpgCache.put(accountId, providerChannelId, result, now)
-            }
-            return@withContext applyTvgShift(accountId, providerChannelId, result)
+                if (programmes.isNotEmpty()) return@withContext applyTvgShift(accountId, providerChannelId,
+                    MobileEpgResult(MobileEpgStatus.AVAILABLE, programmes))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { failed = true }
+        }
+        if (native.isNotEmpty()) return@withContext applyTvgShift(accountId, providerChannelId,
+            MobileEpgResult(MobileEpgStatus.AVAILABLE, native))
+        MobileEpgResult(if (failed) MobileEpgStatus.UNAVAILABLE else MobileEpgStatus.NO_MATCH)
     }
 
     private fun applyTvgShift(accountId: Long, channelId: String, result: MobileEpgResult): MobileEpgResult {
@@ -208,24 +70,6 @@ class AndroidEpgRepository(
         return result.copy(programmes = result.programmes.map { it.copy(start = it.start + offset, stop = it.stop + offset) })
     }
 
-    private fun sharedGuide(source: String, now: Long): Deferred<GuideCache> = synchronized(guideLoads) {
-        guideLoads[source] ?: guideScope.async {
-            guidePermits.withPermit { sourceLocks[(source.hashCode() and Int.MAX_VALUE) % sourceLocks.size].withLock {
-                loadGuide(source, now)
-            } }
-        }.also { job ->
-            guideLoads[source] = job
-            job.invokeOnCompletion { synchronized(guideLoads) { if (guideLoads[source] === job) guideLoads.remove(source) } }
-        }
-    }
-
-    private fun config(column: String): String = databaseHelper.readableDatabase.rawQuery("SELECT $column FROM Configuration LIMIT 1", null)
-        .use { if (it.moveToFirst()) it.getString(0).orEmpty() else "" }
-    private fun saveConfig(column: String, value: String) {
-        val db = databaseHelper.writableDatabase
-        val values = ContentValues().apply { put(column, value) }
-        if (db.update("Configuration", values, null, null) == 0) db.insertOrThrow("Configuration", null, values)
-    }
     private fun guideId(account: MobileAccount, channelId: String): String {
         val raw = databaseHelper.readableDatabase.rawQuery(
             "SELECT ch.extraJson FROM Channel ch JOIN Category cat ON ch.categoryId=cat.id WHERE cat.accountId=? AND ch.channelId=? LIMIT 1",
@@ -240,8 +84,6 @@ class AndroidEpgRepository(
         if (account.type != MobileAccountType.M3U8_LOCAL && account.type != MobileAccountType.M3U8_URL) return emptyList()
         val playlist = account.m3u8Path.ifBlank { account.url }
         if (playlist.isBlank()) return emptyList()
-        val now = System.currentTimeMillis()
-        discovered[playlist]?.takeIf { now < it.second }?.let { return it.first }
         var found = emptyList<String>()
         try {
             open(playlist).bufferedReader().use { reader ->
@@ -262,78 +104,11 @@ class AndroidEpgRepository(
                 found = found.mapNotNull { runCatching { base.resolve(it).toString() }.getOrNull() }.distinct()
             }
         } catch (_: Exception) { found = emptyList() }
-        discovered[playlist] = found to now + if (found.isEmpty()) 30 * 60_000L else 900_000
-        while (discovered.size > 8) discovered.remove(discovered.keys.first())
         return found
     }
 
     private fun splitSources(value: String): List<String> = value.split(Regex("(?:\\r?\\n|\\r|[,;|]+|\\t+| {2,})"))
         .map { it.trim() }.filter { it.isNotBlank() }.distinct()
-    private suspend fun loadGuide(source: String, now: Long): GuideCache {
-        val globalId = globalSourceId(source)
-        val globalInterval = globalId?.let { globalRefreshIntervalMillis() }
-        val previous = synchronized(guides) { guides[source] }
-        if (previous != null && now < previous.expires) return previous
-        val remote = source.startsWith("http://", true) || source.startsWith("https://", true)
-        val ttl = globalInterval ?: 24 * 3600_000L
-        val persisted = if (remote) disk.read(source, now, ttlMillis = ttl) else null
-        if (persisted != null) return GuideCache(persisted, disk.expires(source, ttl), false).also {
-            synchronized(guides) { guides[source] = it; trimGuides() }
-        }
-        if (globalId != null) {
-            val lastAttempt = globalSourceLastAttempt(globalId)
-            val cooldownEnds = lastAttempt + ttl
-            if (lastAttempt > 0 && now < cooldownEnds) {
-                val stale = if (remote) disk.read(source, now, stale = true, ttlMillis = ttl) else null
-                return GuideCache(stale, cooldownEnds, stale != null)
-                    .also { synchronized(guides) { guides[source] = it; trimGuides() } }
-            }
-        }
-        val cached = try {
-            open(source).buffered().use { buffered ->
-                buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
-                val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
-                val limited = LimitedStream(xml)
-                GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now, source), now + ttl, false)
-            }
-        } catch (error: Throwable) {
-            if (error is CancellationException) throw error
-            if (globalId != null) saveGlobalSourceAttempt(globalId, now)
-            val message = when (error) {
-                is OutOfMemoryError -> MobileMessages.text("epgMobileMemoryPressure")
-                else -> when (error.message) {
-                    "Guide exceeds size limit" -> MobileMessages.text("epgSourceTooLarge")
-                    "Programme limit exceeded" -> MobileMessages.text("epgSourceProgrammeLimit")
-                    else -> MobileMessages.text("epgSourceInvalid")
-                }
-            }
-            val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true, ttlMillis = ttl) else null
-            GuideCache(fallback, if (globalInterval != null) now + ttl else now + 30 * 60_000L, fallback != null, message)
-        }
-        if (globalId != null && cached.guide != null) saveGlobalSourceAttempt(globalId, now)
-        synchronized(guides) { guides[source] = cached; trimGuides() }
-        return cached
-    }
-    private suspend fun globalSourceId(source: String): String? {
-        val host = preferences.load().remoteEndpoint.host
-        return splitSources(config("globalEpgSource")).firstOrNull { resolveDesktopSource(it, host) == source }
-            ?.let { hash("xml:$it") }
-    }
-    private fun globalRefreshIntervalMillis(): Long = normalizeGlobalRefreshHours(config("globalEpgRefreshIntervalHours")) * 3_600_000L
-    private fun globalSourceLastAttempt(sourceId: String): Long = runCatching {
-        databaseHelper.readableDatabase.rawQuery(
-            "SELECT last_attempt_at FROM epg_source WHERE source_id=?", arrayOf(sourceId)
-        ).use { if (it.moveToFirst()) it.getLong(0) else 0L }
-    }.getOrDefault(0L)
-    private fun saveGlobalSourceAttempt(sourceId: String, attemptedAt: Long) {
-        val db = databaseHelper.writableDatabase
-        val updated = db.update("epg_source", ContentValues().apply { put("last_attempt_at", attemptedAt) },
-            "source_id=?", arrayOf(sourceId))
-        if (updated == 0) {
-            db.execSQL("INSERT OR IGNORE INTO epg_source(source_id,refreshed_at,retry_at,warning,last_attempt_at) VALUES(?,0,0,'',?)",
-                arrayOf<Any?>(sourceId, attemptedAt))
-        }
-    }
     private fun open(source: String): InputStream {
         if (source.startsWith("content://")) return context.contentResolver.openInputStream(Uri.parse(source)) ?: error("File unavailable")
         if (source.startsWith("file:")) return File(URI(source)).inputStream()
@@ -349,8 +124,14 @@ class AndroidEpgRepository(
     }
     internal class LimitedStream(input: InputStream) : FilterInputStream(input) {
         private var remaining = 200L * 1024 * 1024
-        override fun read(): Int = `in`.read().also { if (it >= 0) if (--remaining < 0) throw IOException("Guide exceeds size limit") }
-        override fun read(b: ByteArray, off: Int, len: Int): Int = `in`.read(b, off, len).also { if (it > 0) { remaining -= it; if (remaining < 0) throw IOException("Guide exceeds size limit") } }
+        private val deadline = System.nanoTime() + 60_000_000_000L
+        private fun consumed(count: Int) {
+            if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Guide loading cancelled")
+            if (System.nanoTime() > deadline) throw IOException("Guide loading deadline exceeded")
+            if (count > 0 && (remaining - count).also { remaining = it } < 0) throw IOException("Guide exceeds size limit")
+        }
+        override fun read(): Int = `in`.read().also { consumed(if (it < 0) 0 else 1) }
+        override fun read(b: ByteArray, off: Int, len: Int): Int = `in`.read(b, off, len).also { consumed(it) }
     }
     private fun nativeSchedule(account: MobileAccount, id: String, now: Long): List<MobileEpgProgramme> {
         val actions = when (account.type) {
@@ -416,37 +197,5 @@ class AndroidEpgRepository(
         }
 
         const val MAX_NATIVE_PROGRAMMES = 2000
-        private val GLOBAL_REFRESH_HOURS = listOf(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168)
-        private fun normalizeGlobalRefreshHours(value: String): Int = value.toIntOrNull()
-            ?.takeIf { it in GLOBAL_REFRESH_HOURS } ?: 6
-        private fun hash(value: String): String = java.security.MessageDigest.getInstance("SHA-256")
-            .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
-        private val mutex = Mutex()
-        private val guideScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        private val guidePermits = kotlinx.coroutines.sync.Semaphore(2)
-        private val sourceLocks = Array(32) { Mutex() }
-        private val guideLoads = mutableMapOf<String,Deferred<GuideCache>>()
-        private val guides = object : LinkedHashMap<String, GuideCache>(32, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String, GuideCache>): Boolean = size > 32
-        }
-        private fun trimGuides() {
-            fun bytes(entry: GuideCache): Long = entry.guide?.let { guide ->
-                guide.programmes.values.sumOf { list -> list.sumOf { 160L + 2L * (it.title.length + it.description.length) } } +
-                    (guide.names.size + guide.qualityNames.size) * 192L +
-                    guide.icons.entries.sumOf { 192L + 2L * (it.key.length + it.value.length) }
-            } ?: 0L
-            var retained = guides.values.sumOf { bytes(it) }
-            val iterator = guides.entries.iterator()
-            while (retained > 48L * 1024 * 1024 && iterator.hasNext()) {
-                val entry = iterator.next(); retained -= bytes(entry.value); iterator.remove()
-            }
-        }
-        private val discovered = object : LinkedHashMap<String, Pair<List<String>, Long>>(16, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String, Pair<List<String>, Long>>): Boolean = size > 16
-        }
-        private val native = object : LinkedHashMap<Pair<MobileAccount, String>, NativeCache>(64, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<Pair<MobileAccount, String>, NativeCache>): Boolean = size > 64
-        }
     }
-
 }

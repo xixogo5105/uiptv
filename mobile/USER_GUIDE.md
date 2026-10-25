@@ -36,7 +36,7 @@ Account rows show cached category and content counts. An account with no cached 
 - On first playback, choose Native, a detected external player, or the system chooser.
 - Use Remember to make that player the default. Settings can clear it later.
 
-When EPG is enabled, live channel and bookmark rows show compact Now/Next information. Use the row's info action to open the full schedule in a bottom sheet; closing it returns to the same list position. There is no separate Live Guide screen. Loading, an unavailable source, stale saved data, and no matching schedule are shown as distinct states. Android refreshes through its existing guide repository and keeps its last saved data when a source fails.
+When EPG is enabled, playing a live channel fetches its guide from that account. Long-press a live channel or bookmark and choose View Guide to fetch its schedule. Cards show no programme details. In the embedded player, swipe inward from either edge to open the guide, including when no data is available. No EPG data is cached or retained after the guide/player closes.
 
 Native playback uses Media3 and can handle HLS/DASH plus license-URL Widevine/ClearKey metadata. External players receive a normal Android `ACTION_VIEW` stream handoff.
 

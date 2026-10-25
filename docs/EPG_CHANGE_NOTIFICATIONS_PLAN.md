@@ -1,3 +1,5 @@
+> Historical documentation: this cached EPG design was retired by migration 0222. See [current EPG behavior](../EPG.md).
+
 # EPG change notifications — implementation notes
 
 Status: implemented. The journal, in-process subscriptions, SQLite reconciliation

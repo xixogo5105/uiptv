@@ -5,93 +5,39 @@ import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.scene.Node;
 
-/** Observable desktop presentation of the persisted EPG flag. */
+/** Observable enable switch for explicit live guide requests. */
 public final class EpgModeUI {
-    private static final java.util.concurrent.atomic.AtomicLong featureRevision = new java.util.concurrent.atomic.AtomicLong();
-    private static final javafx.beans.property.LongProperty cacheRevision = new javafx.beans.property.SimpleLongProperty();
-    private static final BooleanProperty featureEnabled = new SimpleBooleanProperty(false);
-    private static final BooleanProperty playbackOnly = new SimpleBooleanProperty(false);
+    private static final BooleanProperty enabled = new SimpleBooleanProperty(false);
+    private static final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
     static {
-        var pending=new java.util.concurrent.atomic.AtomicBoolean();
-        com.uiptv.application.EpgChangeNotifications.subscribe(com.uiptv.application.EpgChangeNotifications.snapshot().revision(), _ -> {
-            if(pending.compareAndSet(false,true)) javafx.application.Platform.runLater(() -> {
-                pending.set(false); cacheRevision.set(cacheRevision.get()+1);
-            });
-        });
         com.uiptv.service.ConfigurationService.getInstance().addChangeListener(_ -> reloadFeature());
         reloadFeature();
     }
+    private EpgModeUI() { }
     private static void reloadFeature() {
-        long revision = featureRevision.incrementAndGet();
+        long request = revision.incrementAndGet();
         Thread.ofVirtual().start(() -> {
-            boolean value = false;
-            boolean playerOnly = false;
-            try {
-                var configuration = com.uiptv.service.ConfigurationService.getInstance().read();
-                value = configuration != null && configuration.isEpgEnabled();
-                playerOnly = value && configuration.isEpgPlaybackOnly();
-            } catch (RuntimeException _) {
-                // A transient configuration read failure must not leave the UI in an active mode.
-            }
-            boolean finalValue = value;
-            boolean finalPlayerOnly = playerOnly;
-            javafx.application.Platform.runLater(() -> {
-                if (revision != featureRevision.get()) return;
-                featureEnabled.set(finalValue);
-                playbackOnly.set(finalPlayerOnly);
-            });
+            boolean value;
+            try { value = com.uiptv.service.ConfigurationService.getInstance().read().isEpgEnabled(); }
+            catch (RuntimeException error) { value = false; }
+            boolean result = value;
+            javafx.application.Platform.runLater(() -> { if (request == revision.get()) enabled.set(result); });
         });
     }
-    public static boolean isFeatureEnabled() { return featureEnabled.get(); }
-    private EpgModeUI() { }
-    public static boolean isEnabled() { return featureEnabled.get(); }
-    public static boolean isPlaybackOnly() { return featureEnabled.get() && playbackOnly.get(); }
-    public static boolean isCardsEnabled() { return featureEnabled.get() && !playbackOnly.get(); }
+    public static boolean isFeatureEnabled() { return enabled.get(); }
+    public static boolean isEnabled() { return enabled.get(); }
+    public static boolean isCardsEnabled() { return false; }
+    public static boolean isPlaybackOnly() { return true; }
     public static void setEnabled(boolean value) {
         Thread.ofVirtual().start(() -> new com.uiptv.application.EpgSettingsApplicationService().setEnabled(value));
     }
-    public static void setPlaybackOnly(boolean value) {
-        Thread.ofVirtual().start(() -> new com.uiptv.application.EpgSettingsApplicationService().setPlaybackOnly(value));
-    }
-    public static void refreshGuides(Runnable finished) {
-        var job = com.uiptv.application.EpgRefreshJobService.start();
-        Thread.ofVirtual().start(() -> {
-            com.uiptv.application.EpgRefreshJobService.Snapshot snapshot;
-            do {
-                try { Thread.sleep(250); }
-                catch (InterruptedException _) { Thread.currentThread().interrupt(); return; }
-                snapshot = com.uiptv.application.EpgRefreshJobService.get(job.id());
-            } while (snapshot != null && ("PREPARING".equals(snapshot.status()) || "RUNNING".equals(snapshot.status())));
-            javafx.application.Platform.runLater(() -> {
-                cacheRevision.set(cacheRevision.get() + 1);
-                if (finished != null) finished.run();
-            });
+    public static void observe(Node owner, Runnable refresh) {
+        ChangeListener<Boolean> listener = (_, _, _) -> refresh.run();
+        owner.sceneProperty().addListener((_, oldScene, scene) -> {
+            if (oldScene != null) enabled.removeListener(listener);
+            if (scene != null) { enabled.addListener(listener); refresh.run(); }
         });
+        if (owner.getScene() != null) enabled.addListener(listener);
     }
-    /** Feature observers may rebuild layout only when the saved enable switch changes. */
-    public static void observe(Node owner,Runnable refresh) { observe(owner,refresh,false); }
-    /** Data observers update existing nodes when cached records change; never rebuild a catalog. */
-    public static void observeCache(Node owner,Runnable refresh) { observe(owner,refresh,true); }
-    private static void observe(Node owner,Runnable refresh,boolean cacheUpdates) {
-        ChangeListener<Boolean> listener=(_,_,_) -> refresh.run();
-        ChangeListener<Number> cacheListener=(_,_,_) -> refresh.run();
-        owner.sceneProperty().addListener((_,oldScene,newScene) -> {
-            if(oldScene!=null) {
-                featureEnabled.removeListener(listener);
-                playbackOnly.removeListener(listener);
-                if(cacheUpdates) cacheRevision.removeListener(cacheListener);
-            }
-            if(newScene!=null) {
-                featureEnabled.addListener(listener);
-                playbackOnly.addListener(listener);
-                if(cacheUpdates) cacheRevision.addListener(cacheListener);
-                refresh.run();
-            }
-        });
-        if(owner.getScene()!=null) {
-            featureEnabled.addListener(listener);
-            playbackOnly.addListener(listener);
-            if(cacheUpdates) cacheRevision.addListener(cacheListener);
-        }
-    }
+    public static void observeCache(Node owner, Runnable refresh) { observe(owner, refresh); }
 }

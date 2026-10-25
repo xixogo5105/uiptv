@@ -17,7 +17,7 @@ The desktop application is the hub. Its shared core manages accounts, imports, l
 
 Core principle: keep the experience simple, plain, and practical while giving the whole household a dependable content system behind the playback screen.
 
-The EPG repair pass preserves the existing guide engine while making manual feed publication atomic and matching the catalogue once per batch. See [EPG behavior](EPG.md) and the [repair validation record](docs/EPG_REPAIR_VALIDATION.md) for the implemented requirements and verification limits.
+EPG is fetched live for the channel being played or an explicit channel Guide action. It uses account-level sources and stores no guide cache. See [EPG behavior](EPG.md).
 
 ## Think ecosystem, not just player
 
@@ -27,7 +27,7 @@ The UIPTV ecosystem has a simple flow:
 2. **Organise** the imported library locally with categories, search, filters, bookmarks, parental controls, and cached metadata.
 3. **Watch** Live TV, VOD, and Series through embedded VLC, an external player, or the browser player.
 4. **Extend** the experience to phones, tablets, TVs, and other players through the local web app and published M3U playlists.
-5. **Keep it aligned** with watching-state, EPG refresh, cache tools, and approval-based database synchronisation between UIPTV installations.
+5. **Keep it aligned** with watching-state, account cache tools, and approval-based database synchronisation between UIPTV installations.
 
 This is how to use the ecosystem: make UIPTV your trusted library hub, then choose the most convenient screen or player for the moment. Your provider sources remain inputs; UIPTV provides the organisation, controls, and shared access layer around them.
 
@@ -44,8 +44,6 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 ### EPG documentation
 
 - EPG overview and guide behaviour: [EPG.md](EPG.md)
-- Persistent cache design: [docs/EPG_CACHE.md](docs/EPG_CACHE.md)
-- Change-notification design: [docs/EPG_CHANGE_NOTIFICATIONS_PLAN.md](docs/EPG_CHANGE_NOTIFICATIONS_PLAN.md)
 - Desktop memory audit: [docs/EPG_MEMORY_AUDIT.md](docs/EPG_MEMORY_AUDIT.md)
 - Channel-name exclusion audit: [docs/epg-name-exclusions.md](docs/epg-name-exclusions.md)
 
@@ -60,7 +58,7 @@ UIPTV now builds as a Maven reactor with separated runtime modules:
 - `coverage-aggregate/`: JaCoCo/Kover report aggregation across modules.
 - `website/`: static project website published separately to GitHub Pages.
 
-EPG is handled by the shared Java services and the Android Kotlin application. There is no external Python EPG Builder or bridge in the build. Full EPG mode presents channel / Now / Next information in the existing desktop and web catalogues; Android opens a channel schedule in a bottom sheet from the existing list. Manual desktop refresh is cancellable and keeps last-good source data when a download or parse fails. See [EPG.md](EPG.md) for details.
+EPG is fetched live by the shared Java services and Android Kotlin application for playback or an explicit channel Guide action. Only account-level sources and the enable switch remain; there are no EPG cache tables, files, refresh jobs or inline card programme details. See [EPG.md](EPG.md).
 
 Build from the repository root. Maven resolves the module graph automatically.
 

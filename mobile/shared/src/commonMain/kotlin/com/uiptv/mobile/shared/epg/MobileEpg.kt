@@ -75,10 +75,7 @@ data class MobileXmltvGuide(
 }
 interface MobileEpgRepository {
     suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult
-    suspend fun clearCache()
-    suspend fun globalSource(): String
-    suspend fun saveGlobalSource(source: String)
-    suspend fun saveMapping(accountId: Long, providerChannelId: String, guideId: String)
+
 }
 
 object MobileEpgSchedules {

@@ -14,16 +14,18 @@ public class HttpPlayerEpgJsonServer implements HttpHandler {
 
     @Override public void handle(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) { exchange.getResponseHeaders().set("Allow", "GET"); exchange.sendResponseHeaders(405, -1); return; }
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
         var service = new PlayerEpgApplicationService();
         var query = new PlayerEpgApplicationService.Query(
                 getParam(exchange, "accountId"), getParam(exchange, "channelId"), getParam(exchange, "categoryId"), getParam(exchange, "bookmarkId"));
-        var result = service.lookup(query);
+        var guide = service.lookupGuide(query);
+        var result = guide.summary();
         JSONObject json = new JSONObject().put("channelName", result.channelName());
         json.put("guideStatus", result.guideStatus());
         json.put("now", result.now() == null ? JSONObject.NULL : new JSONObject(result.now()));
         json.put("next", result.next() == null ? JSONObject.NULL : new JSONObject(result.next()));
         if ("1".equals(getParam(exchange, "details"))) {
-            json.put("programmes", new JSONArray(boundedSchedule(service.lookupSchedule(query), getParam(exchange, "limit"))));
+            json.put("programmes", new JSONArray(boundedSchedule(guide.programmes(), getParam(exchange, "limit"))));
         }
         generateJsonResponse(exchange, json.toString());
     }

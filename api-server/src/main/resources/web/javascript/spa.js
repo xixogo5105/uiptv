@@ -20,97 +20,9 @@ createApp({
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
         const epgEnabled = ref(false);
-        const epgPlaybackOnly = ref(false);
         const webPlaybackProxyEnabled = ref(true);
         const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
         const epgLabel = key => epgLabels.value?.[key] || '';
-        const epgTime = ref(Date.now());
-        const missingProgrammeTitles = new Set(['no details available', 'no details', 'no programme details', 'no program details',
-            'no programme details available', 'no program details available', 'no information available',
-            'programme information unavailable', 'no information', 'no data', 'unknown', 'n/a']);
-        const cardProgramme = (item, slot) => {
-            const programme = item?.[slot];
-            if (!programme || !programme.title?.trim() || missingProgrammeTitles.has(programme.title.trim().toLowerCase())) return null;
-            return programme;
-        };
-        const validProgrammeTimes = programme => Boolean(programme && Number.isFinite(programme.start)
-            && Number.isFinite(programme.stop) && programme.start > 0 && programme.stop > programme.start);
-        const cardProgrammeTime = programme => {
-            if (!validProgrammeTimes(programme)) return '';
-            const time = value => new Date(value).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-            return `${time(programme.start)} – ${time(programme.stop)}`;
-        };
-        const cardProgrammeProgress = item => {
-            const programme = cardProgramme(item, 'epgNow');
-            return validProgrammeTimes(programme) && programme.start <= epgTime.value && epgTime.value < programme.stop
-                ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : null;
-        };
-        const updateEpgClock = now => {
-            if (!epgEnabled.value || epgPlaybackOnly.value) return false;
-            if (Math.floor(now / 60000) === Math.floor(epgTime.value / 60000)) return false;
-            epgTime.value = now;
-            return true;
-        };
-        const cardEpgExpandedKey = ref('');
-        const cardEpgDetails = ref({key: '', loading: false, error: false, programmes: []});
-        let cardEpgDetailsController = null;
-        const cardEpgKey = (item, bookmark) => `${bookmark ? 'bookmark' : 'channel'}:${item?.accountId || selectedAccountId.value || ''}:${item?.dbId || item?.channelId || ''}`;
-        const isCardEpgExpanded = (item, bookmark = false) => cardEpgExpandedKey.value === cardEpgKey(item, bookmark);
-        const cardEpgHasData = item => Boolean(cardProgramme(item, 'epgNow') || cardProgramme(item, 'epgNext'));
-        const cardEpgIsStale = item => cardEpgHasData(item) && (item?.epgSourceStatus === 'STALE' || item?.epgStale
-            || item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable);
-        const cardEpgStatus = item => {
-            if (cardEpgIsStale(item)
-                || ((item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) && cardEpgHasData(item))) {
-                return epgLabel('epgSourceStale');
-            }
-            if (item?.epgSourceStatus === 'UNAVAILABLE' || item?.epgUnavailable) return epgLabel('epgNoGuide');
-            if (item?.epgLoading) return epgLabel('epgLoading');
-            if (!item?.epgLoaded) return '';
-            return cardEpgHasData(item) ? '' : epgLabel('epgNoGuide');
-        };
-        const cardNowStatus = item => {
-            if (cardProgramme(item, 'epgNow')) return '';
-            const status = cardEpgStatus(item);
-            if (status) return status;
-            return cardProgramme(item, 'epgNext') ? '—' : epgLabel('epgNoGuide');
-        };
-        const clearCardEpgDetails = () => {
-            cardEpgDetailsController?.abort();
-            cardEpgDetailsController = null;
-            cardEpgExpandedKey.value = '';
-            cardEpgDetails.value = {key: '', loading: false, error: false, programmes: []};
-        };
-        const toggleCardEpgDetails = async (item, bookmark = false) => {
-            const key = cardEpgKey(item, bookmark);
-            if (cardEpgExpandedKey.value === key) {
-                clearCardEpgDetails();
-                return;
-            }
-            clearCardEpgDetails();
-            cardEpgExpandedKey.value = key;
-            const controller = new AbortController();
-            cardEpgDetailsController = controller;
-            cardEpgDetails.value = {key, loading: true, error: false, programmes: []};
-            const params = bookmark
-                ? {bookmarkId: item.dbId, details: '1', limit: '24'}
-                : {accountId: selectedAccountId.value, channelId: item.dbId, categoryId: item.categoryId, details: '1', limit: '24'};
-            try {
-                const response = await fetch(`/playerEpg?${new URLSearchParams(params)}`, {signal: controller.signal});
-                if (!response.ok) throw new Error('guide request failed');
-                const programmes = (await response.json()).programmes || [];
-                if (cardEpgExpandedKey.value === key && cardEpgDetailsController === controller) {
-                    cardEpgDetails.value = {key, loading: false, error: false, programmes};
-                }
-            } catch (_) {
-                if (!controller.signal.aborted && cardEpgExpandedKey.value === key && cardEpgDetailsController === controller) {
-                    cardEpgDetails.value = {key, loading: false, error: true, programmes: []};
-                }
-            } finally {
-                if (cardEpgDetailsController === controller) cardEpgDetailsController = null;
-            }
-        };
-        const isLiveBookmark = bookmark => String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase() === 'itv';
         const watchingNowDrilldown = ref(false);
         const watchingNowLoadedAt = ref(0);
         const WATCHING_NOW_CACHE_TTL_MS = 120000;
@@ -134,33 +46,13 @@ createApp({
         const playerProgrammeTime = time => new Date(time).toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
         let playerEpgRequest = 0;
         let playerEpgController = null;
-        let epgEvents = null;
-        const closeEpgEvents = () => {
-            if (epgEvents) { epgEvents.close(); epgEvents = null; }
-        };
-        const syncEpgEvents = () => {
-            if (typeof EventSource === 'undefined') return;
-            if (!epgEnabled.value || epgPlaybackOnly.value) { closeEpgEvents(); return; }
-            if (epgEvents) return;
-            epgEvents = new EventSource(`${window.location.origin}/epg-events`);
-            epgEvents.onmessage = () => {
-                if (!document.hidden && epgEnabled.value && !epgPlaybackOnly.value) {
-                    refreshPlayerEpg();
-                    clearTimeout(cardEpgTimer);
-                    cardEpgGeneration++;
-                    cardEpgRefreshTimes.clear();
-                    visibleEpgCards.forEach(record => { record.refreshAt = 0; });
-                    cardEpgTimer = setTimeout(refreshVisibleCardEpg, 100);
-                }
-            };
-        };
         const refreshPlayerEpg = async (clear = false) => {
             const request = ++playerEpgRequest;
             if (playerEpgController) playerEpgController.abort();
             if (clear) playerEpg.value = null;
             const channel = currentChannel.value;
             if (!epgEnabled.value || !channel || String(channel.mode || 'itv').toLowerCase() !== 'itv'
-                || (epgPlaybackOnly.value && !isPlaying.value)) { playerEpg.value = null; return; }
+                || !isPlaying.value) { playerEpg.value = null; return; }
             const params = new URLSearchParams();
             const bookmarkId = channel.bookmarkId || (channel.type === 'bookmark' ? channel.id : '');
             if (bookmarkId) params.set('bookmarkId', bookmarkId);
@@ -176,9 +68,13 @@ createApp({
                 if (request === playerEpgRequest && epgEnabled.value) playerEpg.value = result;
             } catch (_) { if (request === playerEpgRequest) playerEpg.value = null; }
         };
-        watch(currentChannel, () => { if (!epgPlaybackOnly.value) refreshPlayerEpg(true); });
         const playbackMode = ref('');
         const isPlaying = ref(false);
+        watch([currentChannel, isPlaying], ([channel, playing], [previousChannel, previouslyPlaying]) => {
+            if (!playing || !channel) {
+                ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null;
+            } else if (!previouslyPlaying || channel !== previousChannel) refreshPlayerEpg(true);
+        });
         const playbackError = ref('');
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
@@ -1579,24 +1475,11 @@ createApp({
             logo: resolveLogoUrl(bookmark.logo)
         });
 
-        const applyDesktopEpgSetting = (enabled, playbackOnly = false) => {
-            const changed = epgEnabled.value !== enabled || epgPlaybackOnly.value !== playbackOnly;
+        const applyDesktopEpgSetting = enabled => {
+            const changed = epgEnabled.value !== enabled;
             epgEnabled.value = enabled;
-            epgPlaybackOnly.value = enabled && playbackOnly;
-            syncEpgEvents();
-            if (changed) cardEpgRefreshTimes.clear();
-            if (!enabled) {
-                ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null;
-                ++cardEpgGeneration;
-                clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
-                cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
-                for (const item of [...channels.value, ...bookmarks.value]) { item.epgNow = null; item.epgNext = null; }
-            } else if (changed) {
-                nextTick(() => {
-                    refreshPlayerEpg(true);
-                    if (!epgPlaybackOnly.value) refreshVisibleCardEpg();
-                });
-            }
+            if (!enabled) { ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null; }
+            else if (changed && isPlaying.value) refreshPlayerEpg(true);
         };
         let configRequest = 0;
         let epgLabelsLocale = '';
@@ -1609,7 +1492,7 @@ createApp({
                 if (request !== configRequest) return;
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
                 webPlaybackProxyEnabled.value = config?.webPlaybackProxyEnabled !== false;
-                applyDesktopEpgSetting(config?.epgEnabled === true, config?.epgPlaybackOnly === true);
+                applyDesktopEpgSetting(config?.epgEnabled === true);
                 const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
                 if (language !== epgLabelsLocale) {
                     try {
@@ -3548,7 +3431,6 @@ createApp({
                 if (!isCurrentPlaybackRequest(requestId)) return;
                 currentChannel.value = targetChannel;
                 isPlaying.value = true;
-                if (epgPlaybackOnly.value) refreshPlayerEpg(true);
                 const channelData = await withPlaybackStartupTimeout((async () => {
                     const response = await fetch(url, {signal: controller.signal});
                     if (!response.ok) {
@@ -5158,155 +5040,26 @@ createApp({
             suppressNextBookmarkClick.value = false;
         };
 
-        let cardEpgObserver = null, cardEpgBindings = new WeakMap(), cardEpgTimer;
-        const cardEpgRefreshTimes = new Map();
-        const rememberCardEpg = record => {
-            cardEpgRefreshTimes.delete(record.key);
-            cardEpgRefreshTimes.set(record.key, {refreshAt: record.refreshAt, now: record.item.epgNow,
-                next: record.item.epgNext, loaded: record.item.epgLoaded, status: record.item.epgSourceStatus});
-            while (cardEpgRefreshTimes.size > 1000) cardEpgRefreshTimes.delete(cardEpgRefreshTimes.keys().next().value);
-        };
-        const visibleEpgCards = new Map();
-        let cardEpgController = null, cardEpgRunning = false, cardEpgActiveKey = '', cardEpgGeneration = 0;
-        const cardEpgContext = () => epgEnabled.value && !epgPlaybackOnly.value && (activeTab.value === 'bookmarks'
-            || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv');
-        const refreshVisibleCardEpg = async () => {
-            if (document.hidden || !cardEpgContext() || cardEpgRunning) return;
-            cardEpgRunning = true;
-            const generation = cardEpgGeneration;
-            try {
-                for (const [key, record] of Array.from(visibleEpgCards)) {
-                    if (document.hidden || !cardEpgContext() || generation !== cardEpgGeneration) break;
-                    if (!visibleEpgCards.has(key) || Date.now() < record.refreshAt) continue;
-                    const controller = new AbortController(); cardEpgController = controller; cardEpgActiveKey = key;
-                    record.item.epgLoading = true;
-                    try {
-                        const response = await fetch(`/playerEpg?${new URLSearchParams(record.params)}`, {signal: controller.signal});
-                        if (!response.ok) {
-                            record.item.epgLoading = false;
-                            record.refreshAt = Date.now() + 5 * 60000;
-                            if (!record.item.epgNow && !record.item.epgNext) {
-                                record.item.epgUnavailable = true; record.item.epgSourceStatus = 'UNAVAILABLE';
-                            } else {
-                                record.item.epgStale = true; record.item.epgSourceStatus = 'STALE';
-                            }
-                            rememberCardEpg(record);
-                            continue;
-                        }
-                        const result = await response.json();
-                        if (controller.signal.aborted || !cardEpgContext() || generation !== cardEpgGeneration || visibleEpgCards.get(key) !== record) {
-                            record.item.epgLoading = false;
-                            continue;
-                        }
-                        record.item.epgNow = result.now || null; record.item.epgNext = result.next || null;
-                        record.item.epgLoaded = true; record.item.epgLoading = false;
-                        record.item.epgUnavailable = false; record.item.epgStale = result.guideStatus === 'STALE';
-                        record.item.epgSourceStatus = result.guideStatus || 'NO_MATCH';
-                        const now = Date.now();
-                        const boundaries = [result.now?.stop, result.next?.start].filter(time => Number.isFinite(time) && time > now);
-                        record.refreshAt = Math.max(now + 30000, Math.min(now + 30 * 60000, ...boundaries));
-                        rememberCardEpg(record);
-                    } catch (_) {
-                        record.item.epgLoading = false;
-                        if (!controller.signal.aborted) {
-                            record.refreshAt = Date.now() + 5 * 60000;
-                            if (!record.item.epgNow && !record.item.epgNext) {
-                                record.item.epgUnavailable = true; record.item.epgSourceStatus = 'UNAVAILABLE';
-                            } else {
-                                record.item.epgStale = true; record.item.epgSourceStatus = 'STALE';
-                            }
-                            rememberCardEpg(record);
-                        }
-                    }
-                }
-            } finally {
-                cardEpgRunning = false; cardEpgActiveKey = '';
-                if (generation !== cardEpgGeneration && cardEpgContext()) nextTick(refreshVisibleCardEpg);
-            }
-        };
-        const observeEpgCard = (element, item, bookmark = false) => {
-            const accountId = String(selectedAccountId.value || '');
-            const key = bookmark ? `bookmark:${item.dbId}` : `${accountId}:${item.dbId}`;
-            if (!element) { visibleEpgCards.delete(key); return; }
-            if (!cardEpgContext() || !item.dbId) return;
-            if (bookmark && String(item.accountAction || item.mode || 'itv').toLowerCase() !== 'itv') return;
-            if (!bookmark && (!accountId || !item.categoryId)) return;
-            if (!cardEpgObserver) cardEpgObserver = new IntersectionObserver(entries => {
-                for (const entry of entries) {
-                    const record = cardEpgBindings.get(entry.target);
-                    if (!record) continue;
-                    if (entry.isIntersecting) {
-                        if (record.generation !== cardEpgGeneration) {
-                            record.generation = cardEpgGeneration;
-                            record.refreshAt = 0;
-                            cardEpgRefreshTimes.delete(record.key);
-                        }
-                        visibleEpgCards.set(record.key, record);
-                    }
-                    else {
-                        visibleEpgCards.delete(record.key);
-                        if (cardEpgActiveKey === record.key) cardEpgController?.abort();
-                    }
-                }
-                clearTimeout(cardEpgTimer); cardEpgTimer = setTimeout(refreshVisibleCardEpg, 200);
-            });
-            const previous = cardEpgBindings.get(element);
-            if (previous?.key === key && previous.item === item) return;
-            if (previous) { visibleEpgCards.delete(previous.key); cardEpgObserver.unobserve(element); }
-            const params = bookmark ? {bookmarkId: item.dbId} : {accountId, channelId: item.dbId, categoryId: item.categoryId};
-            const cached = cardEpgRefreshTimes.get(key);
-            if (cached) {
-                item.epgNow = cached.now || null; item.epgNext = cached.next || null;
-                item.epgLoaded = cached.loaded; item.epgSourceStatus = cached.status;
-                item.epgUnavailable = cached.status === 'UNAVAILABLE'; item.epgStale = cached.status === 'STALE';
-            }
-            cardEpgBindings.set(element, {key, params, item, refreshAt: cached?.refreshAt || 0, generation: cardEpgGeneration}); cardEpgObserver.observe(element);
-        };
-        const observeChannelEpg = (element, channel) => observeEpgCard(element, channel);
-        const observeBookmarkEpg = (element, bookmark) => observeEpgCard(element, bookmark, true);
-        watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode], () => {
-            clearCardEpgDetails();
-            ++cardEpgGeneration;
-            clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
-            cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
-        }, {flush: 'pre'});
-        let epgClockTimer, desktopSettingsTimer, scheduleRefreshTimer;
-        const refreshDesktopSettings = () => { if (!document.hidden) { syncEpgClock(); void loadConfig(); } };
-        const syncEpgClock = () => {
-            clearTimeout(epgClockTimer);
-            if (document.hidden) { cardEpgController?.abort(); return; }
-            if (!epgEnabled.value || epgPlaybackOnly.value) return;
-            updateEpgClock(Date.now());
-            epgClockTimer = setTimeout(syncEpgClock, 60000 - Date.now() % 60000);
-        };
-        watch([epgEnabled, epgPlaybackOnly], syncEpgClock);
+        let desktopSettingsTimer, scheduleRefreshTimer;
+        const refreshDesktopSettings = () => { if (!document.hidden) void loadConfig(); };
         onBeforeUnmount(() => {
-            clearTimeout(epgClockTimer); clearTimeout(cardEpgTimer);
-            cardEpgController?.abort(); cardEpgObserver?.disconnect(); clearCardEpgDetails();
-            document.removeEventListener('visibilitychange', syncEpgClock);
+            playerEpgController?.abort(); playerEpg.value = null;
             document.removeEventListener('visibilitychange', refreshDesktopSettings);
             window.removeEventListener('focus', refreshDesktopSettings);
-            window.clearInterval(desktopSettingsTimer); window.clearInterval(scheduleRefreshTimer);
+            window.clearInterval(desktopSettingsTimer);
         });
         onMounted(async () => {
-            document.addEventListener('visibilitychange', syncEpgClock);
-            syncEpgClock();
             window.addEventListener('keydown', handleGlobalKeydown);
             window.addEventListener('resize', syncNarrowViewport, {passive: true});
             desktopSettingsTimer = window.setInterval(async () => {
                 if (!document.hidden) {
                     await loadConfig();
-                    if (!epgPlaybackOnly.value) refreshVisibleCardEpg();
                 }
 
             }, 60000);
             window.addEventListener('focus', refreshDesktopSettings);
             document.addEventListener('visibilitychange', refreshDesktopSettings);
             window.addEventListener('beforeunload', () => window.clearInterval(desktopSettingsTimer), {once: true});
-            scheduleRefreshTimer = window.setInterval(() => {
-                if (!document.hidden && epgEnabled.value && !epgPlaybackOnly.value && currentChannel.value) refreshPlayerEpg();
-            }, 30 * 60000);
-            window.addEventListener('beforeunload', () => window.clearInterval(scheduleRefreshTimer), {once: true});
             loadRecentBookmarkHistory();
             if (document.fullscreenEnabled) {
                 document.addEventListener('fullscreenchange', () => {
@@ -5316,7 +5069,6 @@ createApp({
             }
             mountSharedHeader();
             await loadConfig();
-            syncEpgEvents();
             void loadBookmarkCategories();
             void loadBookmarks();
             void loadAccounts({background: true});
@@ -5376,9 +5128,7 @@ createApp({
         }, {immediate: true});
 
         return {
-            observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels, epgLabel,
-            cardProgramme, cardProgrammeTime, cardProgrammeProgress, cardEpgStatus, cardEpgIsStale, isLiveBookmark, cardEpgDetails,
-            isCardEpgExpanded, toggleCardEpgDetails,
+            epgEnabled, epgLabels, epgLabel,
             thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,
             viewState,

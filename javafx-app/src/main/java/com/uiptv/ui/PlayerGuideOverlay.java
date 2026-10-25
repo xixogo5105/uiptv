@@ -79,10 +79,7 @@ public final class PlayerGuideOverlay extends StackPane {
         int request = ++generation;
         showLoading();
         worker = Thread.ofVirtual().start(() -> {
-            var summary = snapshot != null ? snapshot : MediaPlayerFactory.guideSummaryProperty().get();
-            var programmes = EpgModeUI.isPlaybackOnly() && summary != null
-                    ? java.util.stream.Stream.of(summary.now(), summary.next()).filter(java.util.Objects::nonNull).toList()
-                    : new PlayerEpgApplicationService().schedule(context.account().toAccount(), context.channel());
+            var programmes = new PlayerEpgApplicationService().schedule(context.account().toAccount(), context.channel());
             var row = new LiveGuideApplicationService.Row(context.account().dbId(), "", "", context.channel(), programmes);
             Platform.runLater(() -> { if (request == generation && getScene() != null && EpgModeUI.isFeatureEnabled()) show(row); });
         });

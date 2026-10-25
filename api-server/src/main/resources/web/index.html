@@ -159,7 +159,7 @@
                                         @dragstart="onBookmarkDragStart($event, bookmark)"
                                         @drop.prevent="onBookmarkDrop($event, bookmark)"
                                         class="row-card media-card"
-                                        v-for="bookmark in filteredBookmarks" :ref="el => observeBookmarkEpg(el, bookmark)">
+                                        v-for="bookmark in filteredBookmarks" >
                                     <img :src="bookmark.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="bookmark.logo">
                                     <div :style="{ display: bookmark.logo ? 'none' : '' }" class="logo-box">
                                         {{ fallbackInitials(bookmark.channelName) }}
@@ -177,14 +177,6 @@
                                         <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
                                             <i class="bi bi-trash3"></i>
                                         </button>
-                                    <div class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && isLiveBookmark(bookmark)">
-                                        <small v-if="cardEpgStatus(bookmark)">{{ cardEpgStatus(bookmark) }}</small>
-                                        <strong v-if="cardProgramme(bookmark, 'epgNow')" class="card-epg-title" :title="cardProgramme(bookmark, 'epgNow')?.title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(bookmark, 'epgNow')?.title }}</strong>
-                                        <small v-if="cardProgrammeTime(cardProgramme(bookmark, 'epgNow'))">{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNow')) }}</small>
-                                        <progress v-if="cardProgrammeProgress(bookmark) !== null" :value="cardProgrammeProgress(bookmark)" max="1" :aria-label="epgLabels.epgNow"></progress>
-                                        <strong v-if="cardProgramme(bookmark, 'epgNext')" class="card-epg-title" :title="cardProgramme(bookmark, 'epgNext')?.title">{{ epgLabels.epgNext || 'Next' }}: {{ cardProgramme(bookmark, 'epgNext')?.title }}</strong>
-                                        <small v-if="cardProgrammeTime(cardProgramme(bookmark, 'epgNext'))">{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNext')) }}</small>
-                                    </div>
                                     </article>
                             </template>
                             <div class="empty-state" v-if="!bookmarksLoading && filteredBookmarks.length === 0">
@@ -342,7 +334,7 @@
                                             @click="handleChannelSelection(channel)"
                                             :class="{ 'poster-content-card': contentMode === 'vod' || contentMode === 'series', active: isActiveChannel(channel), disabled: isDisabledChannel(channel) }"
                                             class="row-card media-card"
-                                            v-for="channel in filteredChannels" :ref="el => observeChannelEpg(el, channel)">
+                                            v-for="channel in filteredChannels" >
                                         <img :class="contentMode === 'itv' ? 'logo-img' : 'poster-thumb'" :src="channel.logo" @error="imageError" @load="imageLoad" alt="" v-if="channel.logo">
                                         <div :class="contentMode === 'itv' ? 'logo-box' : 'poster-fallback small'" :style="{ display: channel.logo ? 'none' : '' }">
                                             {{ fallbackInitials(channel.name) }}
@@ -359,14 +351,6 @@
 
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
                                         </div>
-                                    <div class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && contentMode === 'itv'">
-                                        <small v-if="cardEpgStatus(channel)">{{ cardEpgStatus(channel) }}</small>
-                                        <strong v-if="cardProgramme(channel, 'epgNow')" class="card-epg-title" :title="cardProgramme(channel, 'epgNow')?.title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(channel, 'epgNow')?.title }}</strong>
-                                        <small v-if="cardProgrammeTime(cardProgramme(channel, 'epgNow'))">{{ cardProgrammeTime(cardProgramme(channel, 'epgNow')) }}</small>
-                                        <progress v-if="cardProgrammeProgress(channel) !== null" :value="cardProgrammeProgress(channel)" max="1" :aria-label="epgLabels.epgNow"></progress>
-                                        <strong v-if="cardProgramme(channel, 'epgNext')" class="card-epg-title" :title="cardProgramme(channel, 'epgNext')?.title">{{ epgLabels.epgNext || 'Next' }}: {{ cardProgramme(channel, 'epgNext')?.title }}</strong>
-                                        <small v-if="cardProgrammeTime(cardProgramme(channel, 'epgNext'))">{{ cardProgrammeTime(cardProgramme(channel, 'epgNext')) }}</small>
-                                    </div>
                                     </article>
                                     <div class="empty-state compact" v-if="filteredChannels.length === 0">
                                         <i class="bi bi-tv"></i>
@@ -770,7 +754,7 @@
                 </div>
 
                 <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked" v-if="!playerExpanded"></div>
-                <section class="player-epg-panel" :aria-label="epgLabels.epgWebPlayerNowNext" v-if="epgEnabled && !epgPlaybackOnly && !playerExpanded && !wideViewActive && !narrowViewport">
+                <section class="player-epg-panel" :aria-label="epgLabels.epgWebPlayerNowNext" v-if="epgEnabled && !playerExpanded && !wideViewActive && !narrowViewport">
                     <template v-if="playerEpg">
                         <header><strong>{{ epgLabels.epgWebPlayerNowNext }}</strong><span>{{ playerEpg.channelName }}</span></header>
                         <small class="player-epg-status" v-if="playerEpg.guideStatus === 'STALE'">{{ epgLabels.epgSourceStale }}</small>

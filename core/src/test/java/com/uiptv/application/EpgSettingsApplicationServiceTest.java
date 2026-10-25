@@ -10,19 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EpgSettingsApplicationServiceTest extends DbBackedTest {
     @Test
-    void enabledAndPlaybackOnlyFlagsArePersistedTogetherWithOtherConfiguration() {
+    void enableSwitchPersistsAndCanBeDisabled() {
         EpgSettingsApplicationService service = new EpgSettingsApplicationService();
 
         service.setEnabled(true);
-        service.setPlaybackOnly(true);
         Configuration saved = ConfigurationService.getInstance().read();
         assertTrue(saved.isEpgEnabled());
-        assertTrue(saved.isEpgPlaybackOnly());
 
         service.setEnabled(false);
-        service.setPlaybackOnly(false);
         saved = ConfigurationService.getInstance().read();
         assertFalse(saved.isEpgEnabled());
-        assertFalse(saved.isEpgPlaybackOnly());
     }
 }

@@ -15,8 +15,6 @@ public class Main {
         // reaches RootApplication.main, so without this it would keep slf4j's default of INFO and
         // print the server's startup banner on every launch.
         AppLog.setTerminalLoggingEnabled(AppLog.isShowLogsRequested(args));
-        com.uiptv.application.EpgCacheRefreshService.startApplication();
-        Runtime.getRuntime().addShutdownHook(new Thread(com.uiptv.application.EpgCacheRefreshService::stopForApplicationExit,"epg-cache-shutdown"));
         try {
             Configuration configuration = ConfigurationService.getInstance().read();
             if (configuration != null && configuration.isLightweightModeEnabled()) {

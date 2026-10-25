@@ -99,3 +99,4 @@
 0219_add_bookmark_play_history.sql
 0220_add_global_epg_refresh_cooldown.sql
 0221_add_epg_source_blacklist.sql
+0222_remove_epg_caches.sql

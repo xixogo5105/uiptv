@@ -467,20 +467,10 @@ If you encounter bugs or have feature requests, please visit our [GitHub Reposit
 
 ## Electronic programme guide
 
-Enable **Settings → Enable EPG** on desktop and save. The web automatically follows that setting through its read-only JSON configuration/data APIs; it has no independent EPG status or enable/disable controls. Android has an independent default-off **Settings → Enable EPG on this device** switch. Live and bookmark rows show programme summaries, and an information action opens the selected channel's schedule in a contextual bottom sheet.
+EPG has one enable/disable switch on desktop and mobile. Configure an optional XMLTV source on the account. There is no global source, refresh scheduler, saved matching override, or EPG cache.
 
-Guide resolution is **channel/embedded/provider-native → account EPG → global EPG source**. Configure account EPG in account settings and the shared global source in desktop Settings or Android Settings. XMLTV HTTP/HTTPS URLs, local files and gzip are supported. Unavailable or unmatched guides fall through without interrupting playback. Local paths must be readable on the device using them.
+Playing a live channel loads that channel's guide from Stalker/Xtreme or the account's XMLTV source. Desktop users can choose **View Guide** from a channel/bookmark's right-click menu; mobile users can choose it from the card's long-press menu. Browsing cards never loads EPG or displays programme summaries.
 
-To correct an ID mismatch, use **Guide ID override** from the desktop channel menu. Android's information sheet is read-only and honors mappings already saved and synced from desktop. The mapping survives cache refreshes and database sync; clear it on desktop to return to provider matching. No global worldwide feed is bundled. Native support varies by provider. See [EPG.md](EPG.md) for matching, caching, privacy and troubleshooting details.
-
-### Global EPG sources and refresh
-
-Settings accepts multiple global XMLTV sources, one URL or local file per line. Put regional feeds (for example India, UK, USA and Australia) in priority order. Existing single-source settings remain compatible and sync uses the same configuration field. Desktop schedules prefer embedded/provider, account and then global sources; specific titles replace generic placeholders for overlapping intervals. Duplicate names within a feed remain ambiguous. Unique matches can ignore standalone quality labels such as HD or 4K while retaining region names.
-
-The desktop gear and Settings enable controls update the same persistent EPG flag. Refresh EPG starts a cancellable background job. While it waits for another refresh or checks account playlists, its progress dialog shows elapsed time and the account currently being prepared before reporting per-source download, parse, match and save work. Each successful XMLTV source is validated and atomically replaces only its own rows; failures and cancellation keep last-good guide data and preserve accounts, bookmarks and saved mappings. Oversized feeds report a warning; use regional feeds instead of an oversized worldwide feed.
-
-Desktop EPG records persist in dedicated tables within the existing application database. Set the background refresh interval in Settings. Refresh EPG force-fetches configured XMLTV sources without clearing their saved records first. No separate cache directory or INI TTL setting is required.
-
-In the mobile embedded mpv player, swipe inward from the far left or far right edge of the video to open a panel on that side, or tap **Guide** to open it on the right with the on-air programme title, local times, progress and full description, followed by Up next. Swipe outward toward the same edge or tap **Close guide** to close it. The panel uses cached EPG data and respects player locking and the mobile EPG enable switch.
+In the embedded mobile player, swipe inward from either video edge to open that side's guide panel. It remains available while loading or when no guide is available. Each explicit opening of a channel guide makes a fresh request. No guide data is saved when a source fails. See [EPG.md](EPG.md).
 
 The Android app uses Material Design 3 styling and follows the device's light or dark theme. The embedded mpv player keeps its dark control bar and lock/unlock screen in either theme. It has **Fit**, **Crop**, and **Stretch** video scaling: Fit preserves the full frame, Crop fills the display while preserving proportions, and Stretch fills the display without preserving proportions. Live playback uses a full progress track without seeking; VOD playback retains its seekable timeline. See the [Android user guide](mobile/USER_GUIDE.md) for browsing and playback details.

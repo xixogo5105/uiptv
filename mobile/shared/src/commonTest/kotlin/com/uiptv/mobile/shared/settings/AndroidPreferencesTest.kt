@@ -54,7 +54,6 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE,
             AndroidOnlyPreferenceKeys.EPG_ENABLED,
-            AndroidOnlyPreferenceKeys.EPG_PLAYBACK_ONLY,
             AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED
         )
 

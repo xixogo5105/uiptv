@@ -122,10 +122,6 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
                 source.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(12, 'live-desktop', '7', 'itv', 'Live Desktop')")
                 source.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(13, 'live-one', '12', 'Live One', 'http://desktop/live-one')")
-                source.execSQL("INSERT INTO epg_source(source_id,refreshed_at,retry_at,warning) VALUES('synced-source',1,9999999999999,'')")
-                source.execSQL("INSERT INTO epg_channel_mapping VALUES('7','live-one','signature','synced-source','station',0)")
-                source.execSQL("INSERT INTO epg_programme VALUES('synced-source','station',1,9999999999999,'Synced film',X'789C030000000001')")
-                source.execSQL("INSERT INTO epg_channel_icon VALUES('synced-source','station','https://example.invalid/icon.png')")
                 source.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, filterCategoriesList, filterChannelsList, pauseFiltering, cacheExpiryDays, enableThumbnails, publishedM3uCategoryMode, filterLockUnlockDurationMinutes) VALUES(1, '/desktop/player', '1', 'sports,news', 'kids', '1', '9', '1', 'ALL', '30')")
             }
             helper.writableDatabase.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, enableThumbnails) VALUES(1, 'mobile-player', '0', '0')")
@@ -134,27 +130,20 @@ class AndroidUiptvDatabaseCompatibilityTest {
             helper.writableDatabase.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(97, 'mobile-stale-channel', '98', 'Mobile-only stale channel', 'https://example.invalid/stale')")
             helper.writableDatabase.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName) VALUES(96, '99', 'series', 'mobile-stale-category', 'mobile-stale-series', 'old-episode', 'Old episode')")
             helper.writableDatabase.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle) VALUES(95, '99', 'mobile-stale-category', 'mobile-stale-series', 'Old mobile series')")
-            helper.writableDatabase.execSQL("INSERT INTO epg_source(source_id, refreshed_at, retry_at, warning) VALUES('mobile-only-stale-source', 1, 1, '')")
 
-            com.uiptv.mobile.shared.epg.MobileEpgCache.put(7, "live-one",
-                com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.NO_MATCH),
-                System.currentTimeMillis())
             val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
             val target = helper.writableDatabase
 
-            val seededNameExclusionRows = target.countRows("epg_name_exclusion", "1=1")
-            assertEquals(8 + seededNameExclusionRows, report.totalRowsSynced)
-            assertNull(com.uiptv.mobile.shared.epg.MobileEpgCache.peek(7, "live-one", System.currentTimeMillis()))
-            assertEquals(1, target.countRows("epg_programme", "title='Synced film'"))
-            assertEquals(1, target.countRows("epg_channel_mapping", "account_id='7' AND provider_channel_id='live-one'"))
-            assertEquals(1, target.countRows("epg_channel_icon", "icon_url='https://example.invalid/icon.png'"))
+            assertEquals(8, report.totalRowsSynced)
+            target.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND (name GLOB 'epg_*' OR name='source_blacklist')", null).use {
+                assertFalse("EPG tables must never return in restored snapshots", it.moveToFirst())
+            }
             assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
             assertEquals("Target-only accounts must not survive a full clone", 0, target.countRows("Account", "id = 99"))
             assertEquals("Target-only categories must not survive a full clone", 0, target.countRows("Category", "id = 98"))
             assertEquals("Target-only channels must not survive a full clone", 0, target.countRows("Channel", "id = 97"))
             assertEquals("Target-only Watching state must not survive a full clone", 0, target.countRows("SeriesWatchState", "id = 96"))
             assertEquals("Target-only Watching snapshots must not survive a full clone", 0, target.countRows("SeriesWatchingNowSnapshot", "id = 95"))
-            assertEquals("Target-only EPG cache rows must not survive a full clone", 0, target.countRows("epg_source", "source_id = 'mobile-only-stale-source'"))
             assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
             assertEquals(1, target.countRows("Category", "id = 12 AND accountId = '7' AND title = 'Live Desktop'"))
             assertEquals(1, target.countRows("Channel", "id = 13 AND categoryId = '12' AND name = 'Live One'"))

@@ -87,10 +87,4 @@ class MobileEpgTest {
         assertEquals(MobileEpgStatus.DISABLED, MobileEpgResult().status)
     }
 
-    @Test fun missingGuideRetryCacheUsesConfiguredBackgroundInterval() {
-        val result = MobileEpgResult(MobileEpgStatus.NO_MATCH)
-        assertEquals(10 * 60_000L, MobileEpgCache.ttlFor(result, 1_000L, 10 * 60_000L))
-        assertEquals(60 * 60_000L, MobileEpgCache.ttlFor(result, 1_000L, 2 * 60 * 60_000L))
-        assertEquals(30_000L, MobileEpgCache.ttlFor(result, 1_000L, 1_000L))
-    }
 }

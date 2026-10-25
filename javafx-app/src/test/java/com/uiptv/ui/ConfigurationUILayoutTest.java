@@ -183,7 +183,7 @@ class ConfigurationUILayoutTest extends DbBackedUiTest {
         });
         waitForFxEvents();
 
-        assertEquals(8, cards.size());
+        assertEquals(7, cards.size());
         for (double[] card : cards) {
             assertEquals(card[3], card[2], 1.0, "Save/Restore actions should stay at the card bottom");
         }

@@ -28,8 +28,7 @@ class UiptvSyncSchemaTest {
                 "PublishedM3uSelection",
                 "PublishedM3uCategorySelection",
                 "PublishedM3uChannelSelection",
-                "Configuration",
-                "epg_name_exclusion"
+                "Configuration"
             ),
             UiptvSyncSchema.syncableTables
         )
@@ -43,10 +42,7 @@ class UiptvSyncSchemaTest {
     @Test
     fun desktopOnlyTablesArePreservedButHidden() {
         assertEquals(
-            listOf(
-                "epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon", "epg_shared_source",
-                "epg_change_state", "epg_change_history"
-            ),
+            emptyList(),
             UiptvSyncSchema.desktopTablesPreservedButHiddenInV1
         )
     }

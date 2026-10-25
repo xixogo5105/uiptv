@@ -8,16 +8,24 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class HttpPlayerEpgJsonServerTest {
-    @Test void returnsCurrentAndNextDetailsForThePlayingBookmark() throws Exception {
-        var query = new PlayerEpgApplicationService.Query("", "", "", "bookmark-one");
-        try (var mocks = mockConstruction(PlayerEpgApplicationService.class, (service, context) -> when(service.lookup(any())).thenReturn(
-                new PlayerEpgApplicationService.Result("Test", new EpgProgramme("Current", "Description", 100, 200), new EpgProgramme("Next", "Next description", 200, 300))))) {
-            TestHttpExchange exchange = new TestHttpExchange("/playerEpg?bookmarkId=bookmark-one", "GET");
+    @Test void oneLiveRequestReturnsSummaryAndDetailsWithoutCaching() throws Exception {
+        var current = new EpgProgramme("Current", "Description", 100, 200);
+        var next = new EpgProgramme("Next", "Next description", 200, 300);
+        var guide = new PlayerEpgApplicationService.GuideResult(
+                new PlayerEpgApplicationService.Result("Test", current, next), java.util.List.of(current, next));
+        try (var mocks = mockConstruction(PlayerEpgApplicationService.class, (service, context) -> {
+            when(service.lookupGuide(any())).thenReturn(guide);
+        })) {
+            var exchange = new TestHttpExchange("/playerEpg?bookmarkId=bookmark-one&details=1", "GET");
             new HttpPlayerEpgJsonServer().handle(exchange);
-            JSONObject json = new JSONObject(exchange.getResponseBodyText());
-            assertEquals("Description", json.getJSONObject("now").getString("description")); assertEquals("Next", json.getJSONObject("next").getString("title"));
+            var json = new JSONObject(exchange.getResponseBodyText());
+            assertEquals("Description", json.getJSONObject("now").getString("description"));
+            assertEquals(2, json.getJSONArray("programmes").length());
+            assertEquals("no-store", exchange.getResponseHeaders().getFirst("Cache-Control"));
             var captured = org.mockito.ArgumentCaptor.forClass(PlayerEpgApplicationService.Query.class);
-            verify(mocks.constructed().getFirst()).lookup(captured.capture()); assertEquals(query.bookmarkId(), captured.getValue().bookmarkId());
+            verify(mocks.constructed().getFirst(), times(1)).lookupGuide(captured.capture());
+            assertEquals("bookmark-one", captured.getValue().bookmarkId());
+            verifyNoMoreInteractions(mocks.constructed().getFirst());
         }
     }
 }

@@ -8,7 +8,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
 object AndroidXmltvReader {
-    fun read(input: InputStream, now: Long, source: String = ""): MobileXmltvGuide {
+    fun read(input: InputStream, now: Long, source: String = "", requestedId: String? = null, requestedName: String = ""): MobileXmltvGuide {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
         parser.setFeature("http://xmlpull.org/v1/doc/features.html#process-docdecl", false)
@@ -37,8 +37,9 @@ object AndroidXmltvReader {
             if (event == XmlPullParser.START_TAG) when (parser.name) {
                 "channel" -> id = parser.getAttributeValue(null, "id").orEmpty()
                 "display-name" -> {
-                    val name = MobileXmltvGuide.normalize(parser.nextText())
-                    if (id.isNotBlank() && name.isNotBlank()) {
+                    val name = MobileXmltvGuide.normalize(boundedText(parser, 512))
+                    if (id.isNotBlank() && name.isNotBlank() && (requestedId == null || id == requestedId ||
+                        MobileXmltvGuide.normalizeQuality(name) == MobileXmltvGuide.normalizeQuality(requestedName))) {
                         val previous = names.put(name, id)
                         if (previous != null && previous != id) ambiguous += name
                         val key = MobileXmltvGuide.normalizeQuality(name)
@@ -46,7 +47,7 @@ object AndroidXmltvReader {
                         if (qualityPrevious != null && qualityPrevious != id) ambiguousQuality += key
                     }
                 }
-                "icon" -> if (id.isNotBlank() && channel.isBlank()) {
+                "icon" -> if (requestedId == null && id.isNotBlank() && channel.isBlank()) {
                     val raw = parser.getAttributeValue(null, "src").orEmpty().trim()
                     if (raw.isNotBlank() && raw.length <= 4096) runCatching {
                         val uri = java.net.URI(raw).let { if (it.isAbsolute) it else java.net.URI(source).resolve(it) }
@@ -56,18 +57,19 @@ object AndroidXmltvReader {
                 }
                 "programme" -> {
                     channel = parser.getAttributeValue(null, "channel").orEmpty()
+                    if (requestedId != null && channel != requestedId && channel !in names.values && channel !in qualityNames.values) channel = ""
                     start = time(parser.getAttributeValue(null, "start"))
                     stop = time(parser.getAttributeValue(null, "stop"))
                     title = ""; description = ""
                 }
-                "title" -> { val text = parser.nextText().trim(); if (title.isEmpty()) title = text }
-                "desc" -> { val text = parser.nextText().trim(); if (description.isEmpty()) description = text }
+                "title" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 512).trim(); if (title.isEmpty()) title = text } }
+                "desc" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 2048).trim(); if (description.isEmpty()) description = text } }
             }
             if (event == XmlPullParser.END_TAG && parser.name == "channel") id = ""
             if (event == XmlPullParser.END_TAG && parser.name == "programme") {
                 if (channel.isNotBlank() && start > now - 86400_000L && start < now + 7 * 86400_000L &&
                     (stop == 0L || stop > now - 6 * 3600_000L) && title.isNotBlank()) {
-                    require(++count <= 200_000) { "Programme limit exceeded" }
+                    require(++count <= if (requestedId == null) 200_000 else 2000) { "Programme limit exceeded" }
                     programmes.getOrPut(channel) { mutableListOf() } += MobileEpgProgramme(title, description, start, stop)
                 }
                 channel = ""
@@ -86,6 +88,24 @@ object AndroidXmltvReader {
         }
         return MobileXmltvGuide(completed, names.toMap(), qualityNames.toMap(), icons.toMap())
     }
+    private fun boundedText(parser: XmlPullParser, maximum: Int): String {
+        val value = StringBuilder()
+        var depth = 1
+        while (depth > 0) {
+            when (parser.nextToken()) {
+                XmlPullParser.START_TAG -> depth++
+                XmlPullParser.END_TAG -> depth--
+                XmlPullParser.END_DOCUMENT -> error("Unterminated XMLTV text")
+                XmlPullParser.TEXT, XmlPullParser.CDSECT -> if (value.length < maximum) {
+                    val text = parser.text.orEmpty()
+                    value.append(text, 0, minOf(text.length, maximum - value.length))
+                }
+                XmlPullParser.ENTITY_REF -> require(parser.text != null) { "External entities disabled" }
+            }
+        }
+        return value.toString()
+    }
+
     fun time(value: String?): Long = runCatching {
         val parts = value.orEmpty().trim().split(Regex("\\s+"))
         var digits = parts[0]

@@ -359,69 +359,6 @@ public class DatabaseUtils {
                 new DataColumn("category_id", "TEXT"), // Can be null for "All"
                 new DataColumn("display_order", INTEGER_TYPE)
         )));
-        dbStructure.put(DbTable.EPG_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn("refreshed_at", INTEGER_TYPE),
-                new DataColumn("retry_at", INTEGER_TYPE),
-                new DataColumn("warning", "TEXT"),
-                new DataColumn("last_attempt_at", INTEGER_TYPE)
-        )));
-        dbStructure.put(DbTable.SOURCE_BLACKLIST_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("source_id", "TEXT"),
-                new DataColumn("source", "TEXT"),
-                new DataColumn("created_at", INTEGER_TYPE)
-        )));
-        dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
-                new DataColumn("starts_at", INTEGER_TYPE),
-                new DataColumn("stops_at", INTEGER_TYPE),
-                new DataColumn(COLUMN_TITLE, "TEXT"),
-                new DataColumn("description", "BLOB")
-        )));
-        dbStructure.put(DbTable.EPG_ALIAS_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn("kind", INTEGER_TYPE),
-                new DataColumn("name", "TEXT"),
-                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT")
-        )));
-        dbStructure.put(DbTable.EPG_CHANNEL_MAPPING_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("account_id", "TEXT"),
-                new DataColumn("provider_channel_id", "TEXT"),
-                new DataColumn("signature", "TEXT"),
-                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
-                new DataColumn("priority", INTEGER_TYPE)
-        )));
-        dbStructure.put(DbTable.EPG_CHANNEL_ICON_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
-                new DataColumn("icon_url", "TEXT")
-        )));
-        dbStructure.put(DbTable.EPG_NAME_EXCLUSION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("term", "TEXT"),
-                new DataColumn("scope", "TEXT"),
-                new DataColumn("enabled", INTEGER_TYPE)
-        )));
-        dbStructure.put(DbTable.EPG_SHARED_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn("priority", INTEGER_TYPE),
-                new DataColumn("countries", "TEXT"),
-                new DataColumn("languages", "TEXT")
-        )));
-        dbStructure.put(DbTable.EPG_CHANGE_STATE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("revision", INTEGER_TYPE),
-                new DataColumn("database_generation", "TEXT")
-        )));
-        dbStructure.put(DbTable.EPG_CHANGE_HISTORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("revision", INTEGER_TYPE),
-                new DataColumn("database_generation", "TEXT"),
-                new DataColumn("kind", "TEXT"),
-                new DataColumn("source_ids", "TEXT"),
-                new DataColumn("guide_ids", "TEXT"),
-                new DataColumn("account_provider_ids", "TEXT")
-        )));
         KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
 
@@ -514,17 +451,7 @@ public class DatabaseUtils {
         PUBLISHED_M3U_CATEGORY_SELECTION_TABLE("PublishedM3uCategorySelection"),
         PUBLISHED_M3U_CHANNEL_SELECTION_TABLE("PublishedM3uChannelSelection"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
-        BOOKMARK_ORDER_TABLE("BookmarkOrder"),
-        SOURCE_BLACKLIST_TABLE("source_blacklist"),
-        EPG_SOURCE_TABLE("epg_source"),
-        EPG_PROGRAMME_TABLE("epg_programme"),
-        EPG_ALIAS_TABLE("epg_alias"),
-        EPG_CHANNEL_MAPPING_TABLE("epg_channel_mapping"),
-        EPG_CHANNEL_ICON_TABLE("epg_channel_icon"),
-        EPG_NAME_EXCLUSION_TABLE("epg_name_exclusion"),
-        EPG_SHARED_SOURCE_TABLE("epg_shared_source"),
-        EPG_CHANGE_STATE_TABLE("epg_change_state"),
-        EPG_CHANGE_HISTORY_TABLE("epg_change_history");
+        BOOKMARK_ORDER_TABLE("BookmarkOrder");
 
         private final String tableName;
 

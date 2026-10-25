@@ -101,9 +101,6 @@ public class DatabaseBackupArchiveService {
             Path stagedDatabase = restoreDir.resolve(DATABASE_ENTRY);
             stageRestoreDatabase(sourceBackup, stagedDatabase);
             replaceLiveDatabase(stagedDatabase, targetDatabase);
-            if (Path.of(SQLConnection.getDatabasePath()).toAbsolutePath().normalize()
-                    .equals(targetDatabase.toAbsolutePath().normalize()))
-                com.uiptv.application.EpgChangeNotifications.databaseRestored();
             return new BackupArchiveReport(
                     sourceBackup.toAbsolutePath().toString(),
                     Files.size(targetDatabase),

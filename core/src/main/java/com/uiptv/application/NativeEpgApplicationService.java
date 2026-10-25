@@ -13,108 +13,25 @@ import java.util.*;
 /** Provider schedules use stream/API identities; XMLTV association is resolved separately. */
 public class NativeEpgApplicationService {
     private static final Object HANDSHAKE_LOCK = new Object();
-    private static final Map<Key, Cached> CACHE = new LinkedHashMap<>();
-    private static final Map<Key, java.util.concurrent.CompletableFuture<List<EpgProgramme>>> IN_FLIGHT = new HashMap<>();
-    private static long cacheRevision;
-    private static final Map<Key, Thread> OWNERS = new HashMap<>();
     private static final java.util.concurrent.Semaphore REQUESTS = new java.util.concurrent.Semaphore(2);
     private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 5, 5, 10)
             .withMaxBodyChars(10 * 1024 * 1024);
-    private record Key(String account, AccountType type, String endpoint, String user, String session, String channel) { }
-    private record Flight(Key key, Cached previous, java.util.concurrent.CompletableFuture<List<EpgProgramme>> future,
-                          boolean owner, long revision, long now) { }
-    private record Cached(List<EpgProgramme> programmes, long retryAt, long bytes) {
-        Cached(List<EpgProgramme> programmes, long retryAt) {
-            this(programmes, retryAt, 256L + programmes.stream()
-                    .mapToLong(p -> 192L + 2L * (p.title().length() + p.description().length())).sum());
-        }
-    }
 
-    public void clearCache() {
-        synchronized (CACHE) {
-            cacheRevision++; CACHE.clear();
-            OWNERS.values().forEach(Thread::interrupt); OWNERS.clear();
-            IN_FLIGHT.values().forEach(future -> future.complete(List.of())); IN_FLIGHT.clear();
-        }
-    }
-    void expire(Account account,Channel channel) { synchronized(CACHE) { CACHE.remove(key(account,channel)); } }
-    private Key key(Account account, Channel channel) {
-        return new Key(account.getDbId(), account.getType(), account.getUrl() + "|" + account.getM3u8Path() + "|" + account.getServerPortalUrl() + "|epg-utc-v2",
-                account.getUsername(), account.getType() == AccountType.STALKER_PORTAL ? account.getMacAddress() : account.getPassword(), channel.getChannelId());
-    }
+    /** Every explicit guide/playback request goes to this channel's provider. Nothing is retained. */
     public List<EpgProgramme> schedule(Account account, Channel channel) {
-        if (account.getType() != AccountType.XTREME_API && account.getType() != AccountType.STALKER_PORTAL
-                || channel.getChannelId() == null || channel.getChannelId().isBlank()) return List.of();
-        Key key = key(account, channel);
-        long now = System.currentTimeMillis();
-        Flight flight = beginFlight(key, now);
-        if (flight.future() == null) return cachedResult(flight.previous());
-        if (!flight.owner()) return await(flight);
-        return loadOwned(account, channel, flight);
-    }
-
-    private Flight beginFlight(Key key, long now) {
-        synchronized (CACHE) {
-            Cached previous = CACHE.get(key);
-            if (previous != null && now < previous.retryAt()) return new Flight(key, previous, null, false, cacheRevision, now);
-            var existing = IN_FLIGHT.get(key);
-            if (existing != null) return new Flight(key, previous, existing, false, cacheRevision, now);
-            var future = new java.util.concurrent.CompletableFuture<List<EpgProgramme>>();
-            IN_FLIGHT.put(key, future);
-            OWNERS.put(key, Thread.currentThread());
-            return new Flight(key, previous, future, true, cacheRevision, now);
-        }
-    }
-
-    private List<EpgProgramme> await(Flight flight) {
-        try { return flight.future().get(25, java.util.concurrent.TimeUnit.SECONDS); }
-        catch (InterruptedException _) { Thread.currentThread().interrupt(); return cachedResult(flight.previous()); }
-        catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException _) { return cachedResult(flight.previous()); }
-    }
-
-    private static List<EpgProgramme> cachedResult(Cached cached) {
-        return cached == null ? List.of() : cached.programmes();
-    }
-
-    private List<EpgProgramme> loadOwned(Account account, Channel channel, Flight flight) {
+        if (account == null || channel == null || cancelled()
+                || account.getAction() != Account.AccountAction.itv
+                || (account.getType() != AccountType.STALKER_PORTAL && account.getType() != AccountType.XTREME_API)) return List.of();
         boolean acquired = false;
-        List<EpgProgramme> result = cachedResult(flight.previous());
         try {
-            acquired = REQUESTS.tryAcquire(100, java.util.concurrent.TimeUnit.MILLISECONDS);
-            if (!acquired || Thread.currentThread().isInterrupted()) return result;
-            result = fetch(account, channel);
-            boolean usable = EpgApplicationService.usable(result);
-            if (!usable && flight.previous() != null && EpgApplicationService.usable(flight.previous().programmes())) result = flight.previous().programmes();
-            if (!cacheResult(flight, result)) return List.of();
-            return result;
-        } catch (InterruptedException _) {
-            Thread.currentThread().interrupt(); return result;
-        } finally {
-            if (acquired) REQUESTS.release();
-            completeFlight(flight, result);
-        }
+            acquired = REQUESTS.tryAcquire(10, java.util.concurrent.TimeUnit.SECONDS);
+            return acquired && !cancelled() ? fetch(account, channel) : List.of();
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } finally { if (acquired) REQUESTS.release(); }
     }
 
-    private boolean cacheResult(Flight flight, List<EpgProgramme> result) {
-        synchronized (CACHE) {
-            if (flight.revision() != cacheRevision) return false;
-            CACHE.put(flight.key(), new Cached(result, flight.now() + 30 * 60_000L));
-            long bytes = CACHE.values().stream().mapToLong(Cached::bytes).sum();
-            var entries = CACHE.entrySet().iterator();
-            while (entries.hasNext() && (CACHE.size() > 256 || bytes > 16L * 1024 * 1024)) {
-                bytes -= entries.next().getValue().bytes(); entries.remove();
-            }
-            return true;
-        }
-    }
-
-    private void completeFlight(Flight flight, List<EpgProgramme> result) {
-        synchronized (CACHE) {
-            IN_FLIGHT.remove(flight.key(), flight.future());
-            OWNERS.remove(flight.key(), Thread.currentThread());
-            flight.future().complete(result);
-        }
-    }
     private List<EpgProgramme> fetch(Account account, Channel channel) {
         try {
             if (!ensureSession(account)) return List.of();

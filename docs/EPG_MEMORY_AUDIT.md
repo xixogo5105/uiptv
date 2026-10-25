@@ -1,3 +1,5 @@
+> Historical documentation: this cached EPG design was retired by migration 0222. See [current EPG behavior](../EPG.md).
+
 # Desktop EPG memory audit — 14 October 2026
 
 ## Live evidence

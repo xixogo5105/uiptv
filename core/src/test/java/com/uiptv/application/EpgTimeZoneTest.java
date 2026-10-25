@@ -43,21 +43,4 @@ class EpgTimeZoneTest extends DbBackedTest {
         var records=NativeEpgApplicationService.parse(json,false,"UTC","station");
         assertEquals(start,records.getFirst().start()); assertEquals(start+3_600_000,records.getFirst().stop());
     }
-    @Test void accountTimezoneDoesNotAlterNativeRecordsOrCacheIdentity() {
-        EpgCacheRefreshService.stop();
-        var config=ConfigurationService.getInstance().read(); config.setEpgEnabled(true); ConfigurationService.getInstance().save(config);
-        var account=new Account(); account.setDbId("timezone-account"); account.setType(AccountType.XTREME_API); account.setTimezone("Europe/London");
-        var channel=new Channel(); channel.setChannelId("station"); channel.setName("Station");
-        long now=System.currentTimeMillis();
-        try(var nativeService=mockConstruction(NativeEpgApplicationService.class,(service,context) -> when(service.schedule(any(),any())).thenReturn(List.of(new EpgProgramme("Current movie","",now-1000,now+3_600_000))))) {
-            var cache=new EpgCacheApplicationService(); var refresh=new EpgCacheRefreshService();
-            refresh.refreshPlaybackChannel(account,channel); assertFalse(cache.schedule(account,channel).isEmpty());
-            String first=EpgCacheApplicationService.nativeSource(account,channel);
-            account.setTimezone("Asia/Kolkata");
-            assertEquals(first,EpgCacheApplicationService.nativeSource(account,channel));
-            assertFalse(cache.schedule(account,channel).isEmpty(),"Account timezone must not change source timestamps");
-            refresh.refreshPlaybackChannel(account,channel); assertFalse(cache.schedule(account,channel).isEmpty());
-            assertEquals(1,nativeService.constructed().size());
-        } finally { EpgCacheRefreshService.stop(); }
-    }
 }

@@ -15,23 +15,18 @@ public class PlayerEpgApplicationService {
     }
     private record Resolved(Account account, Channel channel) { }
 
-    public Result lookup(Query query) {
-        if (!new EpgApplicationService().isEnabled() || query == null) return new Result("", null, null);
-        Resolved resolved = query.bookmarkId() != null && !query.bookmarkId().isBlank()
-                ? resolveBookmark(query.bookmarkId())
-                : resolveChannel(query);
-        return resolved == null ? new Result("", null, null) : current(resolved.account(), resolved.channel());
-    }
-
-    /** A full persisted schedule is read only after the user expands one web row. */
-    public List<EpgProgramme> lookupSchedule(Query query) {
-        if (!new EpgApplicationService().isEnabled() || query == null) return List.of();
+    public record GuideResult(Result summary, List<EpgProgramme> programmes) { }
+    public GuideResult lookupGuide(Query query) {
+        if (!new EpgApplicationService().isEnabled() || query == null) return new GuideResult(new Result("", null, null), List.of());
         Resolved resolved = query.bookmarkId() != null && !query.bookmarkId().isBlank()
                 ? resolveBookmark(query.bookmarkId()) : resolveChannel(query);
-        if (resolved == null) return List.of();
+        if (resolved == null || resolved.channel() == null) return new GuideResult(new Result("", null, null), List.of());
         resolved.account().setAction(Account.AccountAction.itv);
-        return new EpgCacheApplicationService().schedule(resolved.account(), resolved.channel());
+        var programmes = new EpgApplicationService().schedule(resolved.account(), resolved.channel());
+        return new GuideResult(summarize(resolved.channel().getName(), programmes), programmes);
     }
+    public Result lookup(Query query) { return lookupGuide(query).summary(); }
+    public List<EpgProgramme> lookupSchedule(Query query) { return lookupGuide(query).programmes(); }
 
     private Resolved resolveBookmark(String bookmarkId) {
         Bookmark bookmark = BookmarkApplicationService.getInstance().getBookmark(bookmarkId);
@@ -59,21 +54,24 @@ public class PlayerEpgApplicationService {
     /** Playback snapshots can predate the catalogue metadata used to key the EPG cache. */
     public List<EpgProgramme> schedule(Account account, Channel channel) {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return List.of();
-        return new EpgCacheApplicationService().schedule(account, catalogueChannel(account, channel));
+        return new EpgApplicationService().schedule(account, catalogueChannel(account, channel));
     }
 
     /** Called by the player only while a user-started stream context is active. */
     public Result currentForPlayback(Account account, Channel channel) {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return new Result("", null, null);
         Channel resolved = catalogueChannel(account, channel);
-        new EpgCacheRefreshService().refreshPlaybackChannel(account, resolved);
         return current(account, resolved);
     }
 
     public Result current(Account account, Channel channel) {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return new Result("", null, null);
         Channel resolved = catalogueChannel(account, channel);
-        List<EpgProgramme> programmes = new EpgCacheApplicationService().schedule(account, resolved);
+        List<EpgProgramme> programmes = new EpgApplicationService().schedule(account, resolved);
+        return summarize(resolved.getName(), programmes);
+    }
+
+    private Result summarize(String name, List<EpgProgramme> programmes) {
         long time = System.currentTimeMillis();
         EpgProgramme now = null;
         EpgProgramme next = null;
@@ -82,9 +80,8 @@ public class PlayerEpgApplicationService {
             if (programme.start() > time) { next = programme; break; }
         }
         boolean hasGuide = now != null || next != null;
-        boolean stale = new EpgCacheApplicationService().sourceWarnings(account, List.of(resolved)).getOrDefault(resolved, false);
-        String status = stale ? (hasGuide ? "STALE" : "UNAVAILABLE") : (hasGuide ? "AVAILABLE" : "NO_MATCH");
-        return new Result(resolved.getName(), now, next, status);
+        String status = hasGuide ? "AVAILABLE" : "NO_MATCH";
+        return new Result(name, now, next, status);
     }
 
     private Channel catalogueChannel(Account account, Channel channel) {

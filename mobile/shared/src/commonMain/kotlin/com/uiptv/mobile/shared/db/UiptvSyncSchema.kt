@@ -20,8 +20,7 @@ object UiptvSyncSchema {
         "PublishedM3uSelection",
         "PublishedM3uCategorySelection",
         "PublishedM3uChannelSelection",
-        "Configuration",
-        "epg_name_exclusion"
+        "Configuration"
     )
 
     val androidRequiredTables: List<String> = listOf(
@@ -43,16 +42,11 @@ object UiptvSyncSchema {
         "PublishedM3uSelection",
         "PublishedM3uCategorySelection",
         "PublishedM3uChannelSelection",
-        "Configuration",
-        "epg_name_exclusion"
+        "Configuration"
     )
 
-    // Guide caches travel in cloned snapshots and Android reads valid schedules from them.
-    // They remain disposable cache data, rather than editable mobile catalogues.
-    val desktopTablesPreservedButHiddenInV1: List<String> = listOf(
-        "epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon", "epg_shared_source",
-        "epg_change_state", "epg_change_history"
-    )
+    // Retained API name for old callers; no EPG tables remain in a snapshot.
+    val desktopTablesPreservedButHiddenInV1: List<String> = emptyList()
 
     /** Recent playback belongs to this installation and is deliberately excluded from cross-device table sync. */
     val deviceLocalTables: List<String> = listOf("BookmarkPlayHistory")

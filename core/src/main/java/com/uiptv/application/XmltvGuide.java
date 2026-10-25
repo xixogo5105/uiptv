@@ -19,9 +19,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("[\\s|/,-]+");
     private static final String CHANNEL_ELEMENT = "channel";
     private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
-    record Limits(int maxProgrammes, long maxMetadataBytes, long maxSpoolBytes, boolean diskBacked) {
-        static Limits standard() { return new Limits(200_000, 32L * 1024 * 1024, 32L * 1024 * 1024, false); }
-        static Limits comprehensive() { return new Limits(5_000_000, 128L * 1024 * 1024, 2L * 1024 * 1024 * 1024, true); }
+    record Limits(int maxProgrammes, long maxMetadataBytes) {
+        static Limits standard() { return new Limits(200_000, 32L * 1024 * 1024); }
     }
 
     public XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
@@ -60,18 +59,33 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             context.ambiguous.forEach(context.names::remove);
             context.ambiguousQuality.forEach(context.qualityNames::remove);
             context.qualityNames.remove("");
-            return new XmltvGuide(context.programmes.build(), Map.copyOf(context.names),
+            return new XmltvGuide(completeProgrammes(context.programmes), Map.copyOf(context.names),
                     Map.copyOf(context.qualityNames), Map.copyOf(context.icons));
         } catch (java.io.IOException | javax.xml.stream.XMLStreamException | InterruptedException | RuntimeException error) {
-            context.programmes.close();
             throw error;
         } finally { if (reader != null) reader.close(); }
+    }
+
+    private static Map<String,List<EpgProgramme>> completeProgrammes(Map<String,List<EpgProgramme>> source) {
+        Map<String,List<EpgProgramme>> result = new HashMap<>();
+        source.forEach((id, values) -> {
+            values.sort(Comparator.comparingLong(EpgProgramme::start));
+            List<EpgProgramme> completed = new ArrayList<>();
+            for (int i = 0; i < values.size(); i++) {
+                var programme = values.get(i);
+                long stop = programme.stop() > programme.start() ? programme.stop()
+                        : i + 1 < values.size() ? values.get(i + 1).start() : 0;
+                if (stop > programme.start()) completed.add(new EpgProgramme(programme.title(), programme.description(), programme.start(), stop));
+            }
+            result.put(id, EpgSchedules.normalize(completed));
+        });
+        return Map.copyOf(result);
     }
 
     private static final class ParseContext {
         private final Instant now;
         private final Limits limits;
-        private final CompactProgrammeMap.Builder programmes;
+        private final Map<String,List<EpgProgramme>> programmes;
         private final Map<String, String> names = new HashMap<>();
         private final Map<String, String> icons = new HashMap<>();
         private final Set<String> ambiguous = new HashSet<>();
@@ -89,7 +103,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         private ParseContext(Instant now, Limits limits) throws java.io.IOException {
             this.now = now;
             this.limits = limits;
-            this.programmes = new CompactProgrammeMap.Builder(limits.maxSpoolBytes(), limits.diskBacked());
+            this.programmes = new HashMap<>();
         }
     }
 
@@ -146,7 +160,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             return;
         }
         if (++context.count > context.limits.maxProgrammes()) throw new IllegalArgumentException("Guide exceeds programme limit");
-        context.programmes.add(context.channel, new EpgProgramme(context.title, context.description,
+        context.programmes.computeIfAbsent(context.channel, ignored -> new ArrayList<>()).add(new EpgProgramme(context.title, context.description,
                 context.start.toEpochMilli(), context.stop == null ? 0 : context.stop.toEpochMilli()));
         context.channel = null;
     }
@@ -159,8 +173,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     /** Conservative retained-size estimate, including strings, lists and map entries. */
     long estimatedBytes() {
         long bytes = 256;
-        if (programmes instanceof CompactProgrammeMap compact) bytes += compact.estimatedBytes();
-        else for (var entry : programmes.entrySet()) {
+        for (var entry : programmes.entrySet()) {
             bytes += 192L + 2L * entry.getKey().length();
             for (var p : entry.getValue()) bytes += 192L + 2L * (p.title().length() + p.description().length());
         }
@@ -170,7 +183,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     }
 
     @Override public void close() {
-        if (programmes instanceof CompactProgrammeMap compact) compact.close();
+        // Parsing results belong only to their caller; no external storage exists.
     }
 
     // Consume the whole element without ever building an unbounded description string.

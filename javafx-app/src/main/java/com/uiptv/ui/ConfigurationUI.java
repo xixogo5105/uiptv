@@ -64,9 +64,6 @@ public class ConfigurationUI extends VBox {
     private static final String CONFIG_DATABASE_SYNC_IN_PROGRESS = "configDatabaseSyncInProgress";
     private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
     private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
-    private static final String CONFIG_GLOBAL_EPG_HELP = "configGlobalEpgHelp";
-    private static final String CONFIG_EPG_REFRESH_INTERVAL_HELP = "configEpgRefreshIntervalHelp";
-    private static final String CONFIG_EPG_SCHEDULER_INTERVAL_HELP = "configEpgSchedulerIntervalHelp";
     private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
@@ -110,12 +107,7 @@ public class ConfigurationUI extends VBox {
     private final PillBar<ThemeModeOption> themeModePillBar =
             new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
-    private final ComboBox<Integer> epgSchedulerIntervalComboBox = new ComboBox<>();
-    private final ComboBox<Integer> globalEpgRefreshIntervalComboBox = new ComboBox<>();
     private final SwitchToggle epgEnabledSwitch = new SwitchToggle();
-    private final SwitchToggle epgPlaybackOnlySwitch = new SwitchToggle();
-    private final TextArea globalEpgSourceField = new TextArea();
-    private Runnable epgRefreshCompletedHandler = () -> { };
     private final SwitchToggle showBookmarkAndAccountCountsSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
     private final SwitchToggle wideViewSwitch = new SwitchToggle();
@@ -173,12 +165,6 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink openServerLink = new Hyperlink(I18n.tr("configOpenWebApp"));
     private final Hyperlink openSecureServerLink = new Hyperlink(I18n.tr("configOpenSecureWebApp"));
     private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
-    private final Button refreshEpgButton = new Button(I18n.tr("epgRefreshGuide"));
-    private final Button manageEpgBlacklistButton = new Button(I18n.tr("epgBlacklistManager"));
-    private final Button clearEpgCacheButton = new Button(I18n.tr("configClearCache"));
-    private final ProgressIndicator clearEpgActivity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
-    private final Label clearEpgStatus = new Label();
-    private PauseTransition clearEpgStatusHideTimer;
     private boolean clearOperationInProgress;
     private final MenuButton clearDataMenuButton = new MenuButton(I18n.tr("configClearMenu"));
     private final MenuItem clearCacheMenuItem = new MenuItem(I18n.tr("configClearCache"));
@@ -247,9 +233,7 @@ public class ConfigurationUI extends VBox {
         initWidgets();
     }
 
-    public void setEpgRefreshCompletedHandler(Runnable handler) {
-        epgRefreshCompletedHandler = handler == null ? () -> { } : handler;
-    }
+
 
     private record SettingsPanelFilter(String id, String title) {
     }
@@ -403,37 +387,7 @@ public class ConfigurationUI extends VBox {
         VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockStateRow, filterPasswordProtectionRow, filterLockDurationRow, filterAdminControls, filterLockPasswordButton);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
-        VBox epgGroup = buildEpgSettingsGroup();
 
-        refreshEpgButton.setOnAction(_ -> {
-            refreshEpgButton.setDisable(true);
-            EpgRefreshProgressDialog.open(refreshEpgButton, () -> refreshEpgButton.setDisable(false),
-                    () -> epgRefreshCompletedHandler.run());
-        });
-        clearEpgCacheButton.setOnAction(_ -> {
-            if (!UIptvAlert.showConfirmationAlert(I18n.tr("epgClearCacheConfirm"))) return;
-            if (!beginClearOperation()) return;
-            if (clearEpgStatusHideTimer != null) {
-                clearEpgStatusHideTimer.stop();
-                clearEpgStatusHideTimer = null;
-            }
-            clearEpgCacheButton.setDisable(true);
-            clearEpgActivity.setVisible(true);
-            clearEpgActivity.setManaged(true);
-            clearEpgStatus.setVisible(true);
-            clearEpgStatus.setManaged(true);
-            Task<Void> clearing = new Task<>() {
-                @Override protected Void call() {
-                    new com.uiptv.application.EpgApplicationService().clearCache(
-                            key -> updateMessage(I18n.tr(key)));
-                    return null;
-                }
-            };
-            clearEpgStatus.textProperty().bind(clearing.messageProperty());
-            clearing.setOnSucceeded(_ -> finishEpgClear(I18n.tr("epgMobileCacheCleared")));
-            clearing.setOnFailed(_ -> finishEpgClear(I18n.tr("epgMobileCacheClearFailed")));
-            Thread.ofVirtual().name("epg-clear-cache").start(clearing);
-        });
         clearDataMenuButton.getItems().setAll(clearCacheMenuItem, clearWatchingNowMenuItem, clearRecentMenuItem);
         clearDataMenuButton.getStyleClass().add("settings-clear-menu-button");
         clearDataMenuButton.setMaxWidth(Region.USE_PREF_SIZE);
@@ -485,7 +439,6 @@ public class ConfigurationUI extends VBox {
                 new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),
                 new SettingsSection("filters", I18n.tr("configFilters"), filtersGroupStatusIcon, filtersGroup, filtersHelpLink, "filters parental lock categories channels censor hidden protected"),
                 new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom counts"),
-                new SettingsSection("epg", I18n.tr("epgSettingsTitle"), null, epgGroup, null, "epg guide programme xmltv sources refresh playback only schedule cache"),
                 new SettingsSection("cache", I18n.tr("configCacheFiltering"), null, cacheGroup, cacheFilteringHelpLink, "cache clear recent items history reload watching now"),
                 new SettingsSection("sync", I18n.tr("configDatabaseSyncTitle"), null, databaseSyncGroup, databaseSyncHelpLink, "database sync import export backup remote"),
                 new SettingsSection("server", I18n.tr("configWebServer"), null, serverGroup, webServerHelpLink, "web server https port m3u publish startup"),
@@ -1056,88 +1009,8 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
         return new VBox(10, themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch),
-                createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
-    }
-
-    private VBox buildEpgSettingsGroup() {
-        globalEpgSourceField.setPrefRowCount(6);
-        globalEpgSourceField.setPromptText(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
-        globalEpgSourceField.setTooltip(new Tooltip(I18n.tr(CONFIG_GLOBAL_EPG_HELP)));
-        epgSchedulerIntervalComboBox.getItems().setAll(1, 2, 3, 5, 10, 15, 30, 60);
-        if (epgSchedulerIntervalComboBox.getValue() == null) epgSchedulerIntervalComboBox.setValue(3);
-        globalEpgRefreshIntervalComboBox.getItems().setAll(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168);
-        if (globalEpgRefreshIntervalComboBox.getValue() == null) globalEpgRefreshIntervalComboBox.setValue(6);
-        globalEpgRefreshIntervalComboBox.setConverter(new StringConverter<>() {
-            @Override public String toString(Integer hours) {
-                return hours == null ? "" : hours < 24 ? hours + "h" : (hours / 24) + "d";
-            }
-            @Override public Integer fromString(String value) { return null; }
-        });
-        epgSchedulerIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
-        globalEpgRefreshIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
-        epgPlaybackOnlySwitch.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
-        epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP)));
-        globalEpgRefreshIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_REFRESH_INTERVAL_HELP)));
-        refreshEpgButton.setDisable(!epgEnabledSwitch.isSelected());
-        manageEpgBlacklistButton.setOnAction(_ -> EpgSourceBlacklistDialog.open(manageEpgBlacklistButton));
-        epgEnabledSwitch.selectedProperty().addListener((_, _, enabled) -> refreshEpgButton.setDisable(!enabled));
-        clearEpgActivity.setMinSize(22, 22);
-        clearEpgActivity.setPrefSize(22, 22);
-        clearEpgActivity.setMaxSize(22, 22);
-        clearEpgActivity.setVisible(false);
-        clearEpgActivity.setManaged(false);
-        clearEpgStatus.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
-        clearEpgStatus.setWrapText(true);
-        clearEpgStatus.setVisible(false);
-        clearEpgStatus.setManaged(false);
-        HBox clearEpgRow = new HBox(10, clearEpgCacheButton, clearEpgActivity);
-        clearEpgRow.setAlignment(Pos.CENTER_LEFT);
-
-        VBox advancedOptions = new VBox(10,
-                createWrappingSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch),
-                createStackedSettingControlRow("configEpgRefreshInterval", globalEpgRefreshIntervalComboBox),
-                createStackedSettingControlRow("configEpgSchedulerInterval", epgSchedulerIntervalComboBox),
-                clearEpgRow, clearEpgStatus);
-        advancedOptions.getStyleClass().add("epg-advanced-options");
-        clearEpgRow.getStyleClass().add("epg-advanced-action-row");
-        TitledPane advanced = new TitledPane(I18n.tr("epgAdvancedSettings"), advancedOptions);
-        advanced.getStyleClass().add("epg-advanced-pane");
-        advanced.setMaxWidth(Double.MAX_VALUE);
-        advanced.setExpanded(false);
-        advanced.setCollapsible(true);
-        FlowPane actions = createWrappingRow(10, 6, refreshEpgButton, manageEpgBlacklistButton);
-        Label globalEpgHelp = new Label(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
-        globalEpgHelp.setWrapText(true);
-        globalEpgHelp.setMinWidth(0);
-        globalEpgHelp.setMaxWidth(Double.MAX_VALUE);
-        UiRenderQuality.optimizeTextNode(globalEpgHelp);
-        VBox group = new VBox(12,
-                createSettingSwitchRow("configEnableEpg", epgEnabledSwitch),
-                globalEpgHelp,
-                buildEpgSourceRow(), actions, advanced);
-        group.setFillWidth(true);
-        return group;
-    }
-
-    private void finishEpgClear(String result) {
-        endClearOperation();
-        clearEpgStatus.textProperty().unbind();
-        clearEpgStatus.setText(result);
-        clearEpgActivity.setVisible(false);
-        clearEpgActivity.setManaged(false);
-        clearEpgCacheButton.setDisable(false);
-        clearEpgStatusHideTimer = new PauseTransition(Duration.seconds(10));
-        clearEpgStatusHideTimer.setOnFinished(_ -> {
-            clearEpgStatus.setText("");
-            clearEpgStatus.setVisible(false);
-            clearEpgStatus.setManaged(false);
-            clearEpgStatusHideTimer = null;
-        });
-        clearEpgStatusHideTimer.play();
-    }
-
-    private Node buildEpgSourceRow() {
-        return createStackedSettingControlRow("configGlobalEpgSource", globalEpgSourceField);
+                createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch),
+                createSettingSwitchRow("configEnableEpg", epgEnabledSwitch), languageAndZoomSection);
     }
 
     private Node createStackedSettingControlRow(String labelKey, Region control) {
@@ -1484,14 +1357,12 @@ public class ConfigurationUI extends VBox {
         if (clearOperationInProgress) return false;
         clearOperationInProgress = true;
         clearDataMenuButton.setDisable(true);
-        clearEpgCacheButton.setDisable(true);
         return true;
     }
 
     private void endClearOperation() {
         clearOperationInProgress = false;
         clearDataMenuButton.setDisable(false);
-        clearEpgCacheButton.setDisable(false);
     }
 
     private void addStartServerButtonClickHandler() {
@@ -1962,10 +1833,6 @@ public class ConfigurationUI extends VBox {
             syncThumbnailModeSelector();
             showBookmarkAndAccountCountsSwitch.setSelected(configuration.isShowBookmarkAndAccountCounts());
             epgEnabledSwitch.setSelected(configuration.isEpgEnabled());
-            epgPlaybackOnlySwitch.setSelected(configuration.isEpgPlaybackOnly());
-            epgSchedulerIntervalComboBox.setValue(configuration.normalizedEpgSchedulerIntervalMinutes());
-            globalEpgRefreshIntervalComboBox.setValue(configuration.normalizedGlobalEpgRefreshIntervalHours());
-            globalEpgSourceField.setText(configuration.getGlobalEpgSource());
             syncShowBookmarkAndAccountCountsSelector();
             wideViewCheckBox.setSelected(configuration.isWideView());
             serverPort.setText(configuration.getServerPort());
@@ -2009,11 +1876,6 @@ public class ConfigurationUI extends VBox {
             return false;
         }
         try {
-            String source = globalEpgSourceField.getText().strip();
-            if (com.uiptv.application.EpgApplicationService.globalSources(source).stream().anyMatch(entry -> entry.contains("://") && !entry.matches("(?i)^https?://[^\\s]+$") && !entry.startsWith("file://"))) {
-                showErrorAlert(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
-                return false;
-            }
             savingConfiguration = true;
 
             Configuration previous = service.read();
@@ -2105,11 +1967,7 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         configuration.setShowBookmarkAndAccountCounts(showBookmarkAndAccountCountsSwitch.isSelected());
         configuration.setEpgEnabled(epgEnabledSwitch.isSelected());
-        configuration.setEpgPlaybackOnly(epgPlaybackOnlySwitch.isSelected());
-        configuration.setEpgSchedulerIntervalMinutes(String.valueOf(epgSchedulerIntervalComboBox.getValue()==null ? 3 : epgSchedulerIntervalComboBox.getValue()));
-        configuration.setGlobalEpgRefreshIntervalHours(String.valueOf(globalEpgRefreshIntervalComboBox.getValue()==null ? 6 : globalEpgRefreshIntervalComboBox.getValue()));
-        configuration.setGlobalEpgSource(globalEpgSourceField.getText().strip());
-        configuration.setEpgMappingsJson(previous == null ? "{}" : previous.getEpgMappingsJson());
+        configuration.setEpgMappingsJson("");
         // Persists the three-state selection; mirrors the legacy darkTheme flag as part of the write.
         configuration.applyThemeMode(getSelectedThemeMode());
         return configuration;
@@ -3192,7 +3050,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static String themeHelpText() {
-        return I18n.tr("configThemeHelp")+"\n\n"+I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP);
+        return I18n.tr("configThemeHelp");
     }
 
     static String themeHelpTitle() {
@@ -3216,7 +3074,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static String cacheFilteringHelpText() {
-        return I18n.tr("configCacheFilteringHelpText")+"\n\n"+I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP);
+        return I18n.tr("configCacheFilteringHelpText");
     }
 
     static String cacheFilteringHelpTitle() {

@@ -98,7 +98,7 @@ val mobileMessageKeys = listOf(
     "autoWatching", "commonSearch", "autoManageMACAddresses",
     "configEnableEpg", "epgEnablePlaybackOnly", "epgMobilePlaybackOnlyNeedsEpg",
     "configGlobalEpgSource", "configEpgRefreshInterval", "configEpgRefreshIntervalHelp",
-    "epgMobileSourcesSyncHelp", "epgMobileSourcesLoadFailed",
+    "epgOpenGuide", "configSelectStreamingPlayer", "epgMobileSourcesSyncHelp", "epgMobileSourcesLoadFailed",
     "epgMobileSettingSaveFailed", "epgMobileModeSaveFailed", "epgMobileSourcesSaved",
     "epgMobileSourcesSaveFailed", "epgMobileSaveSources", "epgAdvancedSettings",
     "epgMobileHideAdvanced", "epgMobileMaintenance", "epgMobileCacheDescription",
@@ -264,7 +264,7 @@ val generateMobileMessages = tasks.register("generateMobileMessages") {
             appendLine("import java.util.Locale")
             appendLine()
             appendLine("/** Generated from core/src/main/resources/i18n/messages_*.properties. */")
-            appendLine("internal object MobileMessages {")
+            appendLine("object MobileMessages {")
             appendLine("    private val bundles: Map<String, Map<String, String>> = mapOf(")
             bundles.forEach { (locale, properties) ->
                 appendLine("        ${kotlinString(locale)} to mapOf(")

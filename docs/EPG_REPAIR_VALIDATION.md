@@ -1,3 +1,5 @@
+> Historical documentation: this cached EPG design was retired by migration 0222. See [current EPG behavior](../EPG.md).
+
 # EPG repair validation — 23 October 2026
 
 This records the local `dev` working tree against the supplied EPG review and repair plan, including the subsequent user requests for Cache Refresh styling, persistent card expansion and content-driven heights. It is not a remote CI or device-test result.

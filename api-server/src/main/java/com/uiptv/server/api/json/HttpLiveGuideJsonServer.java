@@ -15,21 +15,18 @@ public class HttpLiveGuideJsonServer implements HttpHandler {
             exchange.sendResponseHeaders(405, -1);
             return;
         }
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
         JSONArray rows = new JSONArray();
         LiveGuideApplicationService service = new LiveGuideApplicationService();
         String visible = getParam(exchange, "visibleIds");
         var result = visible == null || visible.isBlank() ? service.list(getParam(exchange, ACCOUNT_ID))
                 : service.visible(getParam(exchange, ACCOUNT_ID), visible);
-        var icons=service.cachedIcons(result);
         for (LiveGuideApplicationService.Row row : result) {
             JSONObject channel=new JSONObject(row.channel());
-            if(channel.optString("logo","").isBlank() && !icons.getOrDefault(row,"").isBlank()) channel.put("logo",icons.get(row));
             rows.put(new JSONObject().put(ACCOUNT_ID, row.accountId()).put("accountName", row.accountName())
                     .put("nativePending", row.nativePending()).put("nativeProvider", row.nativeProvider()).put("bookmarkId", row.bookmarkId()).put("channel",channel)
                     .put("programmes", new JSONArray(row.programmes())));
         }
-        String warning = new com.uiptv.application.EpgApplicationService().globalWarning();
-        if (!warning.isBlank()) exchange.getResponseHeaders().set("X-EPG-Warning", warning);
         generateJsonResponse(exchange, rows.toString());
     }
 }

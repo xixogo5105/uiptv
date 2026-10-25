@@ -46,7 +46,6 @@ class AndroidSQLiteSnapshotSyncApplier(
             checkpointLiveDatabase()
             databaseHelper.close()
             replaceLiveDatabase(stagedSnapshot)
-            com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
             return report
         } finally {
             if (!consumeSnapshotFile) stagedSnapshot.delete()

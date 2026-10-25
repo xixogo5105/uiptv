@@ -118,10 +118,10 @@ class MpvEmbeddedPlayerActivityControlTest {
     }
 
     @Test
-    fun onAirProgrammeDrawerOnlyOpensWhenGuideDataIsAvailable() {
+    fun onAirProgrammeDrawerOpensWhileEmptyAndUpdatesWhenDataArrives() {
         val player = launchPlayer("LIVE")
         waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
-        // EPG is still loading: the drawer must not open and the Guide button must stay hidden.
+        // The swipe drawer remains available while the guide is empty or loading.
         instrumentation.runOnMainSync {
             val job = player.javaClass.getDeclaredField("epgJob").apply { isAccessible = true }.get(player) as? kotlinx.coroutines.Job
             job?.cancel()
@@ -130,10 +130,10 @@ class MpvEmbeddedPlayerActivityControlTest {
             player.javaClass.getDeclaredMethod("hideEpgPanel").apply { isAccessible = true }.invoke(player)
         }
         val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
-        // 1) Right-edge swipe while loading: drawer must NOT open
+        // 1) Right-edge swipe while loading: drawer opens with an empty/loading state
         swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
         val panel = player.javaClass.getDeclaredField("epgPanel").apply { isAccessible = true }.get(player) as View
-        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
         val guideButton = player.javaClass.getDeclaredField("epgGuideButton").apply { isAccessible = true }.get(player) as View
         org.junit.Assert.assertEquals(View.GONE, guideButton.visibility)
         // Load EPG data
@@ -144,8 +144,7 @@ class MpvEmbeddedPlayerActivityControlTest {
                 .invoke(player, com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE, listOf(programme)))
         }
         org.junit.Assert.assertEquals(View.GONE, guideButton.visibility)
-        // 2) Right-edge swipe AFTER data loaded: drawer MUST open on the right
-        swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
+        // Data populates the already-open panel without closing it.
         org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
         org.junit.Assert.assertEquals(android.view.Gravity.END, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
         org.junit.Assert.assertEquals("Godzilla", (waitForControl(player, "On-air programme title") as android.widget.TextView).text.toString())

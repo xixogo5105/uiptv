@@ -42,6 +42,7 @@ import java.util.UUID
 
 class NativePlayerActivity : Activity() {
     private var player: ExoPlayer? = null
+    private var guideDrawer: LiveEpgDrawer? = null
     private var playbackStarted = false
     private val playerHandler = Handler(Looper.getMainLooper())
     private val retryPlaybackRunnable = Runnable { retryCurrentStream() }
@@ -96,12 +97,13 @@ class NativePlayerActivity : Activity() {
                 created.playWhenReady = true
             }
         player = exoPlayer
-        setContentView(
-            PlayerView(this).apply {
-                this.player = exoPlayer
-                keepScreenOn = true
-            }
-        )
+        val root = android.widget.FrameLayout(this)
+        root.addView(PlayerView(this).apply {
+            this.player = exoPlayer
+            keepScreenOn = true
+        }, android.widget.FrameLayout.LayoutParams(-1, -1))
+        guideDrawer = LiveEpgDrawer(this, root, playbackScope)
+        setContentView(root)
         if (session != null) {
             currentBingeSession = session
             playBingeIndex(session.startIndex)
@@ -115,6 +117,29 @@ class NativePlayerActivity : Activity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        currentTarget?.let { guideDrawer?.load(it) }
+    }
+
+    override fun onStop() {
+        guideDrawer?.clear()
+        super.onStop()
+    }
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        val drawer = guideDrawer ?: return super.dispatchTouchEvent(event)
+        val wasConsuming = drawer.consumingGesture
+        if (!drawer.handleTouch(event)) return super.dispatchTouchEvent(event)
+        if (!wasConsuming && event.actionMasked == android.view.MotionEvent.ACTION_MOVE) {
+            val cancel = android.view.MotionEvent.obtain(event)
+            cancel.action = android.view.MotionEvent.ACTION_CANCEL
+            super.dispatchTouchEvent(cancel)
+            cancel.recycle()
+        }
+        return true
+    }
+
     override fun onDestroy() {
         MobilePlaybackIndicator.clear(currentTarget)
         val currentPlayer = player
@@ -126,6 +151,7 @@ class NativePlayerActivity : Activity() {
         }
         playerHandler.removeCallbacksAndMessages(null)
         playbackScope.cancel()
+        guideDrawer?.release(); guideDrawer = null
         currentPlayer?.release()
         player = null
         super.onDestroy()
@@ -173,6 +199,7 @@ class NativePlayerActivity : Activity() {
 
     private fun setMediaTarget(target: PlaybackTarget, mimeTypeOverride: String = "") {
         currentTarget = target
+        guideDrawer?.load(target)
         MobilePlaybackIndicator.clear()
         currentMimeTypeOverride = mimeTypeOverride
         playbackRetryAttempt = 0

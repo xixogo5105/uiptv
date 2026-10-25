@@ -27,8 +27,22 @@ public class DatabasePatchesUtils {
     public static void applyPatches(Connection conn) throws SQLException {
         createSchemaMigrationsTable(conn);
         List<String> migrationNames = readMigrationNames(MIGRATIONS_LIST_RESOURCE);
+        boolean compact = false;
         for (String migrationName : migrationNames) {
+            if ("0222_remove_epg_caches.sql".equals(migrationName)) {
+                MigrationRecord previous = findMigrationRecord(conn, migrationName);
+                compact = previous == null || !"success".equalsIgnoreCase(previous.status);
+            }
             applyMigration(conn, migrationName);
+        }
+        if (compact && conn.getAutoCommit() && "success".equalsIgnoreCase(findMigrationRecord(conn, "0222_remove_epg_caches.sql").status)) {
+            try (Statement statement = conn.createStatement()) { statement.execute("VACUUM"); }
+            catch (SQLException error) {
+                upsertMigrationRecord(conn, "0222_remove_epg_caches.sql",
+                        checksum(readResource(MIGRATIONS_DIR_RESOURCE + "0222_remove_epg_caches.sql")),
+                        "failed", "Guide tables removed; compaction pending: " + safeError(error));
+                com.uiptv.util.AppLog.addWarningLog(DatabasePatchesUtils.class, "Guide tables removed; database compaction will be retried at the next startup.");
+            }
         }
     }
 
@@ -73,6 +87,13 @@ public class DatabasePatchesUtils {
         }
 
         boolean originalAutoCommit = conn.getAutoCommit();
+        Integer secureDelete = null;
+        if ("0222_remove_epg_caches.sql".equals(migrationName)) {
+            try (Statement statement = conn.createStatement(); ResultSet value = statement.executeQuery("PRAGMA secure_delete")) {
+                if (value.next()) secureDelete = value.getInt(1);
+            }
+            try (Statement statement = conn.createStatement()) { statement.execute("PRAGMA secure_delete=OFF"); }
+        }
         try {
             conn.setAutoCommit(false);
             executeMigrationContent(conn, migrationSql);
@@ -84,6 +105,9 @@ public class DatabasePatchesUtils {
             conn.commit();
          } finally {
             conn.setAutoCommit(originalAutoCommit);
+            if (secureDelete != null) {
+                try (Statement statement = conn.createStatement()) { statement.execute("PRAGMA secure_delete=" + secureDelete); }
+            }
         }
     }
 

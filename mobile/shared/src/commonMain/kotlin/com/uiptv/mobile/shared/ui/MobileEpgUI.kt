@@ -26,30 +26,14 @@ import java.util.Locale
 
 /** Repository actions keep IO and parsing outside composables. */
 data class EpgUiActions(
-    val clearCache: suspend () -> Unit = {},
-    val loadBackgroundCheckIntervalMinutes: suspend () -> Int = { 3 },
-    val loadGlobalRefreshIntervalHours: suspend () -> Int = { 6 },
-    val saveGlobalRefreshIntervalHours: suspend (Int) -> Unit = {},
     val loadEnabled: suspend () -> Boolean = { false },
     val saveEnabled: suspend (Boolean) -> Unit = {},
-    val loadPlaybackOnly: suspend () -> Boolean = { false },
-    val savePlaybackOnly: suspend (Boolean) -> Unit = {},
-    val globalSource: suspend () -> String = { "" },
-    val saveGlobalSource: suspend (String) -> Unit = {},
-    val schedule: suspend (Long, String, String) -> MobileEpgResult = { _, _, _ -> MobileEpgResult() },
-    val icon: suspend (Long, String, String) -> String = { _, _, _ -> "" }
+    val schedule: suspend (Long, String, String) -> MobileEpgResult = { _, _, _ -> MobileEpgResult() }
 )
 internal data class EpgUiState(
     val enabled: Boolean = false,
-    val playbackOnly: Boolean = false,
-    val time: Long = 0,
-    val backgroundCheckIntervalMinutes: Int = 3,
-    val globalRefreshIntervalHours: Int = 6,
-    val dataRevision: Int = 0,
     val actions: EpgUiActions = EpgUiActions(),
-    val onEnabled: (Boolean) -> Unit = {},
-    val onPlaybackOnly: (Boolean) -> Unit = {},
-    val onDataRefresh: () -> Unit = {}
+    val onEnabled: (Boolean) -> Unit = {}
 )
 
 /** Uses the Material 3 Switch and the current app color-scheme tokens consistently. */
@@ -124,168 +108,41 @@ val LocalThumbnailFallbackPanel = staticCompositionLocalOf { false }
 internal val LocalEpgState = staticCompositionLocalOf { EpgUiState() }
 
 @Composable
-internal fun epgThumbnail(accountId: Long, providerId: String, name: String, enabled: Boolean): (suspend () -> String)? {
-    val state = LocalEpgState.current
-    return remember(accountId, providerId, name, enabled, state.enabled, state.playbackOnly, state.actions, state.time / (30 * 60_000)) {
-        if (enabled && state.enabled && !state.playbackOnly) suspend { state.actions.icon(accountId, providerId, name) } else null
-    }
-}
+internal fun epgThumbnail(accountId: Long, providerId: String, name: String, enabled: Boolean): (suspend () -> String)? = null
 
 @Composable
 internal fun MobileEpgSettings() {
     val state = LocalEpgState.current
     val scope = rememberCoroutineScope()
-    var source by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var advancedExpanded by remember { mutableStateOf(false) }
-    var globalRefreshInterval by remember(state.actions) { mutableIntStateOf(state.globalRefreshIntervalHours) }
-    var intervalMenuExpanded by remember { mutableStateOf(false) }
-    LaunchedEffect(state.actions) {
-        runCatching { state.actions.globalSource() }.onSuccess { source = it }
-            .onFailure { status = MobileMessages.text("epgMobileSourcesLoadFailed") }
-    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MobilePreferenceSwitchRow(
             title = MobileMessages.text("configEnableEpg"),
             checked = state.enabled,
             accessibilityLabel = MobileMessages.text("configEnableEpg"),
-            onCheckedChange = { value ->
-                scope.launch {
-                    runCatching { state.actions.saveEnabled(value) }
-                        .onSuccess { state.onEnabled(value); state.onDataRefresh() }
-                        .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
-                }
-            }
+            onCheckedChange = { value -> scope.launch {
+                runCatching { state.actions.saveEnabled(value) }
+                    .onSuccess { state.onEnabled(value) }
+                    .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
+            } }
         )
-        var playbackOnly by remember { mutableStateOf(false) }
-        LaunchedEffect(state.actions) { playbackOnly = state.actions.loadPlaybackOnly() }
-        MobilePreferenceSwitchRow(
-            title = MobileMessages.text("epgEnablePlaybackOnly"),
-            checked = playbackOnly && state.enabled,
-            enabled = state.enabled && !busy,
-            accessibilityLabel = MobileMessages.text("epgEnablePlaybackOnly"),
-            onCheckedChange = { value ->
-                scope.launch {
-                    runCatching { state.actions.savePlaybackOnly(value) }
-                        .onSuccess { playbackOnly = value; state.onPlaybackOnly(value) }
-                        .onFailure { status = MobileMessages.text("epgMobileModeSaveFailed") }
-                }
-            }
-        )
-        if (!state.enabled) Text(MobileMessages.text("epgMobilePlaybackOnlyNeedsEpg"), style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(
-            value = source,
-            onValueChange = { source = it },
-            label = { Text(MobileMessages.text("configGlobalEpgSource")) },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 4,
-            colors = mobileOutlinedTextFieldColors()
-        )
-        Text(MobileMessages.text("epgMobileSourcesSyncHelp"),
-            style = MaterialTheme.typography.bodySmall)
-        TextButton(enabled = !busy, onClick = { scope.launch {
-            busy = true
-            runCatching { state.actions.saveGlobalSource(source) }
-                .onSuccess { status = MobileMessages.text("epgMobileSourcesSaved"); state.onDataRefresh() }
-                .onFailure { status = MobileMessages.text("epgMobileSourcesSaveFailed") }
-            busy = false
-        } }) { Text(MobileMessages.text("epgMobileSaveSources")) }
-        TextButton(onClick = { advancedExpanded = !advancedExpanded }) {
-            Text(MobileMessages.text(if (advancedExpanded) "epgMobileHideAdvanced" else "epgAdvancedSettings"))
-        }
-        if (advancedExpanded) {
-            HorizontalDivider()
-            Text(MobileMessages.text("configEpgRefreshInterval"), style = MaterialTheme.typography.titleSmall)
-            Box {
-                OutlinedButton(onClick = { intervalMenuExpanded = true }, enabled = !busy) {
-                    Text(if (globalRefreshInterval < 24) "${globalRefreshInterval}h" else "${globalRefreshInterval / 24}d")
-                }
-                DropdownMenu(expanded = intervalMenuExpanded, onDismissRequest = { intervalMenuExpanded = false }) {
-                    listOf(1, 2, 3, 4, 5, 6, 12, 24, 48, 72, 96, 120, 144, 168).forEach { hours ->
-                        DropdownMenuItem(
-                            text = { Text(if (hours < 24) "${hours}h" else "${hours / 24}d") },
-                            onClick = {
-                                intervalMenuExpanded = false
-                                scope.launch {
-                                    busy = true
-                                    runCatching { state.actions.saveGlobalRefreshIntervalHours(hours) }
-                                        .onSuccess { globalRefreshInterval = hours; state.onDataRefresh() }
-                                        .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
-                                    busy = false
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-            Text(MobileMessages.text("configEpgRefreshIntervalHelp"),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(MobileMessages.text("epgMobileMaintenance"), style = MaterialTheme.typography.titleSmall)
-            Text(MobileMessages.text("epgMobileCacheDescription"),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(enabled = !busy, onClick = { scope.launch {
-                busy = true
-                runCatching { state.actions.clearCache() }
-                    .onSuccess { status = MobileMessages.text("epgMobileCacheCleared"); state.onDataRefresh() }
-                    .onFailure { status = MobileMessages.text("epgMobileCacheClearFailed") }
-                busy = false
-            } }) { Text(MobileMessages.text("configClearCache")) }
-        }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
     }
 }
 
+/** Each opening loads one fresh channel guide. Dismissing releases its programme list. */
 @Composable
-internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) {
+internal fun MobileChannelGuideDialog(accountId: Long, channelId: String, name: String, onDismiss: () -> Unit) {
     val state = LocalEpgState.current
-    if (!state.enabled || state.playbackOnly) return
-    var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(MobileEpgCache.peek(accountId, channelId, state.time)) }
-    var details by remember(accountId, channelId) { mutableStateOf(false) }
-    LaunchedEffect(accountId, channelId, state.time / 60_000, state.dataRevision) {
-        val cached = MobileEpgCache.peek(accountId, channelId, state.time)
-        if (cached != null) {
-            result = cached
-            return@LaunchedEffect
-        }
-        result = null
-        val fetched = loadGuide(state, accountId, channelId, name)
-        result = fetched
-        MobileEpgCache.put(accountId, channelId, fetched, state.time,
-            state.backgroundCheckIntervalMinutes * 60_000L)
+    var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(null) }
+    LaunchedEffect(accountId, channelId, state.enabled) {
+        result = if (state.enabled) loadGuide(state, accountId, channelId, name) else MobileEpgResult()
     }
-    val now = result?.now(state.time)?.takeIf { it.hasProgrammeInformation() }
-    val next = result?.next(state.time)?.takeIf { it.hasProgrammeInformation() }
-    val hasGuideDetails = result?.programmes.orEmpty().any { it.hasProgrammeInformation() }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (now != null) {
-            Text("${MobileMessages.text("epgNow")}: ${now.title}", maxLines = 2, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium)
-            Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelMedium)
-            LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start).coerceAtLeast(1)).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth())
-        } else {
-            if (!hasGuideDetails && result != null) HorizontalDivider()
-            Text(mobileEpgNowStatus(result, now, next).orEmpty(),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        mobileEpgSourceStatus(result, now, next)?.let { status ->
-            Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (next != null) Text("${MobileMessages.text("epgNext")}: ${next.title} · ${programmeTime(next.start)}", maxLines = 2,
-            overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-        if (hasGuideDetails) {
-            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) {
-                Text(MobileMessages.text("epgMobileProgrammeGuide"))
-            }
-        }
-    }
-    if (details) Dialog(onDismissRequest = { details = false }) {
+    Dialog(onDismissRequest = onDismiss) {
         Surface(shape = MaterialTheme.shapes.large) {
             Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(16.dp)) {
                 MobileScreenHeader(name, MobileMessages.text("epgMobileProgrammeGuide")) {
-                    IconButton(onClick = { details = false }) {
+                    IconButton(onClick = onDismiss) {
                         Icon(Icons.Outlined.Close, contentDescription = MobileMessages.text("commonClose"))
                     }
                 }
@@ -293,6 +150,16 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
             }
         }
     }
+}
+
+@Composable
+internal fun MobileLiveChannelMenu(name: String, onGuide: () -> Unit, onChoosePlayer: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(name) }, text = {
+        Column {
+            TextButton(onClick = onGuide) { Text(MobileMessages.text("epgOpenGuide")) }
+            TextButton(onClick = onChoosePlayer) { Text(MobileMessages.text("configSelectStreamingPlayer")) }
+        }
+    }, confirmButton = { TextButton(onClick = onDismiss) { Text(MobileMessages.text("commonClose")) } })
 }
 
 private suspend fun loadGuide(state: EpgUiState, accountId: Long, channelId: String, name: String): MobileEpgResult =

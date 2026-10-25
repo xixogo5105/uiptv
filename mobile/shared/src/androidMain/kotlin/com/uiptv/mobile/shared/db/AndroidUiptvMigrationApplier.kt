@@ -29,7 +29,11 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
         }
 
         var failure: Exception? = null
+        val secureDelete = if (name == "0222_remove_epg_caches.sql") {
+            db.rawQuery("PRAGMA secure_delete", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+        } else null
         try {
+            if (secureDelete != null) db.execSQL("PRAGMA secure_delete=OFF")
             executeMigration(db, sql)
             recordMigration(db, name, checksum, "success", null)
             if (ownsTransaction) {
@@ -41,6 +45,7 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             if (ownsTransaction) {
                 db.endTransaction()
             }
+            if (secureDelete != null) db.execSQL("PRAGMA secure_delete=$secureDelete")
         }
 
         if (failure != null) {
