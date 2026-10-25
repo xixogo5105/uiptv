@@ -21,7 +21,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.util.Log
 import android.text.TextUtils
 import android.util.Rational
@@ -173,7 +172,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var mpvVideoDetails: VideoTrackDetails? = null
     private var playbackTimeMs = 0L
     private var playbackLengthMs = 0L
-    private var lastMpvDiagnosticsAtMs = 0L
     private var mpvPaused = false
     private var mpvHwDecoder = ""
     private var mpvVideoOutput = ""
@@ -221,14 +219,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
             postMpvEvent { handleMpvEvent(eventId) }
         }
     }
-    private val mpvLogObserver = object : MPVLib.LogObserver {
-        override fun logMessage(prefix: String, level: Int, text: String) {
-            if (level <= MPVLib.MpvLogLevel.MPV_LOG_LEVEL_INFO) {
-                Log.d(LogTag, "mpv[$prefix] ${text.trim()}")
-            }
-        }
-    }
-
     private fun postMpvEvent(action: () -> Unit) {
         if (activityDestroyed) {
             return
@@ -438,7 +428,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         mpv = createdMpv
         createdMpv.addObserver(mpvObserver)
-        createdMpv.addLogObserver(mpvLogObserver)
         configureMpvOptions(createdMpv)
         runCatching { createdMpv.init() }
             .onFailure {
@@ -609,7 +598,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         mpvRenderSurface = null
         player?.let {
             runCatching { it.removeObserver(mpvObserver) }
-            runCatching { it.removeLogObserver(mpvLogObserver) }
             destroyMpvAsync(it, renderSurface)
         } ?: renderSurface?.release()
         abandonAudioFocus()
@@ -732,7 +720,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 } else streamUrl
             }
             if (!activityDestroyed && generation == streamLoadGeneration) {
-                Log.d(LogTag, "mpv loading stream ${playbackUrl.safeStreamDescriptor()}")
                 player.runCatchingCommand("loadfile", playbackUrl, "replace")
             }
         }
@@ -1498,26 +1485,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         return !selection.isNullOrEmpty() && !selection.equals("no", ignoreCase = true)
     }
 
-    private fun logMpvDiagnosticsIfDue() {
-        if (!BuildConfig.DEBUG || !playbackStarted) return
-        val player = mpv ?: return
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastMpvDiagnosticsAtMs < MpvDiagnosticsIntervalMs) return
-        lastMpvDiagnosticsAtMs = now
-        fun intProperty(name: String): String = runCatching { player.getPropertyInt(name) }.getOrNull()?.toString() ?: "?"
-        fun doubleProperty(name: String): String = runCatching { player.getPropertyDouble(name) }
-            .getOrNull()?.let { "%.3f".format(java.util.Locale.ROOT, it) } ?: "?"
-        val displaySync = runCatching { player.getPropertyBoolean("display-sync-active") }.getOrNull()?.toString() ?: "?"
-        Log.d(
-            LogTag,
-            "mpv timing time=${playbackTimeMs}ms fps=${doubleProperty("estimated-vf-fps")} " +
-                "displaySync=$displaySync " +
-                "dropped=${intProperty("frame-drop-count")} decoderDropped=${intProperty("decoder-frame-drop-count")} " +
-                "voDelayed=${intProperty("vo-delayed-frame-count")} cache=${doubleProperty("demuxer-cache-duration")} " +
-                "buffering=${intProperty("cache-buffering-state")} avsync=${doubleProperty("avsync")} hw=$mpvHwDecoder"
-        )
-    }
-
     private fun MPVLib.trackIds(type: String): List<Int> = buildList {
         for (index in 0 until MaxMpvTrackCount) {
             val prefix = "track-list/$index"
@@ -1694,7 +1661,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         updateProgressSeekBarAppearance()
         refreshMpvPlaybackState()
-        logMpvDiagnosticsIfDue()
         val length = playbackLengthMs
         val current = playbackTimeMs.coerceAtLeast(0L)
         completeStreamLoadingIfClockStarted(current)
@@ -2308,7 +2274,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
             val key = "${details.displayWidth}x${details.displayHeight}|${details.codec}|$mpvHwDecoder|$mpvVideoOutput"
             if (key != lastLoggedVideoDetailsKey) {
                 lastLoggedVideoDetailsKey = key
-                Log.d(LogTag, "mpv video details ${details.displayWidth}x${details.displayHeight} codec=${details.codec} hw=$mpvHwDecoder vo=$mpvVideoOutput")
             }
         }
         return details
@@ -2359,9 +2324,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun configureMpvOptions(player: MPVLib) {
         val stableMobileAudio = shouldUseStableMobileAudioProfile()
-        Log.d(LogTag, "mpv stable mobile audio profile=$stableMobileAudio outputDevices=${audioOutputDeviceTypes()}")
         player.setMpvOption("profile", "fast")
-        player.setMpvOption("vo", "mediacodec_embed,gpu")
+        // Keep presentation on the normal GPU path.  Direct MediaCodec embedding is
+        // device-specific and can produce corrupt frames on otherwise valid streams.
+        player.setMpvOption("vo", "gpu")
         player.setMpvOption("gpu-context", "android")
         player.setMpvOption("opengl-es", "yes")
         player.setMpvOption("ao", if (stableMobileAudio) "opensles,audiotrack" else "audiotrack,opensles")
@@ -2371,7 +2337,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             player.setMpvOption("audio-channels", "stereo")
             player.setMpvOption("audio-format", "s16")
         }
-        player.setMpvOption("hwdec", "mediacodec,mediacodec-copy")
+        // MPV chooses a hardware decoder when the device exposes a safe one and
+        // falls back to software decoding only when hardware decoding is unavailable.
+        player.setMpvOption("hwdec", "auto-safe")
         player.setMpvOption("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
         player.setMpvOption("hwdec-software-fallback", "yes")
         player.setMpvOption("input-default-bindings", "yes")
@@ -2474,7 +2442,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
             mpv?.attachSurface(surface)
             mpv?.runCatchingCommand("set", "vid", "auto")
             attached = true
-            Log.d(LogTag, "mpv surface attached")
         }.onFailure {
             Log.w(LogTag, "Unable to attach mpv surface", it)
         }
@@ -2569,7 +2536,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun MPVLib.setMpvOption(name: String, value: String) {
         val result = runCatching { setOptionString(name, value) }.getOrDefault(-1)
-        Log.d(LogTag, "mpv option $name=$value result=$result")
     }
 
     private fun MPVLib.observe(property: String, format: Int) {
@@ -2742,7 +2708,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 1_800L
         private const val ProgressUpdateMs = 1_000L
-        private const val MpvDiagnosticsIntervalMs = 5_000L
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
         private const val LogTag = "UIPTV-MpvEmbedded"
@@ -2795,17 +2760,3 @@ private fun String.isPlayableNetworkUrl(): Boolean {
     return (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
 }
 
-private fun String.safeStreamDescriptor(): String {
-    val uri = runCatching { Uri.parse(trim()) }.getOrNull() ?: return "non-url"
-    val scheme = uri.scheme?.lowercase()
-    if ((scheme != "http" && scheme != "https") || uri.host.isNullOrBlank()) {
-        return "non-url"
-    }
-    val lastSegment = uri.lastPathSegment.orEmpty()
-    val pathHint = when {
-        uri.path.isNullOrBlank() -> ""
-        lastSegment.isNotBlank() -> "/$lastSegment"
-        else -> uri.path.orEmpty().take(24)
-    }
-    return "$scheme://${uri.host}$pathHint"
-}

@@ -33,7 +33,9 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             db.rawQuery("PRAGMA secure_delete", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
         } else null
         try {
-            if (secureDelete != null) db.execSQL("PRAGMA secure_delete=OFF")
+            if (secureDelete != null) {
+                db.rawQuery("PRAGMA secure_delete=OFF", null).use { it.moveToFirst() }
+            }
             executeMigration(db, sql)
             recordMigration(db, name, checksum, "success", null)
             if (ownsTransaction) {
@@ -45,7 +47,9 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             if (ownsTransaction) {
                 db.endTransaction()
             }
-            if (secureDelete != null) db.execSQL("PRAGMA secure_delete=$secureDelete")
+            if (secureDelete != null) {
+                db.rawQuery("PRAGMA secure_delete=$secureDelete", null).use { it.moveToFirst() }
+            }
         }
 
         if (failure != null) {
