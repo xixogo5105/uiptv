@@ -24,7 +24,7 @@ public class PlayerRequestResolver {
                 : bookmark.getAccountAction();
         Account playbackAccount = accountWithMode(account, action);
         Channel channel = resolveBookmarkChannel(bookmark);
-        String scopedCategoryId = resolveSeriesCategoryId(playbackAccount, bookmark.getCategoryId());
+        String scopedCategoryId = resolveBookmarkSourceCategoryId(playbackAccount, bookmark);
         return PlayerService.getInstance().get(playbackAccount, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
     }
 
@@ -81,6 +81,13 @@ public class PlayerRequestResolver {
             return category.getCategoryId();
         }
         return rawCategoryId;
+    }
+
+    String resolveBookmarkSourceCategoryId(Account account, Bookmark bookmark) {
+        Category source = Category.fromJson(bookmark.getCategoryJson());
+        String sourceId = source == null ? bookmark.getCategoryId()
+                : isNotBlank(source.getDbId()) ? source.getDbId() : source.getCategoryId();
+        return resolveSeriesCategoryId(account, sourceId);
     }
 
     private Channel readBookmarkSnapshot(Bookmark bookmark) {

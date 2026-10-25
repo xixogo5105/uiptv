@@ -40,7 +40,7 @@ class AndroidM3uCacheReloader(
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
-        try {
+        val result = try {
             clearLiveCache(db, accountId)
             val summary = saveEntries(db, accountId, entries)
             db.setTransactionSuccessful()
@@ -48,6 +48,8 @@ class AndroidM3uCacheReloader(
         } finally {
             db.endTransaction()
         }
+        db.execSQL("VACUUM")
+        result
     }
 
     private fun clearLiveCache(db: SQLiteDatabase, accountId: Long) {

@@ -47,7 +47,7 @@ class AndroidStalkerCacheReloader(
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
-        try {
+        val result = try {
             clearLiveCache(db, accountId)
             val liveSummary = saveLive(db, accountId, payload.categories, payload.streams)
             val vodCategoryRows = saveVodSeriesCategories(db, accountId, AndroidCatalogMode.VOD, vodCategories)
@@ -69,6 +69,8 @@ class AndroidStalkerCacheReloader(
         } finally {
             db.endTransaction()
         }
+        db.execSQL("VACUUM")
+        result
     }
 
     private fun loadRefreshPayload(account: MobileAccount): StalkerRefreshPayload {
@@ -358,7 +360,7 @@ class AndroidStalkerCacheReloader(
                         censored = item.optInt("censored", 0),
                         status = item.optInt("status", 1),
                         hd = item.optInt("hd", 0),
-                        extraJson = item.toString()
+                        extraJson = ChannelExtraJsonCompactor.compact(item)
                     )
                 )
             }

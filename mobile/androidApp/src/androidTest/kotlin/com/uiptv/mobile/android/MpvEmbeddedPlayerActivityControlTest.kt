@@ -41,6 +41,167 @@ class MpvEmbeddedPlayerActivityControlTest {
     }
 
     @Test
+    fun localVideoSurvivesRepeatedOpenBackgroundResumeAndRelease() {
+        org.junit.Assume.assumeTrue(
+            "Supply a local test video URL for this device smoke test",
+            InstrumentationRegistry.getArguments().containsKey("stabilityStreamUrl")
+        )
+        repeat(3) {
+            val player = launchPlayer("VOD")
+            waitForPlaybackTime(player)
+            if (InstrumentationRegistry.getArguments().getString("stabilityStreamUrl").orEmpty().contains("50fps")) {
+                val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as dev.jdtech.mpv.MPVLib
+                val sourceFps = mpv.getPropertyDouble("container-fps") ?: 0.0
+                val firstFrame = mpv.getPropertyInt("estimated-frame-number") ?: 0
+                val firstDropped = mpv.getPropertyInt("vo-drop-frame-count") ?: 0
+                Thread.sleep(2_000)
+                val lastFrame = mpv.getPropertyInt("estimated-frame-number") ?: 0
+                val lastDropped = mpv.getPropertyInt("vo-drop-frame-count") ?: 0
+                android.util.Log.i("UIPTV-StabilityTest", "fps source=$sourceFps decodedFrames=${lastFrame - firstFrame} voDropped=${lastDropped - firstDropped}")
+                org.junit.Assert.assertTrue("50 fps source was not detected: $sourceFps", sourceFps >= 49.0)
+                org.junit.Assert.assertTrue("Video presented fewer than 40 frames in 2 seconds: ${lastFrame - firstFrame}", lastFrame - firstFrame >= 80)
+            }
+            val surface = player.javaClass.getDeclaredField("videoSurface").apply { isAccessible = true }.get(player) as View
+            var parent: ViewGroup? = null
+            var index = 0
+            instrumentation.runOnMainSync {
+                parent = surface.parent as ViewGroup
+                index = parent!!.indexOfChild(surface)
+                parent!!.removeView(surface)
+            }
+            instrumentation.waitForIdleSync()
+            Thread.sleep(250)
+            instrumentation.runOnMainSync { parent!!.addView(surface, index) }
+            waitForPlaybackTime(player)
+            instrumentation.runOnMainSync { player.moveTaskToBack(true) }
+            Thread.sleep(500)
+            instrumentation.runOnMainSync {
+                player.startActivity(
+                    Intent(player, MpvEmbeddedPlayerActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                )
+            }
+            instrumentation.waitForIdleSync()
+            waitForPlaybackTime(player)
+            instrumentation.runOnMainSync { player.finish() }
+            instrumentation.waitForIdleSync()
+            Thread.sleep(500)
+            activity = null
+        }
+    }
+
+    private fun waitForPlaybackTime(player: Activity) {
+        val field = player.javaClass.getDeclaredField("playbackTimeMs").apply { isAccessible = true }
+        val deadline = System.currentTimeMillis() + 15_000
+        while (System.currentTimeMillis() < deadline) {
+            var playing = false
+            instrumentation.runOnMainSync { playing = field.getLong(player) > 500 }
+            if (playing) {
+                instrumentation.runOnMainSync {
+                    val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as dev.jdtech.mpv.MPVLib
+                    org.junit.Assert.assertTrue("Video must be decoded", (mpv.getPropertyInt("width") ?: 0) > 0)
+                    val videoOutput = mpv.getPropertyString("current-vo")
+                    org.junit.Assert.assertTrue(
+                        "Expected embedded MediaCodec or GPU fallback, got $videoOutput",
+                        videoOutput == "mediacodec_embed" || videoOutput == "gpu"
+                    )
+                    android.util.Log.i("UIPTV-StabilityTest", "version=${mpv.getPropertyString("mpv-version")} vo=${mpv.getPropertyString("current-vo")} hwdec=${mpv.getPropertyString("hwdec-current")}")
+                }
+                return
+            }
+            Thread.sleep(100)
+        }
+        instrumentation.runOnMainSync {
+            val boolField = { name: String -> player.javaClass.getDeclaredField(name).apply { isAccessible = true }.getBoolean(player) }
+            val surface = player.javaClass.getDeclaredField("videoSurface").apply { isAccessible = true }.get(player) as? android.view.TextureView
+            val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as? dev.jdtech.mpv.MPVLib
+            android.util.Log.e(
+                "UIPTV-StabilityTest",
+                "resume timeout destroyed=${boolField("activityDestroyed")} stopping=${boolField("stoppingForLifecycle")} pending=${boolField("pendingPlayback")} surfaceReady=${boolField("surfaceReady")} attached=${boolField("attached")} texture=${surface?.surfaceTexture != null} view=${surface?.width}x${surface?.height} mpvTime=${runCatching { mpv?.getPropertyDouble("time-pos") }.getOrNull()} hwdec=${mpv?.getPropertyString("hwdec-current")}"
+            )
+        }
+        org.junit.Assert.fail("Local test video did not advance")
+    }
+
+    private fun waitForMpvHwdecOption(mpv: dev.jdtech.mpv.MPVLib, expected: String) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            if (runCatching { mpv.getPropertyString("hwdec") }.getOrNull() == expected) return
+            Thread.sleep(50)
+        }
+        org.junit.Assert.fail("MPV did not switch hwdec option to $expected")
+    }
+
+    private fun waitForDecoderButtonEnabled(button: android.widget.TextView) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            var enabled = false
+            instrumentation.runOnMainSync { enabled = button.isEnabled }
+            if (enabled) return
+            Thread.sleep(50)
+        }
+        org.junit.Assert.fail("Decoder mode button remained disabled")
+    }
+
+    @Test
+    fun fiftyFpsLocalClipMeasuresVideoOutputAndDroppedFrames() {
+        org.junit.Assume.assumeTrue(
+            "Supply a 50 fps local test video URL",
+            InstrumentationRegistry.getArguments().containsKey("stabilityStreamUrl")
+        )
+        val player = launchPlayer("VOD")
+        assertRealtimePlaybackDiagnostics(player, 50.0)
+    }
+
+    @Test
+    fun twentyFiveFpsLocalClipTracksPlaybackClockAndDroppedFrames() {
+        org.junit.Assume.assumeTrue(
+            "Supply a 25 fps local test video URL",
+            InstrumentationRegistry.getArguments().containsKey("stabilityStreamUrl")
+        )
+        val player = launchPlayer("VOD")
+        assertRealtimePlaybackDiagnostics(player, 25.0)
+    }
+
+    private fun assertRealtimePlaybackDiagnostics(player: Activity, expectedFps: Double) {
+        waitForPlaybackTime(player)
+        val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as dev.jdtech.mpv.MPVLib
+        val sourceFps = mpv.getPropertyDouble("container-fps") ?: 0.0
+        val firstTimePos = mpv.getPropertyDouble("time-pos") ?: 0.0
+        val firstWallMs = android.os.SystemClock.elapsedRealtime()
+        val firstEstimatedFrame = mpv.getPropertyInt("estimated-frame-number") ?: 0
+        val firstVoDropped = mpv.getPropertyInt("frame-drop-count") ?: 0
+        val firstDecoderDropped = mpv.getPropertyInt("decoder-frame-drop-count") ?: 0
+        val speed = mpv.getPropertyDouble("speed") ?: 0.0
+        Thread.sleep(3_000)
+        val elapsedSeconds = (android.os.SystemClock.elapsedRealtime() - firstWallMs) / 1_000.0
+        val lastTimePos = mpv.getPropertyDouble("time-pos") ?: firstTimePos
+        val playbackClockRate = (lastTimePos - firstTimePos) / elapsedSeconds
+        val lastEstimatedFrame = mpv.getPropertyInt("estimated-frame-number") ?: firstEstimatedFrame
+        val lastVoDropped = mpv.getPropertyInt("frame-drop-count") ?: firstVoDropped
+        val lastDecoderDropped = mpv.getPropertyInt("decoder-frame-drop-count") ?: firstDecoderDropped
+        val mode = mpv.getPropertyString("hwdec-current").orEmpty()
+        android.util.Log.i(
+            "UIPTV-StabilityTest",
+            "sourceFps=$sourceFps playbackClockRate=$playbackClockRate speed=$speed " +
+                "estimatedFrames=${lastEstimatedFrame - firstEstimatedFrame} resolution=" +
+                mpv.getPropertyInt("width") + "x" + mpv.getPropertyInt("height") +
+                " vo=" + mpv.getPropertyString("current-vo") + " hwdec=$mode " +
+                "voDropped=${lastVoDropped - firstVoDropped} " +
+                "decoderDropped=${lastDecoderDropped - firstDecoderDropped} " +
+                "avsync=" + mpv.getPropertyDouble("avsync")
+        )
+        org.junit.Assert.assertTrue("Expected about $expectedFps fps but got $sourceFps", kotlin.math.abs(sourceFps - expectedFps) <= 0.5)
+        org.junit.Assert.assertTrue("MPV speed should be 1.0 but was $speed", kotlin.math.abs(speed - 1.0) <= 0.01)
+        org.junit.Assert.assertTrue("Playback clock advanced at $playbackClockRate x real time", playbackClockRate in 0.85..1.15)
+        val expectedModeLabel = if (mode.equals("no", ignoreCase = true)) "SW" else "HW"
+        instrumentation.runOnMainSync {
+            val label = player.javaClass.getDeclaredField("streamInfoLabel").apply { isAccessible = true }.get(player) as android.widget.TextView
+            org.junit.Assert.assertTrue("Codec details should show $expectedModeLabel decoding", label.text.toString().contains(expectedModeLabel))
+        }
+    }
+
+    @Test
     fun vodControlButtonsRespondToClicks() {
         val player = launchPlayer("VOD")
 
@@ -62,6 +223,26 @@ class MpvEmbeddedPlayerActivityControlTest {
         clickControl(player, "Video scale: Stretch. Tap to change")
         waitForControl(player, "Video scale: Fit. Tap to change")
         clickControl(player, "Close player")
+    }
+
+    @Test
+    fun decoderModeButtonTogglesMpvBetweenHardwareAndSoftwareRequests() {
+        val player = launchPlayer("VOD")
+        val button = player.javaClass.getDeclaredField("decoderModeButton").apply { isAccessible = true }
+            .get(player) as android.widget.TextView
+        val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }
+            .get(player) as dev.jdtech.mpv.MPVLib
+
+        waitForDecoderButtonEnabled(button)
+        instrumentation.runOnMainSync { button.performClick() }
+        waitForMpvHwdecOption(mpv, "no")
+        waitForDecoderButtonEnabled(button)
+        instrumentation.runOnMainSync { org.junit.Assert.assertEquals("SW", button.text.toString()) }
+
+        instrumentation.runOnMainSync { button.performClick() }
+        waitForMpvHwdecOption(mpv, "mediacodec,mediacodec-copy")
+        waitForDecoderButtonEnabled(button)
+        instrumentation.runOnMainSync { org.junit.Assert.assertEquals("HW", button.text.toString()) }
     }
 
     @Test
@@ -217,7 +398,7 @@ class MpvEmbeddedPlayerActivityControlTest {
             .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, 1L)
             .putExtra(NativePlayerActivity.EXTRA_CHANNEL_ID, "control-test")
             .putExtra(NativePlayerActivity.EXTRA_TITLE, "Control Test $mode")
-            .putExtra(NativePlayerActivity.EXTRA_URL, TestStreamUrl)
+            .putExtra(NativePlayerActivity.EXTRA_URL, InstrumentationRegistry.getArguments().getString("stabilityStreamUrl") ?: TestStreamUrl)
 
         return instrumentation.startActivitySync(intent).also {
             activity = it

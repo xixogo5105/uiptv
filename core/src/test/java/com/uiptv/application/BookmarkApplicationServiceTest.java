@@ -41,6 +41,9 @@ class BookmarkApplicationServiceTest extends DbBackedTest {
         assertEquals("exists", duplicate.action());
         assertEquals(1, service.listBookmarks(0, 10).size());
         assertEquals("logo", service.listBookmarks(0, 10).getFirst().getLogo());
+        Bookmark bookmark = service.getBookmark(saved.bookmarkId());
+        assertTrue(bookmark.getCategoryId() == null || bookmark.getCategoryId().isBlank());
+        assertEquals(category.getCategoryId(), Category.fromJson(bookmark.getCategoryJson()).getCategoryId());
         assertTrue(service.listBookmarks(99, 10).isEmpty());
         assertEquals(1, service.listBookmarks(-5, 0).size());
         assertNull(service.saveBookmark(null));

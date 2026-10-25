@@ -109,6 +109,47 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun failedLegacyRebuildRollsBackInsideHelperTransactionAndReopenPreservesSettings() {
+        val db = helper.writableDatabase
+        // 0167/0199 create this table before failing on the removed darkTheme column.
+        assertFalse("Failed rebuild leaked a staging table", db.tableExists("Configuration_new"))
+        db.execSQL("INSERT INTO Configuration(id, filterChannelsList) VALUES(1, 'preserve-me')")
+        db.beginTransaction()
+        try {
+            AndroidUiptvMigrationApplier(AndroidMigrationSource(context)).applyAll(db)
+            assertFalse(db.tableExists("Configuration_new"))
+            assertEquals(listOf("preserve-me"), db.columnValues("SELECT filterChannelsList FROM Configuration WHERE id=1"))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        helper.close()
+        helper = AndroidUiptvDatabaseHelper(context)
+        assertEquals(listOf("preserve-me"), helper.writableDatabase.columnValues("SELECT filterChannelsList FROM Configuration WHERE id=1"))
+        assertEquals(listOf("ok"), helper.writableDatabase.columnValues("PRAGMA integrity_check"))
+    }
+
+    @Test
+    fun upgradeRemovesLegacyEpgWithoutLosingAccountsOrSettings() {
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO Account(id, accountName, type) VALUES(1, 'Upgrade fixture', 'M3U8_URL')")
+        db.execSQL("INSERT INTO Configuration(id, filterChannelsList) VALUES(1, 'keep-filter')")
+        db.execSQL("CREATE TABLE epg_programme(id INTEGER PRIMARY KEY)")
+        db.execSQL("INSERT INTO epg_programme(id) VALUES(1)")
+        db.delete("schema_migrations", "name = ?", arrayOf("0222_remove_epg_caches.sql"))
+        val secureDelete = db.columnValues("PRAGMA secure_delete")
+        db.version = UiptvSchemaInfo.SCHEMA_VERSION_CODE - 1
+        helper.close()
+        helper = AndroidUiptvDatabaseHelper(context)
+        val upgraded = helper.writableDatabase
+        assertFalse(upgraded.tableExists("epg_programme"))
+        assertEquals(listOf("Upgrade fixture"), upgraded.columnValues("SELECT accountName FROM Account WHERE id=1"))
+        assertEquals(listOf("keep-filter"), upgraded.columnValues("SELECT filterChannelsList FROM Configuration WHERE id=1"))
+        assertEquals(secureDelete, upgraded.columnValues("PRAGMA secure_delete"))
+        assertEquals(listOf("ok"), upgraded.columnValues("PRAGMA integrity_check"))
+    }
+
+    @Test
     fun appliesFixtureSnapshotAsFullDatabaseClone() {
         val snapshot = File.createTempFile("uiptv-sync-fixture-", ".db", context.cacheDir)
         try {
@@ -131,7 +172,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
             helper.writableDatabase.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName) VALUES(96, '99', 'series', 'mobile-stale-category', 'mobile-stale-series', 'old-episode', 'Old episode')")
             helper.writableDatabase.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle) VALUES(95, '99', 'mobile-stale-category', 'mobile-stale-series', 'Old mobile series')")
 
-            val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
+            val report = AndroidSQLiteSnapshotSyncApplier(helper, helper.databaseFile().parentFile!!).apply(snapshot)
             val target = helper.writableDatabase
 
             assertEquals(8, report.totalRowsSynced)
@@ -178,7 +219,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
             val before = helper.writableDatabase.singleString("Configuration", "defaultPlayerPath", "1")
 
             val failure = runCatching {
-                AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
+                AndroidSQLiteSnapshotSyncApplier(helper, helper.databaseFile().parentFile!!).apply(snapshot)
             }.exceptionOrNull()
 
             assertTrue(

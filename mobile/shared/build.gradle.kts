@@ -80,6 +80,29 @@ val generatedMobileMessagesDir = layout.buildDirectory.dir("generated/mobileMess
 val generatedMobileMessagesFile = generatedMobileMessagesDir.map {
     it.file("com/uiptv/mobile/shared/i18n/MobileMessages.kt")
 }
+val generatedMetadataPolicyDir = layout.buildDirectory.dir("generated/metadataPolicy/androidMain/kotlin")
+val metadataPolicyFile = file("$repoRoot/core/src/main/resources/metadata/channel-extra-fields.properties")
+val generateMetadataPolicy = tasks.register("generateChannelMetadataPolicy") {
+    inputs.file(metadataPolicyFile)
+    outputs.dir(generatedMetadataPolicyDir)
+    doLast {
+        val policy = Properties().apply { metadataPolicyFile.inputStream().use { load(it) } }
+        val source = buildString {
+            appendLine("package com.uiptv.mobile.shared.cache")
+            appendLine("// Generated from the shared desktop import policy. Do not edit.")
+            appendLine("internal object ChannelMetadataFields {")
+            for (group in listOf("channel", "episode", "episodeInfo")) {
+                val fields = policy.getProperty(group).split(',').joinToString(", ") { "\"$it\"" }
+                appendLine("    val $group = listOf($fields)")
+            }
+            appendLine("}")
+        }
+        generatedMetadataPolicyDir.get().file("com/uiptv/mobile/shared/cache/ChannelMetadataFields.kt").asFile.apply {
+            parentFile.mkdirs()
+            writeText(source)
+        }
+    }
+}
 val mobileMessageKeys = listOf(
     "mobileAccountsTitle", "mobileAccountsSubtitle", "mobileAccountTypeStalkerPortal",
     "mobileAccountStalkerDescription", "mobileAccountTypeXtremeApi", "mobileAccountXtremeDescription",
@@ -105,7 +128,11 @@ val mobileMessageKeys = listOf(
     "configClearCache", "epgMobileCacheCleared", "epgMobileCacheClearFailed", "epgLoading",
     "epgNow", "epgNext", "epgSourceStale", "epgSourceUnavailable", "epgNoGuide",
     "epgProgrammeDetails", "epgMobileProgrammeGuide", "commonClose", "epgMobileNoProgrammeNow",
-    "epgMobileMemoryPressure", "epgSourceTooLarge", "epgSourceProgrammeLimit", "epgSourceInvalid"
+    "epgMobileMemoryPressure", "epgSourceTooLarge", "epgSourceProgrammeLimit", "epgSourceInvalid",
+    "playerSwitchToHardwareDecode", "playerSwitchToSoftwareDecode", "playerAccelerationSwitchFailed",
+    "mobileEmbeddedOutputTitle", "mobileEmbeddedOutputDescription", "mobileEmbeddedOutputDirect",
+    "mobileEmbeddedOutputDirectDescription", "mobileEmbeddedOutputGpu", "mobileEmbeddedOutputGpuDescription",
+    "mobileEmbeddedOutputNextStream", "mobileEmbeddedOutputSaveFailed"
 )
 
 val generateUiptvSchemaMirror = tasks.register("generateUiptvSchemaMirror") {
@@ -312,10 +339,13 @@ val generateMobileMessages = tasks.register("generateMobileMessages") {
 sourceSets.named("commonMain") {
     kotlin.srcDir(generatedMobileMessagesDir)
 }
+sourceSets.named("androidMain") {
+    kotlin.srcDir(generatedMetadataPolicyDir)
+}
 
     // Consumers depend on the generated mirror, so a baseline change regenerates it before compiling.
     tasks.matching { it.name.startsWith("compile") }.configureEach {
-        dependsOn(generateUiptvSchemaMirror, generateMobileMessages)
+        dependsOn(generateUiptvSchemaMirror, generateMobileMessages, generateMetadataPolicy)
     }
 
     sourceSets {

@@ -36,7 +36,10 @@ class AndroidDataStorePreferencesRepository(
             embeddedPlayerPreference = EmbeddedPlayerPreference(
                 repeatReconnect = values[EMBEDDED_PLAYER_REPEAT_RECONNECT] ?: false,
                 muted = values[EMBEDDED_PLAYER_MUTED] ?: false,
-                locked = values[EMBEDDED_PLAYER_LOCKED] ?: false
+                locked = values[EMBEDDED_PLAYER_LOCKED] ?: false,
+                renderProfile = values[EMBEDDED_PLAYER_RENDER_PROFILE]
+                    ?.let { runCatching { EmbeddedPlayerRenderProfile.valueOf(it) }.getOrNull() }
+                    ?: EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
             ),
             panelVisibilityPreference = PanelVisibilityPreference(
                 bookmarksCategoryPanelVisible = values[PANEL_BOOKMARKS_CATEGORY_VISIBLE] ?: false,
@@ -74,6 +77,7 @@ class AndroidDataStorePreferencesRepository(
             values[EMBEDDED_PLAYER_REPEAT_RECONNECT] = preference.repeatReconnect
             values[EMBEDDED_PLAYER_MUTED] = preference.muted
             values[EMBEDDED_PLAYER_LOCKED] = preference.locked
+            values[EMBEDDED_PLAYER_RENDER_PROFILE] = preference.renderProfile.name
         }
     }
 
@@ -107,6 +111,7 @@ class AndroidDataStorePreferencesRepository(
         val EMBEDDED_PLAYER_REPEAT_RECONNECT = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT)
         val EMBEDDED_PLAYER_MUTED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED)
         val EMBEDDED_PLAYER_LOCKED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED)
+        val EMBEDDED_PLAYER_RENDER_PROFILE = stringPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_RENDER_PROFILE)
         val PANEL_BOOKMARKS_CATEGORY_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE)
         val PANEL_WATCHING_NOW_DETAILS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE)
         val PANEL_ACCOUNTS_ACTIONS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE)

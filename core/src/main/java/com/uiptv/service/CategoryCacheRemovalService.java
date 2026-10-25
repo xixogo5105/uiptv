@@ -44,11 +44,14 @@ public class CategoryCacheRemovalService {
             return new CategoryCacheRemovalResult(0, 0, 0, mode);
         }
 
+        CategoryCacheRemovalResult result;
         try (Connection conn = SQLConnection.connect()) {
-            return removeCachedCategoriesInTransaction(conn, account, mode, requestedIds);
+            result = removeCachedCategoriesInTransaction(conn, account, mode, requestedIds);
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to remove cached categories", e);
         }
+        if (result.removedCategoryCount() > 0 || result.removedItemCount() > 0) SQLConnection.vacuum();
+        return result;
     }
 
     private CategoryCacheRemovalResult removeCachedCategoriesInTransaction(

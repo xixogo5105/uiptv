@@ -227,7 +227,7 @@ public class XtremeApiParser {
                 null
         );
         channel.setCategoryId(safeGetString(jsonCategory, PARAM_CATEGORY_ID));
-        channel.setExtraJson(jsonCategory.toString());
+        channel.setExtraJson(ChannelExtraJsonCompactor.compact(jsonCategory));
         return channel;
     }
 

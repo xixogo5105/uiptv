@@ -104,8 +104,9 @@ public class BookmarkService {
             BookmarkDb.get().deleteByAccountName(accountName);
             BookmarkPlayHistoryDb.removeByAccountName(accountName);
             touchChange();
-        } catch (Exception _) {
-            AppLog.addErrorLog(BookmarkService.class, "Error while removing bookmarks for account");
+        } catch (Exception error) {
+            // Account deletion must stop if its dependent bookmarks could not be removed.
+            throw new IllegalStateException("Unable to remove bookmarks for account", error);
         }
     }
 

@@ -33,6 +33,7 @@ class AndroidPreferencesTest {
         assertEquals(RemoteEndpointPreference(), snapshot.remoteEndpoint)
         assertEquals(PlayerPreference(), snapshot.playerPreference)
         assertEquals(EmbeddedPlayerPreference(), snapshot.embeddedPlayerPreference)
+        assertEquals(EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC, snapshot.embeddedPlayerPreference.renderProfile)
         assertEquals(PanelVisibilityPreference(), snapshot.panelVisibilityPreference)
         assertFalse(snapshot.firstRunCompleted)
         assertFalse(snapshot.epgEnabled)
@@ -50,6 +51,7 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT,
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED,
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_RENDER_PROFILE,
             AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE,

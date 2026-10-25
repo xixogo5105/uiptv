@@ -51,6 +51,11 @@ class CategoryCacheRemovalServiceTest extends DbBackedTest {
         assertEquals(1, countRows("Channel", "categoryId=?", sports.getDbId()));
         assertEquals(0, countRows("Channel", "categoryId=?", news.getDbId()));
         assertEquals(1, countRows("Bookmark", "accountName=?", account.getAccountName()));
+        try (Connection connection = SQLConnection.connect(); var statement = connection.createStatement();
+             ResultSet pages = statement.executeQuery("PRAGMA freelist_count")) {
+            org.junit.jupiter.api.Assertions.assertTrue(pages.next());
+            assertEquals(0, pages.getInt(1));
+        }
     }
 
     @Test

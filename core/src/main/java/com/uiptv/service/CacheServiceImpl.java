@@ -52,6 +52,8 @@ public class CacheServiceImpl implements CacheService {
             requests.check();
             publishReloadOutcome(account, reloadAccount);
         }
+        // User-triggered catalogue replacement has committed and released its connections.
+        com.uiptv.db.SQLConnection.vacuum();
     }
 
     /**

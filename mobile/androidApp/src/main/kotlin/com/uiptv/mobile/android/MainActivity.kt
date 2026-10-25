@@ -214,6 +214,10 @@ class MainActivity : ComponentActivity() {
                         playBingeWatchSeason = playbackCoordinator::playBingeWatchSeason,
                         openPlayerInstall = playbackCoordinator::openPlayerInstall,
                         savePlayerPreference = playbackCoordinator::savePlayerPreference,
+                        saveEmbeddedRenderProfile = { profile ->
+                            val current = preferences.load().embeddedPlayerPreference
+                            preferences.saveEmbeddedPlayerPreference(current.copy(renderProfile = profile))
+                        },
                         clearPlayerPreference = playbackCoordinator::clearPlayerPreference
                     ),
                     filterActions = FilterUiActions(

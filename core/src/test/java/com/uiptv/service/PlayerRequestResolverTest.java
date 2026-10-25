@@ -107,4 +107,16 @@ class PlayerRequestResolverTest extends DbBackedTest {
         account.setAction(Account.AccountAction.itv);
         assertEquals("", resolver.resolveSeriesCategoryId(account, saved.getDbId()));
     }
+
+    @Test void bookmarkSourceCategoryIsIndependentOfItsUserGroup() {
+        Account account = new Account(); account.setDbId("account"); account.setAction(Account.AccountAction.series);
+        SeriesCategoryDb.get().saveAll(java.util.List.of(new Category("provider-category", "Series", "", false, 0)), account);
+        Category source = SeriesCategoryDb.get().getCategories(account).getFirst();
+        Bookmark bookmark = new Bookmark("account", "Series", "episode", "Episode", "cmd", "portal", "user-group");
+        bookmark.setCategoryJson(source.toJson());
+        PlayerRequestResolver resolver = new PlayerRequestResolver();
+        assertEquals("provider-category", resolver.resolveBookmarkSourceCategoryId(account, bookmark));
+        bookmark.setCategoryId(null);
+        assertEquals("provider-category", resolver.resolveBookmarkSourceCategoryId(account, bookmark));
+    }
 }

@@ -46,7 +46,7 @@ class AndroidXtremeCacheReloader(
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
-        try {
+        val result = try {
             clearLiveCache(db, accountId)
             val liveSummary = saveLive(db, account, categories, streams)
             val vodCategoryRows = saveVodSeriesCategories(db, account, AndroidCatalogMode.VOD, vodCategories)
@@ -64,6 +64,8 @@ class AndroidXtremeCacheReloader(
         } finally {
             db.endTransaction()
         }
+        db.execSQL("VACUUM")
+        result
     }
 
     private fun fetchCategories(account: MobileAccount): List<XtremeCategory> {
@@ -97,7 +99,7 @@ class AndroidXtremeCacheReloader(
                         categoryId = item.optString("category_id"),
                         logo = item.optString("stream_icon"),
                         containerExtension = item.optString("container_extension"),
-                        extraJson = item.toString()
+                        extraJson = ChannelExtraJsonCompactor.compact(item)
                     )
                 )
             }

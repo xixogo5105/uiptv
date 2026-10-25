@@ -275,53 +275,45 @@ public class BookmarkDb extends BaseDb {
     public void delete(Bookmark bookmark) {
         if (isNotBlank(bookmark.getDbId())) {
             delete(bookmark.getDbId());
+            return;
         }
         deleteBookmark(bookmark);
     }
 
     @Override
     public void delete(String id) {
-        super.delete(id);
-        deleteBookmarkOrders(id);
+        deleteMatchingBookmarks("id=?", id);
     }
 
     private void deleteBookmark(Bookmark b) {
-        String sql = DELETE_FROM + BOOKMARK_TABLE.getTableName() + " where accountName=? AND categoryTitle=? AND channelId=? AND channelName=?";
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setString(1, b.getAccountName());
-            statement.setString(2, b.getCategoryTitle());
-            statement.setString(3, b.getChannelId());
-            statement.setString(4, b.getChannelName());
-            statement.execute();
-        } catch (SQLException e) {
-            throw new DatabaseAccessException("Unable to execute delete query", e);
+        deleteMatchingBookmarks("accountName=? AND categoryTitle=? AND channelId=? AND channelName=?",
+                b.getAccountName(), b.getCategoryTitle(), b.getChannelId(), b.getChannelName());
+    }
+
+    private void deleteMatchingBookmarks(String predicate, String... values) {
+        try (Connection conn = connect()) {
+            conn.setAutoCommit(false);
+            try {
+                for (String sql : List.of(
+                        "DELETE FROM BookmarkOrder WHERE bookmark_db_id IN (SELECT id FROM Bookmark WHERE " + predicate + ")",
+                        "DELETE FROM Bookmark WHERE " + predicate)) {
+                    try (PreparedStatement statement = conn.prepareStatement(sql)) {
+                        for (int i = 0; i < values.length; i++) statement.setString(i + 1, values[i]);
+                        statement.executeUpdate();
+                    }
+                }
+                conn.commit();
+            } catch (SQLException error) {
+                conn.rollback();
+                throw error;
+            }
+        } catch (SQLException error) {
+            throw new DatabaseAccessException("Unable to delete bookmark and its order rows", error);
         }
     }
 
     public void deleteByAccountName(String accountName) {
-        String deleteOrderSql = DELETE_FROM + BOOKMARK_ORDER_TABLE.getTableName() +
-                " WHERE bookmark_db_id IN (SELECT id FROM " + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?)";
-        String deleteBookmarkSql = DELETE_FROM + BOOKMARK_TABLE.getTableName() + " WHERE accountName=?";
-
-        try (Connection conn = connect()) {
-            conn.setAutoCommit(false);
-            try (PreparedStatement stmt1 = conn.prepareStatement(deleteOrderSql)) {
-                stmt1.setString(1, accountName);
-                stmt1.executeUpdate();
-            }
-            try (PreparedStatement stmt2 = conn.prepareStatement(deleteBookmarkSql)) {
-                stmt2.setString(1, accountName);
-                stmt2.executeUpdate();
-            }
-            conn.commit();
-        } catch (SQLException e) {
-            try {
-                connect().rollback();
-            } catch (SQLException ex) {
-                throw new DatabaseAccessException("Failed to rollback transaction", ex);
-            }
-            throw new DatabaseAccessException("Unable to delete bookmarks by account name", e);
-        }
+        deleteMatchingBookmarks("accountName=?", accountName);
     }
 
     @Override
@@ -500,10 +492,22 @@ public class BookmarkDb extends BaseDb {
     }
 
     public void deleteCategory(BookmarkCategory category) {
-        String sql = DELETE_FROM + BOOKMARK_CATEGORY_TABLE.getTableName() + " where id=?";
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setString(1, category.getId());
-            statement.execute();
+        try (Connection conn = connect()) {
+            conn.setAutoCommit(false);
+            try {
+                // categoryId is the user's bookmark group, not the provider category in categoryJson.
+                for (String sql : List.of("UPDATE Bookmark SET categoryId=NULL WHERE categoryId=?",
+                        "DELETE FROM BookmarkOrder WHERE category_id=?", "DELETE FROM BookmarkCategory WHERE id=?")) {
+                    try (PreparedStatement statement = conn.prepareStatement(sql)) {
+                        statement.setString(1, category.getId());
+                        statement.executeUpdate();
+                    }
+                }
+                conn.commit();
+            } catch (SQLException error) {
+                conn.rollback();
+                throw error;
+            }
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to execute delete query", e);
         }

@@ -25,10 +25,16 @@ data class PlayerPreference(
     val rememberForFutureStreams: Boolean = true
 )
 
+enum class EmbeddedPlayerRenderProfile {
+    DIRECT_MEDIACODEC,
+    GPU
+}
+
 data class EmbeddedPlayerPreference(
     val repeatReconnect: Boolean = false,
     val muted: Boolean = false,
-    val locked: Boolean = false
+    val locked: Boolean = false,
+    val renderProfile: EmbeddedPlayerRenderProfile = EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
 )
 
 data class PanelVisibilityPreference(
@@ -75,6 +81,7 @@ object AndroidOnlyPreferenceKeys {
     const val EMBEDDED_PLAYER_REPEAT_RECONNECT = "embedded_player_repeat_reconnect"
     const val EMBEDDED_PLAYER_MUTED = "embedded_player_muted"
     const val EMBEDDED_PLAYER_LOCKED = "embedded_player_locked"
+    const val EMBEDDED_PLAYER_RENDER_PROFILE = "embedded_player_render_profile"
     const val PANEL_BOOKMARKS_CATEGORY_VISIBLE = "panel_bookmarks_category_visible"
     const val PANEL_WATCHING_NOW_DETAILS_VISIBLE = "panel_watching_now_details_visible"
     const val PANEL_ACCOUNTS_ACTIONS_VISIBLE = "panel_accounts_actions_visible"
@@ -91,6 +98,7 @@ object AndroidOnlyPreferenceKeys {
         EMBEDDED_PLAYER_REPEAT_RECONNECT,
         EMBEDDED_PLAYER_MUTED,
         EMBEDDED_PLAYER_LOCKED,
+        EMBEDDED_PLAYER_RENDER_PROFILE,
         PANEL_BOOKMARKS_CATEGORY_VISIBLE,
         PANEL_WATCHING_NOW_DETAILS_VISIBLE,
         PANEL_ACCOUNTS_ACTIONS_VISIBLE,

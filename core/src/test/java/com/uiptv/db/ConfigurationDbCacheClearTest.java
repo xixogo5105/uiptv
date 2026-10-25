@@ -53,6 +53,11 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         Account secondAfterClear = AccountService.getInstance().getById(second.getDbId());
         assertTrue(firstAfterClear.getServerPortalUrl() == null || firstAfterClear.getServerPortalUrl().isEmpty());
         assertFalse(secondAfterClear.getServerPortalUrl() == null || secondAfterClear.getServerPortalUrl().isEmpty());
+        try (Connection connection = SQLConnection.connect(); var statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery("PRAGMA freelist_count")) {
+            assertTrue(rows.next());
+            assertEquals(0, rows.getInt(1));
+        }
     }
 
     @Test
@@ -129,7 +134,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertFalse(tableExists(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE),
                 "Test precondition: the cacheable table must be missing so clearCache hits a failure mid-sequence");
 
-        ConfigurationDb.get().clearCache(account);
+        org.junit.jupiter.api.Assertions.assertThrows(DatabaseAccessException.class, () -> ConfigurationDb.get().clearCache(account));
 
         restoreTable(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE);
 

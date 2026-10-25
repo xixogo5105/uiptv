@@ -110,12 +110,16 @@ class AbstractAccountCacheReloaderCoverageTest extends DbBackedTest {
 
         PlaylistEntry kodiMetadata = new PlaylistEntry("guide-id", "News", "Metadata", "https://stream.test/metadata", null);
         kodiMetadata.setMetadata(Map.of("tvg-chno", "12", "tvg-shift", "1.5",
-                "extvlcopt", Map.of("http-user-agent", "Playlist Agent")));
+                "extvlcopt", Map.of("http-user-agent", "Playlist Agent", "http-referrer", "https://example.test"),
+                "http-user-agent", "Custom Agent", "custom", Map.of("unknown", List.of("keep", 42))));
         Channel metadataChannel = reloader.convert(kodiMetadata);
         assertEquals("12", metadataChannel.getNumber());
         var m3uMetadata = new org.json.JSONObject(metadataChannel.getExtraJson()).getJSONObject("m3u");
         assertEquals("1.5", m3uMetadata.getString("tvg-shift"));
         assertEquals("Playlist Agent", m3uMetadata.getJSONObject("extvlcopt").getString("http-user-agent"));
+        assertEquals("https://example.test", m3uMetadata.getJSONObject("extvlcopt").getString("http-referrer"));
+        assertEquals("Custom Agent", m3uMetadata.getString("http-user-agent"));
+        assertEquals(42, m3uMetadata.getJSONObject("custom").getJSONArray("unknown").getInt(1));
     }
 
     @Test

@@ -886,18 +886,25 @@ public class CategoryListUI extends HBox implements SearchTarget {
         Account.AccountAction mode = activeMode;
         Account modeAccount = accountForMode(mode);
         List<String> categoryDbIds = selected.stream().map(CategoryItem::getId).toList();
-        try {
-            cancelCurrentLoadingRequest();
-            CategoryCacheRemovalService.getInstance().removeCachedCategories(modeAccount, categoryDbIds);
+        cancelCurrentLoadingRequest();
+        javafx.concurrent.Task<List<Category>> removal = new javafx.concurrent.Task<>() {
+            @Override protected List<Category> call() {
+                CategoryCacheRemovalService.getInstance().removeCachedCategories(modeAccount, categoryDbIds);
+                return CategoryService.getInstance().getCached(modeAccount);
+            }
+        };
+        removal.setOnSucceeded(_ -> {
             discardRemovedCategoryState(mode, selected);
-            List<Category> categories = CategoryService.getInstance().getCached(modeAccount);
+            List<Category> categories = removal.getValue();
             modeStates.computeIfAbsent(mode, _ -> new ModeState()).categories = new ArrayList<>(categories);
-            setItems(categories);
-            selectedCategoryItems.clear();
-            updateCategorySelectionStyles();
-        } catch (Exception e) {
-            showErrorAlert(I18n.tr("autoFailed") + ": " + e.getMessage());
-        }
+            if (activeMode == mode) {
+                setItems(categories);
+                selectedCategoryItems.clear();
+                updateCategorySelectionStyles();
+            }
+        });
+        removal.setOnFailed(_ -> showErrorAlert(I18n.tr("autoFailed") + ": " + removal.getException().getMessage()));
+        Thread.ofVirtual().name("uiptv-remove-category-cache").start(removal);
     }
 
     private List<CategoryItem> selectedRemovableCategoryItems() {
@@ -972,7 +979,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         disposeChannelListState(state);
-        showListView();
+        if (activeMode == mode) showListView();
     }
 
     private void doRetrieveChannels(CategoryItem item) {

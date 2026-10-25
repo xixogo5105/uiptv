@@ -63,9 +63,11 @@ public class ConfigurationDb extends BaseDb {
             // Surface the failure instead of silently leaving a half-cleared cache behind.
             AppLog.addErrorLog(ConfigurationDb.class,
                     "Failed to clear cache for account " + account.getAccountName() + " (" + account.getDbId() + "): " + e);
+            throw new DatabaseAccessException("Unable to clear cached account data", e);
         } finally {
             closeQuietly(conn);
         }
+        SQLConnection.vacuum();
     }
 
     private void clearCacheTransaction(Connection conn, String accountId) throws SQLException {

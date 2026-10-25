@@ -66,6 +66,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -161,6 +162,7 @@ import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
 import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
+import com.uiptv.mobile.shared.settings.EmbeddedPlayerRenderProfile
 import com.uiptv.mobile.shared.settings.AndroidPreferenceSnapshot
 import com.uiptv.mobile.shared.settings.AndroidFilterSettings
 import com.uiptv.mobile.shared.settings.BackupRestoreResult
@@ -2925,6 +2927,7 @@ private fun RemoteSyncScreen(
     var selectedPlayer by remember { mutableStateOf(AndroidPlayerPreference.EMBEDDED_PLAYER) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
     var playerSelectorVisible by remember { mutableStateOf(false) }
+    var embeddedRenderProfile by remember { mutableStateOf(EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC) }
     var confirmReset by remember { mutableStateOf(false) }
     var filters by remember { mutableStateOf(AndroidFilterSettings()) }
     var categoryFilterText by remember { mutableStateOf("") }
@@ -2967,6 +2970,7 @@ private fun RemoteSyncScreen(
         selectedPlayer = snapshot.playerPreference.selectedPlayer
         playerText = "Player: ${snapshot.playerPreference.selectedPlayer.playerLabel()}"
         playerChoices = playbackActions.playerChoices()
+        embeddedRenderProfile = snapshot.embeddedPlayerPreference.renderProfile
         val loadedFilters = filterActions.load()
         filters = loadedFilters
         onThumbnailSettingChanged(loadedFilters.enableThumbnails)
@@ -3063,6 +3067,17 @@ private fun RemoteSyncScreen(
         (listOf(PlayerChoice(AndroidPlayerPreference.ASK_EVERY_TIME, "Ask")) + playerChoices)
             .firstOrNull { it.matchesSelected(selectedPlayer) }
             ?: PlayerChoice(selectedPlayer, selectedPlayer.playerLabel())
+    }
+
+    fun selectEmbeddedRenderProfile(profile: EmbeddedPlayerRenderProfile) {
+        if (running || profile == embeddedRenderProfile) return
+        scope.launch {
+            running = true
+            runCatching { playbackActions.saveEmbeddedRenderProfile(profile) }
+                .onSuccess { embeddedRenderProfile = profile }
+                .onFailure { statusText = MobileMessages.text("mobileEmbeddedOutputSaveFailed") }
+            running = false
+        }
     }
 
 
@@ -3249,6 +3264,68 @@ private fun RemoteSyncScreen(
                 }
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        SettingsPanel {
+            Text(
+                MobileMessages.text("mobileEmbeddedOutputTitle"),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                MobileMessages.text("mobileEmbeddedOutputDescription"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Column {
+                listOf(
+                    Triple(
+                        EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC,
+                        "mobileEmbeddedOutputDirect",
+                        "mobileEmbeddedOutputDirectDescription"
+                    ),
+                    Triple(
+                        EmbeddedPlayerRenderProfile.GPU,
+                        "mobileEmbeddedOutputGpu",
+                        "mobileEmbeddedOutputGpuDescription"
+                    )
+                ).forEach { (profile, labelKey, descriptionKey) ->
+                    val selected = embeddedRenderProfile == profile
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !running) { selectEmbeddedRenderProfile(profile) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selected,
+                            onClick = if (running) null else { { selectEmbeddedRenderProfile(profile) } },
+                            enabled = !running
+                        )
+                        Column(modifier = Modifier.padding(start = 8.dp)) {
+                            Text(
+                                MobileMessages.text(labelKey),
+                                color = if (running) {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                MobileMessages.text(descriptionKey),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+            Text(
+                MobileMessages.text("mobileEmbeddedOutputNextStream"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
         }
         if (settingsPage == "guide") {
@@ -5451,6 +5528,7 @@ data class PlaybackUiActions(
     val playBingeWatchSeason: suspend (MobileWatchingNowItem, List<MobileWatchingNowEpisode>, String, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val openPlayerInstall: suspend (PlayerChoice) -> Unit,
     val savePlayerPreference: suspend (AndroidPlayerPreference) -> Unit,
+    val saveEmbeddedRenderProfile: suspend (EmbeddedPlayerRenderProfile) -> Unit,
     val clearPlayerPreference: suspend () -> Unit
 ) {
     companion object {
@@ -5470,6 +5548,7 @@ data class PlaybackUiActions(
                 playBingeWatchSeason = { series, _, _, _, _ -> PlaybackLaunchResult(true, "Starting ${series.title}") },
                 openPlayerInstall = {},
                 savePlayerPreference = {},
+                saveEmbeddedRenderProfile = {},
                 clearPlayerPreference = {}
             )
     }

@@ -321,8 +321,7 @@ class AndroidSQLiteBrowseRepository(
         val existingId = findBookmarkId(db, item.accountName, item.channelId, item.mode)
         val supportsLogo = columnExists(db, "Bookmark", "logo")
         val bookmarked = if (existingId != null) {
-            db.delete("Bookmark", "id = ?", arrayOf(existingId.toString()))
-            db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(existingId.toString()))
+            removeBookmark(existingId)
             false
         } else {
             db.insert(
@@ -337,14 +336,16 @@ class AndroidSQLiteBrowseRepository(
                     if (supportsLogo) {
                         put("logo", item.logo)
                     }
-                    put("categoryId", item.categoryProviderId)
+                    // A provider category is not a user-created bookmark group. New bookmarks go to All.
+                    putNull("categoryId")
                     put("accountAction", item.mode.accountAction())
                     put("drmType", item.drmType)
                     put("drmLicenseUrl", item.drmLicenseUrl)
                     put("clearKeysJson", item.clearKeysJson)
                     put("inputstreamaddon", item.inputstreamAddon)
                     put("manifestType", item.manifestType)
-                    put("categoryJson", "")
+                    put("categoryJson", JSONObject().put("dbId", item.categoryRowId.toString())
+                        .put("categoryId", item.categoryProviderId).put("title", item.categoryTitle).toString())
                     put("channelJson", "")
                     put("vodJson", "")
                     put("seriesJson", "")
@@ -370,7 +371,7 @@ class AndroidSQLiteBrowseRepository(
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
-        try {
+        val result = try {
             val categories = loadRemovalCategories(db, accountId, mode, rowIds)
             val removedItems = if (categories.isEmpty()) {
                 0
@@ -423,15 +424,23 @@ class AndroidSQLiteBrowseRepository(
         } finally {
             db.endTransaction()
         }
+        if (result.removedCategoryCount > 0 || result.removedItemCount > 0) db.execSQL("VACUUM")
+        result
     }
 
     override suspend fun removeBookmark(bookmarkId: Long): Unit = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
         val bookmark = loadBookmarkCache(db).bookmarks.firstOrNull { it.rowId == bookmarkId }
-        db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
-        db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(bookmarkId.toString()))
-        if (bookmark != null && !hasBookmarkIdentity(db, bookmark)) {
-            AndroidBookmarkPlayHistoryStore(db).remove(bookmark)
+        db.beginTransaction()
+        try {
+            db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(bookmarkId.toString()))
+            db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
+            if (bookmark != null && !hasBookmarkIdentity(db, bookmark)) {
+                AndroidBookmarkPlayHistoryStore(db).remove(bookmark)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
         invalidateBookmarkCache()
     }

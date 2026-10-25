@@ -74,10 +74,12 @@ public class BookmarkApplicationService {
         }
 
         String categoryTitle = "";
+        Category sourceCategory = null;
         if (isNotBlank(request.categoryId())) {
             Category category = CategoryDb.get().getCategoryByDbId(request.categoryId(), account);
             if (category != null) {
                 categoryTitle = category.getTitle();
+                sourceCategory = category;
             }
         }
 
@@ -100,8 +102,9 @@ public class BookmarkApplicationService {
                 request.channelName(),
                 request.cmd(),
                 portal,
-                request.categoryId()
+                null
         );
+        if (sourceCategory != null) bookmark.setCategoryJson(sourceCategory.toJson());
         bookmark.setAccountAction(account.getAction());
         bookmark.setFromChannel(channel);
         bookmark.setChannelJson(channel.toJson());

@@ -875,7 +875,7 @@ public class ChannelService {
         Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
         channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
         channel.setRating(nullSafeString(jsonChannel, "rating"));
-        channel.setExtraJson(jsonChannel.toString());
+        channel.setExtraJson(com.uiptv.util.ChannelExtraJsonCompactor.compact(jsonChannel));
         resolveLogoIfNeeded(channel);
         return channel;
     }
@@ -915,7 +915,7 @@ public class ChannelService {
         String rating = nullSafeString(jsonChannel, "rating");
         if (isBlank(rating)) rating = nullSafeString(jsonChannel, "rating_imdb");
         channel.setRating(rating);
-        channel.setExtraJson(jsonChannel.toString());
+        channel.setExtraJson(com.uiptv.util.ChannelExtraJsonCompactor.compact(jsonChannel));
         resolveLogoIfNeeded(channel);
         return List.of(channel);
     }
@@ -930,7 +930,7 @@ public class ChannelService {
                     normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED),
                     nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
             channel.setCategoryId(categoryId);
-            channel.setExtraJson(jsonChannel.toString());
+            channel.setExtraJson(com.uiptv.util.ChannelExtraJsonCompactor.compact(jsonChannel));
             resolveLogoIfNeeded(channel);
             episodes.add(channel);
         }

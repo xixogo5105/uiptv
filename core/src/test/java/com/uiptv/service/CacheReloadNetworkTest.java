@@ -63,7 +63,8 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 for (int i = 1; i <= 2000; i++) channels.put(new org.json.JSONObject()
                         .put("id", "stream-" + i).put("name", "Fixture channel " + i).put("number", "" + i)
                         .put("cmd", "http://example.invalid/stream").put("cmd_1", "").put("cmd_2", "").put("cmd_3", "")
-                        .put("logo", "").put("tv_genre_id", "1"));
+                        .put("logo", "").put("tv_genre_id", "1").put("xmltv_id", "guide-" + i)
+                        .put("cmds", new org.json.JSONArray().put("unused")).put("provider_internal", "discard"));
                 body = new org.json.JSONObject().put("js", new org.json.JSONObject().put("data", channels).put("total_items", overstatedTotal ? 4000 : 2000)).toString();
             }
             if (query.contains("get_ordered_list")) {
@@ -96,6 +97,19 @@ class CacheReloadNetworkTest extends DbBackedTest {
                     || line.startsWith("Catalogue network requests:")), "Routine network counters must not reach the user log");
             assertEquals(successfulBulk ? 0 : 1, pages.get());
             assertEquals(successfulBulk ? 2000 : 1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+            if (successfulBulk) {
+                Channel saved = ChannelDb.get().getCachedLiveChannels(account.getDbId()).getFirst();
+                var metadata = new org.json.JSONObject(saved.getExtraJson());
+                assertFalse(metadata.has("cmds"));
+                assertFalse(metadata.has("cmd"));
+                assertFalse(metadata.has("provider_metadata"));
+                assertEquals("http://example.invalid/stream", saved.getCmd());
+                if (!large) assertTrue(metadata.getString("xmltv_id").startsWith("guide-"));
+                try (var connection = SQLConnection.connect(); var statement = connection.createStatement();
+                     var pagesAfterRefresh = statement.executeQuery("PRAGMA freelist_count")) {
+                    assertTrue(pagesAfterRefresh.next()); assertEquals(0, pagesAfterRefresh.getInt(1));
+                }
+            }
             if (!successfulBulk) assertEquals("Existing", CategoryDb.get().getCategories(account).getFirst().getTitle());
         } finally { server.stop(0); }
     }

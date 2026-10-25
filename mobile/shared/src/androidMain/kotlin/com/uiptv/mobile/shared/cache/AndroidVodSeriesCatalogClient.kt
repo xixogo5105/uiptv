@@ -143,7 +143,7 @@ internal class AndroidVodSeriesCatalogClient {
                         command = if (mode == AndroidCatalogMode.VOD) xtremeStreamUrl(account, mode, channelId, extension) else "",
                         logo = item.firstCleanString("stream_icon", "cover", "cover_big", "movie_image", "poster"),
                         hd = if (name.contains("HD", ignoreCase = true)) 1 else 0,
-                        extraJson = item.toString(),
+                        extraJson = ChannelExtraJsonCompactor.compact(item),
                         plot = item.firstCleanString("plot", "description", "overview"),
                         releaseDate = item.firstCleanString("release_date", "released", "year"),
                         rating = item.firstCleanString("rating_imdb", "rating"),
@@ -188,7 +188,7 @@ internal class AndroidVodSeriesCatalogClient {
                             releaseDate = info?.firstCleanString("release_date", "released", "year").orEmpty(),
                             rating = info?.firstCleanString("rating_imdb", "rating").orEmpty(),
                             duration = info?.firstCleanString("duration", "runtime", "time").orEmpty(),
-                            extraJson = item.toString()
+                            extraJson = ChannelExtraJsonCompactor.compactEpisode(item)
                         )
                     )
                 }
@@ -399,7 +399,7 @@ internal class AndroidVodSeriesCatalogClient {
                                 censored = item.optInt("censored", 0),
                                 status = item.optInt("status", 1),
                                 hd = item.optInt("hd", 0),
-                                extraJson = item.toString(),
+                                extraJson = ChannelExtraJsonCompactor.compact(item),
                                 plot = item.firstCleanString("description", "plot", "overview"),
                                 releaseDate = item.firstCleanString("release_date", "released", "year"),
                                 rating = item.firstCleanString("rating_imdb", "rating"),
@@ -421,7 +421,7 @@ internal class AndroidVodSeriesCatalogClient {
                             censored = item.optInt("censored", 0),
                             status = item.optInt("status", 1),
                             hd = item.optInt("hd", 0),
-                            extraJson = item.toString(),
+                            extraJson = ChannelExtraJsonCompactor.compact(item),
                             plot = item.firstCleanString("description", "plot", "overview"),
                             releaseDate = item.firstCleanString("release_date", "released", "year"),
                             rating = item.firstCleanString("rating_imdb", "rating"),

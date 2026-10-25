@@ -26,7 +26,8 @@ class XtremeCacheReloadNetworkTest extends DbBackedTest {
             } else if (query.contains("get_live_streams")) {
                 if (!query.contains("category_id=")) { exchange.sendResponseHeaders(503, -1); exchange.close(); return; }
                 String id = query.substring(query.indexOf("category_id=") + 12);
-                body = new JSONArray().put(new JSONObject().put("stream_id", id).put("name", "Channel " + id)).toString();
+                body = new JSONArray().put(new JSONObject().put("stream_id", id).put("name", "Channel " + id)
+                        .put("epg_channel_id", "guide-" + id).put("cmds", new JSONArray().put("unused"))).toString();
             }
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length); exchange.getResponseBody().write(bytes); exchange.close();
@@ -39,6 +40,10 @@ class XtremeCacheReloadNetworkTest extends DbBackedTest {
             AccountDb.get().save(account); account = AccountService.getInstance().getByName(account.getAccountName()); account.setAction(Account.AccountAction.itv);
             new CacheServiceImpl().reloadCache(account, _ -> {});
             assertEquals(62, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+            Channel saved = ChannelDb.get().getCachedLiveChannels(account.getDbId()).getFirst();
+            JSONObject metadata = new JSONObject(saved.getExtraJson());
+            assertFalse(metadata.has("cmds"));
+            assertTrue(metadata.getString("epg_channel_id").startsWith("guide-"));
             assertEquals(66, calls.get()); // Live categories, bulk, 62 categories, VOD and series categories.
         } finally { server.stop(0); }
     }

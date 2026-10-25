@@ -41,12 +41,18 @@ class AndroidSQLiteAccountRepository(
         val values = normalized.toContentValues()
         db.beginTransaction()
         try {
+            val oldName = normalized.id?.let { db.stringForId("Account", it, "accountName") }.orEmpty()
             val savedId = when (val id = normalized.id) {
                 null -> db.insertWithOnConflict("Account", null, values, SQLiteDatabase.CONFLICT_ABORT)
                 else -> {
                     db.update("Account", values, "id = ?", arrayOf(id.toString()))
                     id
                 }
+            }
+            if (oldName.isNotBlank() && oldName != normalized.accountName) {
+                val renamed = ContentValues().apply { put("accountName", normalized.accountName) }
+                db.update("Bookmark", renamed, "accountName = ?", arrayOf(oldName))
+                db.update("BookmarkPlayHistory", renamed, "accountName = ?", arrayOf(oldName))
             }
             db.setTransactionSuccessful()
             normalized.copy(id = savedId)
@@ -76,6 +82,7 @@ class AndroidSQLiteAccountRepository(
         } finally {
             db.endTransaction()
         }
+        db.execSQL("VACUUM")
         before
     }
 
@@ -95,6 +102,7 @@ class AndroidSQLiteAccountRepository(
         } finally {
             db.endTransaction()
         }
+        db.execSQL("VACUUM")
         before
     }
 
@@ -118,6 +126,7 @@ class AndroidSQLiteAccountRepository(
                 arrayOf(accountName)
             )
             db.delete("Bookmark", "accountName = ?", arrayOf(accountName))
+            db.delete("BookmarkPlayHistory", "accountName = ?", arrayOf(accountName))
         }
         db.delete("Account", "id = ?", arrayOf(accountId.toString()))
     }
@@ -129,16 +138,11 @@ class AndroidSQLiteAccountRepository(
         )
         db.delete("Category", "accountId = ?", arrayOf(accountId.toString()))
 
-        db.execSQL(
-            "DELETE FROM VodChannel WHERE categoryId IN (SELECT categoryId FROM VodCategory WHERE accountId = ?)",
-            arrayOf(accountId.toString())
-        )
+        // Provider category/series ids are reusable across accounts; scope cache deletes locally.
+        db.delete("VodChannel", "accountId = ?", arrayOf(accountId.toString()))
         db.delete("VodCategory", "accountId = ?", arrayOf(accountId.toString()))
 
-        db.execSQL(
-            "DELETE FROM SeriesEpisode WHERE accountId = ? OR seriesId IN (SELECT channelId FROM SeriesChannel WHERE accountId = ?)",
-            arrayOf(accountId.toString(), accountId.toString())
-        )
+        db.delete("SeriesEpisode", "accountId = ?", arrayOf(accountId.toString()))
         db.delete("SeriesChannel", "accountId = ?", arrayOf(accountId.toString()))
         db.delete("SeriesCategory", "accountId = ?", arrayOf(accountId.toString()))
     }

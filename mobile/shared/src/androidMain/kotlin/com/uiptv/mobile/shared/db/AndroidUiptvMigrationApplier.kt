@@ -2,6 +2,7 @@ package com.uiptv.mobile.shared.db
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
+import android.util.Log
 import java.security.MessageDigest
 
 class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
@@ -18,15 +19,13 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             return
         }
 
-        // SQLiteDatabase nests transactions by reference counting, so an inner endTransaction() only decrements
-        // a counter: it cannot roll back on its own. SQLiteOpenHelper already wraps onCreate/onUpgrade in a
-        // transaction, so starting another one here would leave a failed migration's partial writes (a
-        // half-created Configuration_new, for example) inside the outer transaction instead of undoing them.
-        // Only take ownership of a transaction when the applier is running standalone.
+        // SQLiteOpenHelper owns the outer creation/upgrade transaction. A savepoint gives each
+        // migration a real rollback boundary there too; nested SQLiteDatabase transactions do not.
         val ownsTransaction = !db.inTransaction()
         if (ownsTransaction) {
             db.beginTransaction()
         }
+        db.execSQL("SAVEPOINT uiptv_migration")
 
         var failure: Exception? = null
         val secureDelete = if (name == "0222_remove_epg_caches.sql") {
@@ -38,13 +37,15 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             }
             executeMigration(db, sql)
             recordMigration(db, name, checksum, "success", null)
-            if (ownsTransaction) {
-                db.setTransactionSuccessful()
-            }
         } catch (ex: Exception) {
             failure = ex
+            // Android 7/8 classify bare ROLLBACK TO as a full transaction abort. The
+            // leading comment bypasses that legacy classifier while SQLite still parses it.
+            db.execSQL("/* migration savepoint */ ROLLBACK TO SAVEPOINT uiptv_migration")
         } finally {
+            db.execSQL("RELEASE SAVEPOINT uiptv_migration")
             if (ownsTransaction) {
+                db.setTransactionSuccessful()
                 db.endTransaction()
             }
             if (secureDelete != null) {
@@ -59,6 +60,7 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             // around the long-dropped darkTheme column, for example) are redundant here rather than fatal.
             // Rethrowing aborted the whole chain and left the database unusable.
             recordMigration(db, name, checksum, "failed", failure.message ?: failure::class.simpleName.orEmpty())
+            Log.w("UiptvMigration", "Migration $name failed and was rolled back (${failure::class.simpleName})")
         }
     }
 
