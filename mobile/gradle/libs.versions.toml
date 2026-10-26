@@ -15,7 +15,7 @@ kotlin = "2.4.20"
 kotlinx-coroutines = "1.11.0"
 kover = "0.9.11"
 media3 = "1.11.1"
-okhttp = "5.3.0"
+okhttp = "5.5.1"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
