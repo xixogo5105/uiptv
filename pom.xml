@@ -23,7 +23,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <apacheHttpVersion>5.6.4</apacheHttpVersion>
         <sqlite.arch>x86_64</sqlite.arch>
-        <javafx.version>27</javafx.version>
+        <javafx.version>27.0.1</javafx.version>
         <jetty.version>11.0.26</jetty.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
