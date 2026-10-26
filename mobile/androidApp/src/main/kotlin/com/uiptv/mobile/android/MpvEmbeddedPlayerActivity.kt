@@ -22,7 +22,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.text.TextUtils
 import android.util.Rational
 import android.view.Gravity
 import android.view.KeyEvent
@@ -125,7 +124,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var muteButton: ImageButton
     private lateinit var audioTrackButton: ImageButton
     private lateinit var subtitleTrackButton: ImageButton
-    private lateinit var decoderModeButton: TextView
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
         ZoomMode("Fit", keepAspect = true, cropToFill = false, R.drawable.video_scale_fit),
@@ -180,9 +178,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var mpvVideoOutput = ""
     private var mpvAudioCodec = ""
     private var embeddedRenderProfile = EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
-    private var hardwareDecodingRequested = true
-    private var pendingHardwareDecodeTarget: Boolean? = null
-    private var hardwareDecodeChangeGeneration = 0L
     private var lastLoggedVideoDetailsKey = ""
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val hlsProxyLock = Any()
@@ -708,13 +703,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
         mpvVideoDetails = null
         mpvHwDecoder = ""
         mpvAudioCodec = ""
-        pendingHardwareDecodeTarget = null
-        hardwareDecodeChangeGeneration += 1
         lastLoggedVideoDetailsKey = ""
         playbackTimeMs = 0L
         playbackLengthMs = 0L
         mpvPaused = false
-        updateDecoderModeButton()
         pendingPlayback = false
         beginStreamLoading()
         ensureAudibleSystemVolume()
@@ -1137,9 +1129,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
             subtitleTrackButton = iconControlButton(R.drawable.subtitle_track, "Subtitles") { cycleSubtitleTrack() }
             updateTrackButtons()
             addView(subtitleTrackButton, compactControlLayoutParams())
-            decoderModeButton = controlButton("HW") { toggleHardwareDecoding() }
-            updateDecoderModeButton()
-            addView(decoderModeButton, compactControlLayoutParams())
             repeatButton = iconControlButton(R.drawable.repeat_off, "Repeat") { toggleRepeat() }
             updateRepeatButton()
             addView(repeatButton, compactControlLayoutParams())
@@ -1376,65 +1365,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         runCatching { player.setPropertyBoolean("pause", nextPaused) }
         mpvPaused = nextPaused
         updatePlayPauseButton()
-    }
-
-    private fun toggleHardwareDecoding() {
-        val player = mpv ?: return
-        if (pendingHardwareDecodeTarget != null) return
-
-        val decoder = mpvHwDecoder.trim()
-        val activeHardwareDecoding = when {
-            decoder.isNotBlank() -> !decoder.equals("no", ignoreCase = true)
-            else -> hardwareDecodingRequested
-        }
-        val targetHardwareDecoding = !activeHardwareDecoding
-        val targetMode = if (targetHardwareDecoding) {
-            hardwareDecodeOptionFor(embeddedRenderProfile)
-        } else {
-            HardwareDecodeModeSoftware
-        }
-        hardwareDecodingRequested = targetHardwareDecoding
-        pendingHardwareDecodeTarget = targetHardwareDecoding
-        val generation = ++hardwareDecodeChangeGeneration
-        updateDecoderModeButton()
-
-        MpvReleaseExecutor.execute {
-            val failure = runCatching { player.setPropertyString("hwdec", targetMode) }.exceptionOrNull()
-            overlayHandler.post {
-                if (activityDestroyed || mpv !== player || generation != hardwareDecodeChangeGeneration) return@post
-                if (failure != null) {
-                    pendingHardwareDecodeTarget = null
-                    hardwareDecodeChangeGeneration += 1
-                    Log.w(LogTag, "Unable to change mpv decoding mode", failure)
-                    updateDecoderModeButton()
-                    showFeedback(MobileMessages.text("playerAccelerationSwitchFailed"))
-                    return@post
-                }
-                overlayHandler.postDelayed({
-                    if (!activityDestroyed && mpv === player && generation == hardwareDecodeChangeGeneration && pendingHardwareDecodeTarget != null) {
-                        pendingHardwareDecodeTarget = null
-                        hardwareDecodeChangeGeneration += 1
-                        updateDecoderModeButton()
-                    }
-                }, HardwareDecodeToggleTimeoutMs)
-            }
-        }
-    }
-
-    private fun updateDecoderModeButton() {
-        if (!::decoderModeButton.isInitialized) return
-        val decoder = mpvHwDecoder.trim()
-        val hardwareActive = when {
-            decoder.isNotBlank() -> !decoder.equals("no", ignoreCase = true)
-            else -> hardwareDecodingRequested
-        }
-        decoderModeButton.text = if (hardwareActive) HardwareDecodeModeLabel else SoftwareDecodeModeLabel
-        decoderModeButton.contentDescription = MobileMessages.text(
-            if (hardwareActive) "playerSwitchToSoftwareDecode" else "playerSwitchToHardwareDecode"
-        )
-        decoderModeButton.background = controlButtonBackground(active = hardwareActive)
-        decoderModeButton.isEnabled = pendingHardwareDecodeTarget == null
-        decoderModeButton.alpha = if (decoderModeButton.isEnabled) 1f else 0.65f
     }
 
     private fun reloadCurrentStream() {
@@ -2097,13 +2027,22 @@ class MpvEmbeddedPlayerActivity : Activity() {
             return
         }
         if (!epgEnabled) {
+            epgLabel.visibility = View.GONE
             return
         }
+        epgLabel.text = com.uiptv.mobile.shared.i18n.MobileMessages.text("epgLoading")
+        epgLabel.visibility = View.VISIBLE
         epgJob = playbackScope.launch {
-            val result = try { epgRepository.schedule(target.accountId, target.channelId, target.title) }
+            val result = try {
+                epgRepository.scheduleProgressively(target.accountId, target.channelId, target.title) { update ->
+                    withContext(Dispatchers.Main) {
+                        if (target == currentTarget) displayEpg(update)
+                    }
+                }
+            }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) { com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.UNAVAILABLE) }
-            if (target == currentTarget) displayEpg(result)
+            if (target == currentTarget) withContext(Dispatchers.Main) { displayEpg(result) }
         }
     }
 
@@ -2177,25 +2116,17 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val parts = mutableListOf<String>()
         if (current != null) parts.add("Now: ${current.title}")
         if (next != null) parts.add("Next: ${next.title}")
-        val epgInfo = if (parts.isNotEmpty()) parts.joinToString(" - ") else ""
-        val sb = StringBuilder()
-        if (channelTitle.isNotBlank()) {
-            sb.append(channelTitle)
-            if (epgInfo.isNotBlank()) sb.append(" - ").append(epgInfo)
-        } else {
-            sb.append(epgInfo)
-        }
-        val displayText = sb.toString()
-        // Update titleLabel with combined channel + EPG info, hide separate epgLabel
         if (::titleLabel.isInitialized) {
-            titleLabel.text = displayText
-            titleLabel.maxLines = 3
-            titleLabel.ellipsize = TextUtils.TruncateAt.END
-            titleLabel.visibility = if (displayText.isBlank()) View.GONE else View.VISIBLE
+            titleLabel.text = channelTitle
+            titleLabel.maxLines = 1
+            titleLabel.visibility = if (channelTitle.isBlank()) View.GONE else View.VISIBLE
         }
-        epgLabel.visibility = View.GONE
-        val available = result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE ||
-            result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE
+        val epgInfo = parts.joinToString(" · ")
+        epgLabel.text = epgInfo.ifBlank {
+            result.message.takeIf { it.isNotBlank() }
+                ?: com.uiptv.mobile.shared.i18n.MobileMessages.text("epgNoGuide")
+        }
+        epgLabel.visibility = View.VISIBLE
         epgGuideButton.visibility = View.GONE
         if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
     }
@@ -2298,12 +2229,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
             "pause" -> mpvPaused = value as? Boolean ?: mpvPaused
             "hwdec-current" -> {
                 mpvHwDecoder = (value as? String).orEmpty()
-                val activeHardwareDecoding = mpvHwDecoder.isNotBlank() && !mpvHwDecoder.equals("no", ignoreCase = true)
-                if (mpvHwDecoder.isNotBlank() && pendingHardwareDecodeTarget == activeHardwareDecoding) {
-                    pendingHardwareDecodeTarget = null
-                    hardwareDecodeChangeGeneration += 1
-                }
-                updateDecoderModeButton()
                 scheduleStreamInfoRefreshes()
             }
             "current-vo" -> {
@@ -2880,10 +2805,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val StableMobileAudioBufferSeconds = "0.85"
         private const val HardwareDecodeModeHardware = "mediacodec,mediacodec-copy"
         private const val HardwareDecodeModeAuto = "auto"
-        private const val HardwareDecodeModeSoftware = "no"
-        private const val HardwareDecodeModeLabel = "HW"
-        private const val SoftwareDecodeModeLabel = "SW"
-        private const val HardwareDecodeToggleTimeoutMs = 3_000L
         private const val PlayIcon = "\u25B6"
         private const val PauseIcon = "\u23F8"
         private const val StopIcon = "\u25A0"

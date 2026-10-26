@@ -8,7 +8,14 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
 object AndroidXmltvReader {
-    fun read(input: InputStream, now: Long, source: String = "", requestedId: String? = null, requestedName: String = ""): MobileXmltvGuide {
+    fun read(
+        input: InputStream,
+        now: Long,
+        source: String = "",
+        requestedId: String? = null,
+        requestedName: String = "",
+        onProgress: ((List<MobileEpgProgramme>) -> Unit)? = null
+    ): MobileXmltvGuide {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
         parser.setFeature("http://xmlpull.org/v1/doc/features.html#process-docdecl", false)
@@ -26,6 +33,9 @@ object AndroidXmltvReader {
         var start = 0L
         var stop = 0L
         var count = 0
+        val requestedProgrammes = mutableListOf<MobileEpgProgramme>()
+        var lastProgressKey: String? = null
+        var progressiveChannelIds: Set<String>? = null
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             if (Thread.currentThread().isInterrupted) throw InterruptedException()
@@ -56,6 +66,15 @@ object AndroidXmltvReader {
                     }
                 }
                 "programme" -> {
+                    if (onProgress != null && progressiveChannelIds == null) {
+                        // XMLTV channel declarations precede programme entries. Freeze the unique
+                        // name matches here so later duplicate names cannot change the early result.
+                        progressiveChannelIds = buildSet {
+                            if (!requestedId.isNullOrBlank()) add(requestedId)
+                            names.forEach { (key, value) -> if (key !in ambiguous) add(value) }
+                            qualityNames.forEach { (key, value) -> if (key !in ambiguousQuality) add(value) }
+                        }
+                    }
                     channel = parser.getAttributeValue(null, "channel").orEmpty()
                     if (requestedId != null && channel != requestedId && channel !in names.values && channel !in qualityNames.values) channel = ""
                     start = time(parser.getAttributeValue(null, "start"))
@@ -70,7 +89,22 @@ object AndroidXmltvReader {
                 if (channel.isNotBlank() && start > now - 86400_000L && start < now + 7 * 86400_000L &&
                     (stop == 0L || stop > now - 6 * 3600_000L) && title.isNotBlank()) {
                     require(++count <= if (requestedId == null) 200_000 else 2000) { "Programme limit exceeded" }
-                    programmes.getOrPut(channel) { mutableListOf() } += MobileEpgProgramme(title, description, start, stop)
+                    val programme = MobileEpgProgramme(title, description, start, stop)
+                    programmes.getOrPut(channel) { mutableListOf() } += programme
+                    // Publish the requested XMLTV id, or its unique pre-declared name match, before
+                    // the rest of a large feed has been read.
+                    if (onProgress != null && channel in progressiveChannelIds.orEmpty()) {
+                        requestedProgrammes += programme
+                        val partial = normalize(requestedProgrammes)
+                        val current = partial.lastOrNull { it.start <= now && now < it.stop }
+                        val next = partial.firstOrNull { it.start > now }
+                        val progressKey = listOfNotNull(current, next)
+                            .joinToString("|") { "${it.start}:${it.stop}:${it.title}:${it.description}" }
+                        if ((current != null || next != null) && progressKey != lastProgressKey) {
+                            lastProgressKey = progressKey
+                            onProgress(partial)
+                        }
+                    }
                 }
                 channel = ""
             }
@@ -80,13 +114,17 @@ object AndroidXmltvReader {
         ambiguousQuality.forEach(qualityNames::remove)
         qualityNames.remove("")
         val completed = programmes.mapValues { (_, raw) ->
-            val sorted = raw.sortedBy { it.start }
-            MobileEpgSchedules.normalize(sorted.mapIndexedNotNull { index, p ->
-                val end = if (p.stop == 0L) sorted.getOrNull(index + 1)?.start ?: 0L else p.stop
-                if (end > p.start) p.copy(stop = end) else null
-            })
+            normalize(raw)
         }
         return MobileXmltvGuide(completed, names.toMap(), qualityNames.toMap(), icons.toMap())
+    }
+
+    private fun normalize(raw: List<MobileEpgProgramme>): List<MobileEpgProgramme> {
+        val sorted = raw.sortedBy { it.start }
+        return MobileEpgSchedules.normalize(sorted.mapIndexedNotNull { index, p ->
+            val end = if (p.stop == 0L) sorted.getOrNull(index + 1)?.start ?: 0L else p.stop
+            if (end > p.start) p.copy(stop = end) else null
+        })
     }
     private fun boundedText(parser: XmlPullParser, maximum: Int): String {
         val value = StringBuilder()

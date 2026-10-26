@@ -8,6 +8,7 @@ import com.uiptv.mobile.shared.cache.*
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import org.json.*
 import java.io.*
 import java.net.*
@@ -23,6 +24,12 @@ class AndroidEpgRepository(
 ) : MobileEpgRepository {
     private val stalker = AndroidStalkerCacheReloader(databaseHelper)
     private val xtreme = AndroidXtremeCacheReloader(databaseHelper)
+
+    private sealed interface EpgEvent {
+        data class Progress(val result: MobileEpgResult) : EpgEvent
+        data class NativeFinished(val programmes: List<MobileEpgProgramme>) : EpgEvent
+        data class XmltvFinished(val result: MobileEpgResult?, val failed: Boolean) : EpgEvent
+    }
 
     override suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult = withContext(Dispatchers.IO) {
         val settings = preferences.load()
@@ -56,6 +63,87 @@ class AndroidEpgRepository(
         if (native.isNotEmpty()) return@withContext applyTvgShift(accountId, providerChannelId,
             MobileEpgResult(MobileEpgStatus.AVAILABLE, native))
         MobileEpgResult(if (failed) MobileEpgStatus.UNAVAILABLE else MobileEpgStatus.NO_MATCH)
+    }
+
+    /** Publishes current/next details as soon as either live source can provide them. */
+    suspend fun scheduleProgressively(
+        accountId: Long,
+        providerChannelId: String,
+        name: String,
+        onUpdate: suspend (MobileEpgResult) -> Unit
+    ): MobileEpgResult = withContext(Dispatchers.IO) {
+        val settings = preferences.load()
+        if (!settings.epgEnabled) return@withContext MobileEpgResult()
+        val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
+            ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
+        val now = System.currentTimeMillis()
+        coroutineScope {
+            val events = Channel<EpgEvent>(Channel.UNLIMITED)
+            val nativeJob = launch(Dispatchers.IO) {
+                val native = try { nativeSchedule(account, providerChannelId, now) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { emptyList() }
+                if (native.any { it.stop > now && !MobileEpgSchedules.isGenericTitle(it.title) }) {
+                    events.send(EpgEvent.Progress(applyTvgShift(accountId, providerChannelId,
+                        MobileEpgResult(MobileEpgStatus.AVAILABLE, native))))
+                }
+                events.send(EpgEvent.NativeFinished(native))
+            }
+            val xmltvJob = launch(Dispatchers.IO) {
+                var result: MobileEpgResult? = null
+                var failed = false
+                try {
+                    val id = guideId(account, providerChannelId)
+                    val sources = splitSources(account.epg).ifEmpty { discover(account) }
+                    for (configured in sources) {
+                        ensureActive()
+                        val source = resolveDesktopSource(configured, settings.remoteEndpoint.host)
+                        try {
+                            val guide = open(source).buffered().use { buffered ->
+                                buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
+                                val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
+                                AndroidXmltvReader.read(LimitedStream(xml), now, source, id, name) { partial ->
+                                    val shifted = applyTvgShift(accountId, providerChannelId,
+                                        MobileEpgResult(MobileEpgStatus.AVAILABLE, partial))
+                                    events.trySend(EpgEvent.Progress(shifted))
+                                }
+                            }
+                            val programmes = guide.forChannel(id, name)
+                            if (programmes.isNotEmpty()) {
+                                result = applyTvgShift(accountId, providerChannelId,
+                                    MobileEpgResult(MobileEpgStatus.AVAILABLE, programmes))
+                                events.send(EpgEvent.Progress(result!!))
+                                break
+                            }
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { failed = true }
+                    }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { failed = true }
+                events.send(EpgEvent.XmltvFinished(result, failed))
+            }
+
+            var native: List<MobileEpgProgramme> = emptyList()
+            var xmltv: MobileEpgResult? = null
+            var failed = false
+            var completed = 0
+            var lastUpdate: MobileEpgResult? = null
+            try {
+                while (completed < 2) when (val event = events.receive()) {
+                    is EpgEvent.Progress -> if (event.result != lastUpdate) {
+                        lastUpdate = event.result
+                        onUpdate(event.result)
+                    }
+                    is EpgEvent.NativeFinished -> { native = event.programmes; completed++ }
+                    is EpgEvent.XmltvFinished -> { xmltv = event.result; failed = event.failed; completed++ }
+                }
+            } finally {
+                nativeJob.cancel(); xmltvJob.cancel(); events.close()
+            }
+            xmltv ?: if (native.isNotEmpty()) applyTvgShift(accountId, providerChannelId,
+                MobileEpgResult(MobileEpgStatus.AVAILABLE, native))
+            else MobileEpgResult(if (failed) MobileEpgStatus.UNAVAILABLE else MobileEpgStatus.NO_MATCH)
+        }
     }
 
     private fun applyTvgShift(accountId: Long, channelId: String, result: MobileEpgResult): MobileEpgResult {
