@@ -741,6 +741,31 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         scheduleInitialEpisodeFocus();
     }
 
+    @Override
+    protected List<EpisodeItem> playbackNavigationItems() {
+        return List.copyOf(currentFilteredEpisodes);
+    }
+
+    @Override
+    protected void selectEpisodeForPlayback(EpisodeItem item) {
+        if (item == null) {
+            return;
+        }
+        String itemSeason = normalizeNumber(item.getSeason());
+        if (!isBlank(itemSeason) && !itemSeason.equals(normalizeNumber(selectedSeason()))) {
+            selectSeasonPill(itemSeason);
+        }
+        if (!currentFilteredEpisodes.contains(item)) {
+            return;
+        }
+        VBox card = renderedCardsByItem.computeIfAbsent(item, candidate ->
+                mediaDrawerDetailMode ? createDrawerEpisodeRow(candidate) : createEpisodeCard(candidate));
+        setSelectedEpisodeCard(card);
+        if (cardsContainer.getChildren().contains(card)) {
+            scrollEpisodeCardIntoView(card);
+        }
+    }
+
     private void updateCardWindow() {
         if (currentFilteredEpisodes.isEmpty()) {
             return;

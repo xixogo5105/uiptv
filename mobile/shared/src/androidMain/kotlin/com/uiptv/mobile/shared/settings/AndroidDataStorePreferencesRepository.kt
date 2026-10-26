@@ -3,6 +3,7 @@ package com.uiptv.mobile.shared.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -39,7 +40,14 @@ class AndroidDataStorePreferencesRepository(
                 locked = values[EMBEDDED_PLAYER_LOCKED] ?: false,
                 renderProfile = values[EMBEDDED_PLAYER_RENDER_PROFILE]
                     ?.let { runCatching { EmbeddedPlayerRenderProfile.valueOf(it) }.getOrNull() }
-                    ?: EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
+                    ?: EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC,
+                brightness = values[EMBEDDED_PLAYER_BRIGHTNESS]
+                    ?.takeIf { it in 0f..1f },
+                volumePercent = values[EMBEDDED_PLAYER_VOLUME_PERCENT]
+                    ?.coerceIn(0, 100),
+                zoomMode = values[EMBEDDED_PLAYER_ZOOM_MODE]
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
             ),
             panelVisibilityPreference = PanelVisibilityPreference(
                 bookmarksCategoryPanelVisible = values[PANEL_BOOKMARKS_CATEGORY_VISIBLE] ?: false,
@@ -78,6 +86,12 @@ class AndroidDataStorePreferencesRepository(
             values[EMBEDDED_PLAYER_MUTED] = preference.muted
             values[EMBEDDED_PLAYER_LOCKED] = preference.locked
             values[EMBEDDED_PLAYER_RENDER_PROFILE] = preference.renderProfile.name
+            preference.brightness?.let { values[EMBEDDED_PLAYER_BRIGHTNESS] = it }
+                ?: values.remove(EMBEDDED_PLAYER_BRIGHTNESS)
+            preference.volumePercent?.let { values[EMBEDDED_PLAYER_VOLUME_PERCENT] = it.coerceIn(0, 100) }
+                ?: values.remove(EMBEDDED_PLAYER_VOLUME_PERCENT)
+            preference.zoomMode?.trim()?.takeIf { it.isNotEmpty() }?.let { values[EMBEDDED_PLAYER_ZOOM_MODE] = it }
+                ?: values.remove(EMBEDDED_PLAYER_ZOOM_MODE)
         }
     }
 
@@ -112,6 +126,9 @@ class AndroidDataStorePreferencesRepository(
         val EMBEDDED_PLAYER_MUTED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED)
         val EMBEDDED_PLAYER_LOCKED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED)
         val EMBEDDED_PLAYER_RENDER_PROFILE = stringPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_RENDER_PROFILE)
+        val EMBEDDED_PLAYER_BRIGHTNESS = floatPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_BRIGHTNESS)
+        val EMBEDDED_PLAYER_VOLUME_PERCENT = intPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_VOLUME_PERCENT)
+        val EMBEDDED_PLAYER_ZOOM_MODE = stringPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_ZOOM_MODE)
         val PANEL_BOOKMARKS_CATEGORY_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE)
         val PANEL_WATCHING_NOW_DETAILS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE)
         val PANEL_ACCOUNTS_ACTIONS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE)

@@ -2,10 +2,16 @@ package com.uiptv.mobile.android
 
 import android.app.Activity
 import android.content.Intent
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
 import androidx.test.platform.app.InstrumentationRegistry
+import com.uiptv.mobile.shared.browse.BrowseMode
+import com.uiptv.mobile.shared.playback.PlaybackSurfQueue
+import com.uiptv.mobile.shared.playback.PlaybackTarget
 import org.junit.After
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -123,26 +129,6 @@ class MpvEmbeddedPlayerActivityControlTest {
         org.junit.Assert.fail("Local test video did not advance")
     }
 
-    private fun waitForMpvHwdecOption(mpv: dev.jdtech.mpv.MPVLib, expected: String) {
-        val deadline = System.currentTimeMillis() + 5_000
-        while (System.currentTimeMillis() < deadline) {
-            if (runCatching { mpv.getPropertyString("hwdec") }.getOrNull() == expected) return
-            Thread.sleep(50)
-        }
-        org.junit.Assert.fail("MPV did not switch hwdec option to $expected")
-    }
-
-    private fun waitForDecoderButtonEnabled(button: android.widget.TextView) {
-        val deadline = System.currentTimeMillis() + 5_000
-        while (System.currentTimeMillis() < deadline) {
-            var enabled = false
-            instrumentation.runOnMainSync { enabled = button.isEnabled }
-            if (enabled) return
-            Thread.sleep(50)
-        }
-        org.junit.Assert.fail("Decoder mode button remained disabled")
-    }
-
     @Test
     fun fiftyFpsLocalClipMeasuresVideoOutputAndDroppedFrames() {
         org.junit.Assume.assumeTrue(
@@ -226,23 +212,11 @@ class MpvEmbeddedPlayerActivityControlTest {
     }
 
     @Test
-    fun decoderModeButtonTogglesMpvBetweenHardwareAndSoftwareRequests() {
+    fun hardwareSoftwareDecoderButtonIsAbsentFromPlayerControls() {
         val player = launchPlayer("VOD")
-        val button = player.javaClass.getDeclaredField("decoderModeButton").apply { isAccessible = true }
-            .get(player) as android.widget.TextView
-        val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }
-            .get(player) as dev.jdtech.mpv.MPVLib
-
-        waitForDecoderButtonEnabled(button)
-        instrumentation.runOnMainSync { button.performClick() }
-        waitForMpvHwdecOption(mpv, "no")
-        waitForDecoderButtonEnabled(button)
-        instrumentation.runOnMainSync { org.junit.Assert.assertEquals("SW", button.text.toString()) }
-
-        instrumentation.runOnMainSync { button.performClick() }
-        waitForMpvHwdecOption(mpv, "mediacodec,mediacodec-copy")
-        waitForDecoderButtonEnabled(button)
-        instrumentation.runOnMainSync { org.junit.Assert.assertEquals("HW", button.text.toString()) }
+        waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
+        val visibleTexts = collectTexts(player.window.decorView)
+        assertFalse("The removed decoder switch should not appear in player controls", visibleTexts.any { it == "HW" || it == "SW" })
     }
 
     @Test
@@ -387,18 +361,212 @@ class MpvEmbeddedPlayerActivityControlTest {
         waitForAnyControl(player, listOf("Lock screen"))
     }
 
-    private fun launchPlayer(mode: String): Activity {
+    @Test
+    fun channelSurfButtonReplacesControlsAndSelectionKeepsTheCarouselOpen() {
+        val targets = (0..8).map { index ->
+            PlaybackTarget(
+                accountId = 1,
+                accountName = "Surf Test",
+                mode = BrowseMode.LIVE,
+                categoryProviderId = "surf-test",
+                categoryRowId = 1,
+                channelId = "channel-$index",
+                title = "Channel $index",
+                url = "https://stream.test/$index.m3u8",
+                logo = ""
+            )
+        }
+        val session = requireNotNull(AndroidPlaybackSurfSessionStore.create(PlaybackSurfQueue(targets, currentIndex = 5)))
+        val player = launchPlayer("LIVE", session)
+        val surfCarousel = player.javaClass.getDeclaredField("surfCarouselView").apply { isAccessible = true }
+            .get(player) as ComposeView
+        val controls = player.javaClass.getDeclaredField("controlsOverlay").apply { isAccessible = true }
+            .get(player) as View
+
+        clickControl(player, "View channel list")
+
+        val deadline = System.currentTimeMillis() + ControlWaitMs
+        var ready = false
+        while (!ready && System.currentTimeMillis() < deadline) {
+            instrumentation.runOnMainSync {
+                ready = surfCarousel.visibility == View.VISIBLE && surfCarousel.isAttachedToWindow && surfCarousel.hasComposition
+            }
+            if (!ready) Thread.sleep(ControlPollIntervalMs)
+        }
+
+        org.junit.Assert.assertTrue("Channel surf carousel should be composed after pressing its control", ready)
+        org.junit.Assert.assertEquals("The regular controls should hide while surfing", View.GONE, controls.visibility)
+        instrumentation.waitForIdleSync()
+
+        val nextChannelIndex = 6
+        val surfTo = player.javaClass.getDeclaredMethod("surfTo", Int::class.javaPrimitiveType!!).apply { isAccessible = true }
+        val selectedIndex = player.javaClass.getDeclaredField("currentSurfIndex").apply { isAccessible = true }
+        val target = player.javaClass.getDeclaredField("currentTarget").apply { isAccessible = true }
+        var switched = false
+        val switchDeadline = System.currentTimeMillis() + ControlWaitMs
+        instrumentation.runOnMainSync { surfTo.invoke(player, nextChannelIndex) }
+        while (!switched && System.currentTimeMillis() < switchDeadline) {
+            instrumentation.runOnMainSync {
+                val current = target.get(player) as? PlaybackTarget
+                switched = selectedIndex.getInt(player) == nextChannelIndex && current?.channelId == "channel-$nextChannelIndex"
+            }
+            if (!switched) Thread.sleep(ControlPollIntervalMs)
+        }
+        org.junit.Assert.assertTrue("Selecting another channel should switch the playing target", switched)
+        org.junit.Assert.assertEquals("The carousel should stay open after switching channels", View.VISIBLE, surfCarousel.visibility)
+        org.junit.Assert.assertEquals("The regular controls should stay hidden while surfing", View.GONE, controls.visibility)
+        org.junit.Assert.assertFalse("Channel surfing should leave the embedded player open", player.isFinishing)
+
+        val backHandler = player.javaClass
+            .getDeclaredMethod("onKeyUp", Int::class.javaPrimitiveType!!, KeyEvent::class.java)
+            .apply { isAccessible = true }
+        instrumentation.runOnMainSync { backHandler.invoke(player, KeyEvent.KEYCODE_BACK, null) }
+        org.junit.Assert.assertEquals("Back should close the channel carousel", View.GONE, surfCarousel.visibility)
+        org.junit.Assert.assertEquals("Back should leave the stream visible without controls", View.GONE, controls.visibility)
+
+        val playerBounds = IntArray(2)
+        instrumentation.runOnMainSync {
+            playerBounds[0] = player.window.decorView.width
+            playerBounds[1] = player.window.decorView.height
+        }
+        tap(player, playerBounds[0] / 2f, playerBounds[1] / 2f)
+        waitForVisibility(controls, View.VISIBLE)
+        clickControl(player, "View channel list")
+        val carouselPosition = IntArray(2)
+        val decorPosition = IntArray(2)
+        instrumentation.runOnMainSync {
+            surfCarousel.getLocationOnScreen(carouselPosition)
+            player.window.decorView.getLocationOnScreen(decorPosition)
+        }
+        val density = player.resources.displayMetrics.density
+        val swipeX = carouselPosition[0] - decorPosition[0] + surfCarousel.width / 2f
+        val swipeStartY = carouselPosition[1] - decorPosition[1] + surfCarousel.height * 0.45f
+        val swipeEndY = swipeStartY + 64f * density
+        swipe(player, swipeX, swipeStartY, swipeX, swipeEndY)
+        waitForVisibility(surfCarousel, View.GONE)
+        org.junit.Assert.assertEquals("Swiping down should close the channel carousel", View.GONE, surfCarousel.visibility)
+        org.junit.Assert.assertEquals("Swiping down should leave the stream visible without controls", View.GONE, controls.visibility)
+
+        tap(player, playerBounds[0] / 2f, playerBounds[1] / 2f)
+        waitForVisibility(controls, View.VISIBLE)
+        clickControl(player, "View channel list")
+        instrumentation.runOnMainSync {
+            surfCarousel.getLocationOnScreen(carouselPosition)
+            player.window.decorView.getLocationOnScreen(decorPosition)
+        }
+        val closeButtonX = carouselPosition[0] - decorPosition[0] + surfCarousel.width - surfCarousel.width * 0.03f - 21f * density + 20f
+        val closeButtonY = carouselPosition[1] - decorPosition[1] + 24f * density
+        tap(player, closeButtonX, closeButtonY)
+        waitForVisibility(surfCarousel, View.GONE)
+        org.junit.Assert.assertEquals("The large X should close the channel carousel", View.GONE, surfCarousel.visibility)
+        org.junit.Assert.assertEquals("The large X should leave the stream visible without controls", View.GONE, controls.visibility)
+
+        tap(player, playerBounds[0] / 2f, playerBounds[1] / 2f)
+        waitForVisibility(controls, View.VISIBLE)
+        clickControl(player, "View channel list")
+        Thread.sleep(15_500L)
+        waitForVisibility(surfCarousel, View.GONE)
+        org.junit.Assert.assertEquals("The idle carousel should hide after 15 seconds", View.GONE, surfCarousel.visibility)
+        org.junit.Assert.assertEquals("Auto-hide should leave only the stream", View.GONE, controls.visibility)
+    }
+
+    @Test
+    fun reopeningSurfCarouselRecentersThePlayingChannel() {
+        val targets = (0..14).map { index ->
+            PlaybackTarget(
+                accountId = 1,
+                accountName = "Surf Test",
+                mode = BrowseMode.LIVE,
+                categoryProviderId = "surf-test",
+                categoryRowId = 1,
+                channelId = "channel-$index",
+                title = "Channel $index",
+                url = "https://stream.test/$index.m3u8",
+                logo = ""
+            )
+        }
+        val initialIndex = 5
+        val playingIndex = 6
+        val session = requireNotNull(AndroidPlaybackSurfSessionStore.create(PlaybackSurfQueue(targets, currentIndex = initialIndex)))
+        val player = launchPlayer("LIVE", session)
+        val surfCarousel = player.javaClass.getDeclaredField("surfCarouselView").apply { isAccessible = true }
+            .get(player) as ComposeView
+        val controls = player.javaClass.getDeclaredField("controlsOverlay").apply { isAccessible = true }
+            .get(player) as View
+        val currentIndex = player.javaClass.getDeclaredField("currentSurfIndex").apply { isAccessible = true }
+        val surfTo = player.javaClass.getDeclaredMethod("surfTo", Int::class.javaPrimitiveType!!).apply { isAccessible = true }
+
+        clickControl(player, "View channel list")
+        waitForVisibility(surfCarousel, View.VISIBLE)
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync { surfTo.invoke(player, playingIndex) }
+        instrumentation.waitForIdleSync()
+        org.junit.Assert.assertEquals(playingIndex, currentIndex.getInt(player))
+
+        val carouselPosition = IntArray(2)
+        val decorPosition = IntArray(2)
+        instrumentation.runOnMainSync {
+            surfCarousel.getLocationOnScreen(carouselPosition)
+            player.window.decorView.getLocationOnScreen(decorPosition)
+        }
+        val rowY = carouselPosition[1] - decorPosition[1] + surfCarousel.height * 0.45f
+        val dragStartX = carouselPosition[0] - decorPosition[0] + surfCarousel.width * 0.78f
+        val dragEndX = carouselPosition[0] - decorPosition[0] + surfCarousel.width * 0.22f
+        swipe(player, dragStartX, rowY, dragEndX, rowY)
+        instrumentation.waitForIdleSync()
+
+        val backHandler = player.javaClass
+            .getDeclaredMethod("onKeyUp", Int::class.javaPrimitiveType!!, KeyEvent::class.java)
+            .apply { isAccessible = true }
+        instrumentation.runOnMainSync { backHandler.invoke(player, KeyEvent.KEYCODE_BACK, null) }
+        org.junit.Assert.assertEquals(View.GONE, surfCarousel.visibility)
+
+        val playerBounds = IntArray(2)
+        instrumentation.runOnMainSync {
+            playerBounds[0] = player.window.decorView.width
+            playerBounds[1] = player.window.decorView.height
+        }
+        tap(player, playerBounds[0] / 2f, playerBounds[1] / 2f)
+        waitForVisibility(controls, View.VISIBLE)
+        clickControl(player, "View channel list")
+        waitForVisibility(surfCarousel, View.VISIBLE)
+        instrumentation.runOnMainSync {
+            surfCarousel.getLocationOnScreen(carouselPosition)
+            player.window.decorView.getLocationOnScreen(decorPosition)
+        }
+        val centerX = carouselPosition[0] - decorPosition[0] + surfCarousel.width / 2f
+        val centerY = carouselPosition[1] - decorPosition[1] + surfCarousel.height * 0.45f
+        tap(player, centerX, centerY)
+        instrumentation.waitForIdleSync()
+
+        org.junit.Assert.assertEquals(
+            "The channel under the carousel center should be the channel playing after reopen",
+            playingIndex,
+            currentIndex.getInt(player)
+        )
+    }
+
+    private fun launchPlayer(mode: String, surfSession: AndroidPlaybackSurfSession? = null): Activity {
         val context = instrumentation.targetContext
+        val startTarget = surfSession?.targets?.getOrNull(surfSession.startIndex)
         val intent = Intent(context, MpvEmbeddedPlayerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            .putExtra(NativePlayerActivity.EXTRA_MODE, mode)
-            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, 1L)
-            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_NAME, "Control Test")
-            .putExtra(NativePlayerActivity.EXTRA_CATEGORY_PROVIDER_ID, "control-test")
-            .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, 1L)
-            .putExtra(NativePlayerActivity.EXTRA_CHANNEL_ID, "control-test")
-            .putExtra(NativePlayerActivity.EXTRA_TITLE, "Control Test $mode")
-            .putExtra(NativePlayerActivity.EXTRA_URL, InstrumentationRegistry.getArguments().getString("stabilityStreamUrl") ?: TestStreamUrl)
+            .putExtra(NativePlayerActivity.EXTRA_MODE, startTarget?.mode?.name ?: mode)
+            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, startTarget?.accountId ?: 1L)
+            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_NAME, startTarget?.accountName ?: "Control Test")
+            .putExtra(NativePlayerActivity.EXTRA_CATEGORY_PROVIDER_ID, startTarget?.categoryProviderId ?: "control-test")
+            .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, startTarget?.categoryRowId ?: 1L)
+            .putExtra(NativePlayerActivity.EXTRA_CHANNEL_ID, startTarget?.channelId ?: "control-test")
+            .putExtra(NativePlayerActivity.EXTRA_TITLE, startTarget?.title ?: "Control Test $mode")
+            .putExtra(
+                NativePlayerActivity.EXTRA_URL,
+                startTarget?.url ?: InstrumentationRegistry.getArguments().getString("stabilityStreamUrl") ?: TestStreamUrl
+            )
+            .putExtra(NativePlayerActivity.EXTRA_LOGO, startTarget?.logo.orEmpty())
+        surfSession?.let {
+            intent.putExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID, it.id)
+                .putExtra(NativePlayerActivity.EXTRA_SURF_START_INDEX, it.startIndex)
+        }
 
         return instrumentation.startActivitySync(intent).also {
             activity = it

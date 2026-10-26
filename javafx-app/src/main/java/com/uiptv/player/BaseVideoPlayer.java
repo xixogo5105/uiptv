@@ -135,6 +135,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     // Buttons and Icons
     protected Button btnPlayPause;
     protected Button btnMute;
+    protected Button btnPreviousChannel;
+    protected Button btnNextChannel;
     protected Button btnRepeat;
     protected Button btnFullscreen;
     protected Button btnReload;
@@ -229,6 +231,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buildUI();
         setupEventHandlers();
         setupFadeAndIdleLogic();
+        PlayerChannelNavigation.queueProperty().addListener((_, _, _) -> updateChannelNavigationButtons());
+        updateChannelNavigationButtons();
         ConfigurationService.getInstance().addChangeListener(layoutModeConfigurationChangeListener);
         playerContainer.sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != newScene) {
@@ -263,6 +267,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
+        btnPreviousChannel = createIconButton(createChannelNavigationIcon(false));
+        btnPreviousChannel.setTooltip(new Tooltip(I18n.tr("playerPreviousItem")));
+        btnPreviousChannel.setAccessibleText(I18n.tr("playerPreviousItem"));
+        btnPreviousChannel.setVisible(false);
+        btnPreviousChannel.setManaged(false);
+        btnNextChannel = createIconButton(createChannelNavigationIcon(true));
+        btnNextChannel.setTooltip(new Tooltip(I18n.tr("playerNextItem")));
+        btnNextChannel.setAccessibleText(I18n.tr("playerNextItem"));
+        btnNextChannel.setVisible(false);
+        btnNextChannel.setManaged(false);
         btnRewind = createTransportButton(rewindIcon, "Rewind 15s");
         btnFastForward = createTransportButton(fastForwardIcon, "Fast forward 15s");
         btnRepeat = createIconButton(repeatOffIcon);
@@ -316,10 +330,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnGuide = createIconButton(guideIcon);
         btnGuide.getStyleClass().add("player-guide-button");
         btnGuide.setText(I18n.tr("epgOpenGuide"));
-        // Keep the guide as the final control, after the up/down navigation buttons.
+        // Keep the guide as the final control, after channel navigation.
         // Narrow mode already shows EPG inline beside the player, so the overlay
         // controls its visibility from the active layout mode.
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward,
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnPreviousChannel, btnNextChannel, btnRewind, btnFastForward,
                 btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute,
                 volumeSlider, btnLayoutMode, btnAspectRatio, btnTracks, btnHideBar, btnGuide);
 
@@ -338,7 +352,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer.setPadding(new Insets(5));
         controlsContainer.getStyleClass().add("player-controls-container");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
-        controlsContainer.setMaxWidth(576);
+        controlsContainer.setMaxWidth(640);
         controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
         applyFixedControlBarOrientation(controlsContainer, nowShowingFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
@@ -462,6 +476,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             exitFullscreen();
             stop();
         });
+        btnPreviousChannel.setOnAction(e -> PlayerChannelNavigation.previous());
+        btnNextChannel.setOnAction(e -> PlayerChannelNavigation.next());
         btnRewind.setOnAction(e -> seekBySeconds(-15));
         btnFastForward.setOnAction(e -> seekBySeconds(15));
         btnRepeat.setOnAction(e -> {
@@ -952,6 +968,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stop() {
+        PlayerChannelNavigation.clear();
         cancelStreamRefresh();
         cancelLiveRecovery();
         com.uiptv.ui.PlaybackUIService.cancelPendingPlayback();
@@ -1994,6 +2011,43 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btn.setPadding(new Insets(3));
         btn.getStyleClass().add(PLAYER_ICON_BUTTON);
         return btn;
+    }
+
+    private SVGPath createChannelNavigationIcon(boolean next) {
+        SVGPath icon = new SVGPath();
+        icon.setContent(next
+                ? "M16 6h2v12h-2zM6 6v12l8-6z"
+                : "M6 6h2v12H6zm4 6 8 6V6z");
+        icon.setFill(Color.WHITE);
+        icon.setScaleX(0.9);
+        icon.setScaleY(0.9);
+        return icon;
+    }
+
+    private void updateChannelNavigationButtons() {
+        if (btnPreviousChannel == null || btnNextChannel == null) {
+            return;
+        }
+        PlayerChannelNavigation.Queue queue = PlayerChannelNavigation.getQueue();
+        boolean available = queue != null && queue.actions().size() > 1;
+        btnPreviousChannel.setVisible(available);
+        btnPreviousChannel.setManaged(available);
+        btnPreviousChannel.setDisable(!available || !queue.canGoPrevious());
+        String previousTooltip = navigationTooltip("playerPreviousItem", "playerPreviousItemWithName",
+                available ? queue.previousItemName() : "");
+        btnPreviousChannel.setTooltip(new Tooltip(previousTooltip));
+        btnPreviousChannel.setAccessibleText(previousTooltip);
+        btnNextChannel.setVisible(available);
+        btnNextChannel.setManaged(available);
+        btnNextChannel.setDisable(!available || !queue.canGoNext());
+        String nextTooltip = navigationTooltip("playerNextItem", "playerNextItemWithName",
+                available ? queue.nextItemName() : "");
+        btnNextChannel.setTooltip(new Tooltip(nextTooltip));
+        btnNextChannel.setAccessibleText(nextTooltip);
+    }
+
+    private String navigationTooltip(String fallbackKey, String namedKey, String itemName) {
+        return isNotBlank(itemName) ? I18n.tr(namedKey, itemName) : I18n.tr(fallbackKey);
     }
 
     private SVGPath createLayoutModeIcon() {

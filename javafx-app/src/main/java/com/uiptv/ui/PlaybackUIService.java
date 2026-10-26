@@ -5,6 +5,7 @@ import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.player.PlayerChannelNavigation;
 import com.uiptv.application.PlaybackResolutionException;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
@@ -88,6 +89,11 @@ public final class PlaybackUIService {
         currentPlaybackSource.set(source);
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
+        if (!isEmbeddedPlayback(request, context)) {
+            PlayerChannelNavigation.clear();
+        } else if (!PlayerChannelNavigation.isNavigationInProgress()) {
+            PlayerChannelNavigation.setQueue(request.navigationQueue);
+        }
         source.setCursor(Cursor.WAIT);
         if (handleImmediatePlayback(context, request, playbackAccount)) {
             source.setCursor(null);
@@ -465,6 +471,7 @@ public final class PlaybackUIService {
         private String channelId = "";
         private String seriesId = "";
         private String seriesCategoryId = "";
+        private PlayerChannelNavigation.Queue navigationQueue;
         private boolean allowDrmBrowserFallback = true;
         private String errorPrefix = "Playback failed: ";
 
@@ -495,6 +502,11 @@ public final class PlaybackUIService {
         public PlaybackRequest series(String seriesId, String seriesCategoryId) {
             this.seriesId = seriesId == null ? "" : seriesId;
             this.seriesCategoryId = seriesCategoryId == null ? "" : seriesCategoryId;
+            return this;
+        }
+
+        public PlaybackRequest navigationQueue(PlayerChannelNavigation.Queue navigationQueue) {
+            this.navigationQueue = navigationQueue;
             return this;
         }
 

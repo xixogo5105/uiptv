@@ -21,7 +21,9 @@ import com.uiptv.mobile.shared.browse.resolvedSeason
 import com.uiptv.mobile.shared.browse.seasonTab
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
+import com.uiptv.mobile.shared.playback.PlaybackSurfQueue
 import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.playback.toPlaybackTarget
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.playback.extractPlayableStreamUrl
 import com.uiptv.mobile.shared.playback.isDrmProtected
@@ -129,10 +131,11 @@ class AndroidPlaybackCoordinator(
     suspend fun playBrowseItem(
         item: MobileBrowseItem,
         player: AndroidPlayerPreference,
-        remember: Boolean
+        remember: Boolean,
+        surfQueue: PlaybackSurfQueue? = null
     ): PlaybackLaunchResult = withContext(Dispatchers.IO) {
         val target = item.toPlaybackTarget()
-        val result = launch(target, player)
+        val result = launch(target, player, surfQueue)
         if (result.launched) {
             if (remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
@@ -144,9 +147,14 @@ class AndroidPlaybackCoordinator(
         result
     }
 
-    suspend fun playBookmark(bookmark: MobileBookmark, player: AndroidPlayerPreference, remember: Boolean): PlaybackLaunchResult =
+    suspend fun playBookmark(
+        bookmark: MobileBookmark,
+        player: AndroidPlayerPreference,
+        remember: Boolean,
+        surfQueue: PlaybackSurfQueue? = null
+    ): PlaybackLaunchResult =
         withContext(Dispatchers.IO) {
-            val result = launch(bookmark.toPlaybackTarget(), player)
+            val result = launch(bookmark.toPlaybackTarget(), player, surfQueue)
             if (result.launched) {
                 AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).record(bookmark)
             }
@@ -156,12 +164,17 @@ class AndroidPlaybackCoordinator(
             result
         }
 
-    suspend fun playWatchingNow(item: MobileWatchingNowItem, player: AndroidPlayerPreference, remember: Boolean): PlaybackLaunchResult =
+    suspend fun playWatchingNow(
+        item: MobileWatchingNowItem,
+        player: AndroidPlayerPreference,
+        remember: Boolean,
+        surfQueue: PlaybackSurfQueue? = null
+    ): PlaybackLaunchResult =
         withContext(Dispatchers.IO) {
             val result = if (item.command.isBlank()) {
                 PlaybackLaunchResult(false, "No playable URL is cached for ${item.title}.")
             } else {
-                launch(item.toPlaybackTarget(), player)
+                launch(item.toPlaybackTarget(), player, surfQueue)
             }
             if (result.launched && remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
@@ -172,13 +185,14 @@ class AndroidPlaybackCoordinator(
     suspend fun playWatchingNowEpisode(
         episode: MobileWatchingNowEpisode,
         player: AndroidPlayerPreference,
-        remember: Boolean
+        remember: Boolean,
+        surfQueue: PlaybackSurfQueue? = null
     ): PlaybackLaunchResult = withContext(Dispatchers.IO) {
         val target = episode.toPlaybackTarget()
         val result = if (episode.command.isBlank()) {
             PlaybackLaunchResult(false, "No playable URL is cached for ${episode.title}.")
         } else {
-            launch(target, player)
+            launch(target, player, surfQueue)
         }
         if (result.launched) {
             if (remember) {
@@ -221,7 +235,11 @@ class AndroidPlaybackCoordinator(
         result
     }
 
-    private suspend fun launch(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
+    private suspend fun launch(
+        target: PlaybackTarget,
+        player: AndroidPlayerPreference,
+        surfQueue: PlaybackSurfQueue? = null
+    ): PlaybackLaunchResult {
         val providerTarget = resolvePlayableTarget(target).withSanitizedPlaybackUrl()
         val playableTarget = if (player.usesNativeActivity()) {
             resolveAndroidStreamTarget(providerTarget)
@@ -234,7 +252,7 @@ class AndroidPlaybackCoordinator(
             return PlaybackLaunchResult(false, "Android Media cannot open this DRM metadata yet. Check the DRM type, license URL, or ClearKey data.")
         }
         val intent = when (playbackPlayer) {
-            AndroidPlayerPreference.EMBEDDED_PLAYER -> embeddedPlayerIntent(playableTarget)
+            AndroidPlayerPreference.EMBEDDED_PLAYER -> embeddedPlayerIntent(playableTarget, surfQueue)
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(playableTarget)
             AndroidPlayerPreference.SYSTEM_CHOOSER -> Intent.createChooser(viewIntent(playableTarget, null), "Open stream")
@@ -255,8 +273,10 @@ class AndroidPlaybackCoordinator(
             }
             PlaybackLaunchResult(true, "Opening ${playableTarget.title}$playerSuffix.")
         } catch (_: ActivityNotFoundException) {
+            intent.getStringExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID)?.let(AndroidPlaybackSurfSessionStore::remove)
             PlaybackLaunchResult(false, "${player.displayLabel()} is not available.")
         } catch (ex: Exception) {
+            intent.getStringExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID)?.let(AndroidPlaybackSurfSessionStore::remove)
             PlaybackLaunchResult(false, ex.message ?: "Unable to open stream.")
         }
     }
@@ -299,9 +319,15 @@ class AndroidPlaybackCoordinator(
         }
     }
 
-    private fun embeddedPlayerIntent(target: PlaybackTarget): Intent =
-        playbackIntent(target, MpvEmbeddedPlayerActivity::class.java)
+    private fun embeddedPlayerIntent(target: PlaybackTarget, surfQueue: PlaybackSurfQueue? = null): Intent {
+        val intent = playbackIntent(target, MpvEmbeddedPlayerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        AndroidPlaybackSurfSessionStore.create(surfQueue ?: return intent)?.let { session ->
+            intent.putExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID, session.id)
+                .putExtra(NativePlayerActivity.EXTRA_SURF_START_INDEX, session.startIndex)
+        }
+        return intent
+    }
 
     private fun nativePlayerIntent(target: PlaybackTarget): Intent =
         playbackIntent(target, NativePlayerActivity::class.java)
@@ -608,72 +634,6 @@ class AndroidPlaybackCoordinator(
             @Suppress("DEPRECATION")
             runCatching { context.packageManager.getPackageInfo(packageName, 0) }.isSuccess
         }
-
-    private fun MobileBrowseItem.toPlaybackTarget(): PlaybackTarget =
-        PlaybackTarget(
-            accountId = accountId,
-            accountName = accountName,
-            mode = mode,
-            categoryProviderId = categoryProviderId,
-            categoryRowId = categoryRowId,
-            channelId = channelId,
-            title = name,
-            url = command,
-            logo = logo,
-            drmType = drmType,
-            drmLicenseUrl = drmLicenseUrl,
-            clearKeysJson = clearKeysJson,
-            inputstreamAddon = inputstreamAddon,
-            manifestType = manifestType
-        )
-
-    private fun MobileBookmark.toPlaybackTarget(): PlaybackTarget =
-        PlaybackTarget(
-            accountId = accountId,
-            accountName = accountName,
-            mode = mode,
-            categoryProviderId = "",
-            categoryRowId = 0,
-            channelId = channelId,
-            title = channelName,
-            url = command,
-            drmType = drmType,
-            drmLicenseUrl = drmLicenseUrl,
-            clearKeysJson = clearKeysJson,
-            inputstreamAddon = inputstreamAddon,
-            manifestType = manifestType
-        )
-
-    private fun MobileWatchingNowItem.toPlaybackTarget(): PlaybackTarget =
-        PlaybackTarget(
-            accountId = accountId,
-            accountName = accountName,
-            mode = mode,
-            categoryProviderId = categoryProviderId,
-            categoryRowId = categoryRowId,
-            channelId = contentId.ifBlank { rowId.toString() },
-            title = title,
-            url = command,
-            logo = logo
-        )
-
-    private fun MobileWatchingNowEpisode.toPlaybackTarget(): PlaybackTarget =
-        PlaybackTarget(
-            accountId = accountId,
-            accountName = accountName,
-            mode = BrowseMode.SERIES,
-            categoryProviderId = categoryProviderId,
-            categoryRowId = categoryRowId,
-            channelId = episodeId,
-            title = title,
-            url = command,
-            logo = logo,
-            seriesId = seriesId,
-            seriesTitle = seriesTitle,
-            episodeId = episodeId,
-            season = resolvedSeason(),
-            episodeNumber = resolvedEpisodeNumber()
-        )
 
     private fun bingeSeasonTargets(episodes: List<MobileWatchingNowEpisode>, seasonKey: String): List<PlaybackTarget> =
         episodes

@@ -1,9 +1,13 @@
 package com.uiptv.mobile.shared.playback
 
 import com.uiptv.mobile.shared.browse.BrowseMode
+import com.uiptv.mobile.shared.browse.MobileBookmark
+import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class MobilePlaybackTest {
     @Test
@@ -45,6 +49,37 @@ class MobilePlaybackTest {
         assertEquals("", target.manifestType)
         assertEquals("", target.seriesId)
         assertEquals("", target.episodeId)
+    }
+
+    @Test
+    fun playbackSurfQueuePreservesAllPlayableVisibleItemsAndCurrentPosition() {
+        val visibleItems = (0..8).map { index ->
+            surfItem(index, command = if (index == 4) "" else "https://stream.test/$index.m3u8")
+        }
+        val current = visibleItems[5]
+
+        val queue = createPlaybackSurfQueue(
+            visibleItems,
+            current,
+            isPlayable = { it.command.isNotBlank() },
+            toTarget = { it.toPlaybackTarget() }
+        )
+
+        val validQueue = assertNotNull(queue)
+        assertEquals(
+            listOf("channel-0", "channel-1", "channel-2", "channel-3", "channel-5", "channel-6", "channel-7", "channel-8"),
+            validQueue.targets.map { it.channelId }
+        )
+        assertEquals(4, validQueue.currentIndex)
+    }
+
+    @Test
+    fun playbackSurfQueueIsUnavailableWithoutMultiplePlayableItemsOrPlayableCurrent() {
+        val playable = surfItem(0, "https://stream.test/0.m3u8")
+        val unavailable = surfItem(1, "")
+
+        assertNull(createPlaybackSurfQueue(listOf(playable), playable, { it.command.isNotBlank() }, { it.toPlaybackTarget() }))
+        assertNull(createPlaybackSurfQueue(listOf(playable, unavailable), unavailable, { it.command.isNotBlank() }, { it.toPlaybackTarget() }))
     }
 
     @Test
@@ -121,9 +156,39 @@ class MobilePlaybackTest {
     }
 
     @Test
+    fun bookmarkPlaybackTargetIncludesItsArtworkForChannelSurfing() {
+        val target = MobileBookmark(
+            rowId = 2,
+            accountId = 7,
+            accountName = "Demo",
+            categoryTitle = "News",
+            channelId = "news-1",
+            channelName = "News One",
+            command = "https://stream.test/news.m3u8",
+            mode = BrowseMode.LIVE,
+            logo = "https://images.test/news.png"
+        ).toPlaybackTarget()
+
+        assertEquals("https://images.test/news.png", target.logo)
+    }
+
+    @Test
     fun shouldResolveStalkerPortalCommandDetectsPortalLocalCommands() {
         assertEquals(true, shouldResolveStalkerPortalCommand("ffrt http://localhost/ch/23849"))
         assertEquals(true, shouldResolveStalkerPortalCommand("http://127.0.0.1/ch/23849"))
         assertEquals(false, shouldResolveStalkerPortalCommand("https://stream.test/live.ts"))
     }
+
+    private fun surfItem(index: Int, command: String): MobileBrowseItem = MobileBrowseItem(
+        rowId = index.toLong(),
+        accountId = 7,
+        accountName = "Demo",
+        mode = BrowseMode.LIVE,
+        categoryRowId = 2,
+        categoryProviderId = "news",
+        categoryTitle = "News",
+        channelId = "channel-$index",
+        name = "Channel $index",
+        command = command
+    )
 }

@@ -85,11 +85,11 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     assert.match(off, /circle cx="8" cy="8" r="4" fill="#8a97a5"/);
     assert.match(source, /broadcast-on\.svg\?v=20261017b/);
     assert.match(source, /broadcast-off\.svg\?v=20261017b/);
-    assert.match(html, /spa\.js\?v=20261024singleColumnScroll3/);
+    assert.match(html, /spa\.js\?v=20261026channel-navigation1/);
     assert.match(html, /spa\.css\?v=20261024singleColumnScroll3/);
     assert.match(html, /class="broadcast-indicator"/);
     assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
     assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v117'/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v119'/);
 });
 

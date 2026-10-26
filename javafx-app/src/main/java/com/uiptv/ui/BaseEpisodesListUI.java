@@ -5,6 +5,7 @@ import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.player.PlayerChannelNavigation;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
@@ -579,6 +580,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (item == null) {
             return;
         }
+        selectEpisodeForPlayback(item);
         markEpisodeAsPlaying(item);
         SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account,
@@ -597,11 +599,26 @@ public abstract class BaseEpisodesListUI extends HBox {
         channel.setSeason(item.getSeason());
         channel.setEpisodeNum(item.getEpisodeNumber());
         channel.setLogo(item.getLogo());
+        PlayerChannelNavigation.Queue navigationQueue = PlayerChannelNavigation.createQueue(
+                playbackNavigationItems(), item,
+                candidate -> !isBlank(candidate.getCmd()),
+                EpisodeItem::getEpisodeName,
+                candidate -> play(candidate, playerPath)
+        );
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(mediaContext, channel, playerPath)
                 .series(seriesId, seriesCategoryId)
                 .channelId(item.getEpisodeId())
                 .categoryId(seriesCategoryId)
+                .navigationQueue(navigationQueue)
                 .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
+    }
+
+    protected List<EpisodeItem> playbackNavigationItems() {
+        return List.copyOf(allEpisodeItems);
+    }
+
+    protected void selectEpisodeForPlayback(EpisodeItem item) {
+        // Implemented by episode views that maintain a selected-card state.
     }
 
     @SuppressWarnings("java:S2696")

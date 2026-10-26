@@ -34,6 +34,9 @@ class AndroidPreferencesTest {
         assertEquals(PlayerPreference(), snapshot.playerPreference)
         assertEquals(EmbeddedPlayerPreference(), snapshot.embeddedPlayerPreference)
         assertEquals(EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC, snapshot.embeddedPlayerPreference.renderProfile)
+        assertEquals(null, snapshot.embeddedPlayerPreference.brightness)
+        assertEquals(null, snapshot.embeddedPlayerPreference.volumePercent)
+        assertEquals(null, snapshot.embeddedPlayerPreference.zoomMode)
         assertEquals(PanelVisibilityPreference(), snapshot.panelVisibilityPreference)
         assertFalse(snapshot.firstRunCompleted)
         assertFalse(snapshot.epgEnabled)
@@ -52,6 +55,9 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED,
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED,
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_RENDER_PROFILE,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_BRIGHTNESS,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_VOLUME_PERCENT,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_ZOOM_MODE,
             AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE,

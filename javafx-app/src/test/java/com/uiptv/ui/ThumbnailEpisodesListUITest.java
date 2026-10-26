@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ThumbnailEpisodesListUITest extends DbBackedUiTest {
@@ -194,6 +195,32 @@ class ThumbnailEpisodesListUITest extends DbBackedUiTest {
             item.setWatched(false);
             assertFalse(watchedBadge.isVisible());
             assertFalse(watchedBadge.isManaged());
+            return null;
+        });
+    }
+
+    @Test
+    void playbackSelectionMovesToTheNavigatedEpisode() throws Exception {
+        ThumbnailEpisodesListUI ui = runOnFxThread(() -> {
+            ThumbnailEpisodesListUI view = new ThumbnailEpisodesListUI(testAccount(), "Series", "series-1", "category-1");
+            EpisodeList episodes = new EpisodeList();
+            episodes.getEpisodes().add(testEpisode("episode-1", "1"));
+            episodes.getEpisodes().add(testEpisode("episode-2", "2"));
+            view.setItems(episodes);
+            return view;
+        });
+        FxTestSupport.waitForFxEvents();
+
+        runOnFxThread(() -> {
+            BaseEpisodesListUI.EpisodeItem target = ui.allEpisodeItems.get(1);
+            Method selectForPlayback = BaseEpisodesListUI.class.getDeclaredMethod(
+                    "selectEpisodeForPlayback", BaseEpisodesListUI.EpisodeItem.class);
+            selectForPlayback.setAccessible(true);
+            selectForPlayback.invoke(ui, target);
+
+            Field selectedEpisode = ThumbnailEpisodesListUI.class.getDeclaredField("selectedEpisodeItem");
+            selectedEpisode.setAccessible(true);
+            assertSame(target, selectedEpisode.get(ui));
             return null;
         });
     }

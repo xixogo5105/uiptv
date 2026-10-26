@@ -15,13 +15,16 @@ class AndroidPreferencesRepositoryTest {
         )
         val original = repository.load().embeddedPlayerPreference
         try {
+            val persisted = original.copy(
+                renderProfile = EmbeddedPlayerRenderProfile.GPU,
+                brightness = 0.63f,
+                volumePercent = 42,
+                zoomMode = "crop"
+            )
             repository.saveEmbeddedPlayerPreference(
-                original.copy(renderProfile = EmbeddedPlayerRenderProfile.GPU)
+                persisted
             )
-            assertEquals(
-                EmbeddedPlayerRenderProfile.GPU,
-                repository.load().embeddedPlayerPreference.renderProfile
-            )
+            assertEquals(persisted, repository.load().embeddedPlayerPreference)
         } finally {
             repository.saveEmbeddedPlayerPreference(original)
         }

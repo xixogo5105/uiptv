@@ -22,8 +22,25 @@
         }
     };
 
+    const createPlaybackNavigation = (items, currentItem, play, isPlayable = item => !!item?.cmd) => {
+        if (!Array.isArray(items) || typeof play !== 'function' || typeof isPlayable !== 'function') return null;
+        const playableItems = items.filter(item => item && isPlayable(item));
+        const currentIndex = playableItems.indexOf(currentItem);
+        if (playableItems.length < 2 || currentIndex < 0) return null;
+        return {items: playableItems, currentIndex, play};
+    };
+
+    const movePlaybackNavigation = (navigation, offset) => {
+        if (!navigation || !Array.isArray(navigation.items)) return null;
+        const nextIndex = navigation.currentIndex + offset;
+        if (nextIndex < 0 || nextIndex >= navigation.items.length) return null;
+        return {...navigation, currentIndex: nextIndex};
+    };
+
     window.UIPTVControls = {
         onControlClick,
-        ensurePlaybackNotPaused
+        ensurePlaybackNotPaused,
+        createPlaybackNavigation,
+        movePlaybackNavigation
     };
 })();

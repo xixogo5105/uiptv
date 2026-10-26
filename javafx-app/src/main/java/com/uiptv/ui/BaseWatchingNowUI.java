@@ -6,6 +6,7 @@ import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.player.PlayerChannelNavigation;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
@@ -57,6 +58,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 @SuppressWarnings("java:S5843")
 public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
+    private static final String KEY_CARD_EPISODE = "watchingEpisode";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_RATING = "rating";
@@ -1358,6 +1360,14 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || episode == null || data.episodeCardsContainer == null) {
             return;
         }
+        for (VBox card : seriesEpisodeCards(data)) {
+            if (findMatchingCard(card, episode) != null) {
+                data.selectedEpisodeCard = card;
+                data.selectedEpisode = episode;
+                applyCardSelection(card, true);
+                return;
+            }
+        }
         for (Node child : data.episodeCardsContainer.getChildren()) {
             VBox card = findMatchingCard(child, episode);
             if (card != null) {
@@ -1371,6 +1381,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private VBox findMatchingCard(Node child, WatchingEpisode episode) {
         if (!(child instanceof VBox card)) return null;
+        if (card.getProperties().get(KEY_CARD_EPISODE) == episode) {
+            return card;
+        }
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (!(labelsObj instanceof List<?> labels)) {
             return null;
@@ -1559,6 +1572,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         }
 
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
+        root.getProperties().put(KEY_CARD_EPISODE, row);
         attachCardEventHandlers(root, data, row);
         return root;
     }
@@ -2114,6 +2128,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         }
 
         // Optimistically update UI
+        selectWatchingNowEpisodeForPlayback(data, item);
         updateWatchingStatusUI(data, item);
 
         AccountMediaContext seriesContext = seriesContext(item.account);
@@ -2131,11 +2146,52 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 item.episodeNum
         );
         // refreshWatchedStateInstant(item); // No longer needed as we update UI directly
+        PlayerChannelNavigation.Queue navigationQueue = PlayerChannelNavigation.createQueue(
+                getFilteredEpisodesForSeason(data, selectedSeason(data)), item,
+                candidate -> candidate.channel != null && !isBlank(candidate.channel.getCmd()),
+                candidate -> candidate.title,
+                candidate -> playEpisode(data, candidate, playerPath)
+        );
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(seriesContext, item.channel, playerPath)
                 .series(item.state.getSeriesId(), item.state.getCategoryId())
                 .categoryId(item.state.getCategoryId())
                 .channelId(item.channel.getChannelId())
+                .navigationQueue(navigationQueue)
                 .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
+    }
+
+    private void selectWatchingNowEpisodeForPlayback(SeriesPanelData data, WatchingEpisode item) {
+        if (data == null || item == null) {
+            return;
+        }
+
+        String itemSeason = normalizeNumber(item.season);
+        if (!isBlank(itemSeason) && data.seasonPillBar != null
+                && !itemSeason.equals(normalizeNumber(selectedSeason(data)))) {
+            String matchingSeason = seasonKeys(data).stream()
+                    .filter(season -> itemSeason.equals(normalizeNumber(season)))
+                    .findFirst()
+                    .orElse(null);
+            if (matchingSeason != null) {
+                data.selectedEpisode = item;
+                data.seasonPillBar.setSelectedItem(matchingSeason);
+            }
+        }
+
+        VBox card = seriesEpisodeCards(data).stream()
+                .filter(candidate -> findMatchingCard(candidate, item) != null)
+                .findFirst()
+                .orElse(null);
+        if (card == null) {
+            data.selectedEpisode = item;
+            return;
+        }
+
+        clearSeriesEpisodeCardSelections(data, card);
+        applyCardSelection(card, true);
+        data.selectedEpisodeCard = card;
+        data.selectedEpisode = item;
+        scrollSeriesEpisodeCardIntoView(card);
     }
 
     private void updateWatchingStatusUI(SeriesPanelData data, WatchingEpisode currentEpisode) {

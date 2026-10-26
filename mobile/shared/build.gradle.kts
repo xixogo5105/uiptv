@@ -127,7 +127,7 @@ val mobileMessageKeys = listOf(
     "epgMobileHideAdvanced", "epgMobileMaintenance", "epgMobileCacheDescription",
     "configClearCache", "epgMobileCacheCleared", "epgMobileCacheClearFailed", "epgLoading",
     "epgNow", "epgNext", "epgSourceStale", "epgSourceUnavailable", "epgNoGuide",
-    "epgProgrammeDetails", "epgMobileProgrammeGuide", "commonClose", "epgMobileNoProgrammeNow",
+    "epgProgrammeDetails", "epgMobileProgrammeGuide", "commonClose", "epgCloseGuide", "epgMobileNoProgrammeNow",
     "epgMobileMemoryPressure", "epgSourceTooLarge", "epgSourceProgrammeLimit", "epgSourceInvalid",
     "playerSwitchToHardwareDecode", "playerSwitchToSoftwareDecode", "playerAccelerationSwitchFailed",
     "mobileEmbeddedOutputTitle", "mobileEmbeddedOutputDescription", "mobileEmbeddedOutputDirect",

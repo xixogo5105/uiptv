@@ -14,11 +14,13 @@ import javafx.scene.control.Label;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlainEpisodesListUITest extends DbBackedUiTest {
@@ -91,6 +93,32 @@ class PlainEpisodesListUITest extends DbBackedUiTest {
             item.setWatched(false);
             assertFalse(watchedBadge.isVisible());
             assertFalse(watchedBadge.isManaged());
+            return null;
+        });
+    }
+
+    @Test
+    void playbackSelectionMovesToTheNavigatedEpisode() throws Exception {
+        PlainEpisodesListUI ui = runOnFxThread(() -> {
+            PlainEpisodesListUI view = new PlainEpisodesListUI(testAccount(), "Series", "series-1", "category-1");
+            EpisodeList episodes = new EpisodeList();
+            episodes.getEpisodes().add(testEpisode("episode-1", "1"));
+            episodes.getEpisodes().add(testEpisode("episode-2", "2"));
+            view.setItems(episodes);
+            return view;
+        });
+        FxTestSupport.waitForFxEvents();
+
+        runOnFxThread(() -> {
+            BaseEpisodesListUI.EpisodeItem target = ui.allEpisodeItems.get(1);
+            Method selectForPlayback = BaseEpisodesListUI.class.getDeclaredMethod(
+                    "selectEpisodeForPlayback", BaseEpisodesListUI.EpisodeItem.class);
+            selectForPlayback.setAccessible(true);
+            selectForPlayback.invoke(ui, target);
+
+            Field selectedEpisode = PlainEpisodesListUI.class.getDeclaredField("selectedEpisodeItem");
+            selectedEpisode.setAccessible(true);
+            assertSame(target, selectedEpisode.get(ui));
             return null;
         });
     }

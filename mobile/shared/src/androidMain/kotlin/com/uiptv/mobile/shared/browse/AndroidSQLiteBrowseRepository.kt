@@ -2000,22 +2000,6 @@ class AndroidSQLiteBrowseRepository(
         }
     }
 
-    private fun List<MobileBookmarkCategory>.withRecentlyPlayedCategory(itemCount: Int): List<MobileBookmarkCategory> {
-        val recentCategory = MobileBookmarkCategory(
-            id = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
-            name = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME,
-            itemCount = itemCount
-        )
-        val baseCategories = filterNot { it.id == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID }
-        if (baseCategories.isEmpty()) {
-            return listOf(recentCategory)
-        }
-        return buildList {
-            add(recentCategory)
-            addAll(baseCategories)
-        }
-    }
-
     private fun List<MobileBrowseCategory>.filterByCategoryFilters(filters: FilterConfig): List<MobileBrowseCategory> {
         if (filters.paused || filters.categoryTerms.isEmpty()) {
             return this

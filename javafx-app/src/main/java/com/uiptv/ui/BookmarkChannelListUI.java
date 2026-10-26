@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.*;
+import com.uiptv.player.PlayerChannelNavigation;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 import com.uiptv.ui.util.UiI18n;
@@ -1526,10 +1527,19 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoUnableToLoadAccountChannelForThisBookmark"));
             return;
         }
+        bookmarkGrid.selectItems(List.of(item));
+        bookmarkGrid.scrollFocusedItemIntoView();
         recordRecentPlayback(item);
+        PlayerChannelNavigation.Queue navigationQueue = PlayerChannelNavigation.createQueue(
+                new ArrayList<>(filteredItems), item,
+                candidate -> isNotBlank(candidate.getCmd()),
+                BookmarkItem::getChannelName,
+                candidate -> play(candidate, playerPath)
+        );
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.mediaContext, playbackContext.channel, playerPath)
                 .categoryId(playbackContext.sourceCategoryDbId)
                 .channelId(item.getChannelId())
+                .navigationQueue(navigationQueue)
                 .errorPrefix(I18n.tr("autoErrorPlayingBookmarkPrefix")));
     }
 

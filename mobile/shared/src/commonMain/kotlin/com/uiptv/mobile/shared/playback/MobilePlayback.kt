@@ -1,6 +1,12 @@
 package com.uiptv.mobile.shared.playback
 
 import com.uiptv.mobile.shared.browse.BrowseMode
+import com.uiptv.mobile.shared.browse.MobileBookmark
+import com.uiptv.mobile.shared.browse.MobileBrowseItem
+import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
+import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
+import com.uiptv.mobile.shared.browse.resolvedEpisodeNumber
+import com.uiptv.mobile.shared.browse.resolvedSeason
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 
 data class PlaybackLaunchResult(
@@ -36,6 +42,85 @@ data class PlaybackTarget(
     val episodeId: String = "",
     val season: String = "",
     val episodeNumber: String = ""
+)
+
+/** The filtered list to browse while the embedded player is open. */
+data class PlaybackSurfQueue(val targets: List<PlaybackTarget>, val currentIndex: Int)
+
+fun <T> createPlaybackSurfQueue(
+    items: List<T>,
+    current: T,
+    isPlayable: (T) -> Boolean,
+    toTarget: (T) -> PlaybackTarget
+): PlaybackSurfQueue? {
+    val playable = items.filter(isPlayable)
+    val currentIndex = playable.indexOf(current)
+    return if (playable.size > 1 && currentIndex >= 0) {
+        PlaybackSurfQueue(playable.map(toTarget), currentIndex)
+    } else null
+}
+
+fun MobileBrowseItem.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
+    accountId = accountId,
+    accountName = accountName,
+    mode = mode,
+    categoryProviderId = categoryProviderId,
+    categoryRowId = categoryRowId,
+    channelId = channelId,
+    title = name,
+    url = command,
+    logo = logo,
+    drmType = drmType,
+    drmLicenseUrl = drmLicenseUrl,
+    clearKeysJson = clearKeysJson,
+    inputstreamAddon = inputstreamAddon,
+    manifestType = manifestType
+)
+
+fun MobileBookmark.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
+    accountId = accountId,
+    accountName = accountName,
+    mode = mode,
+    categoryProviderId = "",
+    categoryRowId = 0,
+    channelId = channelId,
+    title = channelName,
+    url = command,
+    logo = logo,
+    drmType = drmType,
+    drmLicenseUrl = drmLicenseUrl,
+    clearKeysJson = clearKeysJson,
+    inputstreamAddon = inputstreamAddon,
+    manifestType = manifestType
+)
+
+fun MobileWatchingNowItem.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
+    accountId = accountId,
+    accountName = accountName,
+    mode = mode,
+    categoryProviderId = categoryProviderId,
+    categoryRowId = categoryRowId,
+    channelId = contentId.ifBlank { rowId.toString() },
+    title = title,
+    url = command,
+    logo = logo
+)
+
+fun MobileWatchingNowEpisode.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
+    accountId = accountId,
+    accountName = accountName,
+    mode = BrowseMode.SERIES,
+    categoryProviderId = categoryProviderId,
+    categoryRowId = categoryRowId,
+    channelId = episodeId,
+    title = title,
+    url = command,
+    logo = logo,
+    seriesId = seriesId,
+    seriesTitle = seriesTitle,
+    episodeId = episodeId,
+    season = resolvedSeason(),
+    episodeNumber = resolvedEpisodeNumber()
 )
 
 fun PlaybackTarget.isDrmProtected(): Boolean =

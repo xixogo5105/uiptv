@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.*;
+import com.uiptv.player.PlayerChannelNavigation;
 import com.uiptv.service.*;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.UiI18n;
@@ -2436,10 +2437,19 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (!ensureCensoredAccess(item)) {
             return;
         }
+        channelGrid.selectItems(List.of(item));
+        channelGrid.scrollFocusedItemIntoView();
         Channel channelForPlayback = resolveChannelForPlayback(item);
+        PlayerChannelNavigation.Queue navigationQueue = PlayerChannelNavigation.createQueue(
+                new ArrayList<>(channelGrid.getItems()), item,
+                candidate -> !isBlank(candidate.getCmd()),
+                ChannelItem::getChannelName,
+                candidate -> play(candidate, playerPath)
+        );
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(mediaContext, channelForPlayback, playerPath)
                 .categoryId(categoryId)
                 .channelId(item.getChannelId())
+                .navigationQueue(navigationQueue)
                 .errorPrefix(I18n.tr("autoErrorPlayingChannelPrefix")));
     }
 

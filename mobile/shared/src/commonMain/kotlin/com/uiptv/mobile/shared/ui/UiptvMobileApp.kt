@@ -153,6 +153,9 @@ import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
 import com.uiptv.mobile.shared.browse.resolvedEpisodeNumber
 import com.uiptv.mobile.shared.browse.resolvedSeason
 import com.uiptv.mobile.shared.browse.seasonTab
+import com.uiptv.mobile.shared.playback.PlaybackSurfQueue
+import com.uiptv.mobile.shared.playback.createPlaybackSurfQueue
+import com.uiptv.mobile.shared.playback.toPlaybackTarget
 import com.uiptv.mobile.shared.browse.seasonTabs
 import com.uiptv.mobile.shared.cache.CacheRefreshAction
 import com.uiptv.mobile.shared.cache.CacheRefreshJobRequest
@@ -654,6 +657,7 @@ private fun ChannelsScreen(
     var selectedBrowseSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
+    var pendingEpisodeSurfList by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var searchVisible by rememberSaveable(requestedAccountId) { mutableStateOf(false) }
     var categorySelectionMode by remember { mutableStateOf(false) }
     var selectedCategoryIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -790,6 +794,12 @@ private fun ChannelsScreen(
     }
 
     fun openBrowseItem(item: MobileBrowseItem, forcePlayerPicker: Boolean = false) {
+        val surfQueue = createPlaybackSurfQueue(
+            snapshot.items,
+            item,
+            isPlayable = { it.command.isNotBlank() },
+            toTarget = { it.toPlaybackTarget() }
+        )
         scope.launch {
             running = true
             if (!forcePlayerPicker && item.mode == BrowseMode.SERIES && item.command.isBlank()) {
@@ -809,16 +819,16 @@ private fun ChannelsScreen(
             } else if (!forcePlayerPicker) {
                 val preference = playbackActions.loadPlayerPreference()
                 if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                    runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
+                    runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false, surfQueue) }
                         .onSuccess { statusText = it.message }
                         .onFailure { statusText = "Unable to open stream" }
                 } else {
                     playerChoices = playbackActions.playerChoices()
-                    pendingPlayback = PendingPlayback.Browse(item)
+                    pendingPlayback = PendingPlayback.Browse(item, surfQueue)
                 }
             } else {
                 playerChoices = playbackActions.playerChoices()
-                pendingPlayback = PendingPlayback.Browse(item)
+                pendingPlayback = PendingPlayback.Browse(item, surfQueue)
             }
             running = false
         }
@@ -840,12 +850,18 @@ private fun ChannelsScreen(
                 selectedBrowseSeries = null
                 browseSeriesEpisodes = emptyList()
             },
-            onPlayEpisode = { episode ->
+            onPlayEpisode = { episode, visibleEpisodes ->
+                val surfQueue = createPlaybackSurfQueue(
+                    visibleEpisodes,
+                    episode,
+                    isPlayable = { it.command.isNotBlank() },
+                    toTarget = { it.toPlaybackTarget() }
+                )
                 scope.launch {
                     running = true
                     val preference = playbackActions.loadPlayerPreference()
                     if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                        runCatching { playbackActions.playWatchingNowEpisode(episode, preference.selectedPlayer, false) }
+                        runCatching { playbackActions.playWatchingNowEpisode(episode, preference.selectedPlayer, false, surfQueue) }
                             .onSuccess {
                                 statusText = it.message
                                 if (it.launched) {
@@ -855,7 +871,7 @@ private fun ChannelsScreen(
                             .onFailure { statusText = "Unable to open episode" }
                     } else {
                         playerChoices = playbackActions.playerChoices()
-                        pendingPlayback = PendingPlayback.WatchingEpisode(episode)
+                        pendingPlayback = PendingPlayback.WatchingEpisode(episode, surfQueue)
                     }
                     running = false
                 }
@@ -886,9 +902,10 @@ private fun ChannelsScreen(
                     running = false
                 }
             },
-            onEpisodeMenu = { episode ->
+            onEpisodeMenu = { episode, visibleEpisodes ->
                 scope.launch {
                     playerChoices = playbackActions.playerChoices()
+                    pendingEpisodeSurfList = visibleEpisodes
                     pendingEpisodeMenu = episode
                 }
             },
@@ -908,9 +925,10 @@ private fun ChannelsScreen(
             playerChoices = playerChoices,
             playerIconRenderer = playerIconRenderer,
             wideLayout = wideLayout,
-            onDismiss = { pendingEpisodeMenu = null },
+            onDismiss = { pendingEpisodeMenu = null; pendingEpisodeSurfList = emptyList() },
             onMarkWatching = { episode ->
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
                     runCatching { browseActions.markWatchingNowEpisode(episode) }
@@ -924,6 +942,7 @@ private fun ChannelsScreen(
             },
             onClearWatching = { episode ->
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
                     runCatching { browseActions.clearWatchingNowEpisode(episode) }
@@ -937,6 +956,7 @@ private fun ChannelsScreen(
             },
             onInstall = { choice ->
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
@@ -946,10 +966,17 @@ private fun ChannelsScreen(
                 }
             },
             onPlay = { episode, player ->
+                val surfQueue = createPlaybackSurfQueue(
+                    pendingEpisodeSurfList,
+                    episode,
+                    isPlayable = { it.command.isNotBlank() },
+                    toTarget = { it.toPlaybackTarget() }
+                )
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
-                    runCatching { playbackActions.playWatchingNowEpisode(episode, player, false) }
+                    runCatching { playbackActions.playWatchingNowEpisode(episode, player, false, surfQueue) }
                         .onSuccess {
                             statusText = it.message
                             if (it.launched) {
@@ -984,10 +1011,10 @@ private fun ChannelsScreen(
                     running = true
                     runCatching {
                         when (pending) {
-                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember, pending.surfQueue)
+                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember, pending.surfQueue)
+                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember, pending.surfQueue)
+                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember, pending.surfQueue)
                             is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                         }
                     }
@@ -1154,10 +1181,10 @@ private fun ChannelsScreen(
                 running = true
                 runCatching {
                     when (pending) {
-                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember, pending.surfQueue)
+                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember, pending.surfQueue)
+                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember, pending.surfQueue)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember, pending.surfQueue)
                         is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
                 }
@@ -1519,12 +1546,18 @@ private fun BookmarksScreen(
     }
 
     fun openBookmark(bookmark: MobileBookmark, forcePlayerPicker: Boolean = false) {
+        val surfQueue = createPlaybackSurfQueue(
+            bookmarks,
+            bookmark,
+            isPlayable = { it.command.isNotBlank() },
+            toTarget = { it.toPlaybackTarget() }
+        )
         scope.launch {
             running = true
             if (!forcePlayerPicker) {
                 val preference = playbackActions.loadPlayerPreference()
                 if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                    runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false) }
+                    runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false, surfQueue) }
                         .onSuccess {
                             statusText = it.message
                             if (it.launched) reload()
@@ -1535,7 +1568,7 @@ private fun BookmarksScreen(
                 }
             }
             playerChoices = playbackActions.playerChoices()
-            pendingPlayback = PendingPlayback.Bookmark(bookmark)
+            pendingPlayback = PendingPlayback.Bookmark(bookmark, surfQueue)
             running = false
         }
     }
@@ -1577,10 +1610,10 @@ private fun BookmarksScreen(
                 running = true
                 runCatching {
                     when (pending) {
-                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember, pending.surfQueue)
+                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember, pending.surfQueue)
+                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember, pending.surfQueue)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember, pending.surfQueue)
                         is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                         }
                     }
@@ -1729,6 +1762,7 @@ private fun WatchingNowScreen(
     var seriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingRemoveWatchingNow by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
+    var pendingEpisodeSurfList by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var wideWatchingFilter by rememberSaveable { mutableStateOf(WatchingNowFilter.SERIES) }
 
     fun activeWatchingQuery(): String = query
@@ -1749,7 +1783,17 @@ private fun WatchingNowScreen(
         }
     }
 
-    fun play(pending: PendingPlayback) {
+    fun play(requested: PendingPlayback) {
+        val pending = when (requested) {
+            is PendingPlayback.Watching -> requested.copy(surfQueue = createPlaybackSurfQueue(
+                items.filter { it.mode == requested.item.mode },
+                requested.item,
+                isPlayable = { it.command.isNotBlank() },
+                toTarget = { it.toPlaybackTarget() }
+            ))
+            is PendingPlayback.WatchingEpisode -> requested
+            else -> requested
+        }
         scope.launch {
             running = true
             val preference = playbackActions.loadPlayerPreference()
@@ -1760,10 +1804,10 @@ private fun WatchingNowScreen(
             ) {
                 runCatching {
                     when (pending) {
-                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, preference.selectedPlayer, false)
-                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, preference.selectedPlayer, false)
-                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, preference.selectedPlayer, false)
-                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, preference.selectedPlayer, false)
+                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, preference.selectedPlayer, false, pending.surfQueue)
+                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, preference.selectedPlayer, false, pending.surfQueue)
+                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, preference.selectedPlayer, false, pending.surfQueue)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, preference.selectedPlayer, false, pending.surfQueue)
                         is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, preference.selectedPlayer, false)
                     }
                 }
@@ -1853,11 +1897,20 @@ private fun WatchingNowScreen(
                 selectedSeries = null
                 seriesEpisodes = emptyList()
             },
-            onPlayEpisode = { episode -> play(PendingPlayback.WatchingEpisode(episode)) },
+            onPlayEpisode = { episode, visibleEpisodes ->
+                val surfQueue = createPlaybackSurfQueue(
+                    visibleEpisodes,
+                    episode,
+                    isPlayable = { it.command.isNotBlank() },
+                    toTarget = { it.toPlaybackTarget() }
+                )
+                play(PendingPlayback.WatchingEpisode(episode, surfQueue))
+            },
             onBingeSeason = { seasonKey -> play(PendingPlayback.Binge(series, seriesEpisodes, seasonKey)) },
-            onEpisodeMenu = { episode ->
+            onEpisodeMenu = { episode, visibleEpisodes ->
                 scope.launch {
                     playerChoices = playbackActions.playerChoices()
+                    pendingEpisodeSurfList = visibleEpisodes
                     pendingEpisodeMenu = episode
                 }
             },
@@ -1873,9 +1926,10 @@ private fun WatchingNowScreen(
             playerChoices = playerChoices,
             playerIconRenderer = playerIconRenderer,
             wideLayout = wideLayout,
-            onDismiss = { pendingEpisodeMenu = null },
+            onDismiss = { pendingEpisodeMenu = null; pendingEpisodeSurfList = emptyList() },
             onMarkWatching = { episode ->
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
                     runCatching { browseActions.markWatchingNowEpisode(episode) }
@@ -1889,6 +1943,7 @@ private fun WatchingNowScreen(
             },
             onClearWatching = { episode ->
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
                     runCatching { browseActions.clearWatchingNowEpisode(episode) }
@@ -1908,6 +1963,7 @@ private fun WatchingNowScreen(
             },
             onInstall = { choice ->
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
                     runCatching { playbackActions.openPlayerInstall(choice) }
@@ -1917,10 +1973,17 @@ private fun WatchingNowScreen(
                 }
             },
             onPlay = { episode, player ->
+                val surfQueue = createPlaybackSurfQueue(
+                    pendingEpisodeSurfList,
+                    episode,
+                    isPlayable = { it.command.isNotBlank() },
+                    toTarget = { it.toPlaybackTarget() }
+                )
                 pendingEpisodeMenu = null
+                pendingEpisodeSurfList = emptyList()
                 scope.launch {
                     running = true
-                    runCatching { playbackActions.playWatchingNowEpisode(episode, player, false) }
+                    runCatching { playbackActions.playWatchingNowEpisode(episode, player, false, surfQueue) }
                         .onSuccess {
                             statusText = it.message
                             if (it.launched) {
@@ -1963,10 +2026,10 @@ private fun WatchingNowScreen(
                     running = true
                     runCatching {
                         when (pending) {
-                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember, pending.surfQueue)
+                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember, pending.surfQueue)
+                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember, pending.surfQueue)
+                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember, pending.surfQueue)
                             is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
                 }
@@ -2061,10 +2124,10 @@ private fun WatchingNowScreen(
                 running = true
                 runCatching {
                     when (pending) {
-                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
-                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
-                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
-                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember, pending.surfQueue)
+                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember, pending.surfQueue)
+                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember, pending.surfQueue)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember, pending.surfQueue)
                         is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
                 }
@@ -2155,9 +2218,9 @@ private fun WatchingNowSeriesDetail(
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
     onBack: () -> Unit,
-    onPlayEpisode: (MobileWatchingNowEpisode) -> Unit,
+    onPlayEpisode: (MobileWatchingNowEpisode, List<MobileWatchingNowEpisode>) -> Unit,
     onBingeSeason: (String) -> Unit,
-    onEpisodeMenu: (MobileWatchingNowEpisode) -> Unit,
+    onEpisodeMenu: (MobileWatchingNowEpisode, List<MobileWatchingNowEpisode>) -> Unit,
     onRemoveSeries: () -> Unit,
     showRemove: Boolean = true,
     emptyTitle: String = "No cached episodes",
@@ -2224,7 +2287,7 @@ private fun WatchingNowSeriesDetail(
         if (episodes.isEmpty()) item { EmptyState(emptyTitle, emptyDetail) }
         items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
             WatchingNowEpisodeRow(episode, showThumbnail, logoRenderer, wideLayout = wideLayout,
-                onPlay = { onPlayEpisode(episode) }, onMenu = { onEpisodeMenu(episode) })
+                onPlay = { onPlayEpisode(episode, visibleEpisodes) }, onMenu = { onEpisodeMenu(episode, visibleEpisodes) })
         }
         item {
             if (running) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -5521,10 +5584,10 @@ data class BrowseUiActions(
 data class PlaybackUiActions(
     val loadPlayerPreference: suspend () -> PlayerPreference,
     val playerChoices: suspend () -> List<PlayerChoice>,
-    val playBrowseItem: suspend (MobileBrowseItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
-    val playBookmark: suspend (MobileBookmark, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
-    val playWatchingNow: suspend (MobileWatchingNowItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
-    val playWatchingNowEpisode: suspend (MobileWatchingNowEpisode, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
+    val playBrowseItem: suspend (MobileBrowseItem, AndroidPlayerPreference, Boolean, PlaybackSurfQueue?) -> PlaybackLaunchResult,
+    val playBookmark: suspend (MobileBookmark, AndroidPlayerPreference, Boolean, PlaybackSurfQueue?) -> PlaybackLaunchResult,
+    val playWatchingNow: suspend (MobileWatchingNowItem, AndroidPlayerPreference, Boolean, PlaybackSurfQueue?) -> PlaybackLaunchResult,
+    val playWatchingNowEpisode: suspend (MobileWatchingNowEpisode, AndroidPlayerPreference, Boolean, PlaybackSurfQueue?) -> PlaybackLaunchResult,
     val playBingeWatchSeason: suspend (MobileWatchingNowItem, List<MobileWatchingNowEpisode>, String, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val openPlayerInstall: suspend (PlayerChoice) -> Unit,
     val savePlayerPreference: suspend (AndroidPlayerPreference) -> Unit,
@@ -5541,10 +5604,10 @@ data class PlaybackUiActions(
                         PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media")
                     )
                 },
-                playBrowseItem = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.name}") },
-                playBookmark = { bookmark, _, _ -> PlaybackLaunchResult(true, "Opening ${bookmark.channelName}") },
-                playWatchingNow = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.title}") },
-                playWatchingNowEpisode = { episode, _, _ -> PlaybackLaunchResult(true, "Opening ${episode.title}") },
+                playBrowseItem = { item, _, _, _ -> PlaybackLaunchResult(true, "Opening ${item.name}") },
+                playBookmark = { bookmark, _, _, _ -> PlaybackLaunchResult(true, "Opening ${bookmark.channelName}") },
+                playWatchingNow = { item, _, _, _ -> PlaybackLaunchResult(true, "Opening ${item.title}") },
+                playWatchingNowEpisode = { episode, _, _, _ -> PlaybackLaunchResult(true, "Opening ${episode.title}") },
                 playBingeWatchSeason = { series, _, _, _, _ -> PlaybackLaunchResult(true, "Starting ${series.title}") },
                 openPlayerInstall = {},
                 savePlayerPreference = {},
@@ -5991,10 +6054,10 @@ private fun List<PlayerChoice>.bingeWatchChoices(): List<PlayerChoice> =
     filter { it.player.supportsBingeWatch() && !it.opensInstallFlow() }
 
 private sealed interface PendingPlayback {
-    data class Browse(val item: MobileBrowseItem) : PendingPlayback
-    data class Bookmark(val bookmark: MobileBookmark) : PendingPlayback
-    data class Watching(val item: MobileWatchingNowItem) : PendingPlayback
-    data class WatchingEpisode(val episode: MobileWatchingNowEpisode) : PendingPlayback
+    data class Browse(val item: MobileBrowseItem, val surfQueue: PlaybackSurfQueue? = null) : PendingPlayback
+    data class Bookmark(val bookmark: MobileBookmark, val surfQueue: PlaybackSurfQueue? = null) : PendingPlayback
+    data class Watching(val item: MobileWatchingNowItem, val surfQueue: PlaybackSurfQueue? = null) : PendingPlayback
+    data class WatchingEpisode(val episode: MobileWatchingNowEpisode, val surfQueue: PlaybackSurfQueue? = null) : PendingPlayback
     data class Binge(
         val series: MobileWatchingNowItem,
         val episodes: List<MobileWatchingNowEpisode>,

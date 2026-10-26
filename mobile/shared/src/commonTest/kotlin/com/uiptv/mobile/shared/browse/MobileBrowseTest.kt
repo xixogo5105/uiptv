@@ -90,6 +90,22 @@ class MobileBrowseTest {
     }
 
     @Test
+    fun bookmarkCategoriesShowRecentFirstAndAllLast() {
+        val categories = listOf(
+            MobileBookmarkCategory(null, "All", 20),
+            MobileBookmarkCategory("3", "Movies", 7),
+            MobileBookmarkCategory("7", "Cricket", 13)
+        ).withRecentlyPlayedCategory(itemCount = 5)
+
+        assertEquals(
+            listOf(RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID, "3", "7", null),
+            categories.map { it.id }
+        )
+        assertEquals(5, categories.first().itemCount)
+        assertEquals(20, categories.last().itemCount)
+    }
+
+    @Test
     fun watchingNowEpisodeCarriesSeriesAndPlaybackMetadata() {
         val episode = MobileWatchingNowEpisode(
             rowId = 0,

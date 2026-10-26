@@ -1,7 +1,6 @@
 package com.uiptv.mobile.android
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.PackageManager
@@ -42,7 +41,13 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.ComponentActivity
 import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.ComposeView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.i18n.MobileMessages
@@ -63,7 +68,7 @@ import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-class MpvEmbeddedPlayerActivity : Activity() {
+class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private data class PlayerPalette(
         val controlSurface: Int,
         val buttonSurface: Int,
@@ -78,6 +83,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var playerPalette: PlayerPalette
     private val lockOverlayIconTint: Int get() = playerPalette.onSurface
     private val M3ControlSurface: Int get() = playerPalette.controlSurface
+    private val M3OverlaySurface: Int get() = withAlpha(M3ControlSurface, 184)
     private val M3ButtonSurface: Int get() = playerPalette.buttonSurface
     private val M3AccentContainer: Int get() = playerPalette.accentContainer
     private val M3OnAccent: Int get() = playerPalette.onAccentContainer
@@ -106,6 +112,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var epgDetails: LinearLayout
     private lateinit var epgPanelContent: LinearLayout
     private lateinit var epgGuideButton: TextView
+    private lateinit var surfCarouselView: ComposeView
     private lateinit var recordingDot: View
     private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
     private var epgPanelSide = Gravity.END
@@ -126,15 +133,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var subtitleTrackButton: ImageButton
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
-        ZoomMode("Fit", keepAspect = true, cropToFill = false, R.drawable.video_scale_fit),
-        ZoomMode("Crop", keepAspect = true, cropToFill = true, R.drawable.video_scale_crop),
-        ZoomMode("Stretch", keepAspect = false, cropToFill = false, R.drawable.video_scale_stretch)
+        ZoomMode("fit", "Fit", keepAspect = true, cropToFill = false, R.drawable.video_scale_fit),
+        ZoomMode("crop", "Crop", keepAspect = true, cropToFill = true, R.drawable.video_scale_crop),
+        ZoomMode("stretch", "Stretch", keepAspect = false, cropToFill = false, R.drawable.video_scale_stretch)
     )
     private val hideControlsRunnable = Runnable {
         controlsOverlay.visibility = View.GONE
         controlsVisible = false
         enterImmersiveMode()
     }
+    private val hideSurfCarouselRunnable = Runnable { closeSurfCarousel() }
     private val hideFeedbackRunnable = Runnable {
         feedbackView.visibility = View.GONE
     }
@@ -169,6 +177,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var initialVolume = 0
     private var activeGesture = PlayerGesture.None
     private var zoomModeIndex = 0
+    private var persistedBrightness: Float? = null
+    private var persistedVolumePercent: Int? = null
+    private var persistedZoomMode: String? = null
+    private var embeddedPreferenceLoaded = false
     @Volatile
     private var mpvVideoDetails: VideoTrackDetails? = null
     private var playbackTimeMs = 0L
@@ -186,6 +198,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var currentTarget: PlaybackTarget? = null
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
+    private var currentSurfSession: AndroidPlaybackSurfSession? = null
+    private var currentSurfIndex = -1
+    private var surfCarouselOpen = false
+    private var surfCarouselContentCreated = false
+    private var surfCarouselTouchStartX = Float.NaN
+    private var surfCarouselTouchStartY = Float.NaN
+    private val surfCurrentIndexState = mutableIntStateOf(-1)
+    private val surfCarouselOpenGenerationState = mutableIntStateOf(0)
+    private var surfSwitchGeneration = 0L
+    private var surfSwitchJob: kotlinx.coroutines.Job? = null
     private var markedTargetKey = ""
     private val preferencesRepository by lazy { AndroidDataStorePreferencesRepository(this) }
     private var locked = false
@@ -247,6 +269,14 @@ class MpvEmbeddedPlayerActivity : Activity() {
             .orEmpty()
             .takeIf { it.isNotBlank() }
             ?.let(AndroidBingeWatchSessionStore::get)
+        currentSurfSession = intent.getStringExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID)
+            .orEmpty()
+            .takeIf { it.isNotBlank() }
+            ?.let(AndroidPlaybackSurfSessionStore::get)
+        currentSurfIndex = currentSurfSession?.let { session ->
+            intent.getIntExtra(NativePlayerActivity.EXTRA_SURF_START_INDEX, session.startIndex)
+                .coerceIn(session.targets.indices)
+        } ?: -1
         currentTarget = targetFromIntent()
         if (intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty().isBlank() && currentBingeSession == null) {
             finish()
@@ -335,6 +365,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 }
             )
             addView(
+                surfCarouselView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(158),
+                    Gravity.BOTTOM
+                ).apply {
+                    bottomMargin = dp(12)
+                }
+            )
+            addView(
                 playlistOverlay,
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
                     leftMargin = dp(10)
@@ -358,10 +398,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
             )
         }
         setContentView(rootLayout)
+        renderSurfCarousel()
         controlsOverlay.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             if (feedbackView.visibility == View.VISIBLE) positionFeedbackAboveControls()
         }
         controlsOverlay.bringToFront()
+        surfCarouselView.bringToFront()
         playlistOverlay.bringToFront()
         feedbackView.bringToFront()
         loadingSpinner.bringToFront()
@@ -479,7 +521,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun applyPlayerTheme() {
         if (::controlsOverlay.isInitialized) {
-            controlsOverlay.background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
+            controlsOverlay.background = roundedBackground(M3OverlaySurface, dp(24), M3SurfaceOutline)
         }
         if (::feedbackView.isInitialized) {
             feedbackView.setTextColor(M3OnSurface)
@@ -553,7 +595,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     override fun onStart() {
         super.onStart()
         stoppingForLifecycle = false
-        startPlayback()
+        if (surfSwitchJob?.isActive != true) startPlayback()
         startProgressUpdates()
         epgLoadedKey = null
         playbackScope.launch {
@@ -581,6 +623,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     override fun onDestroy() {
         activityDestroyed = true
+        surfSwitchGeneration += 1
+        surfSwitchJob?.cancel()
         streamLoadGeneration += 1
         val proxy = synchronized(hlsProxyLock) { hlsProxy.also { hlsProxy = null } }
         proxy?.let { Thread({ it.close() }, "uiptv-hls-close").start() }
@@ -590,6 +634,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         if (isFinishing) {
             intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
+            intent.getStringExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidPlaybackSurfSessionStore::remove)
         }
         val player = mpv
         val renderSurface = mpvRenderSurface
@@ -629,6 +674,37 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             return true
         }
+        if (surfCarouselOpen) {
+            val insideSurfCarousel = event.isInsideVisibleOverlay(surfCarouselView)
+            if (event.actionMasked == MotionEvent.ACTION_DOWN && !insideSurfCarousel) {
+                closeSurfCarousel()
+                return true
+            }
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                surfCarouselTouchStartX = event.rawX
+                surfCarouselTouchStartY = event.rawY
+            } else if (event.actionMasked == MotionEvent.ACTION_UP && !surfCarouselTouchStartY.isNaN()) {
+                val deltaX = event.rawX - surfCarouselTouchStartX
+                val deltaY = event.rawY - surfCarouselTouchStartY
+                surfCarouselTouchStartX = Float.NaN
+                surfCarouselTouchStartY = Float.NaN
+                if (deltaY > dp(48) && deltaY > abs(deltaX)) {
+                    closeSurfCarousel()
+                    return true
+                }
+            } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                surfCarouselTouchStartX = Float.NaN
+                surfCarouselTouchStartY = Float.NaN
+            }
+            val isTouchInteraction = event.actionMasked == MotionEvent.ACTION_DOWN ||
+                event.actionMasked == MotionEvent.ACTION_MOVE ||
+                event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL
+            if (insideSurfCarousel && isTouchInteraction) {
+                scheduleSurfCarouselAutoHide()
+            }
+            return super.dispatchTouchEvent(event)
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             playerOwnsTouchGesture = !event.isInsideVisibleOverlay(epgPanel) &&
                 !event.isInsideVisibleOverlay(controlsOverlay) && !event.isInsideVisibleOverlay(playlistOverlay)
@@ -645,7 +721,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean =
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
-                if (epgPanel.visibility == View.VISIBLE) { hideEpgPanel(); true }
+                if (surfCarouselOpen) { closeSurfCarousel(); true }
+                else if (epgPanel.visibility == View.VISIBLE) { hideEpgPanel(); true }
                 else super.onKeyUp(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_CENTER,
@@ -870,6 +947,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
             MotionEvent.ACTION_CANCEL -> {
                 val dx = event.x - touchStartX
                 val dy = event.y - touchStartY
+                val shouldPersistDisplaySettings = activeGesture == PlayerGesture.Brightness ||
+                    activeGesture == PlayerGesture.Volume
                 if (event.actionMasked == MotionEvent.ACTION_UP && activeGesture == PlayerGesture.None &&
                     abs(dx) > dp(EdgeSwipeTravelDp) && abs(dx) > abs(dy)) {
                     if (epgPanel.visibility == View.VISIBLE) {
@@ -889,6 +968,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 } else {
                     hidePlaylistOverlay()
                     enterImmersiveMode()
+                }
+                if (shouldPersistDisplaySettings) {
+                    saveEmbeddedPlayerPreference()
                 }
                 activeGesture = PlayerGesture.None
                 edgeSwipeSide = 0
@@ -961,6 +1043,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         epgLabel = TextView(this).apply {
             setTextColor(Color.WHITE); setTextSize(11f); maxLines = 2; visibility = View.GONE
         }
+        surfCarouselView = ComposeView(this).apply { visibility = View.GONE }
         epgGuideButton = controlButton("Guide") { showEpgPanel() }.apply {
             contentDescription = "Show programme guide"; visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(
@@ -1139,6 +1222,15 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             lockButton = iconControlButton(R.drawable.unlock_icon, "Lock") { toggleLock() }
             addView(lockButton, compactControlLayoutParams())
+            if ((currentSurfSession?.targets?.size ?: 0) >= 2) {
+                addView(
+                    iconControlButton(
+                        R.drawable.channel_surf,
+                        MobileMessages.text("epgCloseGuide")
+                    ) { toggleSurfCarousel() },
+                    compactControlLayoutParams()
+                )
+            }
         }
         val controlsScroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -1148,7 +1240,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = roundedBackground(M3ControlSurface, dp(24), M3SurfaceOutline)
+            background = roundedBackground(M3OverlaySurface, dp(24), M3SurfaceOutline)
             elevation = dp(6).toFloat()
             visibility = View.GONE
             addView(epgLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -1321,7 +1413,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             setButtonIcon(this, drawableRes)
             setOnClickListener {
                 onClick()
-                scheduleControlsHide()
+                if (!surfCarouselOpen) scheduleControlsHide()
             }
         }
 
@@ -1528,11 +1620,20 @@ class MpvEmbeddedPlayerActivity : Activity() {
             muted = preference.muted
             locked = false
             embeddedRenderProfile = preference.renderProfile
+            persistedVolumePercent = preference.volumePercent
+            val restoredZoomMode = preference.zoomMode
+                ?.let { key -> zoomModes.firstOrNull { it.key.equals(key, ignoreCase = true) } }
+            zoomModeIndex = restoredZoomMode?.let(zoomModes::indexOf) ?: FitZoomModeIndex
+            persistedZoomMode = restoredZoomMode?.key
+            persistedBrightness = preference.brightness?.let { applyBrightness(it, showFeedback = false) }
+            preference.volumePercent?.let(::applyVolumePercent)
             updateRepeatButton()
             updateMuteButton()
             updateLockedMuteButton()
             updateLockButton()
+            applyZoomMode(zoomModeIndex, showFeedback = false, persist = false)
             applyDesiredAudioState()
+            embeddedPreferenceLoaded = true
             initializeMpv()
             showControlsTemporarily()
         }
@@ -1568,10 +1669,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun saveEmbeddedPlayerPreference() {
+        if (!embeddedPreferenceLoaded) {
+            return
+        }
         val preference = EmbeddedPlayerPreference(
             repeatReconnect = repeatEnabled,
             muted = muted,
-            renderProfile = embeddedRenderProfile
+            renderProfile = embeddedRenderProfile,
+            brightness = persistedBrightness,
+            volumePercent = persistedVolumePercent,
+            zoomMode = persistedZoomMode
         )
         playbackScope.launch {
             runCatching { preferencesRepository.saveEmbeddedPlayerPreference(preference) }
@@ -1581,6 +1688,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun toggleLock() {
         hideEpgPanel()
         locked = !locked
+        if (surfCarouselOpen) {
+            closeSurfCarousel()
+        }
         saveEmbeddedPlayerPreference()
         if (locked) {
             overlayHandler.removeCallbacks(hideControlsRunnable)
@@ -1594,6 +1704,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             showUnlockedConfirmation()
             showControlsTemporarily()
         }
+        renderSurfCarousel()
         updateLockButton()
     }
 
@@ -1802,6 +1913,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (this < 10L) "0$this" else toString()
 
     private fun toggleControls() {
+        if (surfCarouselOpen) {
+            closeSurfCarousel()
+            return
+        }
         if (controlsVisible) {
             controlsOverlay.visibility = View.GONE
             hidePlaylistOverlay()
@@ -1816,7 +1931,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun showControlsTemporarily() {
-        if (locked || !::controlsOverlay.isInitialized) {
+        if (locked || surfCarouselOpen || !::controlsOverlay.isInitialized) {
             return
         }
         controlsOverlay.visibility = View.VISIBLE
@@ -1840,11 +1955,18 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun setBrightness(value: Float) {
+        persistedBrightness = applyBrightness(value, showFeedback = true)
+    }
+
+    private fun applyBrightness(value: Float, showFeedback: Boolean): Float {
         val normalized = value.coerceIn(MinimumBrightness, 1f)
         val params = window.attributes
         params.screenBrightness = normalized
         window.attributes = params
-        showFeedback("Brightness ${(normalized * 100).roundToInt()}%")
+        if (showFeedback) {
+            showFeedback("Brightness ${(normalized * 100).roundToInt()}%")
+        }
+        return normalized
     }
 
     private fun adjustVolumeBy(delta: Float) {
@@ -1858,8 +1980,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val bounded = level.coerceIn(0, maxVolume)
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, bounded, 0)
         val percent = (bounded * 100f / maxVolume).roundToInt()
+        persistedVolumePercent = percent
         applyDesiredAudioState()
         showFeedback("Volume $percent%")
+    }
+
+    private fun applyVolumePercent(percent: Int) {
+        val maxVolume = maxMusicVolume()
+        val boundedPercent = percent.coerceIn(0, 100)
+        val level = (boundedPercent * maxVolume / 100f).roundToInt().coerceIn(0, maxVolume)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0)
     }
 
     private fun maxMusicVolume(): Int =
@@ -1898,6 +2028,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun ensureAudibleSystemVolume() {
         if (muted) {
+            return
+        }
+        if (persistedVolumePercent != null) {
             return
         }
         if (startupVolumeFallbackApplied) {
@@ -1948,7 +2081,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         applyZoomMode((zoomModeIndex + 1) % zoomModes.size)
     }
 
-    private fun applyZoomMode(index: Int, showFeedback: Boolean = true) {
+    private fun applyZoomMode(index: Int, showFeedback: Boolean = true, persist: Boolean = showFeedback) {
         zoomModeIndex = index.coerceIn(zoomModes.indices)
         val mode = zoomModes[zoomModeIndex]
         mpv?.let { player ->
@@ -1966,6 +2099,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
         zoomButton.contentDescription = "Video scale: ${mode.label}. Tap to change"
         if (showFeedback) {
             showFeedback("Video scale: ${mode.label}")
+        }
+        if (persist) {
+            persistedZoomMode = mode.key
+            saveEmbeddedPlayerPreference()
         }
     }
 
@@ -2129,6 +2266,119 @@ class MpvEmbeddedPlayerActivity : Activity() {
         epgLabel.visibility = View.VISIBLE
         epgGuideButton.visibility = View.GONE
         if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
+    }
+
+    private fun renderSurfCarousel() {
+        if (!::surfCarouselView.isInitialized) return
+        val session = currentSurfSession
+        if (session == null || session.targets.size < 2 || currentSurfIndex !in session.targets.indices) {
+            surfCarouselView.visibility = View.GONE
+            return
+        }
+        surfCurrentIndexState.intValue = currentSurfIndex
+        if (surfCarouselContentCreated) return
+        val colors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(this) else darkColorScheme()
+        surfCarouselView.setContent {
+            MaterialTheme(colorScheme = colors) {
+                key(surfCarouselOpenGenerationState.intValue) {
+                    PlaybackSurfCarousel(
+                        targets = session.targets,
+                        currentIndex = surfCurrentIndexState.intValue,
+                        enabled = !locked,
+                        onSelect = ::surfTo,
+                        onClose = ::closeSurfCarousel
+                    )
+                }
+            }
+        }
+        surfCarouselContentCreated = true
+    }
+
+    private fun toggleSurfCarousel() {
+        val session = currentSurfSession ?: return
+        if (locked || session.targets.size < 2 || currentSurfIndex !in session.targets.indices) return
+        if (surfCarouselOpen) {
+            closeSurfCarousel()
+            return
+        }
+        hideEpgPanel()
+        hidePlaylistOverlay()
+        overlayHandler.removeCallbacks(hideControlsRunnable)
+        controlsOverlay.visibility = View.GONE
+        controlsVisible = false
+        surfCarouselOpenGenerationState.intValue += 1
+        surfCarouselOpen = true
+        surfCarouselView.visibility = View.VISIBLE
+        surfCarouselView.bringToFront()
+        renderSurfCarousel()
+        scheduleSurfCarouselAutoHide()
+        enterImmersiveMode()
+    }
+
+    private fun closeSurfCarousel() {
+        if (!surfCarouselOpen) return
+        surfCarouselOpen = false
+        overlayHandler.removeCallbacks(hideSurfCarouselRunnable)
+        surfCarouselView.visibility = View.GONE
+        overlayHandler.removeCallbacks(hideControlsRunnable)
+        controlsOverlay.visibility = View.GONE
+        controlsVisible = false
+        hidePlaylistOverlay()
+        enterImmersiveMode()
+    }
+
+    private fun scheduleSurfCarouselAutoHide() {
+        overlayHandler.removeCallbacks(hideSurfCarouselRunnable)
+        overlayHandler.postDelayed(hideSurfCarouselRunnable, SurfCarouselAutoHideMs)
+    }
+
+    private fun surfTo(index: Int) {
+        val session = currentSurfSession ?: return
+        if (locked || index !in session.targets.indices || index == currentSurfIndex) return
+
+        currentSurfIndex = index
+        renderSurfCarousel()
+        val target = session.targets[index]
+        MobilePlaybackIndicator.clear(currentTarget)
+        currentTarget = target
+        playbackStarted = false
+        reconnectAttempt = 0
+        reconnectScheduled = false
+        cancelReconnect()
+        streamLoadGeneration += 1
+        epgJob?.cancel()
+        epgResult = null
+        epgLoadedKey = null
+        stopMpvPlayback()
+        beginStreamLoading()
+        updateStreamInfo()
+        if (!surfCarouselOpen) {
+            showFeedback("Opening ${target.title.ifBlank { "channel" }}")
+        }
+
+        val generation = ++surfSwitchGeneration
+        surfSwitchJob?.cancel()
+        surfSwitchJob = playbackScope.launch {
+            val resolved = try {
+                resolveForPlayback(target)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (!activityDestroyed && generation == surfSwitchGeneration) {
+                    completeStreamLoading()
+                    showMessage("Unable to resolve ${target.title}.")
+                }
+                return@launch
+            }
+            if (activityDestroyed || generation != surfSwitchGeneration) return@launch
+            if (!resolved.url.isPlayableNetworkUrl()) {
+                completeStreamLoading()
+                showMessage("Unable to resolve ${target.title}.")
+                return@launch
+            }
+            currentTarget = resolved
+            if (!stoppingForLifecycle) startPlayback()
+        }
     }
 
     private fun renderEpgDetails() {
@@ -2722,6 +2972,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private data class ZoomMode(
+        val key: String,
         val label: String,
         val keepAspect: Boolean,
         val cropToFill: Boolean,
@@ -2768,6 +3019,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val FitZoomModeIndex = 0
         private const val CropZoomModeIndex = 1
         private const val ControlsAutoHideMs = 3_500L
+        private const val SurfCarouselAutoHideMs = 15_000L
         private const val GestureFeedbackMs = 1_800L
         private const val ProgressUpdateMs = 1_000L
         private const val ReconnectDelayMs = 10_000L

@@ -4,6 +4,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.VodWatchState;
+import com.uiptv.player.PlayerChannelNavigation;
 import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ImdbMetadataService;
@@ -893,9 +894,18 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || data.playbackChannel == null) {
             return;
         }
+        vodGrid.selectItems(List.of(data));
+        vodGrid.scrollFocusedItemIntoView();
+        PlayerChannelNavigation.Queue navigationQueue = PlayerChannelNavigation.createQueue(
+                new ArrayList<>(vodGrid.getItems()), data,
+                candidate -> candidate.playbackChannel != null && !isBlank(candidate.playbackChannel.getCmd()),
+                candidate -> candidate.displayTitle,
+                candidate -> play(candidate, playerPath)
+        );
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(vodMediaContext(data.account), data.playbackChannel, playerPath)
                 .categoryId(data.state.getCategoryId())
                 .channelId(data.state.getVodId())
+                .navigationQueue(navigationQueue)
                 .errorPrefix(I18n.tr("autoErrorPlayingChannelPrefix")));
     }
 

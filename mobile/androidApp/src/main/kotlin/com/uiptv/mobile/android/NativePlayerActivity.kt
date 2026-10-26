@@ -354,6 +354,8 @@ class NativePlayerActivity : Activity() {
         const val EXTRA_SEASON = "season"
         const val EXTRA_EPISODE_NUMBER = "episode_number"
         const val EXTRA_BINGE_SESSION_ID = "binge_session_id"
+        const val EXTRA_SURF_SESSION_ID = "surf_session_id"
+        const val EXTRA_SURF_START_INDEX = "surf_start_index"
     }
 }
 

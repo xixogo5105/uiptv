@@ -2,6 +2,12 @@
     const TEMPLATE = `
 <div class="uiptv-player-header" data-uiptv-header>
     <div class="uiptv-player-controls" aria-label="Player controls">
+        <button id="previous-video-btn" class="uiptv-control-btn" type="button" title="Previous item" aria-label="Previous item" data-action="previous-video" data-label="Previous item">
+            <i class="bi bi-skip-backward-fill"></i>
+        </button>
+        <button id="next-video-btn" class="uiptv-control-btn" type="button" title="Next item" aria-label="Next item" data-action="next-video" data-label="Next item">
+            <i class="bi bi-skip-forward-fill"></i>
+        </button>
         <button id="favorite-btn" class="uiptv-control-btn" type="button" title="Add favorite" data-action="favorite" data-label="Favorite">
             <i class="bi bi-heart uiptv-favorite-icon uiptv-favorite-off"></i>
         </button>
@@ -239,6 +245,21 @@
             }
         };
 
+        const setNavigationAvailability = ({available = false, canPrevious = false, canNext = false} = {}) => {
+            const setAvailability = (button, visible, enabled) => {
+                if (!button) return;
+                button.hidden = !visible;
+                button.classList.toggle('uiptv-disabled', !enabled);
+                if (enabled) {
+                    button.removeAttribute('aria-disabled');
+                } else {
+                    button.setAttribute('aria-disabled', 'true');
+                }
+            };
+            setAvailability(root.querySelector('#previous-video-btn'), available, canPrevious);
+            setAvailability(root.querySelector('#next-video-btn'), available, canNext);
+        };
+
         document.addEventListener('click', (event) => {
             if (!root.contains(event.target)) {
                 closeMenus();
@@ -250,6 +271,7 @@
             setMenus,
             setTitle,
             setState,
+            setNavigationAvailability,
             closeMenus
         };
     };

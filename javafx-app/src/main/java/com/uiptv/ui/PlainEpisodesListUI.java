@@ -257,6 +257,30 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         scheduleInitialEpisodeFocus();
     }
 
+    @Override
+    protected List<EpisodeItem> playbackNavigationItems() {
+        return List.copyOf(currentFilteredEpisodes);
+    }
+
+    @Override
+    protected void selectEpisodeForPlayback(EpisodeItem item) {
+        if (item == null) {
+            return;
+        }
+        String itemSeason = normalizeNumber(item.getSeason());
+        if (!isBlank(itemSeason) && !itemSeason.equals(normalizeNumber(selectedSeason()))) {
+            selectSeasonTab(itemSeason);
+        }
+        if (!currentFilteredEpisodes.contains(item)) {
+            return;
+        }
+        Pane card = renderedCardsByItem.computeIfAbsent(item, this::createEpisodeRow);
+        setSelectedEpisodeCard(card);
+        if (cardsContainer.getChildren().contains(card)) {
+            scrollEpisodeCardIntoView(card);
+        }
+    }
+
     private void updateCardWindow() {
         if (currentFilteredEpisodes.isEmpty()) {
             return;

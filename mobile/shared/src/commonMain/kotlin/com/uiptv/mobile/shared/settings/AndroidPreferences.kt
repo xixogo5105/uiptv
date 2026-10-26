@@ -34,7 +34,13 @@ data class EmbeddedPlayerPreference(
     val repeatReconnect: Boolean = false,
     val muted: Boolean = false,
     val locked: Boolean = false,
-    val renderProfile: EmbeddedPlayerRenderProfile = EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
+    val renderProfile: EmbeddedPlayerRenderProfile = EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC,
+    /** App-scoped brightness override; null keeps the device/window default. */
+    val brightness: Float? = null,
+    /** Last player volume as a percentage of the current media-stream maximum. */
+    val volumePercent: Int? = null,
+    /** Stable key for the selected embedded-player video scale mode. */
+    val zoomMode: String? = null
 )
 
 data class PanelVisibilityPreference(
@@ -82,6 +88,9 @@ object AndroidOnlyPreferenceKeys {
     const val EMBEDDED_PLAYER_MUTED = "embedded_player_muted"
     const val EMBEDDED_PLAYER_LOCKED = "embedded_player_locked"
     const val EMBEDDED_PLAYER_RENDER_PROFILE = "embedded_player_render_profile"
+    const val EMBEDDED_PLAYER_BRIGHTNESS = "embedded_player_brightness"
+    const val EMBEDDED_PLAYER_VOLUME_PERCENT = "embedded_player_volume_percent"
+    const val EMBEDDED_PLAYER_ZOOM_MODE = "embedded_player_zoom_mode"
     const val PANEL_BOOKMARKS_CATEGORY_VISIBLE = "panel_bookmarks_category_visible"
     const val PANEL_WATCHING_NOW_DETAILS_VISIBLE = "panel_watching_now_details_visible"
     const val PANEL_ACCOUNTS_ACTIONS_VISIBLE = "panel_accounts_actions_visible"
@@ -99,6 +108,9 @@ object AndroidOnlyPreferenceKeys {
         EMBEDDED_PLAYER_MUTED,
         EMBEDDED_PLAYER_LOCKED,
         EMBEDDED_PLAYER_RENDER_PROFILE,
+        EMBEDDED_PLAYER_BRIGHTNESS,
+        EMBEDDED_PLAYER_VOLUME_PERCENT,
+        EMBEDDED_PLAYER_ZOOM_MODE,
         PANEL_BOOKMARKS_CATEGORY_VISIBLE,
         PANEL_WATCHING_NOW_DETAILS_VISIBLE,
         PANEL_ACCOUNTS_ACTIONS_VISIBLE,

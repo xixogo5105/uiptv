@@ -93,6 +93,20 @@ data class MobileBookmarkCategory(
 const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID = "__recently_played_bookmarks__"
 const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = "Recent"
 
+internal fun List<MobileBookmarkCategory>.withRecentlyPlayedCategory(itemCount: Int): List<MobileBookmarkCategory> {
+    val recentCategory = MobileBookmarkCategory(
+        id = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
+        name = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME,
+        itemCount = itemCount
+    )
+    val categories = filterNot { it.id == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID }
+    return buildList {
+        add(recentCategory)
+        addAll(categories.filter { it.id != null })
+        addAll(categories.filter { it.id == null })
+    }
+}
+
 data class MobileWatchingNowItem(
     val rowId: Long,
     val accountId: Long,

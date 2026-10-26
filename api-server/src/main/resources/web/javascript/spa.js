@@ -42,6 +42,7 @@ createApp({
 
         const currentContext = ref({accountId: null, categoryId: null, accountType: null});
         const currentChannel = ref(null);
+        const playbackNavigation = ref(null);
         const playerEpg = ref(null);
         const playerProgrammeTime = time => new Date(time).toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
         let playerEpgRequest = 0;
@@ -1079,21 +1080,16 @@ createApp({
         );
 
         const bookmarkCategoryTabs = computed(() => {
-            const tabs = [
+            return bookmarkWatchUtils.buildBookmarkCategoryTabs(
                 {
                     id: RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
                     name: RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME,
                     itemCount: recentlyPlayedBookmarks.value.length
                 },
-                {id: '', name: 'All'}
-            ];
-            for (const category of (bookmarkCategories.value || [])) {
-                const id = String(category?.id || '').trim();
-                const name = String(normalizeDisplayText(category?.name || '') || '').trim();
-                if (!id || !name) continue;
-                tabs.push({id, name});
-            }
-            return tabs;
+                bookmarkCategories.value,
+                {id: '', name: 'All'},
+                normalizeDisplayText
+            );
         });
 
         const canReorderBookmarks = computed(() => {
@@ -2268,8 +2264,16 @@ createApp({
             });
         };
 
-        const playWatchingNowVodRow = (row) => {
+        const playWatchingNowVodRow = (row, preserveNavigation = false) => {
             if (!row) return;
+            if (!preserveNavigation) {
+                setPlaybackNavigation(
+                    filteredWatchingNowVodRows.value,
+                    row,
+                    target => playWatchingNowVodRow(target, true),
+                    candidate => !!cleanLaunchValue(candidate?.playItem?.cmd || candidate?.cmd)
+                );
+            }
             watchingNowActionMenuKey.value = '';
             watchingNowTab.value = 'vod';
             selectedWatchingNowVodKey.value = String(row.key || '');
@@ -2850,8 +2854,58 @@ createApp({
             manifestType: String(episode.manifestType || '')
         });
 
+        const setPlaybackNavigation = (items, currentItem, play, isPlayable = item => !!cleanLaunchValue(item?.cmd || item?.command)) => {
+            playbackNavigation.value = window.UIPTVControls?.createPlaybackNavigation(
+                items, currentItem, play, isPlayable
+            ) || null;
+            syncSharedHeader();
+        };
+
+        const clearPlaybackNavigation = () => {
+            playbackNavigation.value = null;
+            syncSharedHeader();
+        };
+
+        const navigatePlayback = (offset) => {
+            const next = window.UIPTVControls?.movePlaybackNavigation(playbackNavigation.value, offset);
+            if (!next) return;
+            playbackNavigation.value = next;
+            syncSharedHeader();
+            next.play(next.items[next.currentIndex]);
+        };
+
+        const capturePlaybackContext = () => ({
+            context: {...currentContext.value},
+            mode: contentMode.value,
+            seriesState: {
+                selectedSeriesId: getModeState('series').selectedSeriesId,
+                selectedSeriesCategoryId: getModeState('series').selectedSeriesCategoryId
+            }
+        });
+
+        const playChannelFromNavigation = (channel, snapshot) => {
+            const previousContext = currentContext.value;
+            const previousMode = contentMode.value;
+            const seriesState = getModeState('series');
+            const previousSeriesSelection = {
+                selectedSeriesId: seriesState.selectedSeriesId,
+                selectedSeriesCategoryId: seriesState.selectedSeriesCategoryId
+            };
+            currentContext.value = {...snapshot.context};
+            contentMode.value = snapshot.mode;
+            Object.assign(seriesState, snapshot.seriesState);
+            try {
+                playChannel(channel, true);
+            } finally {
+                currentContext.value = previousContext;
+                contentMode.value = previousMode;
+                Object.assign(seriesState, previousSeriesSelection);
+            }
+        };
+
         const startBingeWatchSeason = async () => {
             if (!canBingeWatchSeason.value || bingeWatchLoading.value) return;
+            clearPlaybackNavigation();
             const modeState = getModeState('series');
             const season = String(selectedBingeWatchSeason.value || '1');
             const seriesId = String(modeState.selectedSeriesId || '');
@@ -2897,8 +2951,15 @@ createApp({
             }
         };
 
-        const playChannel = (channel) => {
+        const playChannel = (channel, preserveNavigation = false) => {
             scrollToTop();
+            const navigationItems = viewState.value === 'episodes'
+                ? filteredSeriesEpisodes.value
+                : filteredChannels.value;
+            if (!preserveNavigation) {
+                const contextSnapshot = capturePlaybackContext();
+                setPlaybackNavigation(navigationItems, channel, target => playChannelFromNavigation(target, contextSnapshot));
+            }
             const modeToUse = String(contentMode.value || 'itv').toLowerCase();
             const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
             const channelIdentifier = channel.dbId || channel.channelId || channel.id;
@@ -2927,8 +2988,11 @@ createApp({
             startPlayback(playbackUrl, nextChannel);
         };
 
-        const playBookmark = (bookmark) => {
+        const playBookmark = (bookmark, preserveNavigation = false) => {
             scrollToTop();
+            if (!preserveNavigation) {
+                setPlaybackNavigation(filteredBookmarks.value, bookmark, target => playBookmark(target, true));
+            }
             const bookmarkMode = String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase();
             const query = new URLSearchParams();
             query.set('bookmarkId', bookmark.dbId);
@@ -3573,6 +3637,9 @@ createApp({
             const resetStrategy = options.resetStrategy !== false;
             const hideControls = options.hideControls !== false;
             const invalidateRequest = options.invalidateRequest !== false;
+            if (reason !== 'switch') {
+                clearPlaybackNavigation();
+            }
             if (notify) {
                 notifyPlayerClosed(reason);
             }
@@ -4783,6 +4850,8 @@ createApp({
             sharedHeader = window.UIPTVSharedPlayer.mount(root, {variant: root.dataset.variant || 'compact'});
             if (!sharedHeader) return;
             sharedHeader.bindActions({
+                'previous-video': () => navigatePlayback(-1),
+                'next-video': () => navigatePlayback(1),
                 favorite: (event) => onPlayerControlClick(event, toggleFavorite),
                 reload: (event) => onPlayerControlClick(event, reloadPlayback),
                 repeat: (event) => onPlayerControlClick(event, toggleRepeat),
@@ -4817,6 +4886,13 @@ createApp({
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
                 isPanelExpanded: playerExpanded.value ? false : wideViewActive.value
+            });
+            const navigation = playbackNavigation.value;
+            const navigationAvailable = !!navigation && navigation.items.length > 1 && headerVisible;
+            sharedHeader.setNavigationAvailability({
+                available: navigationAvailable,
+                canPrevious: navigationAvailable && navigation.currentIndex > 0,
+                canNext: navigationAvailable && navigation.currentIndex < navigation.items.length - 1
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -5107,7 +5183,7 @@ createApp({
             setBrowserTitle();
         }, {immediate: true});
 
-        watch([isPlaying, controlsVisible, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle, strategyOverride], () => {
+        watch([isPlaying, controlsVisible, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle, strategyOverride, playbackNavigation], () => {
             syncSharedHeader();
         }, {immediate: true});
 

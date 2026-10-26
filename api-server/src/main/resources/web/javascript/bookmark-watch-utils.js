@@ -62,6 +62,19 @@
         return await response.json();
     };
 
+    const buildBookmarkCategoryTabs = (recentTab, categories, allTab, normalizeName) => {
+        const tabs = [recentTab];
+        for (const category of (Array.isArray(categories) ? categories : [])) {
+            const id = String(category?.id || '').trim();
+            const rawName = category?.name || '';
+            const name = String(typeof normalizeName === 'function' ? normalizeName(rawName) : rawName).trim();
+            if (!id || !name) continue;
+            tabs.push({id, name});
+        }
+        tabs.push(allTab);
+        return tabs;
+    };
+
     const normalizeWatchingNowVodRow = (row, resolveLogoUrl, normalizeChannel) => {
         const normalized = {
             ...row,
@@ -87,6 +100,7 @@
         normalizeBookmark,
         loadBookmarksPaged,
         loadBookmarkCategories,
+        buildBookmarkCategoryTabs,
         normalizeWatchingNowVodRow,
         fetchWatchingNowVod
     };
