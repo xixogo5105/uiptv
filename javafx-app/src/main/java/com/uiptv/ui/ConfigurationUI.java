@@ -3105,8 +3105,7 @@ public class ConfigurationUI extends VBox {
         VBox helpDocument = createHelpDocument(text);
         double documentWidth = 700;
         helpDocument.setPrefWidth(documentWidth);
-        double preferredDocumentHeight = helpDocument.prefHeight(documentWidth);
-        double viewportHeight = Math.max(190, Math.min(560, preferredDocumentHeight + 8));
+        double viewportHeight = 460;
 
         ButtonType closeButton = new ButtonType(I18n.tr(I18N_COMMON_CLOSE), ButtonBar.ButtonData.CANCEL_CLOSE);
         ScrollPane helpScroll = new ScrollPane(helpDocument);
@@ -3114,7 +3113,7 @@ public class ConfigurationUI extends VBox {
         helpScroll.setFitToWidth(true);
         helpScroll.setPrefViewportWidth(documentWidth);
         helpScroll.setPrefViewportHeight(viewportHeight);
-        helpScroll.setMaxHeight(600);
+        helpScroll.setMaxHeight(viewportHeight);
         helpScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         helpScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         ThemedDialogSupport.showChoice(
