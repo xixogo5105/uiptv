@@ -1,7 +1,6 @@
 package com.uiptv.mobile.shared.db
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import com.uiptv.mobile.shared.settings.BackupRestoreResult
 import com.uiptv.mobile.shared.settings.MobileBackupArchive
@@ -43,25 +42,23 @@ class AndroidDatabaseBackupManager(
     }
 
     suspend fun restoreFromUri(uriString: String): BackupRestoreResult = withContext(Dispatchers.IO) {
-        val restoreDir = File(appContext.cacheDir, "uiptv-db-restore").apply {
-            deleteRecursively()
-            mkdirs()
+        val restoreDir = File.createTempFile("uiptv-db-restore-", ".tmp", appContext.cacheDir).apply {
+            check(delete() && mkdir()) { "Unable to stage database restore." }
         }
-        val stagedDatabase = File(restoreDir, MobileBackupArchive.DATABASE_ENTRY)
-        val uri = Uri.parse(uriString)
-        openInput(uri).use { input ->
-            extractDatabase(input, stagedDatabase)
+        try {
+            val stagedDatabase = File(restoreDir, MobileBackupArchive.DATABASE_ENTRY)
+            openInput(Uri.parse(uriString)).use { extractDatabase(it, stagedDatabase) }
+            val bytes = stagedDatabase.length()
+            // Use the same validated, rollback-protected whole-file replacement
+            // as desktop sync. Never overwrite the only live copy in place.
+            AndroidSQLiteSnapshotSyncApplier(
+                databaseHelper,
+                requireNotNull(databaseHelper.databaseFile().parentFile).apply { mkdirs() }
+            ).applyFile(stagedDatabase)
+            BackupRestoreResult(message = "Backup restored. Local data refreshed.", bytes = bytes)
+        } finally {
+            restoreDir.deleteRecursively()
         }
-
-        migrateAndValidate(stagedDatabase)
-        databaseHelper.close()
-        replaceLiveDatabase(stagedDatabase)
-        reopenAndValidateLiveDatabase()
-
-        BackupRestoreResult(
-            message = "Backup restored. Local data refreshed.",
-            bytes = stagedDatabase.length()
-        )
     }
 
     private fun prepareClosedDatabaseCloneSource(): File {
@@ -103,45 +100,6 @@ class AndroidDatabaseBackupManager(
         }
         require(databaseFound) { "Backup does not contain ${MobileBackupArchive.DATABASE_ENTRY}." }
         require(stagedDatabase.length() > 0L) { "Backup database is empty." }
-    }
-
-    private fun migrateAndValidate(databaseFile: File) {
-        val db = SQLiteDatabase.openDatabase(databaseFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
-        try {
-            requireIntegrity(db)
-            AndroidUiptvMigrationApplier(AndroidMigrationSource(appContext)).applyAll(db)
-            requireIntegrity(db)
-            db.version = UiptvSchemaInfo.SCHEMA_VERSION_CODE
-        } finally {
-            db.close()
-        }
-    }
-
-    private fun replaceLiveDatabase(stagedDatabase: File) {
-        val databaseFile = appContext.getDatabasePath(UiptvSchemaInfo.DATABASE_NAME)
-        databaseFile.parentFile?.mkdirs()
-        deleteDatabaseSidecars(databaseFile)
-        stagedDatabase.copyTo(databaseFile, overwrite = true)
-        deleteDatabaseSidecars(databaseFile)
-    }
-
-    private fun reopenAndValidateLiveDatabase() {
-        val db = databaseHelper.writableDatabase
-        AndroidUiptvMigrationApplier(AndroidMigrationSource(appContext)).applyAll(db)
-        requireIntegrity(db)
-    }
-
-    private fun requireIntegrity(db: SQLiteDatabase) {
-        db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
-            require(cursor.moveToFirst() && cursor.getString(0).equals("ok", ignoreCase = true)) {
-                "Restored database failed integrity check."
-            }
-        }
-    }
-
-    private fun deleteDatabaseSidecars(databaseFile: File) {
-        File(databaseFile.absolutePath + "-wal").delete()
-        File(databaseFile.absolutePath + "-shm").delete()
     }
 
     private fun openOutput(uri: Uri): OutputStream =

@@ -121,4 +121,27 @@ class AndroidPlaybackWatchStateStore(
             db.insert("SeriesWatchingNowSnapshot", null, snapshotValues)
         }
     }
+    companion object {
+        private val writes by lazy {
+            java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+                Thread(task, "uiptv-watch-history").apply { isDaemon = true }
+            }
+        }
+
+        fun recordOpened(context: android.content.Context, target: PlaybackTarget) {
+            if (target.mode == BrowseMode.LIVE) return
+            val appContext = context.applicationContext
+            writes.execute {
+                val helper = AndroidUiptvDatabaseHelper(appContext)
+                try {
+                    AndroidPlaybackWatchStateStore(helper).markOpened(target)
+                } catch (failure: Exception) {
+                    android.util.Log.w("UIPTV-WatchHistory", "Unable to save playback history", failure)
+                } finally {
+                    helper.close()
+                }
+            }
+        }
+    }
+
 }

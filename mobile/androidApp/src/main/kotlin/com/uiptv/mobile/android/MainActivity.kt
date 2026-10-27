@@ -226,7 +226,9 @@ class MainActivity : ComponentActivity() {
                         setPaused = filterRepository::setPaused,
                         setEnableThumbnails = { enabled ->
                             filterRepository.setEnableThumbnails(enabled)
-                            ThumbnailCache.clearAll(this@MainActivity)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                ThumbnailCache.clearAll(this@MainActivity)
+                            }
                         }
                     ),
                     panelVisibilityActions = PanelVisibilityUiActions(

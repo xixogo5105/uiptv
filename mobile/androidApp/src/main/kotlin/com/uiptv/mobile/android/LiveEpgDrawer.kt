@@ -139,6 +139,14 @@ internal class LiveEpgDrawer(
         request++; job?.cancel(); job = null; result = null; target = null
         body.removeAllViews(); hide(); consumingGesture = false; edge = 0
     }
-    fun release() { clear(); database.close() }
+    fun release() {
+        clear()
+        // onStop may already have cleared the current job reference while an
+        // older cancelled request is still returning from blocking IO. The
+        // owning scope finishes only when all such requests have stopped.
+        val owner = scope.coroutineContext[Job]
+        if (owner == null) database.close()
+        else owner.invokeOnCompletion { database.close() }
+    }
     private fun dp(value: Int): Int = (value * activity.resources.displayMetrics.density).toInt()
 }

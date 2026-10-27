@@ -129,6 +129,33 @@ class MpvEmbeddedPlayerActivityControlTest {
         org.junit.Assert.fail("Local test video did not advance")
     }
 
+    /** Explicit device smoke test, separate from the headless build/test run. */
+    @Test
+    fun clockNotificationsDoNotRebuildHiddenControls() {
+        org.junit.Assume.assumeTrue(
+            "Supply a local test video URL for this device smoke test",
+            InstrumentationRegistry.getArguments().containsKey("stabilityStreamUrl")
+        )
+        val player = launchPlayer("VOD")
+        waitForPlaybackTime(player)
+        fun field(name: String) = player.javaClass.getDeclaredField(name).apply { isAccessible = true }
+        lateinit var button: android.widget.ImageButton
+        lateinit var icon: android.graphics.drawable.Drawable
+        instrumentation.runOnMainSync {
+            (field("controlsOverlay").get(player) as View).visibility = View.GONE
+            button = field("playPauseButton").get(player) as android.widget.ImageButton
+            icon = button.drawable
+        }
+        val observer = field("mpvObserver").get(player) as dev.jdtech.mpv.MPVLib.EventObserver
+        // Deliver like the JNI event thread, then drain the UI queue. Previously
+        // every clock notification allocated/replaced the play/pause drawable.
+        repeat(250) { observer.eventProperty("time-pos", 10.0 + it / 50.0) }
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            org.junit.Assert.assertSame("Hidden player controls must remain untouched", icon, button.drawable)
+        }
+    }
+
     @Test
     fun fiftyFpsLocalClipMeasuresVideoOutputAndDroppedFrames() {
         org.junit.Assume.assumeTrue(

@@ -13,6 +13,23 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class AndroidEpgTest {
+    @Test fun cancellationStopsXmltvParsingInsideBufferedText() {
+        val xml = "<tv><channel id='station'><display-name>" +
+            (1..500).joinToString("") { "<![CDATA[Station]]>" } +
+            "</display-name></channel></tv>"
+        var checks = 0
+        val failure = runCatching {
+            AndroidXmltvReader.read(
+                xml.byteInputStream(), System.currentTimeMillis(),
+                checkCancelled = {
+                    if (++checks == 25) throw kotlinx.coroutines.CancellationException("Guide closed")
+                }
+            )
+        }.exceptionOrNull()
+        assertTrue(failure is kotlinx.coroutines.CancellationException)
+        assertEquals(25, checks)
+    }
+
     @Test fun accountGuideIsFetchedAgainAndNoCacheFileOrEpgTableIsCreated() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val helper = AndroidUiptvDatabaseHelper(context)

@@ -14,6 +14,7 @@ object AndroidXmltvReader {
         source: String = "",
         requestedId: String? = null,
         requestedName: String = "",
+        checkCancelled: () -> Unit = {},
         onProgress: ((List<MobileEpgProgramme>) -> Unit)? = null
     ): MobileXmltvGuide {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
@@ -38,6 +39,7 @@ object AndroidXmltvReader {
         var progressiveChannelIds: Set<String>? = null
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
+            checkCancelled()
             if (Thread.currentThread().isInterrupted) throw InterruptedException()
             if (event == XmlPullParser.DOCDECL) {
                 // Ignore an external XMLTV DOCTYPE without fetching it; reject internal declarations.
@@ -47,7 +49,7 @@ object AndroidXmltvReader {
             if (event == XmlPullParser.START_TAG) when (parser.name) {
                 "channel" -> id = parser.getAttributeValue(null, "id").orEmpty()
                 "display-name" -> {
-                    val name = MobileXmltvGuide.normalize(boundedText(parser, 512))
+                    val name = MobileXmltvGuide.normalize(boundedText(parser, 512, checkCancelled))
                     if (id.isNotBlank() && name.isNotBlank() && (requestedId == null || id == requestedId ||
                         MobileXmltvGuide.normalizeQuality(name) == MobileXmltvGuide.normalizeQuality(requestedName))) {
                         val previous = names.put(name, id)
@@ -81,8 +83,8 @@ object AndroidXmltvReader {
                     stop = time(parser.getAttributeValue(null, "stop"))
                     title = ""; description = ""
                 }
-                "title" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 512).trim(); if (title.isEmpty()) title = text } }
-                "desc" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 2048).trim(); if (description.isEmpty()) description = text } }
+                "title" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 512, checkCancelled).trim(); if (title.isEmpty()) title = text } }
+                "desc" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 2048, checkCancelled).trim(); if (description.isEmpty()) description = text } }
             }
             if (event == XmlPullParser.END_TAG && parser.name == "channel") id = ""
             if (event == XmlPullParser.END_TAG && parser.name == "programme") {
@@ -126,10 +128,11 @@ object AndroidXmltvReader {
             if (end > p.start) p.copy(stop = end) else null
         })
     }
-    private fun boundedText(parser: XmlPullParser, maximum: Int): String {
+    private fun boundedText(parser: XmlPullParser, maximum: Int, checkCancelled: () -> Unit): String {
         val value = StringBuilder()
         var depth = 1
         while (depth > 0) {
+            checkCancelled()
             when (parser.nextToken()) {
                 XmlPullParser.START_TAG -> depth++
                 XmlPullParser.END_TAG -> depth--

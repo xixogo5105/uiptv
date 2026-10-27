@@ -44,6 +44,8 @@ class NativePlayerActivity : Activity() {
     private var player: ExoPlayer? = null
     private var guideDrawer: LiveEpgDrawer? = null
     private var playbackStarted = false
+    private var activityStarted = false
+    private var resumePlaybackOnStart = false
     private val playerHandler = Handler(Looper.getMainLooper())
     private val retryPlaybackRunnable = Runnable { retryCurrentStream() }
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -80,14 +82,19 @@ class NativePlayerActivity : Activity() {
             .also { created ->
                 created.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY) {
+                        if (playbackState == Player.STATE_READY && activityStarted) {
                             playbackStarted = true
                             playbackRetryAttempt = 0
                             MobilePlaybackIndicator.set(currentTarget)
                             currentTarget?.let(::markOpened)
-                        } else if (playbackState == Player.STATE_ENDED && currentBingeSession != null) {
+                        } else if (playbackState == Player.STATE_ENDED && activityStarted && currentBingeSession != null) {
                             playBingeIndex(currentBingeIndex + 1)
                         }
+                    }
+
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying && activityStarted) MobilePlaybackIndicator.set(currentTarget)
+                        else MobilePlaybackIndicator.clear(currentTarget)
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
@@ -119,10 +126,22 @@ class NativePlayerActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        activityStarted = true
         currentTarget?.let { guideDrawer?.load(it) }
+        if (player?.playerError != null) {
+            playerHandler.post(retryPlaybackRunnable)
+        } else if (resumePlaybackOnStart) {
+            player?.play()
+        }
+        resumePlaybackOnStart = false
     }
 
     override fun onStop() {
+        activityStarted = false
+        resumePlaybackOnStart = player?.playWhenReady == true
+        player?.pause()
+        playerHandler.removeCallbacks(retryPlaybackRunnable)
+        MobilePlaybackIndicator.clear(currentTarget)
         guideDrawer?.clear()
         super.onStop()
     }
@@ -199,7 +218,7 @@ class NativePlayerActivity : Activity() {
 
     private fun setMediaTarget(target: PlaybackTarget, mimeTypeOverride: String = "") {
         currentTarget = target
-        guideDrawer?.load(target)
+        if (activityStarted) guideDrawer?.load(target)
         MobilePlaybackIndicator.clear()
         currentMimeTypeOverride = mimeTypeOverride
         playbackRetryAttempt = 0
@@ -224,10 +243,12 @@ class NativePlayerActivity : Activity() {
                 .build()
         )
         exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
+        exoPlayer.playWhenReady = activityStarted
+        if (!activityStarted) resumePlaybackOnStart = true
     }
 
     private fun scheduleCurrentStreamRetry(error: PlaybackException) {
+        if (!activityStarted) return
         val target = currentTarget
         if (target == null || !target.url.isPlayableNetworkUrl() || isFinishing) {
             showPlaybackError(error)
@@ -249,6 +270,7 @@ class NativePlayerActivity : Activity() {
     }
 
     private fun retryCurrentStream() {
+        if (!activityStarted) return
         val target = currentTarget ?: return
         val exoPlayer = player ?: return
         runCatching {
@@ -273,12 +295,7 @@ class NativePlayerActivity : Activity() {
             return
         }
         markedTargetKey = key
-        val databaseHelper = AndroidUiptvDatabaseHelper(this)
-        try {
-            AndroidPlaybackWatchStateStore(databaseHelper).markOpened(target)
-        } finally {
-            databaseHelper.close()
-        }
+        AndroidPlaybackWatchStateStore.recordOpened(this, target)
     }
 
     private fun targetFromIntent(): PlaybackTarget? {

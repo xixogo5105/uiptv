@@ -19,6 +19,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.SystemClock
 import android.os.Looper
 import android.util.Log
 import android.util.Rational
@@ -121,8 +122,10 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private var panelTouchX = 0f
     private var panelTouchY = 0f
     private var epgJob: kotlinx.coroutines.Job? = null
+    private var epgPreferenceJob: kotlinx.coroutines.Job? = null
     @Volatile private var epgEnabled = false
-    private val epgDatabase by lazy { AndroidUiptvDatabaseHelper(this) }
+    private val epgDatabaseDelegate = lazy { AndroidUiptvDatabaseHelper(applicationContext) }
+    private val epgDatabase by epgDatabaseDelegate
     private val epgRepository by lazy { com.uiptv.mobile.shared.epg.AndroidEpgRepository(this, epgDatabase, preferencesRepository) }
     private lateinit var titleLabel: TextView
     private lateinit var timeLabel: TextView
@@ -183,14 +186,23 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private var embeddedPreferenceLoaded = false
     @Volatile
     private var mpvVideoDetails: VideoTrackDetails? = null
-    private var playbackTimeMs = 0L
-    private var playbackLengthMs = 0L
+    @Volatile private var playbackTimeMs = 0L
+    @Volatile private var playbackLengthMs = 0L
     private var mpvPaused = false
     private var mpvHwDecoder = ""
     private var mpvVideoOutput = ""
     private var mpvAudioCodec = ""
     private var embeddedRenderProfile = EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
-    private var lastLoggedVideoDetailsKey = ""
+    private var renderedPlayPauseState: Boolean? = null
+    private var lastDiagnosticMs = 0L
+    private var lastProgressTickMs = 0L
+    private var maxProgressTickDelayMs = 0L
+    private val streamInfoRefreshRunnable = Runnable {
+        if (!activityDestroyed && !stoppingForLifecycle) {
+            refreshMpvTrackDetails()
+            updateStreamInfo()
+        }
+    }
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val hlsProxyLock = Any()
     private var hlsProxy: EmbeddedHlsProxy? = null
@@ -220,29 +232,40 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private var unlockHideRunnable: Runnable? = null
     private val mpvObserver = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) {
-            postMpvEvent { handleMpvPropertyChanged(property, null) }
+            dispatchMpvProperty(property, null)
         }
 
         override fun eventProperty(property: String, value: Long) {
-            postMpvEvent { handleMpvPropertyChanged(property, value) }
+            dispatchMpvProperty(property, value)
         }
 
         override fun eventProperty(property: String, value: Double) {
-            postMpvEvent { handleMpvPropertyChanged(property, value) }
+            dispatchMpvProperty(property, value)
         }
 
         override fun eventProperty(property: String, value: Boolean) {
-            postMpvEvent { handleMpvPropertyChanged(property, value) }
+            dispatchMpvProperty(property, value)
         }
 
         override fun eventProperty(property: String, value: String) {
-            postMpvEvent { handleMpvPropertyChanged(property, value) }
+            dispatchMpvProperty(property, value)
         }
 
         override fun event(eventId: Int) {
             postMpvEvent { handleMpvEvent(eventId) }
         }
     }
+    private fun dispatchMpvProperty(property: String, value: Any?) {
+        if (activityDestroyed) return
+        // Clock notifications can arrive every video frame. Keep them off the UI
+        // queue; the one-second ticker presents the latest clock when visible.
+        when (property) {
+            "time-pos" -> playbackTimeMs = secondsToMillis(value)
+            "duration" -> playbackLengthMs = secondsToMillis(value)
+            else -> postMpvEvent { handleMpvPropertyChanged(property, value) }
+        }
+    }
+
     private fun postMpvEvent(action: () -> Unit) {
         if (activityDestroyed) {
             return
@@ -482,6 +505,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         playerPalette = resolvePlayerPalette()
+        renderedPlayPauseState = null
         if (::rootLayout.isInitialized) applyPlayerTheme()
     }
 
@@ -595,17 +619,24 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         stoppingForLifecycle = false
+        epgEnabled = false
         if (surfSwitchJob?.isActive != true) startPlayback()
         startProgressUpdates()
         epgLoadedKey = null
-        playbackScope.launch {
-            epgEnabled = preferencesRepository.load().epgEnabled
-            if (!activityDestroyed) withContext(Dispatchers.Main) { refreshEpg() }
+        epgPreferenceJob?.cancel()
+        epgPreferenceJob = playbackScope.launch {
+            val enabled = preferencesRepository.load().epgEnabled
+            if (!activityDestroyed && !stoppingForLifecycle) {
+                epgEnabled = enabled
+                refreshEpg()
+            }
         }
         showControlsTemporarily()
     }
 
     override fun onStop() {
+        stoppingForLifecycle = true
+        epgPreferenceJob?.cancel()
         MobilePlaybackIndicator.clear(currentTarget)
         epgJob?.cancel()
         epgResult = null
@@ -646,6 +677,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         } ?: renderSurface?.release()
         abandonAudioFocus()
         playbackScope.cancel()
+        playbackScope.coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion {
+            if (epgDatabaseDelegate.isInitialized()) epgDatabase.close()
+        }
         overlayHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -780,7 +814,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         mpvVideoDetails = null
         mpvHwDecoder = ""
         mpvAudioCodec = ""
-        lastLoggedVideoDetailsKey = ""
         playbackTimeMs = 0L
         playbackLengthMs = 0L
         mpvPaused = false
@@ -868,12 +901,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             return
         }
         markedTargetKey = key
-        val databaseHelper = AndroidUiptvDatabaseHelper(this)
-        try {
-            AndroidPlaybackWatchStateStore(databaseHelper).markOpened(target)
-        } finally {
-            databaseHelper.close()
-        }
+        AndroidPlaybackWatchStateStore.recordOpened(this, target)
     }
 
     private fun handlePlayerTouch(event: MotionEvent): Boolean {
@@ -1813,11 +1841,17 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         if (!::progressSeekBar.isInitialized || !::timeLabel.isInitialized) {
             return
         }
+        val now = SystemClock.elapsedRealtime()
+        if (lastProgressTickMs != 0L) {
+            maxProgressTickDelayMs = maxOf(maxProgressTickDelayMs, (now - lastProgressTickMs - ProgressUpdateMs).coerceAtLeast(0L))
+        }
+        lastProgressTickMs = now
+        samplePlaybackDiagnostics(now)
+        completeStreamLoadingIfClockStarted(playbackTimeMs)
+        if (controlsOverlay.visibility != View.VISIBLE) return
         updateProgressSeekBarAppearance()
-        refreshMpvPlaybackState()
         val length = playbackLengthMs
         val current = playbackTimeMs.coerceAtLeast(0L)
-        completeStreamLoadingIfClockStarted(current)
         updateStreamInfo()
         if (!isLiveStream() && length > 0L) {
             progressSeekBar.isEnabled = true
@@ -1841,8 +1875,11 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         if (!::playPauseButton.isInitialized) {
             return
         }
-        setButtonIcon(playPauseButton, if (!mpvPaused && playbackStarted) R.drawable.video_player_pause else R.drawable.video_player_play)
-        playPauseButton.contentDescription = if (!mpvPaused && playbackStarted) "Pause" else "Play"
+        val playing = !mpvPaused && playbackStarted
+        if (renderedPlayPauseState == playing) return
+        renderedPlayPauseState = playing
+        setButtonIcon(playPauseButton, if (playing) R.drawable.video_player_pause else R.drawable.video_player_play)
+        playPauseButton.contentDescription = if (playing) "Pause" else "Play"
     }
 
     private fun scheduleReconnectIfNeeded(reason: String): Boolean {
@@ -1926,6 +1963,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         } else {
             controlsOverlay.visibility = View.VISIBLE
             controlsVisible = true
+            updatePlaybackProgress()
             scheduleControlsHide()
         }
     }
@@ -1937,6 +1975,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         controlsOverlay.visibility = View.VISIBLE
         controlsOverlay.bringToFront()
         controlsVisible = true
+        updatePlaybackProgress()
         scheduleControlsHide()
     }
 
@@ -2173,13 +2212,13 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             val result = try {
                 epgRepository.scheduleProgressively(target.accountId, target.channelId, target.title) { update ->
                     withContext(Dispatchers.Main) {
-                        if (target == currentTarget) displayEpg(update)
+                        if (target == currentTarget && !stoppingForLifecycle && !activityDestroyed) displayEpg(update)
                     }
                 }
             }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) { com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.UNAVAILABLE) }
-            if (target == currentTarget) withContext(Dispatchers.Main) { displayEpg(result) }
+            if (target == currentTarget && !stoppingForLifecycle && !activityDestroyed) displayEpg(result)
         }
     }
 
@@ -2450,7 +2489,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             MPVLib.MpvEvent.MPV_EVENT_AUDIO_RECONFIG,
             MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
                 completeStreamLoading()
-                refreshMpvTrackDetails()
                 scheduleStreamInfoRefreshes()
                 if (eventId == MPVLib.MpvEvent.MPV_EVENT_VIDEO_RECONFIG) {
                     showControlsTemporarily()
@@ -2474,8 +2512,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun handleMpvPropertyChanged(property: String, value: Any?) {
         when (property) {
-            "time-pos" -> playbackTimeMs = secondsToMillis(value)
-            "duration" -> playbackLengthMs = secondsToMillis(value)
             "pause" -> mpvPaused = value as? Boolean ?: mpvPaused
             "hwdec-current" -> {
                 mpvHwDecoder = (value as? String).orEmpty()
@@ -2492,29 +2528,28 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             "dheight",
             "video-codec",
             "audio-codec-name" -> {
-                refreshMpvTrackDetails()
                 scheduleStreamInfoRefreshes()
             }
             "aid",
             "sid" -> updateTrackButtons()
         }
-        updatePlaybackProgressLabelOnly()
+        if (controlsOverlay.visibility == View.VISIBLE) updatePlaybackProgressLabelOnly()
         updatePlayPauseButton()
     }
 
     private fun secondsToMillis(value: Any?): Long =
         when (value) {
-            is Double -> (value * 1_000.0).roundToInt().toLong().coerceAtLeast(0L)
+            is Double -> (value * 1_000.0).toLong().coerceAtLeast(0L)
             is Long -> (value * 1_000L).coerceAtLeast(0L)
             is Int -> (value * 1_000L).coerceAtLeast(0L)
             else -> 0L
         }
 
     private fun scheduleStreamInfoRefreshes() {
-        updateStreamInfo()
-        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshShortDelayMs)
-        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshMediumDelayMs)
-        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshLongDelayMs)
+        // Reconfiguration produces several property events together. Collapse
+        // them into one refresh instead of multiplying delayed native queries.
+        overlayHandler.removeCallbacks(streamInfoRefreshRunnable)
+        overlayHandler.postDelayed(streamInfoRefreshRunnable, StreamInfoRefreshShortDelayMs)
     }
 
     private fun buildStreamInfoLabel(): String {
@@ -2544,12 +2579,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun currentVideoTrackDetails(): VideoTrackDetails? =
-        if (!playbackStarted && mpvVideoDetails == null) {
-            null
-        } else {
-            refreshMpvTrackDetails() ?: mpvVideoDetails
-        }
+    private fun currentVideoTrackDetails(): VideoTrackDetails? = mpvVideoDetails
 
     private fun refreshMpvTrackDetails(): VideoTrackDetails? {
         val player = mpv ?: return mpvVideoDetails
@@ -2557,19 +2587,14 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val displayHeight = player.firstPositiveInt("dheight", "height", "video-out-params/h", "video-params/h")
         val codec = player.firstNonBlankString("video-codec", "current-tracks/video/codec", "track-list/0/codec")
         mpvAudioCodec = player.firstNonBlankString("audio-codec-name", "current-tracks/audio/codec")
-        val videoOutput = mpvVideoOutput
         val details = VideoTrackDetails(
             displayWidth = displayWidth,
             displayHeight = displayHeight,
             codec = codec
         ).takeIf { it.hasUsefulInfo() }
-        if (details != null) {
+        if (details != null && details != mpvVideoDetails) {
             mpvVideoDetails = details
             updateVideoSurfaceTransform()
-            val key = "${details.displayWidth}x${details.displayHeight}|${details.codec}|$mpvHwDecoder|$mpvVideoOutput"
-            if (key != lastLoggedVideoDetailsKey) {
-                lastLoggedVideoDetailsKey = key
-            }
         }
         return details
     }
@@ -2626,6 +2651,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private fun configureMpvOptions(player: MPVLib, renderProfile: EmbeddedPlayerRenderProfile) {
         val stableMobileAudio = shouldUseStableMobileAudioProfile()
         player.setMpvOption("profile", "fast")
+        player.setMpvOption("msg-level", "all=warn")
         when (renderProfile) {
             EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC -> {
                 // Pair direct Surface output with its matching MediaCodec decoder mode.
@@ -2788,17 +2814,26 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun refreshMpvPlaybackState() {
+    private fun samplePlaybackDiagnostics(now: Long) {
+        // Explicitly opt in with: adb shell setprop log.tag.UIPTV-Playback DEBUG
+        // Native reads run on the lifecycle queue, never on the video/UI thread.
+        if (!Log.isLoggable(DiagnosticLogTag, Log.DEBUG) || now - lastDiagnosticMs < 5_000L) return
         val player = mpv ?: return
-        runCatching { player.getPropertyDouble("time-pos") }
-            .getOrNull()
-            ?.let { playbackTimeMs = secondsToMillis(it) }
-        runCatching { player.getPropertyDouble("duration") }
-            .getOrNull()
-            ?.let { playbackLengthMs = secondsToMillis(it) }
-        runCatching { player.getPropertyBoolean("pause") }
-            .getOrNull()
-            ?.let { mpvPaused = it }
+        lastDiagnosticMs = now
+        val tickDelay = maxProgressTickDelayMs
+        maxProgressTickDelayMs = 0L
+        MpvReleaseExecutor.execute {
+            if (activityDestroyed || mpv !== player) return@execute
+            val properties = listOf(
+                "time-pos", "demuxer-cache-duration", "cache-speed", "paused-for-cache",
+                "frame-drop-count", "decoder-frame-drop-count", "avsync", "container-fps",
+                "estimated-vf-fps", "hwdec-current", "current-vo"
+            )
+            val values = properties.joinToString(" ") { name ->
+                "$name=${runCatching { player.getPropertyString(name) }.getOrNull() ?: "unknown"}"
+            }
+            Log.d(DiagnosticLogTag, "elapsedMs=$now uiDelayMs=$tickDelay $values")
+        }
     }
 
     private fun updatePlaybackProgressLabelOnly() {
@@ -3025,10 +3060,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
         private const val LogTag = "UIPTV-MpvEmbedded"
+        private const val DiagnosticLogTag = "UIPTV-Playback"
         private const val ChromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         private const val StreamInfoRefreshShortDelayMs = 250L
-        private const val StreamInfoRefreshMediumDelayMs = 1_000L
-        private const val StreamInfoRefreshLongDelayMs = 2_500L
         private const val TrackFeedbackDelayMs = 120L
         private const val MaxMpvTrackCount = 256
         private const val ProgressBarMax = 1_000

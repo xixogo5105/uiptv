@@ -121,9 +121,12 @@ internal fun MobileEpgSettings() {
             checked = state.enabled,
             accessibilityLabel = MobileMessages.text("configEnableEpg"),
             onCheckedChange = { value -> scope.launch {
-                runCatching { state.actions.saveEnabled(value) }
-                    .onSuccess { state.onEnabled(value) }
-                    .onFailure { status = MobileMessages.text("epgMobileSettingSaveFailed") }
+                try {
+                    state.actions.saveEnabled(value)
+                    state.onEnabled(value)
+                    status = ""
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { status = MobileMessages.text("epgMobileSettingSaveFailed") }
             } }
         )
         if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)

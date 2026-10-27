@@ -66,4 +66,26 @@ class AndroidDatabaseBackupManagerTest {
             assertEquals(false, cursor.moveToNext())
         }
     }
+    @Test
+    fun invalidBackupLeavesExistingAccountsIntact() = runBlocking {
+        helper.writableDatabase.execSQL("INSERT INTO Account(accountName, type) VALUES('Keep me', 'm3u')")
+        val archive = File.createTempFile("invalid-backup-", ".zip", context.cacheDir)
+        try {
+            java.util.zip.ZipOutputStream(archive.outputStream()).use { zip ->
+                zip.putNextEntry(java.util.zip.ZipEntry(com.uiptv.mobile.shared.settings.MobileBackupArchive.DATABASE_ENTRY))
+                zip.write("not a SQLite database".toByteArray())
+                zip.closeEntry()
+            }
+            val failure = runCatching {
+                AndroidDatabaseBackupManager(context, helper).restoreFromUri(Uri.fromFile(archive).toString())
+            }.exceptionOrNull()
+            assertTrue("Invalid snapshot should be rejected", failure != null)
+            helper.readableDatabase.rawQuery("SELECT accountName FROM Account", null).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Keep me", cursor.getString(0))
+            }
+            assertTrue(context.cacheDir.listFiles().orEmpty().none { it.name.startsWith("uiptv-db-restore-") })
+        } finally { archive.delete() }
+    }
+
 }

@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -36,18 +38,21 @@ class ThumbnailCache private constructor(private val context: Context) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
     }
 
-    private val inFlight = ConcurrentHashMap<String, Job>()
     private val negativeCache = ConcurrentHashMap<String, Long>()
     private val fetchSemaphore = Semaphore(MAX_CONCURRENT_FETCHES)
 
     private val scope = CoroutineScope(SupervisorJob())
+    private val inFlight = KeyedJobs(scope)
+
+    private fun isNegativelyCached(url: String): Boolean {
+        val until = negativeCache[url] ?: return false
+        if (System.currentTimeMillis() < until) return true
+        negativeCache.remove(url, until)
+        return false
+    }
 
     fun get(url: String): Bitmap? {
         if (url.isBlank()) return null
-        negativeCache[url]?.let { until ->
-            if (System.currentTimeMillis() < until) return null
-            negativeCache.remove(url, until)
-        }
         return memoryCache.get(url)
     }
 
@@ -64,17 +69,23 @@ class ThumbnailCache private constructor(private val context: Context) {
         }
 
         return try {
-            BitmapFactory.decodeFile(file.absolutePath)?.also { memoryCache.put(url, it) }
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = ThumbnailDecodePolicy.sampleSize(bounds.outWidth, bounds.outHeight)
+            }
+            BitmapFactory.decodeFile(file.absolutePath, options)?.also { memoryCache.put(url, it) }
+                ?: run { file.delete(); null }
         } catch (_: IOException) {
             file.delete()
             null
         }
     }
 
-    fun put(url: String, bitmap: Bitmap) {
-        if (url.isBlank()) return
+    private suspend fun put(url: String, bitmap: Bitmap) {
+        currentCoroutineContext().ensureActive()
         memoryCache.put(url, bitmap)
-        scope.launch { persistToDisk(url, bitmap) }
+        persistToDisk(url, bitmap)
     }
 
     fun negativeCache(url: String, statusCode: Int) {
@@ -85,38 +96,31 @@ class ThumbnailCache private constructor(private val context: Context) {
     fun fetchAsync(url: String): Job {
         if (url.isBlank()) return scope.launch { }
 
-        return inFlight.getOrPut(url) {
-            scope.launch {
-                try {
-                    fetchSemaphore.withPermit { fetchAndCache(url) }
-                } catch (_: CancellationException) {
-                    // Silently propagate cancellation
-                } finally {
-                    inFlight.remove(url)
-                }
+        return inFlight.start(url) {
+            if (get(url) != null || isNegativelyCached(url)) return@start
+            fetchSemaphore.withPermit {
+                if (get(url) == null && !isNegativelyCached(url)) fetchAndCache(url)
             }
         }
     }
 
-    fun cancelInFlight(url: String) {
-        inFlight[url]?.cancel()
-        inFlight.remove(url)
-    }
+    fun cancelInFlight(url: String) { inFlight.cancel(url) }
 
     fun clearMemory() = memoryCache.evictAll()
     fun clearDisk() = diskDir.listFiles()?.forEach { it.delete() }
     fun clearAll() {
+        inFlight.cancelAll()
         clearMemory()
         clearDisk()
         negativeCache.clear()
-        inFlight.values.forEach { it.cancel() }
-        inFlight.clear()
     }
 
     private suspend fun fetchAndCache(url: String) {
         withContext(kotlinx.coroutines.Dispatchers.IO) {
+            var conn: HttpURLConnection? = null
             try {
-                val conn = URL(url).openConnection() as HttpURLConnection
+                conn = URL(url).openConnection() as? HttpURLConnection
+                    ?: throw IOException("Unsupported thumbnail URL")
                 conn.connectTimeout = 4_000
                 conn.readTimeout = 8_000
                 conn.instanceFollowRedirects = true
@@ -128,29 +132,47 @@ class ThumbnailCache private constructor(private val context: Context) {
                 }
 
                 conn.inputStream.use { stream ->
-                    val bitmap = BitmapFactory.decodeStream(stream)
+                    val bytes = ThumbnailDecodePolicy.readBytes(stream)
+                    currentCoroutineContext().ensureActive()
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = ThumbnailDecodePolicy.sampleSize(bounds.outWidth, bounds.outHeight)
+                    }
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                    currentCoroutineContext().ensureActive()
                     if (bitmap != null) {
                         put(url, bitmap)
                     } else {
                         negativeCache(url, code)
                     }
                 }
-            } catch (_: IOException) {
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: IOException) {
+                currentCoroutineContext().ensureActive()
                 negativeCache(url, statusCode = -1)
+            } finally {
+                conn?.disconnect()
             }
         }
     }
 
     private suspend fun persistToDisk(url: String, bitmap: Bitmap) {
         withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val file = diskFile(url)
+            var staged: File? = null
             try {
-                file.outputStream().use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                    out.flush()
+                currentCoroutineContext().ensureActive()
+                staged = File.createTempFile("thumbnail-", ".tmp", diskDir)
+                staged.outputStream().use { out ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) throw IOException("Unable to encode thumbnail")
                 }
-            } catch (_: IOException) {
-                file.delete()
+                currentCoroutineContext().ensureActive()
+                if (!staged.renameTo(diskFile(url))) throw IOException("Unable to store thumbnail")
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: IOException) {
+                // A usable memory image does not depend on disk cache availability.
+            } finally {
+                staged?.delete()
             }
         }
     }
@@ -171,13 +193,11 @@ class ThumbnailCache private constructor(private val context: Context) {
         private var instances = ConcurrentHashMap<Context, ThumbnailCache>()
 
         fun getInstance(context: Context): ThumbnailCache =
-            instances.getOrPut(context.applicationContext) { ThumbnailCache(context.applicationContext) }
+            instances.computeIfAbsent(context.applicationContext) { ThumbnailCache(it) }
 
         fun clearAll(context: Context) {
-            instances.remove(context.applicationContext)?.also {
-                it.clearAll()
-                it.close()
-            }
+            // Existing compositions retain this instance. Keep its scope usable.
+            instances[context.applicationContext]?.clearAll()
         }
     }
 }

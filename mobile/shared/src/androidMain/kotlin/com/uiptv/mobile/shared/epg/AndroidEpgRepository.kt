@@ -36,6 +36,7 @@ class AndroidEpgRepository(
         if (!settings.epgEnabled) return@withContext MobileEpgResult()
         val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
             ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
+        val requestContext = currentCoroutineContext()
         val now = System.currentTimeMillis()
         ensureActive()
         val native = nativeSchedule(account, providerChannelId, now)
@@ -53,7 +54,7 @@ class AndroidEpgRepository(
                 val programmes = open(source).buffered().use { buffered ->
                     buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
                     val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
-                    AndroidXmltvReader.read(LimitedStream(xml), now, source, id, name).forChannel(id, name)
+                    AndroidXmltvReader.read(EpgInputStream(xml, { requestContext.ensureActive() }), now, source, id, name, checkCancelled = { requestContext.ensureActive() }).forChannel(id, name)
                 }
                 if (programmes.isNotEmpty()) return@withContext applyTvgShift(accountId, providerChannelId,
                     MobileEpgResult(MobileEpgStatus.AVAILABLE, programmes))
@@ -76,6 +77,7 @@ class AndroidEpgRepository(
         if (!settings.epgEnabled) return@withContext MobileEpgResult()
         val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
             ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
+        val requestContext = currentCoroutineContext()
         val now = System.currentTimeMillis()
         coroutineScope {
             val events = Channel<EpgEvent>(Channel.UNLIMITED)
@@ -102,11 +104,11 @@ class AndroidEpgRepository(
                             val guide = open(source).buffered().use { buffered ->
                                 buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
                                 val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
-                                AndroidXmltvReader.read(LimitedStream(xml), now, source, id, name) { partial ->
+                                AndroidXmltvReader.read(EpgInputStream(xml, { requestContext.ensureActive() }), now, source, id, name, checkCancelled = { requestContext.ensureActive() }, onProgress = { partial ->
                                     val shifted = applyTvgShift(accountId, providerChannelId,
                                         MobileEpgResult(MobileEpgStatus.AVAILABLE, partial))
                                     events.trySend(EpgEvent.Progress(shifted))
-                                }
+                                })
                             }
                             val programmes = guide.forChannel(id, name)
                             if (programmes.isNotEmpty()) {
@@ -168,7 +170,8 @@ class AndroidEpgRepository(
             .firstOrNull { it.isNotBlank() && !(account.type == MobileAccountType.STALKER_PORTAL && it == channelId) }
             ?: if (account.type == MobileAccountType.XTREME_API) "" else channelId
     }
-    private fun discover(account: MobileAccount): List<String> {
+    private suspend fun discover(account: MobileAccount): List<String> {
+        val requestContext = currentCoroutineContext()
         if (account.type != MobileAccountType.M3U8_LOCAL && account.type != MobileAccountType.M3U8_URL) return emptyList()
         val playlist = account.m3u8Path.ifBlank { account.url }
         if (playlist.isBlank()) return emptyList()
@@ -176,6 +179,7 @@ class AndroidEpgRepository(
         try {
             open(playlist).bufferedReader().use { reader ->
                 repeat(20) {
+                    requestContext.ensureActive()
                     val line = reader.readLine()?.replace("\uFEFF", "")?.trim() ?: return@repeat
                     if (line.startsWith("#EXTM3U")) {
                         for (attribute in listOf("x-tvg-url", "url-tvg", "tvg-url")) {
@@ -191,7 +195,8 @@ class AndroidEpgRepository(
                 val base = if (playlist.contains("://") || playlist.startsWith("file:")) URI(playlist) else File(playlist).toURI()
                 found = found.mapNotNull { runCatching { base.resolve(it).toString() }.getOrNull() }.distinct()
             }
-        } catch (_: Exception) { found = emptyList() }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { found = emptyList() }
         return found
     }
 
@@ -206,33 +211,32 @@ class AndroidEpgRepository(
             connectTimeout = 10_000; readTimeout = 20_000
             setRequestProperty("Accept-Encoding", "gzip")
         }
-        if (connection.responseCode !in 200..299) { connection.disconnect(); error("Source unavailable") }
-        val input = connection.inputStream
-        return object : FilterInputStream(input) { override fun close() { try { super.close() } finally { connection.disconnect() } } }
-    }
-    internal class LimitedStream(input: InputStream) : FilterInputStream(input) {
-        private var remaining = 200L * 1024 * 1024
-        private val deadline = System.nanoTime() + 60_000_000_000L
-        private fun consumed(count: Int) {
-            if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Guide loading cancelled")
-            if (System.nanoTime() > deadline) throw IOException("Guide loading deadline exceeded")
-            if (count > 0 && (remaining - count).also { remaining = it } < 0) throw IOException("Guide exceeds size limit")
+        try {
+            if (connection.responseCode !in 200..299) error("Source unavailable")
+            val input = connection.inputStream
+            return object : FilterInputStream(input) { override fun close() { try { super.close() } finally { connection.disconnect() } } }
+        } catch (failure: Exception) {
+            connection.disconnect()
+            throw failure
         }
-        override fun read(): Int = `in`.read().also { consumed(if (it < 0) 0 else 1) }
-        override fun read(b: ByteArray, off: Int, len: Int): Int = `in`.read(b, off, len).also { consumed(it) }
     }
-    private fun nativeSchedule(account: MobileAccount, id: String, now: Long): List<MobileEpgProgramme> {
+    private suspend fun nativeSchedule(account: MobileAccount, id: String, now: Long): List<MobileEpgProgramme> {
         val actions = when (account.type) {
             MobileAccountType.XTREME_API -> listOf("get_simple_data_table", "get_short_epg")
             MobileAccountType.STALKER_PORTAL -> listOf("get_short_epg", "get_epg_info")
             else -> return emptyList()
         }
         for (action in actions) {
-            val result = runCatching {
-                val raw = if (account.type == MobileAccountType.XTREME_API) xtreme.readApi(account, action, mapOf("stream_id" to id, "limit" to "100"))
+            currentCoroutineContext().ensureActive()
+            val result = try {
+                val raw = runInterruptible {
+                    if (account.type == MobileAccountType.XTREME_API) xtreme.readApi(account, action, mapOf("stream_id" to id, "limit" to "100"))
                     else stalker.readEpg(account, id, action)
+                }
+                currentCoroutineContext().ensureActive()
                 parseNative(raw, account, id, now)
-            }.getOrDefault(emptyList())
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { emptyList() }
             if (result.any { it.stop > now }) return result
         }
         return emptyList()
