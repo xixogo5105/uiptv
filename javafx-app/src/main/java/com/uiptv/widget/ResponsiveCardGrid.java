@@ -10,6 +10,7 @@ import javafx.collections.ObservableList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.SnapshotParameters;
@@ -1094,6 +1095,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
             }
             if (isHoverAction(child)) {
                 group.getChildren().add(index + 1, indicator);
+                // This compact trailing group can contain a 24px menu button and a 14px
+                // recording marker. Center both cells so their visible icons share a vertical center.
+                group.setAlignment(Pos.CENTER_RIGHT);
                 return true;
             }
         }

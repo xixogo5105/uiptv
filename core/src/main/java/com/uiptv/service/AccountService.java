@@ -41,7 +41,11 @@ public class AccountService {
         if (type != null && type == STALKER_PORTAL && !isBlank(account.getUrl()) && !account.getUrl().endsWith("/")) {
             account.setUrl(account.getUrl() + "/");
         }
-        sessionTokenByAccountKey.remove(getSessionAccountKey(account));
+        Account previous = findSavedAccount(account);
+        preserveResolvedServerPortalUrl(account, previous);
+        if (sessionConfigurationChanged(previous, account)) {
+            sessionTokenByAccountKey.remove(getSessionAccountKey(account));
+        }
         AccountDb.get().save(account);
         Account persisted = AccountDb.get().getAccountByName(account.getAccountName());
         if (persisted == null || isBlank(persisted.getDbId())) {
@@ -56,6 +60,49 @@ public class AccountService {
         }
         account.setDbId(persisted.getDbId());
         touchChange();
+    }
+
+    private Account findSavedAccount(Account account) {
+        if (isNotBlank(account.getDbId())) {
+            Account byId = AccountDb.get().getAccountById(account.getDbId());
+            if (byId != null) {
+                return byId;
+            }
+        }
+        return AccountDb.get().getAccountByName(account.getAccountName());
+    }
+
+    private void preserveResolvedServerPortalUrl(Account account, Account previous) {
+        if (previous != null
+                && isBlank(account.getServerPortalUrl())
+                && Objects.equals(account.getType(), previous.getType())
+                && Objects.equals(account.getUrl(), previous.getUrl())
+                && isNotBlank(previous.getServerPortalUrl())) {
+            // The account editor does not expose this cached endpoint. Keep it when the base
+            // portal is unchanged, so saving a display preference cannot discard it.
+            account.setServerPortalUrl(previous.getServerPortalUrl());
+        }
+    }
+
+    private boolean sessionConfigurationChanged(Account previous, Account account) {
+        if (previous == null
+                || !Objects.equals(previous.getAccountName(), account.getAccountName())
+                || !Objects.equals(previous.getType(), account.getType())) {
+            return true;
+        }
+        if (account.getType() != STALKER_PORTAL) {
+            return false;
+        }
+        return !Objects.equals(previous.getUrl(), account.getUrl())
+                || !Objects.equals(previous.getServerPortalUrl(), account.getServerPortalUrl())
+                || !Objects.equals(previous.getUsername(), account.getUsername())
+                || !Objects.equals(previous.getPassword(), account.getPassword())
+                || !Objects.equals(previous.getMacAddress(), account.getMacAddress())
+                || !Objects.equals(previous.getMacAddressList(), account.getMacAddressList())
+                || !Objects.equals(previous.getSerialNumber(), account.getSerialNumber())
+                || !Objects.equals(previous.getDeviceId1(), account.getDeviceId1())
+                || !Objects.equals(previous.getDeviceId2(), account.getDeviceId2())
+                || !Objects.equals(previous.getSignature(), account.getSignature());
     }
 
     // Account.getType() has a default value of STALKER_PORTAL but could be explicitly set to null.

@@ -494,6 +494,35 @@ class ResponsiveCardGridTest {
     }
 
     @Test
+    void activeCardRecordingDotAlignsWithMenuIcon() throws Exception {
+        boolean iconsAligned = runOnFxThread(() -> {
+            PlayMenuButton menuButton = new PlayMenuButton("More");
+            BookmarkCard card = new BookmarkCard(
+                    "4K ZEE5 TRENDING 2026", "", null, false, null, false, menuButton);
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> card, true);
+            grid.setItems(FXCollections.observableArrayList("one"));
+            grid.setOnItemActivated(_ -> {
+            });
+            grid.setSingleColumn(true);
+            grid.resize(420, 180);
+            Scene scene = new Scene(grid, 420, 180);
+            scene.getStylesheets().add(ResponsiveCardGridTest.class.getResource("/application.css").toExternalForm());
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+
+            PlayingCardIndicator indicator = findDescendant(card, PlayingCardIndicator.class);
+            Event.fireEvent(card, mouseClick(card, 2, false, false));
+            scene.getRoot().layout();
+
+            double menuCenterY = menuButton.localToScene(0, 0).getY() + menuButton.getHeight() / 2;
+            double indicatorCenterY = indicator.localToScene(0, 0).getY() + indicator.getHeight() / 2;
+            return indicator.isVisible() && Math.abs(menuCenterY - indicatorCenterY) < 1;
+        });
+
+        assertTrue(iconsAligned);
+    }
+
+    @Test
     void singleClickNeverActivatesItem() throws Exception {
         ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
         AtomicReference<String> activated = new AtomicReference<>();

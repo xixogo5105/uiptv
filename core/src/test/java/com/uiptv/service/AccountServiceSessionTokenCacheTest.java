@@ -1,8 +1,20 @@
 package com.uiptv.service;
 
+import com.uiptv.db.AccountDb;
+import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import java.util.List;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -85,6 +97,48 @@ class AccountServiceSessionTokenCacheTest extends DbBackedTest {
         Account recreated = accountService.getByName("token-cache-invalidate");
         assertNotNull(recreated);
         assertTrue(recreated.isNotConnected(), "deleteAll should clear in-memory token cache");
+    }
+
+    @Test
+    void pinChangeKeepsResolvedPortalSessionAndLoadsFreshSeriesFromCache() throws Exception {
+        AccountService accountService = AccountService.getInstance();
+        Account account = createStalkerAccount("token-cache-pin-change");
+        accountService.save(account);
+
+        Account connected = accountService.getById(account.getDbId());
+        connected.setServerPortalUrl("http://example.com/stalker_portal/server/load.php");
+        AccountDb.get().saveServerPortalUrl(connected);
+        connected.setAction(Account.AccountAction.series);
+        connected.setToken("session-token-pin-change");
+        accountService.syncSessionToken(connected);
+
+        String categoryDbId = "series-category-db-id";
+        Channel cachedSeries = new Channel();
+        cachedSeries.setChannelId("series-1");
+        cachedSeries.setName("Cached Series");
+        cachedSeries.setCmd("cmd://cached-series");
+        SeriesChannelDb.get().saveAll(List.of(cachedSeries), categoryDbId, connected);
+
+        Account accountForm = accountService.getById(account.getDbId());
+        accountForm.setPinToTop(true);
+        // The account form does not display this internally resolved endpoint.
+        accountForm.setServerPortalUrl(null);
+        accountService.save(accountForm);
+
+        Account reloaded = accountService.getById(account.getDbId());
+        reloaded.setAction(Account.AccountAction.series);
+        assertEquals("http://example.com/stalker_portal/server/load.php", reloaded.getServerPortalUrl());
+        assertEquals("session-token-pin-change", reloaded.getToken());
+
+        HandshakeService handshake = mock(HandshakeService.class);
+        List<Channel> channels;
+        try (MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class)) {
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(handshake);
+            channels = ChannelService.getInstance().get("provider-category-id", reloaded, categoryDbId);
+        }
+
+        assertEquals(List.of("series-1"), channels.stream().map(Channel::getChannelId).toList());
+        verify(handshake, never()).connect(any(Account.class));
     }
 
     private Account createStalkerAccount(String accountName) {
