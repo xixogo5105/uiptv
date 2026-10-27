@@ -140,7 +140,7 @@
                                     <div class="title-line">{{ bookmarksLoadingMessage }}</div>
                                 </div>
                             </article>
-                            <template v-if="bookmarks.length > 0">
+                            <template v-if="filteredBookmarks.length > 0">
                                 <article
                                         :class="{
                                             active: isActiveBookmark(bookmark),

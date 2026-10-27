@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.ComposeView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.i18n.MobileMessages
+import com.uiptv.mobile.shared.playback.MobileResolutionDisplay
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
@@ -65,7 +66,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.toArgb
-import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -92,7 +92,12 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private val M3OnSurfaceVariant: Int get() = playerPalette.onSurfaceVariant
     private val M3SurfaceOutline: Int get() = playerPalette.outline
 
-    private var mpv: MPVLib? = null
+    private val mpvTasks = MpvTaskQueue()
+    @Volatile private var mpv: MPVLib? = null
+    // Accessed only by mpvTasks, including cleanup if initialization is still in flight.
+    private var nativePlayer: MPVLib? = null
+    private var mpvInitializing = false
+    private var softwareVideoFallback = false
     @Volatile
     private var activityDestroyed = false
     private lateinit var audioManager: AudioManager
@@ -192,6 +197,8 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private var mpvHwDecoder = ""
     private var mpvVideoOutput = ""
     private var mpvAudioCodec = ""
+    private var subtitleTrackEnabled = false
+    private var streamInfoRefreshPending = false
     private var embeddedRenderProfile = EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC
     private var renderedPlayPauseState: Boolean? = null
     private var lastDiagnosticMs = 0L
@@ -200,13 +207,12 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private val streamInfoRefreshRunnable = Runnable {
         if (!activityDestroyed && !stoppingForLifecycle) {
             refreshMpvTrackDetails()
-            updateStreamInfo()
         }
     }
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val hlsProxyLock = Any()
     private var hlsProxy: EmbeddedHlsProxy? = null
-    private var streamLoadGeneration = 0L
+    @Volatile private var streamLoadGeneration = 0L
     private var currentTarget: PlaybackTarget? = null
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
@@ -253,6 +259,33 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
         override fun event(eventId: Int) {
             postMpvEvent { handleMpvEvent(eventId) }
+        }
+    }
+    private val mpvLogObserver = object : MPVLib.LogObserver {
+        override fun logMessage(prefix: String, level: Int, text: String) {
+            // The bundled MPV reports hardware decoder failure before trying its
+            // next decoder. Never call native code back from its event thread.
+            if (prefix == "vd" &&
+                (text.contains("Could not open codec") || text.contains("Error while decoding frame (hardware decoding)"))
+            ) {
+                val generation = streamLoadGeneration
+                postMpvEvent {
+                    if (generation == streamLoadGeneration) recoverVideoWithSoftwareDecoder()
+                }
+            }
+        }
+    }
+
+    private fun recoverVideoWithSoftwareDecoder() {
+        val player = mpv ?: return
+        if (softwareVideoFallback || embeddedRenderProfile != EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC) return
+        softwareVideoFallback = true
+        Log.w(LogTag, "Hardware video decoding failed; switching this player session to software decoding with GPU output")
+        runMpvOperation(player, streamScoped = false) {
+            it.setPropertyString("vid", "no")
+            it.setPropertyString("vo", "gpu")
+            it.setPropertyString("hwdec", "no")
+            it.setPropertyString("vid", "auto")
         }
     }
     private fun dispatchMpvProperty(property: String, value: Any?) {
@@ -334,7 +367,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                     mpvRenderSurface = null
                     // TextureView transfers ownership to us. Keep its producer alive until MPV
                     // has detached on the same queue used for native release.
-                    MpvReleaseExecutor.execute {
+                    mpvTasks.execute {
                         try {
                             runCatching { player?.detachSurface() }
                                 .onFailure { Log.w(LogTag, "Unable to detach mpv surface") }
@@ -343,6 +376,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                             surfaceTexture.release()
                         }
                     }
+                    if (activityDestroyed) mpvTasks.close()
                     return false
                 }
 
@@ -608,7 +642,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private fun isControlButtonActive(button: ImageButton): Boolean =
         (::muteButton.isInitialized && button === muteButton && muted) ||
             (::repeatButton.isInitialized && button === repeatButton && repeatEnabled) ||
-            (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && currentTrackIsEnabled("sid")) ||
+            (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && subtitleTrackEnabled) ||
             (::lockButton.isInitialized && button === lockButton && locked)
 
     override fun onResume() {
@@ -667,14 +701,12 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
             intent.getStringExtra(NativePlayerActivity.EXTRA_SURF_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidPlaybackSurfSessionStore::remove)
         }
-        val player = mpv
         val renderSurface = mpvRenderSurface
         mpv = null
         mpvRenderSurface = null
-        player?.let {
-            runCatching { it.removeObserver(mpvObserver) }
-            destroyMpvAsync(it, renderSurface)
-        } ?: renderSurface?.release()
+        destroyMpvAsync(renderSurface)
+        // The TextureView callback queues producer release after native teardown.
+        if (!surfaceReady) mpvTasks.close()
         abandonAudioFocus()
         playbackScope.cancel()
         playbackScope.coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion {
@@ -821,10 +853,11 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         beginStreamLoading()
         ensureAudibleSystemVolume()
         val audioRequestVersion = markAudioStateSyncRequested()
+        val generation = ++streamLoadGeneration
+        subtitleTrackEnabled = false
         applyZoomMode(zoomModeIndex, showFeedback = false)
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(audioRequestVersion)
-        val generation = ++streamLoadGeneration
         playbackScope.launch {
             val playbackUrl = withContext(Dispatchers.IO) {
                 if (playbackTarget.manifestType.equals("hls", true) || Uri.parse(streamUrl).path.orEmpty().endsWith(".m3u8", true)) {
@@ -1449,7 +1482,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val drawable = resources.getDrawable(drawableRes, theme).mutate()
         val active = (::muteButton.isInitialized && button === muteButton && muted) ||
             (::repeatButton.isInitialized && button === repeatButton && repeatEnabled) ||
-            (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && currentTrackIsEnabled("sid")) ||
+            (::subtitleTrackButton.isInitialized && button === subtitleTrackButton && subtitleTrackEnabled) ||
             (::lockButton.isInitialized && button === lockButton && locked)
         drawable.setTint(if (active) M3OnAccent else M3OnSurface)
         button.setImageDrawable(drawable)
@@ -1482,7 +1515,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             requestAudioFocus()
             syncAudioStateAtStartup()
         }
-        runCatching { player.setPropertyBoolean("pause", nextPaused) }
+        runMpvOperation(player) { it.setPropertyBoolean("pause", nextPaused) }
         mpvPaused = nextPaused
         updatePlayPauseButton()
     }
@@ -1536,38 +1569,32 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun cycleAudioTrack() {
         val player = mpv ?: return
-        val nextId = MpvTrackSelection.nextAudioTrack(player.trackIds("audio"), player.intPropertyOrNull("aid"))
-        if (nextId == null) {
-            showFeedback("Audio off")
-            return
+        val generation = streamLoadGeneration
+        runMpvOperation(player) {
+            val nextId = MpvTrackSelection.nextAudioTrack(it.trackIds("audio"), it.intPropertyOrNull("aid"))
+            if (nextId != null) it.setPropertyInt("aid", nextId)
+            val feedback = if (nextId == null) "Audio off" else currentTrackFeedback(it, "audio", "aid", "Audio")
+            postMpvResult(player, generation) {
+                updateTrackButtons()
+                showFeedback(feedback)
+            }
         }
-        runCatching { player.setPropertyInt("aid", nextId) }
-            .onFailure { Log.w(LogTag, "Unable to select audio track $nextId", it) }
-        overlayHandler.postDelayed({
-            updateTrackButtons()
-            showFeedback(currentTrackFeedback("audio", "aid", "Audio"))
-        }, TrackFeedbackDelayMs)
     }
 
     private fun cycleSubtitleTrack() {
         val player = mpv ?: return
-        val trackIds = player.trackIds("sub")
-        if (trackIds.isEmpty()) {
-            showFeedback("Subtitles off")
-            return
+        val generation = streamLoadGeneration
+        runMpvOperation(player) {
+            val tracks = it.trackIds("sub")
+            val nextId = MpvTrackSelection.nextSubtitleTrack(tracks, it.getPropertyString("sid")?.toIntOrNull())
+            if (nextId == null) it.setPropertyString("sid", "no") else it.setPropertyInt("sid", nextId)
+            val feedback = if (tracks.isEmpty()) "Subtitles off" else currentTrackFeedback(it, "sub", "sid", "Subtitles")
+            postMpvResult(player, generation) {
+                subtitleTrackEnabled = nextId != null
+                updateTrackButtons()
+                showFeedback(feedback)
+            }
         }
-        val nextId = MpvTrackSelection.nextSubtitleTrack(
-            trackIds,
-            runCatching { player.getPropertyString("sid") }.getOrNull()?.toIntOrNull()
-        )
-        runCatching {
-            if (nextId == null) player.setPropertyString("sid", "no")
-            else player.setPropertyInt("sid", nextId)
-        }.onFailure { Log.w(LogTag, "Unable to select subtitle track $nextId", it) }
-        overlayHandler.postDelayed({
-            updateTrackButtons()
-            showFeedback(currentTrackFeedback("sub", "sid", "Subtitles"))
-        }, TrackFeedbackDelayMs)
     }
 
     private fun updateTrackButtons() {
@@ -1577,12 +1604,11 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         }
         if (::subtitleTrackButton.isInitialized) {
             setButtonIcon(subtitleTrackButton, R.drawable.subtitle_track)
-            subtitleTrackButton.background = controlButtonBackground(active = currentTrackIsEnabled("sid"))
+            subtitleTrackButton.background = controlButtonBackground(active = subtitleTrackEnabled)
         }
     }
 
-    private fun currentTrackFeedback(trackType: String, idProperty: String, label: String): String {
-        val player = mpv ?: return label
+    private fun currentTrackFeedback(player: MPVLib, trackType: String, idProperty: String, label: String): String {
         val subtitleSelection = if (idProperty == "sid") {
             runCatching { player.getPropertyString(idProperty) }.getOrNull()?.trim()
         } else null
@@ -1602,13 +1628,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             .joinToString(" ")
             .ifBlank { "selected" }
             .let { "$label $it" }
-    }
-
-    private fun currentTrackIsEnabled(idProperty: String): Boolean {
-        val player = mpv ?: return false
-        if (idProperty != "sid") return player.intPropertyOrNull(idProperty) != null
-        val selection = runCatching { player.getPropertyString(idProperty) }.getOrNull()?.trim()
-        return !selection.isNullOrEmpty() && !selection.equals("no", ignoreCase = true)
     }
 
     private fun MPVLib.trackIds(type: String): List<Int> = buildList {
@@ -1668,31 +1687,42 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun initializeMpv() {
-        if (activityDestroyed) return
-        val createdMpv = MPVLib.create(this)
-        if (createdMpv == null) {
-            completeStreamLoading()
-            showMessage("mpv could not start on this device.")
-            return
-        }
-        mpv = createdMpv
-        createdMpv.addObserver(mpvObserver)
-        configureMpvOptions(createdMpv, embeddedRenderProfile)
-        runCatching { createdMpv.init() }
-            .onFailure {
-                Log.e(LogTag, "Unable to initialize mpv", it)
-                mpv = null
-                completeStreamLoading()
-                showMessage("mpv could not initialize.")
-                destroyMpvAsync(createdMpv, null)
-                return
+        if (activityDestroyed || mpvInitializing || mpv != null) return
+        mpvInitializing = true
+        val renderProfile = embeddedRenderProfile
+        mpvTasks.execute {
+            if (activityDestroyed) return@execute
+            val createdMpv = runCatching { MPVLib.create(applicationContext) }.getOrNull()
+            nativePlayer = createdMpv
+            val initialized = createdMpv != null && runCatching {
+                createdMpv.addObserver(mpvObserver)
+                createdMpv.addLogObserver(mpvLogObserver)
+                configureMpvOptions(createdMpv, renderProfile)
+                createdMpv.init()
+                observeMpvProperties(createdMpv)
+            }.onFailure { Log.e(LogTag, "Unable to initialize mpv", it) }.isSuccess
+            if (!initialized && createdMpv != null) {
+                createdMpv.removeObserver(mpvObserver)
+                createdMpv.removeLogObserver(mpvLogObserver)
+                runCatching { createdMpv.destroy() }
+                nativePlayer = null
             }
-        observeMpvProperties(createdMpv)
-        val surfaceTexture = if (surfaceReady) videoSurface.surfaceTexture else null
-        if (surfaceTexture != null) {
-            attachMpvSurface(Surface(surfaceTexture))
-        } else {
-            pendingPlayback = true
+            overlayHandler.post {
+                mpvInitializing = false
+                if (activityDestroyed) return@post
+                if (!initialized) {
+                    completeStreamLoading()
+                    showMessage("mpv could not initialize.")
+                    return@post
+                }
+                mpv = createdMpv
+                val surfaceTexture = if (surfaceReady) videoSurface.surfaceTexture else null
+                if (surfaceTexture != null) {
+                    attachMpvSurface(Surface(surfaceTexture))
+                } else {
+                    pendingPlayback = true
+                }
+            }
         }
     }
 
@@ -2061,8 +2091,11 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun applyDesiredAudioState() {
         val player = mpv ?: return
-        runCatching { player.setPropertyBoolean("mute", muted) }
-        runCatching { player.setPropertyDouble("volume", if (muted) 0.0 else MpvAudibleVolume) }
+        val desiredMute = muted
+        runMpvOperation(player) {
+            it.setPropertyBoolean("mute", desiredMute)
+            it.setPropertyDouble("volume", if (desiredMute) 0.0 else MpvAudibleVolume)
+        }
     }
 
     private fun ensureAudibleSystemVolume() {
@@ -2123,15 +2156,17 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private fun applyZoomMode(index: Int, showFeedback: Boolean = true, persist: Boolean = showFeedback) {
         zoomModeIndex = index.coerceIn(zoomModes.indices)
         val mode = zoomModes[zoomModeIndex]
+        val usesTextureViewCrop = mode.cropToFill && mpvVideoOutput.equals("mediacodec_embed", ignoreCase = true)
         mpv?.let { player ->
-            runCatching { player.setPropertyBoolean("keepaspect", mode.keepAspect) }
-            runCatching { player.setPropertyString("video-aspect-override", "no") }
-            runCatching { player.setPropertyString("video-unscaled", "no") }
-            val usesTextureViewCrop = mode.cropToFill && mpvVideoOutput.equals("mediacodec_embed", ignoreCase = true)
-            runCatching { player.setPropertyDouble("panscan", if (mode.cropToFill && !usesTextureViewCrop) 1.0 else 0.0) }
-            runCatching { player.setPropertyDouble("video-zoom", 0.0) }
-            runCatching { player.setPropertyDouble("video-pan-x", 0.0) }
-            runCatching { player.setPropertyDouble("video-pan-y", 0.0) }
+            runMpvOperation(player) {
+                it.setPropertyBoolean("keepaspect", mode.keepAspect)
+                it.setPropertyString("video-aspect-override", "no")
+                it.setPropertyString("video-unscaled", "no")
+                it.setPropertyDouble("panscan", if (mode.cropToFill && !usesTextureViewCrop) 1.0 else 0.0)
+                it.setPropertyDouble("video-zoom", 0.0)
+                it.setPropertyDouble("video-pan-x", 0.0)
+                it.setPropertyDouble("video-pan-y", 0.0)
+            }
         }
         updateVideoSurfaceTransform()
         setButtonIcon(zoomButton, mode.iconRes)
@@ -2416,7 +2451,10 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 return@launch
             }
             currentTarget = resolved
-            if (!stoppingForLifecycle) startPlayback()
+            if (!stoppingForLifecycle) {
+                AndroidPlaybackWatchStateStore.recordRecent(this@MpvEmbeddedPlayerActivity, target)
+                startPlayback()
+            }
         }
     }
 
@@ -2530,8 +2568,11 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             "audio-codec-name" -> {
                 scheduleStreamInfoRefreshes()
             }
-            "aid",
-            "sid" -> updateTrackButtons()
+            "aid" -> updateTrackButtons()
+            "sid" -> {
+                subtitleTrackEnabled = value?.toString()?.let { it.isNotBlank() && !it.equals("no", true) } == true
+                updateTrackButtons()
+            }
         }
         if (controlsOverlay.visibility == View.VISIBLE) updatePlaybackProgressLabelOnly()
         updatePlayPauseButton()
@@ -2553,10 +2594,13 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun buildStreamInfoLabel(): String {
+        val resolution = currentVideoTrackDetails()
+            ?.takeIf { it.hasResolution() }
+            ?.resolutionLabel()
         val videoCodec = currentVideoTrackDetails()?.codec?.mobileCodecLabel()
         val audioCodec = mpvAudioCodec.mobileCodecLabel()
         val decoderMode = decoderModeLabel()
-        return listOf(videoCodec, audioCodec, decoderMode).filterNot { it.isNullOrBlank() }.distinct().joinToString(" · ")
+        return listOf(resolution, videoCodec, audioCodec, decoderMode).filterNot { it.isNullOrBlank() }.distinct().joinToString(" · ")
             .ifBlank { "Codec info pending" }
     }
 
@@ -2581,22 +2625,34 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun currentVideoTrackDetails(): VideoTrackDetails? = mpvVideoDetails
 
-    private fun refreshMpvTrackDetails(): VideoTrackDetails? {
-        val player = mpv ?: return mpvVideoDetails
-        val displayWidth = player.firstPositiveInt("dwidth", "width", "video-out-params/w", "video-params/w")
-        val displayHeight = player.firstPositiveInt("dheight", "height", "video-out-params/h", "video-params/h")
-        val codec = player.firstNonBlankString("video-codec", "current-tracks/video/codec", "track-list/0/codec")
-        mpvAudioCodec = player.firstNonBlankString("audio-codec-name", "current-tracks/audio/codec")
-        val details = VideoTrackDetails(
-            displayWidth = displayWidth,
-            displayHeight = displayHeight,
-            codec = codec
-        ).takeIf { it.hasUsefulInfo() }
-        if (details != null && details != mpvVideoDetails) {
-            mpvVideoDetails = details
-            updateVideoSurfaceTransform()
+    private fun refreshMpvTrackDetails() {
+        val player = mpv ?: return
+        if (streamInfoRefreshPending) return
+        streamInfoRefreshPending = true
+        val generation = streamLoadGeneration
+        mpvTasks.execute {
+            val snapshot = if (!activityDestroyed && mpv === player && generation == streamLoadGeneration) {
+                runCatching {
+                    val details = VideoTrackDetails(
+                        displayWidth = player.firstPositiveInt("dwidth", "width", "video-out-params/w", "video-params/w"),
+                        displayHeight = player.firstPositiveInt("dheight", "height", "video-out-params/h", "video-params/h"),
+                        codec = player.firstNonBlankString("video-codec", "current-tracks/video/codec", "track-list/0/codec")
+                    ).takeIf { it.hasUsefulInfo() }
+                    details to player.firstNonBlankString("audio-codec-name", "current-tracks/audio/codec")
+                }.getOrNull()
+            } else null
+            overlayHandler.post {
+                streamInfoRefreshPending = false
+                if (!activityDestroyed && mpv === player && generation == streamLoadGeneration && snapshot != null) {
+                    mpvVideoDetails = snapshot.first
+                    mpvAudioCodec = snapshot.second
+                    updateVideoSurfaceTransform()
+                    updateStreamInfo()
+                } else if (!activityDestroyed && !stoppingForLifecycle && mpv === player && generation != streamLoadGeneration) {
+                    scheduleStreamInfoRefreshes()
+                }
+            }
         }
-        return details
     }
 
     private fun decoderModeLabel(): String? {
@@ -2624,18 +2680,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 ?.trim()
                 .orEmpty()
             if (value.isNotBlank() && value != "no") {
-                return value
-            }
-        }
-        return ""
-    }
-
-    private fun MPVLib.firstString(vararg properties: String): String {
-        for (property in properties) {
-            val value = runCatching { getPropertyString(property) }.getOrNull()
-                ?.trim()
-                .orEmpty()
-            if (value.isNotBlank()) {
                 return value
             }
         }
@@ -2690,6 +2734,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         player.setMpvOption("stream-lavf-o", "timeout=10000000,reconnect=1,reconnect_on_network_error=1,reconnect_streamed=1,reconnect_delay_max=2,reconnect_max_retries=1,multiple_requests=0")
         player.setMpvOption("hls-bitrate", "max")
         player.setMpvOption("cache", "yes")
+        player.setMpvOption("cache-on-disk", "no")
         player.setMpvOption("cache-secs", "20")
         player.setMpvOption("cache-pause", "no")
         player.setMpvOption("cache-pause-initial", "no")
@@ -2771,7 +2816,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val previous = mpvRenderSurface
         mpvRenderSurface = surface
         attached = false
-        MpvReleaseExecutor.execute {
+        mpvTasks.execute {
             val success = runCatching {
                 if (previous != null) {
                     player.detachSurface()
@@ -2797,19 +2842,36 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         updatePlayPauseButton()
     }
 
-    private fun runMpvCommandAsync(player: MPVLib, vararg args: String) {
-        MpvReleaseExecutor.execute {
-            runCatching { player.command(args.toList().toTypedArray()) }
-                .onFailure { Log.w(LogTag, "mpv async command failed: ${args.firstOrNull()}", it) }
+    private fun runMpvOperation(player: MPVLib, streamScoped: Boolean = true, action: (MPVLib) -> Unit) {
+        val generation = streamLoadGeneration
+        mpvTasks.execute {
+            if (activityDestroyed || mpv !== player || (streamScoped && generation != streamLoadGeneration)) return@execute
+            runCatching { action(player) }
+                .onFailure { Log.w(LogTag, "mpv operation failed", it) }
         }
     }
 
-    private fun destroyMpvAsync(player: MPVLib, surface: Surface?) {
-        MpvReleaseExecutor.execute {
-            runCatching { player.command(arrayOf("stop")) }
-                .onFailure { Log.w(LogTag, "Unable to stop mpv before destroy", it) }
-            runCatching { player.destroy() }
-                .onFailure { Log.w(LogTag, "Unable to destroy mpv", it) }
+    private fun postMpvResult(player: MPVLib, generation: Long, action: () -> Unit) {
+        overlayHandler.post {
+            if (!activityDestroyed && mpv === player && generation == streamLoadGeneration) action()
+        }
+    }
+
+    private fun runMpvCommandAsync(player: MPVLib, vararg args: String) {
+        runMpvOperation(player) { it.command(args.toList().toTypedArray()) }
+    }
+
+    private fun destroyMpvAsync(surface: Surface?) {
+        mpvTasks.execute {
+            nativePlayer?.let { player ->
+                player.removeObserver(mpvObserver)
+                player.removeLogObserver(mpvLogObserver)
+                runCatching { player.command(arrayOf("stop")) }
+                    .onFailure { Log.w(LogTag, "Unable to stop mpv before destroy", it) }
+                runCatching { player.destroy() }
+                    .onFailure { Log.w(LogTag, "Unable to destroy mpv", it) }
+                nativePlayer = null
+            }
             surface?.release()
         }
     }
@@ -2822,7 +2884,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         lastDiagnosticMs = now
         val tickDelay = maxProgressTickDelayMs
         maxProgressTickDelayMs = 0L
-        MpvReleaseExecutor.execute {
+        mpvTasks.execute {
             if (activityDestroyed || mpv !== player) return@execute
             val properties = listOf(
                 "time-pos", "demuxer-cache-duration", "cache-speed", "paused-for-cache",
@@ -2891,8 +2953,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun MPVLib.runCatchingCommand(vararg args: String) {
-        runCatching { command(args.toList().toTypedArray()) }
-            .onFailure { Log.w(LogTag, "mpv command failed: ${args.firstOrNull()}", it) }
+        runMpvCommandAsync(this, *args)
     }
 
     private fun showFeedback(message: String, durationMs: Long = GestureFeedbackMs) {
@@ -3027,19 +3088,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         fun hasResolution(): Boolean =
             displayWidth > 0 && displayHeight > 0
 
-        fun resolutionLabel(): String =
-            if (displayWidth > 0 && displayHeight > 0) {
-                val tier = when {
-                    displayWidth >= 3800 || displayHeight >= 2100 -> " 4K"
-                    displayWidth >= 2500 || displayHeight >= 1400 -> " QHD"
-                    displayWidth >= 1900 || displayHeight >= 1000 -> " FHD"
-                    displayWidth >= 1200 || displayHeight >= 700 -> " HD"
-                    else -> ""
-                }
-                "$displayWidth x $displayHeight$tier"
-            } else {
-                "Resolution pending"
-            }
+        fun resolutionLabel(): String = MobileResolutionDisplay.shortText(displayWidth, displayHeight)
     }
 
     private enum class PlayerGesture {
@@ -3063,7 +3112,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val DiagnosticLogTag = "UIPTV-Playback"
         private const val ChromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         private const val StreamInfoRefreshShortDelayMs = 250L
-        private const val TrackFeedbackDelayMs = 120L
         private const val MaxMpvTrackCount = 256
         private const val ProgressBarMax = 1_000
         private const val CodecAreaMaximumFraction = 0.35f
@@ -3089,7 +3137,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val LiveTimeLabel = "Live"
         private const val DefaultAudioBufferSeconds = "0.35"
         private const val StableMobileAudioBufferSeconds = "0.85"
-        private const val HardwareDecodeModeHardware = "mediacodec,mediacodec-copy"
+        // Retry failed direct decoding in software/GPU, not through the same
+        // failing MediaCodec driver again in copy mode (which can spin forever).
+        private const val HardwareDecodeModeHardware = "mediacodec"
         private const val HardwareDecodeModeAuto = "auto"
         private const val PlayIcon = "\u25B6"
         private const val PauseIcon = "\u23F8"
@@ -3098,9 +3148,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val ForwardIcon = "\u23E9"
         private const val PlaylistIcon = "List"
         private const val CloseIcon = "\u2715"
-        private val MpvReleaseExecutor = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "uiptv-mpv-release").apply { isDaemon = true }
-        }
     }
 }
 

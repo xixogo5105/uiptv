@@ -52,41 +52,11 @@ public class BookmarkDb extends BaseDb {
     }
 
     public List<Bookmark> getRecentlyPlayedBookmarks(int limit) {
-        List<Bookmark> bookmarks = new ArrayList<>();
-        String sql = "SELECT b.* FROM BookmarkPlayHistory h JOIN Bookmark b "
-                + "ON b.accountName = h.accountName AND b.channelId = h.channelId "
-                + "AND COALESCE(NULLIF(b.accountAction, ''), 'itv') = h.accountAction "
-                + "WHERE b.id = (SELECT MIN(b2.id) FROM Bookmark b2 WHERE b2.accountName = h.accountName "
-                + "AND b2.channelId = h.channelId AND COALESCE(NULLIF(b2.accountAction, ''), 'itv') = h.accountAction) "
-                + "ORDER BY h.playCount DESC, h.lastPlayedAt DESC, b.channelName COLLATE NOCASE ASC LIMIT ?";
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setInt(1, Math.max(0, limit));
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    bookmarks.add(populate(resultSet));
-                }
-            }
-        } catch (SQLException e) {
-            throw new DatabaseAccessException("Unable to read recent bookmarks", e);
-        }
-        return bookmarks;
+        return BookmarkPlayHistoryDb.readRecentBookmarks(limit);
     }
 
     public int countRecentlyPlayedBookmarks(int limit) {
-        String sql = "SELECT COUNT(*) FROM (SELECT 1 FROM BookmarkPlayHistory h JOIN Bookmark b "
-                + "ON b.accountName = h.accountName AND b.channelId = h.channelId "
-                + "AND COALESCE(NULLIF(b.accountAction, ''), 'itv') = h.accountAction "
-                + "WHERE b.id = (SELECT MIN(b2.id) FROM Bookmark b2 WHERE b2.accountName = h.accountName "
-                + "AND b2.channelId = h.channelId AND COALESCE(NULLIF(b2.accountAction, ''), 'itv') = h.accountAction) "
-                + "ORDER BY h.playCount DESC, h.lastPlayedAt DESC LIMIT ?)";
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
-            statement.setInt(1, Math.max(0, limit));
-            try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next() ? resultSet.getInt(1) : 0;
-            }
-        } catch (SQLException e) {
-            throw new DatabaseAccessException("Unable to count recent bookmarks", e);
-        }
+        return getRecentlyPlayedBookmarks(limit).size();
     }
 
     public boolean hasBookmarkIdentity(Bookmark bookmark) {

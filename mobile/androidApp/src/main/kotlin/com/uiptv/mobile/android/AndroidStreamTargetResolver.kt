@@ -30,6 +30,7 @@ internal suspend fun resolveAndroidStreamTarget(target: PlaybackTarget): Playbac
             val remaining = ((deadline - System.nanoTime()) / 1_000_000).toInt()
             if (remaining <= 0) return@withContext target
             val connection = (url.openConnection() as HttpURLConnection).apply {
+                useCaches = false
                 instanceFollowRedirects = false
                 connectTimeout = minOf(3_000, remaining)
                 readTimeout = minOf(3_000, remaining)

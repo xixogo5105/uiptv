@@ -185,20 +185,21 @@ class AndroidSQLiteBrowseRepository(
 
     private fun loadBookmarksUncached(db: SQLiteDatabase): List<MobileBookmark> {
         val logoSelect = if (columnExists(db, "Bookmark", "logo")) "bm.logo AS bookmarkLogo" else "'' AS bookmarkLogo"
+        val categoryJsonSelect = if (columnExists(db, "Bookmark", "categoryJson")) "bm.categoryJson" else "'' AS categoryJson"
         val channelJsonSelect = if (columnExists(db, "Bookmark", "channelJson")) "bm.channelJson" else "'' AS channelJson"
         val vodJsonSelect = if (columnExists(db, "Bookmark", "vodJson")) "bm.vodJson" else "'' AS vodJson"
         val seriesJsonSelect = if (columnExists(db, "Bookmark", "seriesJson")) "bm.seriesJson" else "'' AS seriesJson"
         val bookmarks = db.rawQuery(
             """
             SELECT bm.id, COALESCE(acc.id, 0) AS accountId, bm.accountName, bm.categoryId, bm.categoryTitle,
-                bm.channelId, bm.channelName, bm.cmd, bm.accountAction, $logoSelect,
+                bm.channelId, bm.channelName, bm.cmd, bm.accountAction, $categoryJsonSelect, $logoSelect,
                 bm.drmType AS bookmarkDrmType, bm.drmLicenseUrl AS bookmarkDrmLicenseUrl,
                 bm.clearKeysJson AS bookmarkClearKeysJson, bm.inputstreamaddon AS bookmarkInputstreamaddon,
                 bm.manifestType AS bookmarkManifestType,
                 $channelJsonSelect, $vodJsonSelect, $seriesJsonSelect
             FROM Bookmark bm
             LEFT JOIN Account acc ON acc.accountName = bm.accountName
-            LEFT JOIN BookmarkOrder bo ON bo.bookmark_db_id = CAST(bm.id AS TEXT)
+            LEFT JOIN (SELECT bookmark_db_id, MIN(display_order) AS display_order FROM BookmarkOrder GROUP BY bookmark_db_id) bo ON bo.bookmark_db_id = CAST(bm.id AS TEXT)
             ORDER BY COALESCE(bo.display_order, bm.id), bm.accountName COLLATE NOCASE, bm.categoryTitle COLLATE NOCASE, bm.channelName COLLATE NOCASE
             """.trimIndent(),
             null
@@ -316,7 +317,7 @@ class AndroidSQLiteBrowseRepository(
         )
     }
 
-    override suspend fun toggleBookmark(item: MobileBrowseItem): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun toggleBookmark(item: MobileBrowseItem, bookmarkCategoryId: String?): Boolean = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
         val existingId = findBookmarkId(db, item.accountName, item.channelId, item.mode)
         val supportsLogo = columnExists(db, "Bookmark", "logo")
@@ -324,7 +325,8 @@ class AndroidSQLiteBrowseRepository(
             removeBookmark(existingId)
             false
         } else {
-            db.insert(
+            validateBookmarkCategory(db, bookmarkCategoryId)
+            db.insertOrThrow(
                 "Bookmark",
                 null,
                 ContentValues().apply {
@@ -336,8 +338,12 @@ class AndroidSQLiteBrowseRepository(
                     if (supportsLogo) {
                         put("logo", item.logo)
                     }
-                    // A provider category is not a user-created bookmark group. New bookmarks go to All.
-                    putNull("categoryId")
+                    // A provider category is not a user-created bookmark group.
+                    if (bookmarkCategoryId.isNullOrBlank()) {
+                        putNull("categoryId")
+                    } else {
+                        put("categoryId", bookmarkCategoryId)
+                    }
                     put("accountAction", item.mode.accountAction())
                     put("drmType", item.drmType)
                     put("drmLicenseUrl", item.drmLicenseUrl)
@@ -355,6 +361,31 @@ class AndroidSQLiteBrowseRepository(
         }
         invalidateBookmarkCache()
         bookmarked
+    }
+
+    override suspend fun moveBookmark(bookmarkId: Long, bookmarkCategoryId: String?): Unit = withContext(Dispatchers.IO) {
+        require(bookmarkId > 0) { "Only saved bookmarks can be moved" }
+        val db = databaseHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            validateBookmarkCategory(db, bookmarkCategoryId)
+            val values = ContentValues().apply {
+                if (bookmarkCategoryId.isNullOrBlank()) putNull("categoryId") else put("categoryId", bookmarkCategoryId)
+            }
+            check(db.update("Bookmark", values, "id = ?", arrayOf(bookmarkId.toString())) == 1) { "Bookmark no longer exists" }
+            db.delete("BookmarkOrder", "bookmark_db_id = ? AND category_id IS NOT NULL", arrayOf(bookmarkId.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        invalidateBookmarkCache()
+    }
+
+    private fun validateBookmarkCategory(db: SQLiteDatabase, id: String?) {
+        if (id.isNullOrBlank()) return
+        require(db.rawQuery("SELECT 1 FROM BookmarkCategory WHERE id = ? LIMIT 1", arrayOf(id)).use { it.moveToFirst() }) {
+            "Bookmark category no longer exists"
+        }
     }
 
     override suspend fun removeCachedCategories(
@@ -433,29 +464,14 @@ class AndroidSQLiteBrowseRepository(
         val bookmark = loadBookmarkCache(db).bookmarks.firstOrNull { it.rowId == bookmarkId }
         db.beginTransaction()
         try {
+            bookmark?.let { AndroidBookmarkPlayHistoryStore(db).preserveSnapshot(it) }
             db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(bookmarkId.toString()))
             db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
-            if (bookmark != null && !hasBookmarkIdentity(db, bookmark)) {
-                AndroidBookmarkPlayHistoryStore(db).remove(bookmark)
-            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
         invalidateBookmarkCache()
-    }
-
-    private fun hasBookmarkIdentity(db: SQLiteDatabase, bookmark: MobileBookmark): Boolean {
-        val action = when (bookmark.mode) {
-            BrowseMode.LIVE -> "itv"
-            BrowseMode.VOD -> "vod"
-            BrowseMode.SERIES -> "series"
-        }
-        return db.rawQuery(
-            "SELECT 1 FROM Bookmark WHERE accountName = ? AND channelId = ? " +
-                "AND COALESCE(NULLIF(accountAction, ''), 'itv') = ? LIMIT 1",
-            arrayOf(bookmark.accountName, bookmark.channelId, action)
-        ).use { cursor -> cursor.moveToFirst() }
     }
 
     override suspend fun clearRecentlyPlayedBookmarks(): Unit = withContext(Dispatchers.IO) {
@@ -1707,6 +1723,7 @@ class AndroidSQLiteBrowseRepository(
     private fun Cursor.toBookmark(): MobileBookmark {
         val mode = string("accountAction").toBrowseMode()
         val renderData = resolvedBookmarkRenderData()
+        val sourceCategory = jsonObjectOrNull(string("categoryJson"))
         return MobileBookmark(
             rowId = long("id"),
             accountId = long("accountId"),
@@ -1722,7 +1739,9 @@ class AndroidSQLiteBrowseRepository(
             drmLicenseUrl = renderData.drmLicenseUrl,
             clearKeysJson = renderData.clearKeysJson,
             inputstreamAddon = renderData.inputstreamaddon,
-            manifestType = renderData.manifestType
+            manifestType = renderData.manifestType,
+            categoryProviderId = sourceCategory?.optString("categoryId").orEmpty(),
+            categoryRowId = sourceCategory?.optString("dbId")?.toLongOrNull() ?: 0L
         )
     }
 

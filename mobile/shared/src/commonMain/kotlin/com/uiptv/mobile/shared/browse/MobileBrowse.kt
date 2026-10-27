@@ -1,6 +1,7 @@
 package com.uiptv.mobile.shared.browse
 
 import com.uiptv.mobile.shared.accounts.MobileAccountType
+import androidx.compose.runtime.Immutable
 
 enum class BrowseMode(val label: String) {
     LIVE("Live"),
@@ -8,6 +9,7 @@ enum class BrowseMode(val label: String) {
     SERIES("Series")
 }
 
+@Immutable
 data class MobileBrowseCategory(
     val rowId: Long,
     val providerId: String,
@@ -16,6 +18,7 @@ data class MobileBrowseCategory(
     val itemCount: Int = 0
 )
 
+@Immutable
 data class MobileBrowseItem(
     val rowId: Long,
     val accountId: Long,
@@ -60,12 +63,14 @@ data class MobileCategoryCacheRemovalResult(
     val removedItemCount: Int
 )
 
+@Immutable
 data class BrowseAccountOption(
     val id: Long,
     val name: String,
     val type: MobileAccountType? = null
 )
 
+@Immutable
 data class MobileBookmark(
     val rowId: Long,
     val accountId: Long = 0,
@@ -81,9 +86,13 @@ data class MobileBookmark(
     val drmLicenseUrl: String = "",
     val clearKeysJson: String = "",
     val inputstreamAddon: String = "",
-    val manifestType: String = ""
+    val manifestType: String = "",
+    val categoryProviderId: String = "",
+    val categoryRowId: Long = 0,
+    val recentPlayCount: Int = 0
 )
 
+@Immutable
 data class MobileBookmarkCategory(
     val id: String?,
     val name: String,
@@ -107,6 +116,7 @@ internal fun List<MobileBookmarkCategory>.withRecentlyPlayedCategory(itemCount: 
     }
 }
 
+@Immutable
 data class MobileWatchingNowItem(
     val rowId: Long,
     val accountId: Long,
@@ -128,6 +138,7 @@ data class MobileWatchingNowItem(
     val imdbUrl: String = ""
 )
 
+@Immutable
 data class MobileWatchingNowEpisode(
     val rowId: Long,
     val parentRowId: Long,
@@ -205,7 +216,8 @@ interface BrowseRepository {
 
     suspend fun listBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark>
 
-    suspend fun toggleBookmark(item: MobileBrowseItem): Boolean
+    suspend fun toggleBookmark(item: MobileBrowseItem, bookmarkCategoryId: String? = null): Boolean
+    suspend fun moveBookmark(bookmarkId: Long, bookmarkCategoryId: String?)
 
     suspend fun removeCachedCategories(
         accountId: Long,

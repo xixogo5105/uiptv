@@ -81,8 +81,8 @@ fun MobileBookmark.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
     accountId = accountId,
     accountName = accountName,
     mode = mode,
-    categoryProviderId = "",
-    categoryRowId = 0,
+    categoryProviderId = categoryProviderId,
+    categoryRowId = categoryRowId,
     channelId = channelId,
     title = channelName,
     url = command,
@@ -168,3 +168,12 @@ fun shouldResolveStalkerPortalCommand(raw: String): Boolean {
         playable.startsWith("http://127.0.0.1/") ||
         playable.startsWith("https://127.0.0.1/")
 }
+
+/** A detached playback-history item, never inserted into the user's favourites. */
+fun PlaybackTarget.toRecentBookmark(): MobileBookmark = MobileBookmark(
+    rowId = 0, accountId = accountId, accountName = accountName,
+    categoryTitle = "", channelId = channelId, channelName = title, command = url, mode = mode,
+    logo = logo, drmType = drmType, drmLicenseUrl = drmLicenseUrl, clearKeysJson = clearKeysJson,
+    inputstreamAddon = inputstreamAddon, manifestType = manifestType,
+    categoryProviderId = categoryProviderId, categoryRowId = categoryRowId
+)

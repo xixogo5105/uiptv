@@ -79,6 +79,23 @@ class EmbeddedHlsProxyTest {
         } finally { connection.disconnect() }
     }
 
+    @Test fun fetchesMediaAgainEvenWhenUpstreamAllowsCaching() {
+        text("/media", "#EXTM3U\nchunk.ts\n")
+        val downloads = AtomicInteger()
+        server.createContext("/chunk.ts") { exchange ->
+            val bytes = byteArrayOf(downloads.incrementAndGet().toByte())
+            exchange.responseHeaders.add("Cache-Control", "public, max-age=3600")
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+            exchange.close()
+        }
+        val playlist = URL(proxy.playbackUrl("$base/media")).readText()
+        val segment = playlist.lineSequence().first { it.startsWith("http://") }
+        assertArrayEquals(byteArrayOf(1), URL(segment).readBytes())
+        assertArrayEquals(byteArrayOf(2), URL(segment).readBytes())
+        assertEquals(2, downloads.get())
+    }
+
     @Test fun preservesInlineKeysAndRewritesHeadResponseLength() {
         text("/media", "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"data:application/octet-stream;base64,AQID\"\nchunk\n")
         val url = proxy.playbackUrl("$base/media")

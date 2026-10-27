@@ -654,6 +654,8 @@ private fun ChannelsScreen(
     var reloadGeneration by remember { mutableStateOf(0L) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
+    var pendingBookmarkCategoryItem by remember { mutableStateOf<MobileBrowseItem?>(null) }
+    var pendingBookmarkCategories by remember { mutableStateOf<List<MobileBookmarkCategory>>(emptyList()) }
     var selectedBrowseSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
@@ -1142,20 +1144,54 @@ private fun ChannelsScreen(
                         onPlay = { openBrowseItem(it) },
                         onChoosePlayer = { openBrowseItem(it, forcePlayerPicker = true) },
                         onToggleBookmark = { item ->
-                            scope.launch {
-                                runCatching { browseActions.toggleBookmark(item) }
-                                    .onSuccess { bookmarked ->
-                                        snapshot = snapshot.copy(items = snapshot.items.map {
-                                            if (it.rowId == item.rowId) it.copy(isBookmarked = bookmarked) else it
-                                        })
-                                    }
-                                    .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                            if (item.isBookmarked) {
+                                scope.launch {
+                                    runCatching { browseActions.toggleBookmark(item, null) }
+                                        .onSuccess { bookmarked ->
+                                            snapshot = snapshot.copy(items = snapshot.items.map {
+                                                if (it.rowId == item.rowId) it.copy(isBookmarked = bookmarked) else it
+                                            })
+                                        }
+                                        .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                                }
+                            } else {
+                                scope.launch {
+                                    running = true
+                                    runCatching { browseActions.listBookmarkCategories() }
+                                        .onSuccess {
+                                            pendingBookmarkCategories = it
+                                            pendingBookmarkCategoryItem = item
+                                        }
+                                        .onFailure { statusText = MobileMessages.text("autoUnableToLoadBookmarks") }
+                                    running = false
+                                }
                             }
                         }
                     )
                 }
             }
         }
+    }
+
+    pendingBookmarkCategoryItem?.let { item ->
+        BookmarkCategoryPicker(
+            categories = pendingBookmarkCategories,
+            onSelect = { categoryId ->
+                pendingBookmarkCategoryItem = null
+                scope.launch {
+                    running = true
+                    runCatching { browseActions.toggleBookmark(item, categoryId) }
+                        .onSuccess { bookmarked ->
+                            snapshot = snapshot.copy(items = snapshot.items.map {
+                                if (it.rowId == item.rowId) it.copy(isBookmarked = bookmarked) else it
+                            })
+                        }
+                        .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                    running = false
+                }
+            },
+            onDismiss = { pendingBookmarkCategoryItem = null }
+        )
     }
 
     PlaybackPickerDialog(
@@ -1498,6 +1534,7 @@ private fun BookmarksScreen(
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
+    var pendingBookmarkCategoryChange by remember { mutableStateOf<MobileBookmark?>(null) }
 
     fun activeBookmarkQuery(): String = query
     fun removeBookmarkFromActiveList(bookmark: MobileBookmark) {
@@ -1584,8 +1621,30 @@ private fun BookmarksScreen(
         onQueryChange = { query = it; reload(search = it) },
         onCategorySelect = { selectedCategoryId = it.id; reload(it.id) },
         onPlay = { openBookmark(it) }, onChoosePlayer = { openBookmark(it, forcePlayerPicker = true) },
-        onRemove = { removeBookmarkFromActiveList(it) }, modifier = modifier
+        onRemove = { removeBookmarkFromActiveList(it) },
+        onChangeCategory = { pendingBookmarkCategoryChange = it },
+        modifier = modifier
     )
+
+    pendingBookmarkCategoryChange?.let { bookmark ->
+        BookmarkCategoryPicker(
+            categories = categories,
+            onSelect = { categoryId ->
+                pendingBookmarkCategoryChange = null
+                scope.launch {
+                    running = true
+                    runCatching {
+                        browseActions.moveBookmark(bookmark.rowId, categoryId)
+                        categories = browseActions.listBookmarkCategories()
+                        bookmarks = browseActions.listBookmarks(activeBookmarkQuery(), selectedCategoryId)
+                    }
+                        .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                    running = false
+                }
+            },
+            onDismiss = { pendingBookmarkCategoryChange = null }
+        )
+    }
 
     PlaybackPickerDialog(
         pendingPlayback = pendingPlayback,
@@ -1650,7 +1709,8 @@ internal fun BookmarkRow(
     logoRenderer: LogoRenderer,
     onPlay: () -> Unit,
     onChoosePlayer: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onChangeCategory: (() -> Unit)?
 ) {
     var guideOpen by remember { mutableStateOf(false) }
     var channelMenuOpen by remember { mutableStateOf(false) }
@@ -1699,7 +1759,8 @@ internal fun BookmarkRow(
             },
             trailingContent = {
                 ItemActionsMenu(bookmark.channelName, onChoosePlayer, onRemove,
-                    if (recentlyPlayed) "Remove from Recent" else "Remove bookmark")
+                    if (recentlyPlayed) "Remove from Recent" else "Remove bookmark",
+                    onChangeCategory)
             },
             supportingContent = {
                 Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -5500,7 +5561,8 @@ data class BrowseUiActions(
     ) -> MobileBrowseSnapshot,
     val listBookmarkCategories: suspend () -> List<MobileBookmarkCategory>,
     val listBookmarks: suspend (String, String?) -> List<MobileBookmark>,
-    val toggleBookmark: suspend (MobileBrowseItem) -> Boolean,
+    val toggleBookmark: suspend (MobileBrowseItem, String?) -> Boolean,
+    val moveBookmark: suspend (Long, String?) -> Unit,
     val removeCachedCategories: suspend (Long, BrowseMode, Set<Long>) -> MobileCategoryCacheRemovalResult,
     val removeBookmark: suspend (Long) -> Unit,
     val clearRecentlyPlayedBookmarks: suspend () -> Unit,
@@ -5560,7 +5622,8 @@ data class BrowseUiActions(
                         )
                     )
                 },
-                toggleBookmark = { true },
+                toggleBookmark = { _, _ -> true },
+                moveBookmark = { _, _ -> },
                 removeCachedCategories = { _, _, ids ->
                     MobileCategoryCacheRemovalResult(ids.size, ids.size, 0)
                 },

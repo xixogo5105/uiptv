@@ -936,7 +936,8 @@ createApp({
                 lastPlayedAt: Math.max(0, Number.parseInt(String(entry.lastPlayedAt || 0), 10) || 0),
                 channelName: String(entry.channelName || '').trim(),
                 accountName: String(entry.accountName || '').trim(),
-                mode: normalizePlaybackMode(entry.mode || 'itv')
+                mode: normalizePlaybackMode(entry.mode || 'itv'),
+                snapshot: bookmarkWatchUtils.recentPlaybackSnapshot(entry.snapshot)
             };
         };
 
@@ -983,14 +984,17 @@ createApp({
         const recordRecentlyPlayedBookmark = (bookmark) => {
             const key = getRecentBookmarkKey(bookmark);
             if (!key) return;
-            const existing = recentBookmarkHistory.value.find(entry => String(entry.key || '') === key);
+            const existing = recentBookmarkHistory.value.find(entry => String(entry.key || '') === key
+                || String(entry.key || '') === String(bookmark?.dbId || bookmark?.bookmarkId || '')
+                || (!String(entry.key || '').startsWith('[') && getLegacyRecentBookmarkNameKey(entry) === getLegacyRecentBookmarkNameKey(bookmark)));
             const nextEntry = {
                 key,
                 playCount: (Number(existing?.playCount || 0) || 0) + 1,
                 lastPlayedAt: Date.now(),
                 channelName: String(bookmark?.channelName || bookmark?.name || '').trim(),
                 accountName: String(bookmark?.accountName || '').trim(),
-                mode: normalizePlaybackMode(bookmark?.accountAction || bookmark?.mode || 'itv')
+                mode: normalizePlaybackMode(bookmark?.accountAction || bookmark?.mode || 'itv'),
+                snapshot: bookmarkWatchUtils.recentPlaybackSnapshot(bookmark)
             };
             saveRecentBookmarkHistory([
                 nextEntry,
@@ -1042,31 +1046,9 @@ createApp({
             return map;
         });
 
-        const recentlyPlayedBookmarks = computed(() => {
-            const seen = new Set();
-            return (bookmarks.value || [])
-                .map(bookmark => {
-                    const entry = recentBookmarkEntryMap.value.get(getRecentBookmarkKey(bookmark))
-                        || recentBookmarkEntryMap.value.get(getLegacyRecentBookmarkNameKey(bookmark))
-                        || recentBookmarkEntryMap.value.get(String(bookmark.dbId || bookmark.bookmarkId || '').trim());
-                    return entry ? {...bookmark, recentPlayCount: entry.playCount, recentLastPlayedAt: entry.lastPlayedAt} : null;
-                })
-                .filter(bookmark => {
-                    if (!bookmark) return false;
-                    const key = getRecentBookmarkKey(bookmark);
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                })
-                .sort((a, b) => {
-                    const byCount = Number(b.recentPlayCount || 0) - Number(a.recentPlayCount || 0);
-                    if (byCount !== 0) return byCount;
-                    const byTime = Number(b.recentLastPlayedAt || 0) - Number(a.recentLastPlayedAt || 0);
-                    if (byTime !== 0) return byTime;
-                    return String(a.channelName || '').localeCompare(String(b.channelName || ''), undefined, {sensitivity: 'base'});
-                })
-                .slice(0, RECENT_BOOKMARK_LIMIT);
-        });
+        const recentlyPlayedBookmarks = computed(() => bookmarkWatchUtils.recentPlaybackItems(
+            recentBookmarkHistory.value, bookmarks.value, getRecentBookmarkKey, getLegacyRecentBookmarkNameKey, RECENT_BOOKMARK_LIMIT
+        ));
 
         const matchesBookmarkSearch = (bookmark, query) => {
             if (!query) return true;
@@ -1110,7 +1092,7 @@ createApp({
         });
 
         const bookmarkCardTitle = computed(() => {
-            if (isRecentlyPlayedBookmarksSelected.value) return 'Play recently watched bookmark';
+            if (isRecentlyPlayedBookmarksSelected.value) return '';
             return canReorderBookmarks.value ? 'Drag to reorder' : 'Clear search to reorder bookmarks';
         });
 
@@ -1120,7 +1102,7 @@ createApp({
         });
 
         const bookmarkEmptyDetail = computed(() => {
-            if (isRecentlyPlayedBookmarksSelected.value) return 'Bookmarked channels appear here after playback starts.';
+            if (isRecentlyPlayedBookmarksSelected.value) return '';
             return 'Save channels from the Channels screen.';
         });
 
@@ -2985,6 +2967,12 @@ createApp({
                 mode: modeToUse,
                 playRequestUrl: playbackUrl
             };
+            recordRecentlyPlayedBookmark({...channel,
+                channelId: nextChannel.channelId, channelName: channel.name,
+                accountName: resolveAccountName(nextChannel.accountId), accountId: nextChannel.accountId,
+                accountAction: modeToUse, sourceChannelDbId: channelIdentifier, sourceCategoryId: playbackCategoryId,
+                playbackQuery: new URL(playbackUrl, window.location.origin).search
+            });
             startPlayback(playbackUrl, nextChannel);
         };
 
@@ -2994,6 +2982,16 @@ createApp({
                 setPlaybackNavigation(filteredBookmarks.value, bookmark, target => playBookmark(target, true));
             }
             const bookmarkMode = String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase();
+            if (bookmark.isUnsavedRecent) {
+                const playbackUrl = `${window.location.origin}/player${bookmark.playbackQuery}`;
+                const nextChannel = {...bookmark, id: bookmark.sourceChannelDbId || bookmark.channelId,
+                    dbId: bookmark.sourceChannelDbId || '', name: bookmark.channelName,
+                    accountId: resolveAccountId(bookmark.accountName) || bookmark.accountId,
+                    categoryId: bookmark.sourceCategoryId, mode: bookmarkMode, type: 'channel', bookmarkId: '', playRequestUrl: playbackUrl};
+                recordRecentlyPlayedBookmark(bookmark);
+                startPlayback(playbackUrl, nextChannel);
+                return;
+            }
             const query = new URLSearchParams();
             query.set('bookmarkId', bookmark.dbId);
             appendPlaybackCompatParams(query, bookmarkMode);
@@ -3014,7 +3012,19 @@ createApp({
                 mode: bookmarkMode,
                 playRequestUrl: playbackUrl
             };
-            recordRecentlyPlayedBookmark(bookmark);
+            const directQuery = new URLSearchParams();
+            directQuery.set('accountId', nextChannel.accountId || '');
+            directQuery.set('channelId', bookmark.channelId || '');
+            let sourceCategory = {};
+            try { sourceCategory = JSON.parse(bookmark.categoryJson || '{}'); } catch (_) { /* Legacy favourite. */ }
+            directQuery.set('categoryId', sourceCategory.dbId || sourceCategory.categoryId || '');
+            for (const field of ['cmd', 'drmType', 'drmLicenseUrl', 'clearKeysJson', 'inputstreamaddon', 'manifestType']) {
+                if (bookmark[field]) directQuery.set(field, bookmark[field]);
+            }
+            directQuery.set('name', bookmark.channelName || '');
+            appendPlaybackCompatParams(directQuery, bookmarkMode);
+            recordRecentlyPlayedBookmark({...bookmark, accountId: nextChannel.accountId,
+                sourceCategoryId: directQuery.get('categoryId'), playbackQuery: `?${directQuery.toString()}`});
             startPlayback(playbackUrl, nextChannel);
         };
 
@@ -4725,7 +4735,7 @@ createApp({
                     const response = await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
                         method: 'DELETE'
                     });
-                    if (response.ok) removeRecentlyPlayedBookmark(existing);
+                    if (!response.ok) throw new Error(`Bookmark removal failed (${response.status})`);
                 } else {
                     await fetch(`${window.location.origin}/bookmarks`, {
                         method: 'POST',

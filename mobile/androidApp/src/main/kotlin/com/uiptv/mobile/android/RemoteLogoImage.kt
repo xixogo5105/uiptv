@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,13 +38,16 @@ fun RemoteLogoImage(
     val cache = remember(context) { ThumbnailCache.getInstance(context) }
     val useFallbackPanel = com.uiptv.mobile.shared.ui.LocalThumbnailFallbackPanel.current
 
-    var bitmap by remember(logoUrl, fallbackLogoUrl, fallbackLoader) { mutableStateOf<Bitmap?>(null) }
-
-    LaunchedEffect(logoUrl, fallbackLogoUrl, fallbackLoader) {
-        bitmap = loadLogoBitmap(cache, logoUrl, fallbackLogoUrl, fallbackLoader)
+    val latestFallbackLoader by rememberUpdatedState(fallbackLoader)
+    var bitmap by remember(logoUrl, fallbackLogoUrl, contentDescription) {
+        mutableStateOf(cache.get(logoUrl) ?: cache.get(fallbackLogoUrl))
     }
 
-    val loadedBitmap = bitmap?.asImageBitmap()
+    LaunchedEffect(logoUrl, fallbackLogoUrl, contentDescription) {
+        bitmap = loadLogoBitmap(cache, logoUrl, fallbackLogoUrl, latestFallbackLoader)
+    }
+
+    val loadedBitmap = remember(bitmap) { bitmap?.asImageBitmap() }
     if (loadedBitmap == null) {
         val fallbackModifier = if (useFallbackPanel) {
             modifier
@@ -58,7 +62,7 @@ fun RemoteLogoImage(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = fallbackInitials(contentDescription),
+                text = remember(contentDescription) { fallbackInitials(contentDescription) },
                 color = if (useFallbackPanel) {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 } else {

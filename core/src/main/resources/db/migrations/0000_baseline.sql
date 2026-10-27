@@ -617,7 +617,8 @@ CREATE TABLE IF NOT EXISTS BookmarkPlayHistory
     accountAction TEXT NOT NULL,
     channelId TEXT NOT NULL,
     playCount INTEGER NOT NULL DEFAULT 0,
-    lastPlayedAt INTEGER NOT NULL DEFAULT 0
+    lastPlayedAt INTEGER NOT NULL DEFAULT 0,
+    snapshotJson TEXT NOT NULL DEFAULT ''
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmark_play_history_identity

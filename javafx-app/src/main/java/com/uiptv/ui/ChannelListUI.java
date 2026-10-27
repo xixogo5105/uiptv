@@ -2440,6 +2440,18 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGrid.selectItems(List.of(item));
         channelGrid.scrollFocusedItemIntoView();
         Channel channelForPlayback = resolveChannelForPlayback(item);
+        BookmarkContext historyContext = resolveBookmarkContext(channelForPlayback);
+        Category sourceCategory = new Category();
+        sourceCategory.setCategoryId(historyContext.categoryId);
+        sourceCategory.setTitle(historyContext.categoryTitle);
+        Account historyAccount = mediaContext.toAccount();
+        startBackgroundTask(() -> {
+            try {
+                new com.uiptv.application.RecentPlaybackApplicationService().record(historyAccount, channelForPlayback, sourceCategory);
+            } catch (Exception error) {
+                com.uiptv.util.AppLog.addErrorLog(ChannelListUI.class, "Unable to save recent playback: " + error.getMessage());
+            }
+        }, "channel-recent-record");
         PlayerChannelNavigation.Queue navigationQueue = PlayerChannelNavigation.createQueue(
                 new ArrayList<>(channelGrid.getItems()), item,
                 candidate -> !isBlank(candidate.getCmd()),

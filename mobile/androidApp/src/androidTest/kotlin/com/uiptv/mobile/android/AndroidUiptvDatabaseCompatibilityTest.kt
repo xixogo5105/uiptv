@@ -586,17 +586,78 @@ class AndroidUiptvDatabaseCompatibilityTest {
         assertEquals("News One HD", snapshot.items.single().name)
         assertFalse(snapshot.items.single().isBookmarked)
 
-        assertTrue(repository.toggleBookmark(snapshot.items.single()))
+        db.execSQL("INSERT INTO BookmarkCategory(id, name) VALUES(1701, 'Sports')")
+        assertTrue(repository.toggleBookmark(snapshot.items.single(), "1701"))
         val bookmarkedSnapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, 1102, "News")
         assertTrue(bookmarkedSnapshot.items.single().isBookmarked)
         val bookmarks = repository.listBookmarks("News", null)
         assertEquals(1, bookmarks.size)
         assertEquals("Browse Account", bookmarks.single().accountName)
+        assertEquals("1701", bookmarks.single().bookmarkCategoryId)
+
+        repository.moveBookmark(bookmarks.single().rowId, null)
+        assertEquals("", repository.listBookmarks("News", null).single().bookmarkCategoryId)
 
         repository.removeBookmark(bookmarks.single().rowId)
 
         assertEquals(0, repository.listBookmarks("News", null).size)
         assertEquals(listOf("Resume Series", "Resume Movie"), repository.listWatchingNow("").map { it.title })
+    }
+
+    @Test
+    fun channelListPlaybackAppearsInRecentWithoutSavingFavouriteAndSharesCounter() = runBlocking {
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(accountName = "Unsaved Recent", type = MobileAccountType.M3U8_URL, m3u8Path = "https://example.test/list.m3u")
+        )
+        val accountId = requireNotNull(account.id)
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(1501, 'provider-category', ?, 'itv', 'News')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, number, cmd, hd) VALUES(1502, 'provider-channel', '1501', 'Unsaved News', '1', 'https://stream.test/recent.ts', 1)")
+        val repository = AndroidSQLiteBrowseRepository(helper)
+        val item = repository.loadBrowse(accountId, BrowseMode.LIVE, 1501, "").items.single()
+        var launches = 0
+        val coordinator = AndroidPlaybackCoordinator(context, AndroidDataStorePreferencesRepository(context), helper,
+            activityStarter = { launches++ })
+        repeat(2) { assertTrue(coordinator.playBrowseItem(item, AndroidPlayerPreference.NATIVE, false).launched) }
+        assertTrue(repository.listBookmarks("", null).isEmpty())
+        val recent = repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).single()
+        assertTrue(recent.rowId < 0)
+        assertEquals(2, recent.recentPlayCount)
+        assertEquals("provider-channel", recent.channelId)
+        assertEquals("provider-category", recent.categoryProviderId)
+        assertEquals(1501L, recent.categoryRowId)
+        assertEquals(1, repository.listBookmarkCategories().first().itemCount)
+
+        assertTrue(repository.toggleBookmark(item))
+        val saved = repository.listBookmarks("", null).single()
+        assertTrue(coordinator.playBookmark(saved, AndroidPlayerPreference.NATIVE, false).launched)
+        assertEquals(3, repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).single().recentPlayCount)
+        assertEquals(saved.rowId, repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).single().rowId)
+        db.execSQL("UPDATE BookmarkPlayHistory SET snapshotJson = ''") // Upgrade-era history has no snapshot.
+        repository.removeBookmark(saved.rowId)
+        assertTrue(repository.listBookmarks("", null).isEmpty())
+        assertEquals(3, repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).single().recentPlayCount)
+        assertEquals(3, launches)
+        repository.removeRecentlyPlayedBookmark(recent)
+        assertTrue(repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).isEmpty())
+    }
+
+    @Test
+    fun movingBookmarkRejectsMissingGroupsAndRemovesObsoleteCategoryOrder() = runBlocking {
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO BookmarkCategory(id, name) VALUES(1701, 'Sports')")
+        db.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName, cmd, accountAction, categoryId) VALUES(1702, 'Move', 'one', 'One', 'https://example.test/1', 'itv', '1701')")
+        db.execSQL("INSERT INTO BookmarkOrder(bookmark_db_id, category_id, display_order) VALUES('1702', '1701', 1)")
+        db.execSQL("INSERT INTO BookmarkOrder(bookmark_db_id, category_id, display_order) VALUES('1702', NULL, 4)")
+        val repository = AndroidSQLiteBrowseRepository(helper)
+        assertEquals(1, repository.listBookmarks("", null).size)
+        try { repository.moveBookmark(1702, "missing"); org.junit.Assert.fail("Missing groups must be rejected") }
+        catch (_: IllegalArgumentException) { }
+        assertEquals("1701", repository.listBookmarks("", null).single().bookmarkCategoryId)
+        repository.moveBookmark(1702, null)
+        assertEquals("", repository.listBookmarks("", null).single().bookmarkCategoryId)
+        assertEquals(0, db.countRows("BookmarkOrder", "category_id IS NOT NULL"))
+        assertEquals(1, db.countRows("BookmarkOrder", "category_id IS NULL"))
     }
 
     @Test

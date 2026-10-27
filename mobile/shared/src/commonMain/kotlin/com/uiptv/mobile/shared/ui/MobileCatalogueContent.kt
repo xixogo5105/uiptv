@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -270,16 +272,63 @@ internal fun SettingsSectionHeading(title: String, detail: String) {
 }
 
 @Composable
-internal fun ItemActionsMenu(title: String, onChoosePlayer: () -> Unit, onRemove: () -> Unit, removalLabel: String) {
+internal fun ItemActionsMenu(
+    title: String,
+    onChoosePlayer: () -> Unit,
+    onRemove: () -> Unit,
+    removalLabel: String,
+    onChangeCategory: (() -> Unit)? = null
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "Actions for $title") }
         DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(text = { Text("Choose player") }, onClick = { expanded = false; onChoosePlayer() })
+            if (onChangeCategory != null) {
+                DropdownMenuItem(
+                    text = { Text(MobileMessages.text("mobileChooseBookmarkCategory")) },
+                    onClick = { expanded = false; onChangeCategory() }
+                )
+            }
             HorizontalDivider()
             DropdownMenuItem(text = { Text(removalLabel, color = MaterialTheme.colorScheme.error) }, onClick = { expanded = false; onRemove() })
         }
     }
+}
+
+@Composable
+internal fun BookmarkCategoryPicker(
+    categories: List<com.uiptv.mobile.shared.browse.MobileBookmarkCategory>,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val destinations = categories.filterNot {
+        it.id == com.uiptv.mobile.shared.browse.RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(MobileMessages.text("mobileChooseBookmarkCategory")) },
+        text = {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                destinations.forEach { category ->
+                    TextButton(
+                        onClick = { onSelect(category.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(category.name, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(MobileMessages.text("commonClose")) }
+        }
+    )
 }
 
 @Composable
@@ -291,7 +340,9 @@ internal fun BookmarkLibrary(
     onCategorySelect: (com.uiptv.mobile.shared.browse.MobileBookmarkCategory) -> Unit,
     onPlay: (com.uiptv.mobile.shared.browse.MobileBookmark) -> Unit,
     onChoosePlayer: (com.uiptv.mobile.shared.browse.MobileBookmark) -> Unit,
-    onRemove: (com.uiptv.mobile.shared.browse.MobileBookmark) -> Unit, modifier: Modifier = Modifier
+    onRemove: (com.uiptv.mobile.shared.browse.MobileBookmark) -> Unit,
+    onChangeCategory: (com.uiptv.mobile.shared.browse.MobileBookmark) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val recent = selectedCategoryId == com.uiptv.mobile.shared.browse.RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
     Column(modifier.fillMaxSize()) {
@@ -308,18 +359,32 @@ internal fun BookmarkLibrary(
             if (status.startsWith("Unable")) Text(status, color = MaterialTheme.colorScheme.error)
             if (bookmarks.isEmpty() && !running) EmptyState(
                 when { query.isNotBlank() -> "No matches"; recent -> "Nothing played recently"; else -> "No bookmarks here" },
-                when { query.isNotBlank() -> "Clear search to see saved items."; recent -> "Play a bookmark and it will appear here."; else -> "Browse an account and tap the bookmark icon to save a channel or title." })
-            LazyVerticalGrid(columns = GridCells.Adaptive(148.dp), modifier = Modifier.fillMaxSize(),
+                when { query.isNotBlank() -> "Clear search to see saved items."; recent -> ""; else -> "Browse an account and tap the bookmark icon to save a channel or title." })
+            // A channel-only library is a list. Avoid grid span calculation and
+            // grid prefetch/layout work for rows that always occupy the full width.
+            val channelOnly = remember(bookmarks) { bookmarks.all { it.mode == BrowseMode.LIVE } }
+            if (channelOnly) LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(bookmarks, key = { "${it.accountId}:${it.rowId}" }, contentType = { "channel" }) { bookmark ->
+                    BookmarkRow(bookmark, recent, showThumbnails, logoRenderer,
+                        { onPlay(bookmark) }, { onChoosePlayer(bookmark) }, { onRemove(bookmark) },
+                        if (bookmark.rowId > 0) ({ onChangeCategory(bookmark) }) else null)
+                }
+            } else LazyVerticalGrid(columns = GridCells.Adaptive(148.dp), modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(bookmarks, key = { "${it.accountId}:${it.rowId}" },
                     span = { androidx.compose.foundation.lazy.grid.GridItemSpan(if (it.mode == BrowseMode.LIVE) maxLineSpan else 1) },
                     contentType = { it.mode }) { bookmark ->
                     if (bookmark.mode == BrowseMode.LIVE) BookmarkRow(bookmark, recent, showThumbnails, logoRenderer,
-                        { onPlay(bookmark) }, { onChoosePlayer(bookmark) }, { onRemove(bookmark) })
+                        { onPlay(bookmark) }, { onChoosePlayer(bookmark) }, { onRemove(bookmark) }, if (bookmark.rowId > 0) ({ onChangeCategory(bookmark) }) else null)
                     else MobilePosterCard(bookmark.channelName, bookmark.logo, showThumbnails, logoRenderer,
                         { onPlay(bookmark) }, { onChoosePlayer(bookmark) }, secondaryAction = {
                             ItemActionsMenu(bookmark.channelName, { onChoosePlayer(bookmark) }, { onRemove(bookmark) },
-                                if (recent) "Remove from Recent" else "Remove bookmark")
+                                if (recent) "Remove from Recent" else "Remove bookmark",
+                                if (bookmark.rowId > 0) ({ onChangeCategory(bookmark) }) else null)
                         })
                 }
             }

@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.playback.toRecentBookmark
 
 class AndroidPlaybackWatchStateStore(
     private val databaseHelper: AndroidUiptvDatabaseHelper,
@@ -125,6 +126,22 @@ class AndroidPlaybackWatchStateStore(
         private val writes by lazy {
             java.util.concurrent.Executors.newSingleThreadExecutor { task ->
                 Thread(task, "uiptv-watch-history").apply { isDaemon = true }
+            }
+        }
+
+        fun recordRecent(context: android.content.Context, target: PlaybackTarget) {
+            if (target.accountId <= 0) return
+            val appContext = context.applicationContext
+            writes.execute {
+                val helper = AndroidUiptvDatabaseHelper(appContext)
+                try {
+                    com.uiptv.mobile.shared.browse.AndroidBookmarkPlayHistoryStore(helper.writableDatabase)
+                        .record(target.toRecentBookmark())
+                } catch (failure: Exception) {
+                    android.util.Log.w("UIPTV-WatchHistory", "Unable to save recent playback", failure)
+                } finally {
+                    helper.close()
+                }
             }
         }
 

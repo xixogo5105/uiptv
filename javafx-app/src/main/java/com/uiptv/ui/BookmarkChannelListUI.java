@@ -1380,6 +1380,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
         editItem.getStyleClass().add("danger-menu-item");
         editItem.setOnAction(_ -> handleDeleteMultipleBookmarks());
+        editItem.setDisable(selectedItems.stream().anyMatch(selected -> com.uiptv.db.BookmarkPlayHistoryDb.isRecentId(selected.getBookmarkId())));
         rowMenu.getItems().add(addToMenu);
         rowMenu.getItems().add(new SeparatorMenuItem());
         rowMenu.getItems().add(editItem);
@@ -1411,15 +1412,19 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void moveSelectedBookmarksToCategory(BookmarkCategory category, List<BookmarkItem> selectedItems) {
-        for (BookmarkItem selectedItem : selectedItems) {
-            selectedItem.setCategoryTitle(category.getName());
-            Bookmark bookmark = BookmarkService.getInstance().getBookmark(selectedItem.getBookmarkId());
-            if (bookmark != null) {
-                bookmark.setCategoryId(category.getId());
-                BookmarkService.getInstance().save(bookmark);
+        List<String> identities = selectedItems.stream().map(BookmarkItem::getBookmarkId).toList();
+        Thread worker = new Thread(() -> {
+            for (String id : identities) {
+                Bookmark bookmark = BookmarkService.getInstance().getBookmark(id);
+                if (bookmark != null) {
+                    bookmark.setCategoryId(category.getId());
+                    BookmarkService.getInstance().save(bookmark);
+                }
             }
-        }
-        forceReload();
+            runLater(this::forceReload);
+        }, "bookmark-category-move");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private void addGuideMenu(ContextMenu menu, BookmarkItem item, List<BookmarkItem> selectedItems, Node owner) {

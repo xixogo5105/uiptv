@@ -171,7 +171,8 @@ public class DatabaseUtils {
                 new DataColumn("accountAction", TEXT_NOT_NULL),
                 new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
                 new DataColumn("playCount", "INTEGER NOT NULL DEFAULT 0"),
-                new DataColumn("lastPlayedAt", "INTEGER NOT NULL DEFAULT 0")
+                new DataColumn("lastPlayedAt", "INTEGER NOT NULL DEFAULT 0"),
+                new DataColumn("snapshotJson", "TEXT NOT NULL DEFAULT ''")
         )));
         dbStructure.put(DbTable.CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

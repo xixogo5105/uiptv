@@ -31,6 +31,7 @@ internal class EmbeddedHlsProxy : Closeable {
     private val resourceIds = HashMap<Resource, String>()
     private var nextId = 0L
     private val client = OkHttpClient.Builder()
+        .cache(null) // Stream playlists and media segments are never stored on disk.
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)

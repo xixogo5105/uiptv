@@ -2,6 +2,7 @@ package com.uiptv.mobile.shared.browse
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
+import org.json.JSONObject
 
 class AndroidBookmarkPlayHistoryStore(
     private val db: SQLiteDatabase,
@@ -13,7 +14,7 @@ class AndroidBookmarkPlayHistoryStore(
         db.beginTransaction()
         try {
             val previousCount = currentPlayCount(key)
-            val now = epochSeconds()
+            val now = epochSeconds() * 1_000L
             if (previousCount == null) {
                 db.insert(
                     TABLE,
@@ -24,6 +25,7 @@ class AndroidBookmarkPlayHistoryStore(
                         put("channelId", key.channelId)
                         put("playCount", 1)
                         put("lastPlayedAt", now)
+                        put("snapshotJson", bookmark.snapshotJson())
                     }
                 )
             } else {
@@ -32,6 +34,7 @@ class AndroidBookmarkPlayHistoryStore(
                     ContentValues().apply {
                         put("playCount", previousCount + 1)
                         put("lastPlayedAt", now)
+                        put("snapshotJson", bookmark.snapshotJson())
                     },
                     KEY_WHERE,
                     key.args()
@@ -45,30 +48,15 @@ class AndroidBookmarkPlayHistoryStore(
     }
 
     fun topBookmarks(bookmarks: List<MobileBookmark>, query: String): List<MobileBookmark> {
-        if (bookmarks.isEmpty()) {
-            return emptyList()
-        }
         ensureTable()
-        val history = loadHistory()
-        if (history.isEmpty()) {
-            return emptyList()
+        val saved = buildMap {
+            bookmarks.forEach { item -> item.historyKey()?.let { key -> if (!containsKey(key)) put(key, item) } }
         }
-        return bookmarks.asSequence()
-            .filter { it.matchesBookmarkQuery(query) }
-            .mapNotNull { bookmark ->
-                val key = bookmark.historyKey() ?: return@mapNotNull null
-                val entry = history[key] ?: return@mapNotNull null
-                BookmarkHistoryMatch(bookmark, entry)
-            }
-            .distinctBy { it.entry.key }
-            .sortedWith(
-                compareByDescending<BookmarkHistoryMatch> { it.entry.playCount }
-                    .thenByDescending { it.entry.lastPlayedAt }
-                    .thenBy { it.bookmark.channelName.lowercase() }
-            )
+        return loadHistory(saved.keys).values.mapNotNull { entry ->
+            val item = saved[entry.key] ?: entry.bookmark
+            item?.copy(recentPlayCount = entry.playCount)
+        }.filter { it.matchesBookmarkQuery(query) }
             .take(RECENT_BOOKMARK_LIMIT)
-            .map { it.bookmark }
-            .toList()
     }
 
     fun currentBookmarkCount(bookmarks: List<MobileBookmark>): Int =
@@ -77,6 +65,12 @@ class AndroidBookmarkPlayHistoryStore(
     fun clear() {
         ensureTable()
         db.delete(TABLE, null, null)
+    }
+
+    fun preserveSnapshot(bookmark: MobileBookmark) {
+        val key = bookmark.historyKey() ?: return
+        ensureTable()
+        db.update(TABLE, ContentValues().apply { put("snapshotJson", bookmark.snapshotJson()) }, KEY_WHERE, key.args())
     }
 
     fun remove(bookmark: MobileBookmark) {
@@ -93,12 +87,12 @@ class AndroidBookmarkPlayHistoryStore(
             if (cursor.moveToFirst()) cursor.getInt(0) else null
         }
 
-    private fun loadHistory(): Map<BookmarkHistoryKey, HistoryEntry> =
+    private fun loadHistory(savedKeys: Set<BookmarkHistoryKey>): Map<BookmarkHistoryKey, HistoryEntry> =
         db.rawQuery(
             """
-            SELECT accountName, accountAction, channelId, playCount, lastPlayedAt
+            SELECT accountName, accountAction, channelId, playCount, lastPlayedAt, id, snapshotJson
             FROM $TABLE
-                ORDER BY lastPlayedAt DESC, playCount DESC
+                ORDER BY playCount DESC, lastPlayedAt DESC, id DESC
             LIMIT $RECENT_BOOKMARK_LIMIT
             """.trimIndent(),
             null
@@ -115,7 +109,8 @@ class AndroidBookmarkPlayHistoryStore(
                         HistoryEntry(
                             key = key,
                             playCount = cursor.getInt(3),
-                            lastPlayedAt = cursor.getLong(4)
+                            lastPlayedAt = cursor.getLong(4),
+                            bookmark = if (key in savedKeys) null else readSnapshot(cursor.getLong(5), key, cursor.getString(6).orEmpty())
                         )
                     )
                 }
@@ -145,7 +140,7 @@ class AndroidBookmarkPlayHistoryStore(
             db.execSQL(
                 """
                 INSERT OR REPLACE INTO $TABLE(accountName, accountAction, channelId, playCount, lastPlayedAt)
-                SELECT accountName, accountAction, channelId, playCount, lastPlayedAt FROM $LEGACY_TABLE
+                SELECT accountName, accountAction, channelId, playCount, lastPlayedAt, id, snapshotJson FROM $LEGACY_TABLE
                 """.trimIndent()
             )
             db.execSQL("DROP TABLE $LEGACY_TABLE")
@@ -196,13 +191,44 @@ class AndroidBookmarkPlayHistoryStore(
     private data class HistoryEntry(
         val key: BookmarkHistoryKey,
         val playCount: Int,
-        val lastPlayedAt: Long
+        val lastPlayedAt: Long,
+        val bookmark: MobileBookmark?
     )
 
-    private data class BookmarkHistoryMatch(
-        val bookmark: MobileBookmark,
-        val entry: HistoryEntry
-    )
+    private fun MobileBookmark.snapshotJson(): String = JSONObject().apply {
+        put("accountName", accountName)
+        put("accountAction", mode.accountAction())
+        put("categoryTitle", categoryTitle)
+        put("channelId", channelId)
+        put("channelName", channelName)
+        put("cmd", command)
+        put("logo", logo)
+        put("drmType", drmType)
+        put("drmLicenseUrl", drmLicenseUrl)
+        put("clearKeysJson", clearKeysJson)
+        put("inputstreamaddon", inputstreamAddon)
+        put("manifestType", manifestType)
+        put("categoryJson", JSONObject().put("dbId", categoryRowId.toString()).put("categoryId", categoryProviderId).toString())
+    }.toString()
+
+    private fun readSnapshot(id: Long, key: BookmarkHistoryKey, value: String): MobileBookmark? = runCatching {
+        val json = JSONObject(value)
+        val category = runCatching { JSONObject(json.optString("categoryJson")) }.getOrNull()
+        val accountId = db.rawQuery("SELECT id FROM Account WHERE accountName = ? LIMIT 1", arrayOf(key.accountName)).use {
+            if (it.moveToFirst()) it.getLong(0) else 0L
+        }
+        MobileBookmark(
+            rowId = -id, accountId = accountId, accountName = key.accountName,
+            categoryTitle = json.optString("categoryTitle"), channelId = key.channelId,
+            channelName = json.optString("channelName"), command = json.optString("cmd"),
+            mode = when (key.accountAction) { "vod" -> BrowseMode.VOD; "series" -> BrowseMode.SERIES; else -> BrowseMode.LIVE },
+            logo = json.optString("logo"), drmType = json.optString("drmType"),
+            drmLicenseUrl = json.optString("drmLicenseUrl"), clearKeysJson = json.optString("clearKeysJson"),
+            inputstreamAddon = json.optString("inputstreamaddon"), manifestType = json.optString("manifestType"),
+            categoryProviderId = category?.optString("categoryId").orEmpty(),
+            categoryRowId = category?.optString("dbId")?.toLongOrNull() ?: 0L
+        )
+    }.getOrNull()
 
     private companion object {
         private const val TABLE = "BookmarkPlayHistory"

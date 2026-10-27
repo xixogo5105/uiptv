@@ -24,6 +24,7 @@ import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
 import com.uiptv.mobile.shared.playback.PlaybackSurfQueue
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.toPlaybackTarget
+import com.uiptv.mobile.shared.playback.toRecentBookmark
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.playback.extractPlayableStreamUrl
 import com.uiptv.mobile.shared.playback.isDrmProtected
@@ -137,6 +138,7 @@ class AndroidPlaybackCoordinator(
         val target = item.toPlaybackTarget()
         val result = launch(target, player, surfQueue)
         if (result.launched) {
+            recordRecent(target, item.categoryTitle)
             if (remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
@@ -156,13 +158,18 @@ class AndroidPlaybackCoordinator(
         withContext(Dispatchers.IO) {
             val result = launch(bookmark.toPlaybackTarget(), player, surfQueue)
             if (result.launched) {
-                AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).record(bookmark)
+                recordRecent(bookmark.toPlaybackTarget(), bookmark.categoryTitle)
             }
             if (result.launched && remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
             result
         }
+
+    private fun recordRecent(target: PlaybackTarget, categoryTitle: String = "") {
+        runCatching { AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).record(target.toRecentBookmark().copy(categoryTitle = categoryTitle)) }
+            .onFailure { android.util.Log.w("UIPTV-Recent", "Unable to save recent playback", it) }
+    }
 
     suspend fun playWatchingNow(
         item: MobileWatchingNowItem,

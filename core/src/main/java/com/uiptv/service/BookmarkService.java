@@ -28,7 +28,7 @@ public class BookmarkService {
     }
 
     public Bookmark getBookmark(String dbId) {
-        return (BookmarkDb.get().getById(dbId));
+        return BookmarkPlayHistoryDb.isRecentId(dbId) ? BookmarkPlayHistoryDb.getRecentBookmark(dbId) : BookmarkDb.get().getById(dbId);
     }
 
     public Bookmark getBookmark(Bookmark bookmark) {
@@ -45,6 +45,7 @@ public class BookmarkService {
     }
 
     public void save(Bookmark bookmark) {
+        if (BookmarkPlayHistoryDb.isRecentId(bookmark.getDbId())) bookmark.setDbId(null);
         boolean created = BookmarkDb.get().save(bookmark);
         if (created) {
             int nextDisplayOrder = BookmarkDb.get().getNextDisplayOrder();
@@ -75,10 +76,12 @@ public class BookmarkService {
 
     public void recordRecentPlayback(Bookmark bookmark) {
         BookmarkPlayHistoryDb.recordPlayback(bookmark);
+        touchChange();
     }
 
     public void removeRecentBookmark(Bookmark bookmark) {
         BookmarkPlayHistoryDb.remove(bookmark);
+        touchChange();
     }
 
     public void clearRecentBookmarks() {
@@ -87,12 +90,14 @@ public class BookmarkService {
     }
 
     public void remove(String id) {
+        if (BookmarkPlayHistoryDb.isRecentId(id)) {
+            removeRecentBookmark(BookmarkPlayHistoryDb.getRecentBookmark(id));
+            return;
+        }
         try {
             Bookmark bookmark = BookmarkDb.get().getById(id);
+            BookmarkPlayHistoryDb.preserveSnapshot(bookmark);
             BookmarkDb.get().delete(id);
-            if (!BookmarkDb.get().hasBookmarkIdentity(bookmark)) {
-                BookmarkPlayHistoryDb.remove(bookmark);
-            }
             touchChange();
         } catch (Exception _) {
             AppLog.addErrorLog(BookmarkService.class, "Error while removing the bookmark");

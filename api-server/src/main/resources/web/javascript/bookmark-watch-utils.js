@@ -96,7 +96,41 @@
         return await response.json();
     };
 
+    // Persist only replay metadata. Media bodies never enter playback history.
+    const recentPlaybackSnapshot = (item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const fields = ['accountName', 'accountId', 'accountAction', 'channelId', 'channelName', 'logo', 'cmd',
+            'drmType', 'drmLicenseUrl', 'clearKeysJson', 'inputstreamaddon', 'manifestType',
+            'sourceChannelDbId', 'sourceCategoryId', 'playbackQuery'];
+        const snapshot = {};
+        for (const field of fields) snapshot[field] = String(item[field] || '');
+        return snapshot.channelId && snapshot.playbackQuery ? snapshot : null;
+    };
+
+    const recentPlaybackItems = (history, bookmarks, keyFor, legacyKeyFor, limit = 25) => {
+        const saved = new Map();
+        for (const bookmark of bookmarks || []) {
+            for (const key of [keyFor(bookmark), legacyKeyFor(bookmark), String(bookmark.dbId || '')]) {
+                if (key && !saved.has(key)) saved.set(key, bookmark);
+            }
+        }
+        const seen = new Set();
+        return (history || []).map(entry => {
+            const item = saved.get(entry.key) || recentPlaybackSnapshot(entry.snapshot);
+            if (!item) return null;
+            const identity = keyFor(item);
+            if (seen.has(identity)) return null;
+            seen.add(identity);
+            return {...item, dbId: saved.has(entry.key) ? item.dbId : `recent:${entry.key}`,
+                isUnsavedRecent: !saved.has(entry.key), recentPlayCount: entry.playCount, recentLastPlayedAt: entry.lastPlayedAt};
+        }).filter(Boolean).sort((a, b) => Number(b.recentPlayCount) - Number(a.recentPlayCount)
+            || Number(b.recentLastPlayedAt) - Number(a.recentLastPlayedAt)
+            || String(a.channelName).localeCompare(String(b.channelName))).slice(0, limit);
+    };
+
     window.UIPTVBookmarkWatchUtils = {
+        recentPlaybackSnapshot,
+        recentPlaybackItems,
         normalizeBookmark,
         loadBookmarksPaged,
         loadBookmarkCategories,

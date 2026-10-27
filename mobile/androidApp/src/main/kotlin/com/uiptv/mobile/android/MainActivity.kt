@@ -186,6 +186,7 @@ class MainActivity : ComponentActivity() {
                         listBookmarkCategories = browseRepository::listBookmarkCategories,
                         listBookmarks = browseRepository::listBookmarks,
                         toggleBookmark = browseRepository::toggleBookmark,
+                        moveBookmark = browseRepository::moveBookmark,
                         removeCachedCategories = browseRepository::removeCachedCategories,
                         removeBookmark = browseRepository::removeBookmark,
                         clearRecentlyPlayedBookmarks = {

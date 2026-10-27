@@ -39,6 +39,31 @@ public class Bookmark extends BaseJson {
         this.categoryId = categoryId;
     }
 
+    public static Bookmark fromJson(String value) {
+        org.json.JSONObject json = new org.json.JSONObject(value);
+        Bookmark bookmark = new Bookmark();
+        bookmark.accountName = json.optString("accountName", "");
+        bookmark.categoryTitle = json.optString("categoryTitle", "");
+        bookmark.channelId = json.optString("channelId", "");
+        bookmark.channelName = json.optString("channelName", "");
+        bookmark.logo = json.optString("logo", "");
+        bookmark.cmd = json.optString("cmd", "");
+        bookmark.serverPortalUrl = json.optString("serverPortalUrl", "");
+        bookmark.categoryId = json.optString("categoryId", "");
+        bookmark.drmType = json.optString("drmType", "");
+        bookmark.drmLicenseUrl = json.optString("drmLicenseUrl", "");
+        bookmark.clearKeysJson = json.optString("clearKeysJson", "");
+        bookmark.inputstreamaddon = json.optString("inputstreamaddon", "");
+        bookmark.manifestType = json.optString("manifestType", "");
+        bookmark.categoryJson = json.optString("categoryJson", "");
+        bookmark.channelJson = json.optString("channelJson", "");
+        bookmark.vodJson = json.optString("vodJson", "");
+        bookmark.seriesJson = json.optString("seriesJson", "");
+        String action = json.optString("accountAction", "itv");
+        bookmark.accountAction = action.isBlank() ? Account.AccountAction.itv : Account.AccountAction.valueOf(action);
+        return bookmark;
+    }
+
     public void setFromChannel(Channel channel) {
         this.setLogo(channel.getLogo());
         this.setDrmType(channel.getDrmType());

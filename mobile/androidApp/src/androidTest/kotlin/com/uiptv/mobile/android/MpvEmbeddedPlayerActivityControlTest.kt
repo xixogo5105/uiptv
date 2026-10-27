@@ -19,6 +19,57 @@ import org.junit.Test
 class MpvEmbeddedPlayerActivityControlTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private var activity: Activity? = null
+    private var savedPlayerPreference: com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference? = null
+
+    /** Explicit device smoke test: model the native wait captured in the real ANR. */
+    @Test
+    fun stalledBackendKeepsReloadAndPlayerControlsResponsive() {
+        org.junit.Assume.assumeTrue(
+            "Supply a local test video URL for this device smoke test",
+            InstrumentationRegistry.getArguments().containsKey("stabilityStreamUrl")
+        )
+        savedPlayerPreference = kotlinx.coroutines.runBlocking {
+            com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository(instrumentation.targetContext)
+                .load().embeddedPlayerPreference
+        }
+        val player = launchPlayer("VOD")
+        waitForPlaybackTime(player)
+        val queue = player.javaClass.getDeclaredField("mpvTasks").apply { isAccessible = true }
+            .get(player) as MpvTaskQueue
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val responsive = java.util.concurrent.CountDownLatch(1)
+        val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+        queue.execute { entered.countDown(); release.await() }
+        try {
+            org.junit.Assert.assertTrue(entered.await(2, java.util.concurrent.TimeUnit.SECONDS))
+            android.os.Handler(player.mainLooper).post {
+                try {
+                    for (name in listOf("reloadCurrentStream", "togglePlayPause", "togglePlayPause", "toggleMute", "cycleZoomMode", "cycleAudioTrack", "cycleSubtitleTrack", "refreshMpvTrackDetails")) {
+                        player.javaClass.getDeclaredMethod(name).apply { isAccessible = true }.invoke(player)
+                    }
+                    player.javaClass.getDeclaredMethod("seekBySeconds", Int::class.javaPrimitiveType!!)
+                        .apply { isAccessible = true }.invoke(player, 1)
+                } catch (error: Throwable) {
+                    failure.set(error)
+                } finally {
+                    responsive.countDown()
+                }
+            }
+            org.junit.Assert.assertTrue("Controls waited for a stalled native player", responsive.await(2, java.util.concurrent.TimeUnit.SECONDS))
+            failure.get()?.let { throw AssertionError("Player control failed", it) }
+        } finally {
+            release.countDown()
+        }
+        repeat(3) {
+            instrumentation.runOnMainSync {
+                player.javaClass.getDeclaredMethod("reloadCurrentStream").apply { isAccessible = true }.invoke(player)
+            }
+            waitForPlaybackTime(player)
+        }
+        val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as dev.jdtech.mpv.MPVLib
+        org.junit.Assert.assertEquals("Stream caching must stay in memory", "no", mpv.getPropertyString("cache-on-disk"))
+    }
 
     @Test
     fun audioTrackSelectionNeverTurnsAudioOffAndWrapsAvailableTracks() {
@@ -42,8 +93,24 @@ class MpvEmbeddedPlayerActivityControlTest {
 
     @After
     fun tearDown() {
-        activity?.finish()
+        instrumentation.runOnMainSync { activity?.finish() }
         activity = null
+        savedPlayerPreference?.let { preference ->
+            kotlinx.coroutines.runBlocking {
+                com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository(instrumentation.targetContext)
+                    .saveEmbeddedPlayerPreference(preference)
+            }
+        }
+        savedPlayerPreference = null
+        if (InstrumentationRegistry.getArguments().containsKey("stabilityStreamUrl")) {
+            com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper(instrumentation.targetContext).use { database ->
+                database.writableDatabase.delete(
+                    "VodWatchState",
+                    "accountId = ? AND categoryId = ? AND vodId = ? AND vodName = ?",
+                    arrayOf("1", "control-test", "control-test", "Control Test VOD")
+                )
+            }
+        }
     }
 
     @Test
@@ -97,36 +164,25 @@ class MpvEmbeddedPlayerActivityControlTest {
     }
 
     private fun waitForPlaybackTime(player: Activity) {
-        val field = player.javaClass.getDeclaredField("playbackTimeMs").apply { isAccessible = true }
+        val clock = player.javaClass.getDeclaredField("playbackTimeMs").apply { isAccessible = true }
+        val video = player.javaClass.getDeclaredField("mpvVideoDetails").apply { isAccessible = true }
         val deadline = System.currentTimeMillis() + 15_000
         while (System.currentTimeMillis() < deadline) {
-            var playing = false
-            instrumentation.runOnMainSync { playing = field.getLong(player) > 500 }
-            if (playing) {
-                instrumentation.runOnMainSync {
-                    val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as dev.jdtech.mpv.MPVLib
-                    org.junit.Assert.assertTrue("Video must be decoded", (mpv.getPropertyInt("width") ?: 0) > 0)
-                    val videoOutput = mpv.getPropertyString("current-vo")
-                    org.junit.Assert.assertTrue(
-                        "Expected embedded MediaCodec or GPU fallback, got $videoOutput",
-                        videoOutput == "mediacodec_embed" || videoOutput == "gpu"
-                    )
-                    android.util.Log.i("UIPTV-StabilityTest", "version=${mpv.getPropertyString("mpv-version")} vo=${mpv.getPropertyString("current-vo")} hwdec=${mpv.getPropertyString("hwdec-current")}")
-                }
+            val details = video.get(player)
+            val width = details?.javaClass?.getDeclaredField("displayWidth")?.apply { isAccessible = true }?.getInt(details) ?: 0
+            if (clock.getLong(player) > 500 && width > 0) {
+                // Native queries belong on the instrumentation thread too: a stalled
+                // decoder must not make the test itself cause a UI-thread ANR.
+                val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as dev.jdtech.mpv.MPVLib
+                org.junit.Assert.assertTrue("Video must be decoded", (mpv.getPropertyInt("width") ?: 0) > 0)
+                val output = mpv.getPropertyString("current-vo")
+                org.junit.Assert.assertTrue("Expected embedded MediaCodec or GPU fallback, got $output", output == "mediacodec_embed" || output == "gpu")
+                android.util.Log.i("UIPTV-StabilityTest", "version=${mpv.getPropertyString("mpv-version")} vo=$output hwdec=${mpv.getPropertyString("hwdec-current")}")
                 return
             }
             Thread.sleep(100)
         }
-        instrumentation.runOnMainSync {
-            val boolField = { name: String -> player.javaClass.getDeclaredField(name).apply { isAccessible = true }.getBoolean(player) }
-            val surface = player.javaClass.getDeclaredField("videoSurface").apply { isAccessible = true }.get(player) as? android.view.TextureView
-            val mpv = player.javaClass.getDeclaredField("mpv").apply { isAccessible = true }.get(player) as? dev.jdtech.mpv.MPVLib
-            android.util.Log.e(
-                "UIPTV-StabilityTest",
-                "resume timeout destroyed=${boolField("activityDestroyed")} stopping=${boolField("stoppingForLifecycle")} pending=${boolField("pendingPlayback")} surfaceReady=${boolField("surfaceReady")} attached=${boolField("attached")} texture=${surface?.surfaceTexture != null} view=${surface?.width}x${surface?.height} mpvTime=${runCatching { mpv?.getPropertyDouble("time-pos") }.getOrNull()} hwdec=${mpv?.getPropertyString("hwdec-current")}"
-            )
-        }
-        org.junit.Assert.fail("Local test video did not advance")
+        org.junit.Assert.fail("Local test video did not advance with decoded video")
     }
 
     /** Explicit device smoke test, separate from the headless build/test run. */
@@ -579,7 +635,7 @@ class MpvEmbeddedPlayerActivityControlTest {
         val intent = Intent(context, MpvEmbeddedPlayerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra(NativePlayerActivity.EXTRA_MODE, startTarget?.mode?.name ?: mode)
-            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, startTarget?.accountId ?: 1L)
+            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, startTarget?.accountId ?: 0L)
             .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_NAME, startTarget?.accountName ?: "Control Test")
             .putExtra(NativePlayerActivity.EXTRA_CATEGORY_PROVIDER_ID, startTarget?.categoryProviderId ?: "control-test")
             .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, startTarget?.categoryRowId ?: 1L)
