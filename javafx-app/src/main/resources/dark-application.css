@@ -3562,31 +3562,74 @@
 
 .uiptv-help-dialog {
     -fx-padding: 22;
+    -fx-pref-width: 748;
 }
 
 .uiptv-help-dialog > .header-panel {
     -fx-background-color: transparent;
-    -fx-padding: 0 0 10 0;
+    -fx-padding: 0 0 14 0;
 }
 
 .uiptv-help-dialog > .header-panel .label {
-    -fx-font-size: 1.18em;
+    -fx-font-size: 1.28em;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
 }
 
-.uiptv-help-dialog > .content.label {
-    -fx-font-size: 1.00em;
-    -fx-line-spacing: 2;
-    -fx-text-fill: -uiptv-text-secondary;
-    -fx-wrap-text: true;
-    -fx-min-width: 0;
-    -fx-pref-width: 492;
-    -fx-max-width: 492;
+.uiptv-help-dialog > .content {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 4 0;
 }
 
 .uiptv-help-dialog > .graphic-container {
     -fx-padding: 0;
+}
+
+.uiptv-help-scroll,
+.uiptv-help-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.uiptv-help-document {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-padding: 22 26 22 26;
+    -fx-spacing: 16;
+}
+
+.uiptv-help-intro {
+    -fx-font-size: 1.08em;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-line-spacing: 4;
+    -fx-wrap-text: true;
+}
+
+.uiptv-help-paragraph,
+.uiptv-help-bullet-text {
+    -fx-font-size: 1.04em;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-line-spacing: 4;
+    -fx-wrap-text: true;
+}
+
+.uiptv-help-bullet-list {
+    -fx-spacing: 12;
+}
+
+.uiptv-help-bullet-row {
+    -fx-spacing: 12;
+    -fx-alignment: top-left;
+}
+
+.uiptv-help-bullet-marker {
+    -fx-font-size: 1.15em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-accent;
 }
 
 .uiptv-vlc-options-dialog .uiptv-inline-primary-button {

@@ -127,7 +127,6 @@ public class ConfigurationUI extends VBox {
     private final Label filterLockStatusLabel = new Label();
     private final Label filtersGroupTitleLabel = new Label();
     private final StatusIcon filtersGroupStatusIcon = new StatusIcon();
-    private final Label cacheFilteringGroupTitleLabel = new Label();
     private final Button filterLockPasswordButton = new Button();
     private final SwitchToggle filterLockStateSwitch = new SwitchToggle();
     private final Label filterLockStateTitleLabel = new Label(I18n.tr("filterLockStateToggleLabel"));
@@ -148,7 +147,6 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink videoPlayersHelpLink = new Hyperlink("(?)");
     private final Hyperlink filtersHelpLink = new Hyperlink("(?)");
     private final Hyperlink themeHelpLink = new Hyperlink("(?)");
-    private final Hyperlink cacheFilteringHelpLink = new Hyperlink("(?)");
     private final Hyperlink databaseSyncHelpLink = new Hyperlink("(?)");
     private final Hyperlink webServerHelpLink = new Hyperlink("(?)");
     private final Hyperlink tmdbMetadataHelpLink = new Hyperlink("(?)");
@@ -173,7 +171,6 @@ public class ConfigurationUI extends VBox {
     private final ProgressIndicator clearDataActivity = new ProgressIndicator(ProgressIndicator.INDETERMINATE_PROGRESS);
     private final Label clearDataStatus = new Label();
     private PauseTransition clearDataStatusHideTimer;
-    private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
     private final Hyperlink importDatabaseButton = new Hyperlink(I18n.tr(CONFIG_IMPORT_DATABASE));
     private final Hyperlink exportDatabaseButton = new Hyperlink(I18n.tr(CONFIG_EXPORT_DATABASE));
     private final FileChooser databaseFileChooser = new FileChooser();
@@ -308,7 +305,6 @@ public class ConfigurationUI extends VBox {
         addThemeHelpClickHandler();
         addDatabaseSyncHelpClickHandler();
         addFiltersHelpClickHandler();
-        addCacheFilteringHelpClickHandler();
         addWebServerHelpClickHandler();
         addTmdbMetadataHelpClickHandler();
         configureHelpLinks();
@@ -402,8 +398,10 @@ public class ConfigurationUI extends VBox {
         clearDataStatus.setVisible(false);
         clearDataStatus.setManaged(false);
         HBox clearDataStatusRow = new HBox(10, clearDataActivity, clearDataStatus);
-        reloadCacheButton.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox cacheGroup = new VBox(10, cacheExpiryRow, clearButtons, clearDataStatusRow, reloadCacheButton);
+        VBox cachePreferencesSection = new VBox(10, cacheExpiryRow, clearButtons, clearDataStatusRow);
+        cachePreferencesSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
+        cachePreferencesSection.setMaxWidth(Double.MAX_VALUE);
+        themeOverridesGroup.getChildren().add(cachePreferencesSection);
         refreshConfigurationBlockTitles();
 
         openServerLink.setVisible(false);
@@ -438,8 +436,7 @@ public class ConfigurationUI extends VBox {
         settingsSections.addAll(List.of(
                 new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),
                 new SettingsSection("filters", I18n.tr("configFilters"), filtersGroupStatusIcon, filtersGroup, filtersHelpLink, "filters parental lock categories channels censor hidden protected"),
-                new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom counts"),
-                new SettingsSection("cache", I18n.tr("configCacheFiltering"), null, cacheGroup, cacheFilteringHelpLink, "cache clear recent items history reload watching now"),
+                new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language plain text thumbnails zoom counts cache expiry clear playback watching now recent"),
                 new SettingsSection("sync", I18n.tr("configDatabaseSyncTitle"), null, databaseSyncGroup, databaseSyncHelpLink, "database sync import export backup remote"),
                 new SettingsSection("server", I18n.tr("configWebServer"), null, serverGroup, webServerHelpLink, "web server https port m3u publish startup"),
                 new SettingsSection("tmdb", I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, tmdbMetadataHelpLink, "tmdb metadata api token")
@@ -454,7 +451,6 @@ public class ConfigurationUI extends VBox {
         addClearCacheButtonClickHandler();
         addClearWatchingNowButtonClickHandler();
         addPublishM3u8ButtonClickHandler();
-        addReloadCacheButtonClickHandler();
         addOpenServerLinkClickHandler();
         addTmdbGuideLinkClickHandler();
         addFilterLockButtonHandlers();
@@ -1229,16 +1225,6 @@ public class ConfigurationUI extends VBox {
         );
     }
 
-    private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup(resolveOwnerStage(), null, this::notifyAccountsChanged));
-    }
-
-    private void notifyAccountsChanged() {
-        if (onSaveCallback != null) {
-            onSaveCallback.call(null);
-        }
-    }
-
     private Stage resolveOwnerStage() {
         if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
             return stage;
@@ -1442,7 +1428,6 @@ public class ConfigurationUI extends VBox {
         Configuration configuration = service.read();
         boolean restrictionsActive = configuration == null || !configuration.isPauseFiltering();
         filtersGroupTitleLabel.setText(I18n.tr("configFilters"));
-        cacheFilteringGroupTitleLabel.setText(I18n.tr("configCacheFiltering"));
         filtersGroupStatusIcon.setEnabled(restrictionsActive);
     }
 
@@ -1557,7 +1542,6 @@ public class ConfigurationUI extends VBox {
                 videoPlayersHelpLink,
                 filtersHelpLink,
                 themeHelpLink,
-                cacheFilteringHelpLink,
                 databaseSyncHelpLink,
                 webServerHelpLink,
                 tmdbMetadataHelpLink
@@ -1592,10 +1576,6 @@ public class ConfigurationUI extends VBox {
 
     private void addFiltersHelpClickHandler() {
         filtersHelpLink.setOnAction(event -> showFiltersHelp());
-    }
-
-    private void addCacheFilteringHelpClickHandler() {
-        cacheFilteringHelpLink.setOnAction(event -> showCacheFilteringHelp());
     }
 
     private void addWebServerHelpClickHandler() {
@@ -3073,14 +3053,6 @@ public class ConfigurationUI extends VBox {
         return I18n.tr("configFiltersHelpTitle");
     }
 
-    static String cacheFilteringHelpText() {
-        return I18n.tr("configCacheFilteringHelpText");
-    }
-
-    static String cacheFilteringHelpTitle() {
-        return I18n.tr("configCacheFilteringHelpTitle");
-    }
-
     static String webServerHelpText() {
         return I18n.tr("configWebServerHelpText");
     }
@@ -3121,10 +3093,6 @@ public class ConfigurationUI extends VBox {
         showHelpDialog(filtersHelpTitle(), filtersHelpText());
     }
 
-    private void showCacheFilteringHelp() {
-        showHelpDialog(cacheFilteringHelpTitle(), cacheFilteringHelpText());
-    }
-
     private void showWebServerHelp() {
         showHelpDialog(webServerHelpTitle(), webServerHelpText());
     }
@@ -3134,20 +3102,95 @@ public class ConfigurationUI extends VBox {
     }
 
     private void showHelpDialog(String title, String text) {
-        Label helpText = new Label(text);
-        helpText.getStyleClass().add("uiptv-dialog-description");
-        helpText.setWrapText(true);
-        helpText.setMinWidth(0);
-        helpText.setMaxWidth(Double.MAX_VALUE);
+        VBox helpDocument = createHelpDocument(text);
+        double documentWidth = 700;
+        helpDocument.setPrefWidth(documentWidth);
+        double preferredDocumentHeight = helpDocument.prefHeight(documentWidth);
+        double viewportHeight = Math.max(190, Math.min(560, preferredDocumentHeight + 8));
 
         ButtonType closeButton = new ButtonType(I18n.tr(I18N_COMMON_CLOSE), ButtonBar.ButtonData.CANCEL_CLOSE);
-        ScrollPane helpScroll = new ScrollPane(helpText);
+        ScrollPane helpScroll = new ScrollPane(helpDocument);
+        helpScroll.getStyleClass().add("uiptv-help-scroll");
         helpScroll.setFitToWidth(true);
-        helpScroll.setPrefViewportWidth(620);
-        helpScroll.setPrefViewportHeight(460);
-        helpScroll.setMaxHeight(460);
+        helpScroll.setPrefViewportWidth(documentWidth);
+        helpScroll.setPrefViewportHeight(viewportHeight);
+        helpScroll.setMaxHeight(600);
         helpScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        ThemedDialogSupport.showChoice(title, helpScroll, List.of(closeButton), closeButton);
+        helpScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        ThemedDialogSupport.showChoice(
+                title,
+                helpScroll,
+                List.of(closeButton),
+                closeButton,
+                null,
+                ThemedDialogSupport.activeOwnerWindow(),
+                "uiptv-help-dialog"
+        );
+    }
+
+    private VBox createHelpDocument(String text) {
+        VBox document = new VBox(16);
+        document.getStyleClass().add("uiptv-help-document");
+        document.setMinWidth(0);
+        document.setMaxWidth(Double.MAX_VALUE);
+        document.setFillWidth(true);
+
+        VBox bulletList = null;
+        boolean firstParagraph = true;
+        for (String block : Objects.toString(text, "").split("\\R\\s*\\R")) {
+            String paragraph = block.strip();
+            if (paragraph.isEmpty()) {
+                continue;
+            }
+
+            String bulletText = stripHelpBullet(paragraph);
+            if (bulletText != null) {
+                if (bulletList == null) {
+                    bulletList = new VBox(12);
+                    bulletList.getStyleClass().add("uiptv-help-bullet-list");
+                    document.getChildren().add(bulletList);
+                }
+
+                Label marker = new Label("•");
+                marker.getStyleClass().add("uiptv-help-bullet-marker");
+                marker.setMinWidth(12);
+                marker.setAlignment(Pos.TOP_CENTER);
+
+                Label body = new Label(bulletText);
+                body.getStyleClass().add("uiptv-help-bullet-text");
+                body.setWrapText(true);
+                body.setMinWidth(0);
+                body.setMaxWidth(Double.MAX_VALUE);
+                HBox.setHgrow(body, Priority.ALWAYS);
+                UiRenderQuality.optimizeTextNode(body);
+
+                HBox row = new HBox(12, marker, body);
+                row.getStyleClass().add("uiptv-help-bullet-row");
+                row.setMinWidth(0);
+                row.setMaxWidth(Double.MAX_VALUE);
+                bulletList.getChildren().add(row);
+                continue;
+            }
+
+            bulletList = null;
+            Label body = new Label(paragraph);
+            body.getStyleClass().add(firstParagraph ? "uiptv-help-intro" : "uiptv-help-paragraph");
+            body.setWrapText(true);
+            body.setMinWidth(0);
+            body.setMaxWidth(Double.MAX_VALUE);
+            UiRenderQuality.optimizeTextNode(body);
+            document.getChildren().add(body);
+            firstParagraph = false;
+        }
+        return document;
+    }
+
+    private String stripHelpBullet(String paragraph) {
+        if (paragraph.length() > 1 && (paragraph.charAt(0) == '•' || paragraph.charAt(0) == '-'
+                || paragraph.charAt(0) == '–' || paragraph.charAt(0) == '*')) {
+            return paragraph.substring(1).stripLeading();
+        }
+        return null;
     }
 
     private record VlcCachingOption(String value, String label) {
