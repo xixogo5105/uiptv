@@ -60,8 +60,8 @@ public class AppHeaderNavigation extends HBox {
         navigationItems = List.of(
                 createNavigationItem(
                         AppNavigationController.Target.BOOKMARKS,
-                        "Bookmarks",
-                        I18n.tr("autoFavorite"),
+                        I18n.tr("autoFavoritesTitle"),
+                        I18n.tr("autoFavoritesTitle"),
                         AppNavigationPane.ICON_FAVORITE,
                         bookmarksBadge
                 ),

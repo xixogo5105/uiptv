@@ -59,7 +59,9 @@
 
     const loadBookmarkCategories = async (origin) => {
         const response = await fetch(`${origin}/bookmarks?view=categories`);
-        return await response.json();
+        if (!response.ok) throw new Error(`Unable to load favourite categories (${response.status})`);
+        const categories = await response.json();
+        return Array.isArray(categories) ? categories : [];
     };
 
     const buildBookmarkCategoryTabs = (recentTab, categories, allTab, normalizeName) => {

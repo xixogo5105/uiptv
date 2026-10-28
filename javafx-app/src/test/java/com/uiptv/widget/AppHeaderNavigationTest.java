@@ -42,10 +42,10 @@ class AppHeaderNavigationTest {
 
         AppHeaderNavigation navigation = runOnFxThread(() -> new AppHeaderNavigation(new Label("UIPTV")));
 
-        assertEquals(List.of("Bookmarks", "Accounts", "Watching"), runOnFxThread(() -> navigationButtons(navigation).stream()
+        assertEquals(List.of(I18n.tr("autoFavoritesTitle"), "Accounts", "Watching"), runOnFxThread(() -> navigationButtons(navigation).stream()
                 .map(Button::getText)
                 .toList()));
-        assertEquals(I18n.tr("autoFavorite"), runOnFxThread(() -> navigationButtons(navigation).get(0).getAccessibleText()));
+        assertEquals(I18n.tr("autoFavoritesTitle"), runOnFxThread(() -> navigationButtons(navigation).get(0).getAccessibleText()));
         assertEquals(I18n.tr("autoAccount"), runOnFxThread(() -> navigationButtons(navigation).get(1).getAccessibleText()));
         assertEquals(I18n.tr("autoWatchingNow"), runOnFxThread(() -> navigationButtons(navigation).get(2).getAccessibleText()));
         assertTrue(runOnFxThread(() -> navigationButtons(navigation).stream().allMatch(button -> button.getTooltip() == null)));

@@ -73,6 +73,12 @@ public class BookmarkApplicationService {
             return null;
         }
 
+        String bookmarkCategoryId = safe(request.bookmarkCategoryId());
+        if (isNotBlank(bookmarkCategoryId) && bookmarkService.getAllCategories().stream()
+                .noneMatch(category -> bookmarkCategoryId.equals(category.getId()))) {
+            return null;
+        }
+
         String categoryTitle = "";
         Category sourceCategory = null;
         if (isNotBlank(request.categoryId())) {
@@ -102,7 +108,7 @@ public class BookmarkApplicationService {
                 request.channelName(),
                 request.cmd(),
                 portal,
-                null
+                isBlank(bookmarkCategoryId) ? null : bookmarkCategoryId
         );
         if (sourceCategory != null) bookmark.setCategoryJson(sourceCategory.toJson());
         bookmark.setAccountAction(account.getAction());

@@ -79,7 +79,7 @@ public abstract class BaseMainApplicationUI {
                 wrapToFill(accountListUI)
         );
         Tab parseMultipleAccountTab = tabPane.createTab(I18n.tr("autoImportBulkAccounts"), AppNavigationPane.ICON_IMPORT, createDeferredPlaceholder());
-        Tab bookmarkChannelListTab = tabPane.createTab(I18n.tr("autoFavorite"), AppNavigationPane.ICON_FAVORITE, bookmarkChannelListUI);
+        Tab bookmarkChannelListTab = tabPane.createTab(I18n.tr("autoFavoritesTitle"), AppNavigationPane.ICON_FAVORITE, bookmarkChannelListUI);
         Tab watchingNowTab = tabPane.createTab(I18n.tr("autoWatchingNow"), AppNavigationPane.ICON_WATCHING, createDeferredPlaceholder());
         Tab logDisplayTab = tabPane.createTab(I18n.tr("autoLogs"), AppNavigationPane.ICON_LOGS, createDeferredPlaceholder());
         Tab configurationTab = tabPane.createTab(I18n.tr("autoSettings"), AppNavigationPane.ICON_SETTINGS, createDeferredPlaceholder());

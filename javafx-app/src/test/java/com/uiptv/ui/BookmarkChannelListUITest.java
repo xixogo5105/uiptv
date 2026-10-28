@@ -98,6 +98,13 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
+    void recentBookmarkHeartOnlyMarksSavedItemsInRecent() {
+        assertTrue(BookmarkChannelListUI.shouldShowRecentBookmarkHeart("__recently_played_bookmarks__", "42"));
+        assertFalse(BookmarkChannelListUI.shouldShowRecentBookmarkHeart("__recently_played_bookmarks__", "recent:7"));
+        assertFalse(BookmarkChannelListUI.shouldShowRecentBookmarkHeart("sports", "42"));
+    }
+
+    @Test
     void favoritePillBarReservesDynamicRowsFromFiveItemNarrowAllocation() throws Exception {
         List<Double> heights = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);

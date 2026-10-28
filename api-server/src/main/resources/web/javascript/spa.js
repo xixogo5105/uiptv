@@ -38,7 +38,7 @@ createApp({
         const watchingNowVodLoading = ref(false);
         const selectedAccountId = ref(null);
         const bookmarksLoading = ref(false);
-        const bookmarksLoadingMessage = ref('Loading bookmarks...');
+        const bookmarksLoadingMessage = ref('Loading favourites...');
 
         const currentContext = ref({accountId: null, categoryId: null, accountType: null});
         const currentChannel = ref(null);
@@ -80,6 +80,13 @@ createApp({
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
+        const favoriteCategoryPickerOpen = ref(false);
+        const favoriteCategoryPickerLoading = ref(false);
+        const favoritePickerChannel = ref(null);
+        const favoriteActionNotice = ref('');
+        const playerFavoriteOverride = ref(null);
+        const playerFavoritePending = ref(false);
+        let favoriteActionNoticeTimeout = null;
         const playerExpanded = ref(false);
         const isStandalonePlayerRoute = () => {
             const params = new URLSearchParams(window.location.search);
@@ -776,7 +783,7 @@ createApp({
                 if (viewState.value === 'channels') return `Search ${contentModeLabels[contentMode.value].toLowerCase()}...`;
                 if (viewState.value === 'episodes') return 'Search episodes...';
             }
-            if (activeTab.value === 'bookmarks') return 'Search bookmarks...';
+            if (activeTab.value === 'bookmarks') return 'Search favourites...';
             if (activeTab.value === 'watchingNow') return 'Search series or movies...';
             return 'Search...';
         });
@@ -1114,12 +1121,12 @@ createApp({
 
         const bookmarkCardTitle = computed(() => {
             if (isRecentlyPlayedBookmarksSelected.value) return '';
-            return canReorderBookmarks.value ? 'Drag to reorder' : 'Clear search to reorder bookmarks';
+            return canReorderBookmarks.value ? 'Drag to reorder' : 'Clear search to reorder favourites';
         });
 
         const bookmarkEmptyTitle = computed(() => {
             if (isRecentlyPlayedBookmarksSelected.value) return 'No recently played channels';
-            return 'No bookmarks';
+            return 'No favourites';
         });
 
         const bookmarkEmptyDetail = computed(() => {
@@ -1131,7 +1138,7 @@ createApp({
             if (isRecentlyPlayedBookmarksSelected.value) {
                 return `${filteredBookmarks.value.length} recently played shown`;
             }
-            return `${filteredBookmarks.value.length} favorites shown`;
+            return `${filteredBookmarks.value.length} favourites shown`;
         });
 
         const filteredWatchingNowRows = computed(() => {
@@ -1516,6 +1523,32 @@ createApp({
             ) || null;
         };
 
+        const favoriteIdentity = channel => channel ? [
+            String(channel.accountId || ''),
+            normalizePlaybackMode(channel.mode || contentMode.value),
+            String(channel.channelId || channel.vodId || channel.seriesId || channel.id || ''),
+            String(channel.name || channel.channelName || '').trim().toLowerCase()
+        ].join('|') : '';
+
+        const showFavoriteActionNotice = message => {
+            favoriteActionNotice.value = message;
+            if (favoriteActionNoticeTimeout) clearTimeout(favoriteActionNoticeTimeout);
+            favoriteActionNoticeTimeout = setTimeout(() => {
+                favoriteActionNotice.value = '';
+                favoriteActionNoticeTimeout = null;
+            }, 5000);
+        };
+
+        const setPlayerFavoriteOverride = (channel, isFavorite) => {
+            playerFavoriteOverride.value = {identity: favoriteIdentity(channel), isFavorite};
+        };
+
+        const clearPlayerFavoriteOverride = channel => {
+            if (playerFavoriteOverride.value?.identity === favoriteIdentity(channel)) {
+                playerFavoriteOverride.value = null;
+            }
+        };
+
         const resolveCurrentSeriesId = (channel) => {
             if (!channel) return '';
             return String(
@@ -1558,6 +1591,8 @@ createApp({
 
         const isCurrentFavorite = computed(() => {
             if (!currentChannel.value) return false;
+            const override = playerFavoriteOverride.value;
+            if (override?.identity === favoriteIdentity(currentChannel.value)) return override.isFavorite;
             const mode = normalizePlaybackMode(currentChannel.value?.mode || contentMode.value);
             if (mode === 'series') {
                 return isCurrentSeriesInWatchingNow.value;
@@ -1937,7 +1972,7 @@ createApp({
 
         const loadBookmarks = async () => {
             bookmarksLoading.value = true;
-            bookmarksLoadingMessage.value = 'Loading bookmarks...';
+            bookmarksLoadingMessage.value = 'Loading favourites...';
             await bookmarkWatchUtils.loadBookmarksPaged({
                 origin: window.location.origin,
                 pageSize: BOOKMARK_PAGE_SIZE,
@@ -1961,10 +1996,13 @@ createApp({
 
         const loadBookmarkCategories = async () => {
             try {
-                bookmarkCategories.value = await bookmarkWatchUtils.loadBookmarkCategories(window.location.origin);
+                const loadedCategories = await bookmarkWatchUtils.loadBookmarkCategories(window.location.origin);
+                bookmarkCategories.value = Array.isArray(loadedCategories) ? loadedCategories : [];
                 ensureSelectedBookmarkCategory();
+                return true;
             } catch (e) {
                 console.error('Failed to load bookmark categories', e);
+                return false;
             }
         };
 
@@ -2396,6 +2434,9 @@ createApp({
                 event.preventDefault();
                 if (!searchFieldVisible.value) searchVisible.value = true;
                 nextTick(() => focusSearch());
+            } else if (event.key === 'Escape' && favoriteCategoryPickerOpen.value) {
+                event.preventDefault();
+                closeFavoriteCategoryPicker();
             } else if (event.key === 'Escape' && searchFieldVisible.value) {
                 clearSearch();
             } else if (event.key === 'Escape' && clearRecentConfirmOpen.value) {
@@ -2723,7 +2764,7 @@ createApp({
                 dbId: '',
                 channelId: channelId || '',
                 bookmarkId,
-                name: cleanLaunchValue(params.get('name')) || (bookmarkId ? 'Bookmark' : 'Web Playback'),
+                name: cleanLaunchValue(params.get('name')) || (bookmarkId ? 'Favourite' : 'Web Playback'),
                 logo: resolveLogoUrl(cleanLaunchValue(params.get('logo'))),
                 cmd: cleanLaunchValue(params.get('cmd') || directUrl),
                 drmType: cleanLaunchValue(params.get('drmType')),
@@ -4731,9 +4772,83 @@ createApp({
             await upsertSeriesWatchingNow();
         };
 
+        const closeFavoriteCategoryPicker = (restorePreviousState = true) => {
+            const channel = favoritePickerChannel.value;
+            favoriteCategoryPickerOpen.value = false;
+            favoriteCategoryPickerLoading.value = false;
+            favoritePickerChannel.value = null;
+            if (restorePreviousState && channel) {
+                setPlayerFavoriteOverride(channel, !!findBookmarkForChannel(channel));
+                clearPlayerFavoriteOverride(channel);
+            }
+        };
+
+        const favoriteCategoryOptions = computed(() => (bookmarkCategories.value || [])
+            .filter(category => String(category?.id || '').trim() && String(category?.name || '').trim()));
+
+        const savePlayerFavorite = async category => {
+            const channel = favoritePickerChannel.value;
+            if (!channel || !category?.id) return;
+            favoriteCategoryPickerOpen.value = false;
+            favoriteCategoryPickerLoading.value = false;
+            favoritePickerChannel.value = null;
+            playerFavoritePending.value = true;
+            try {
+                const response = await fetch(`${window.location.origin}/bookmarks`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        accountId: channel.accountId || '',
+                        categoryId: channel.categoryId || currentContext.value.categoryId || '',
+                        bookmarkCategoryId: category.id,
+                        mode: channel.mode || 'itv',
+                        channelId: channel.channelId || channel.id || '',
+                        name: channel.name || channel.channelName || '',
+                        logo: resolveLogoUrl(channel.logo || ''),
+                        cmd: channel.cmd || '',
+                        drmType: channel.drmType || '',
+                        drmLicenseUrl: channel.drmLicenseUrl || '',
+                        clearKeysJson: channel.clearKeysJson || '',
+                        inputstreamaddon: channel.inputstreamaddon || '',
+                        manifestType: channel.manifestType || ''
+                    })
+                });
+                if (!response.ok) throw new Error(`Favorite save failed (${response.status})`);
+                const result = await response.json();
+                if (result.action === 'saved' && result.bookmarkId) {
+                    const channelId = String(channel.channelId || channel.id || '');
+                    const channelName = channel.name || channel.channelName || '';
+                    const accountName = channel.accountName || resolveAccountName(channel.accountId);
+                    bookmarks.value = [{
+                        dbId: result.bookmarkId,
+                        accountId: String(channel.accountId || ''),
+                        accountName,
+                        channelId,
+                        channelName,
+                        categoryId: String(category.id),
+                        categoryTitle: String(category.name || ''),
+                        logo: resolveLogoUrl(channel.logo || ''),
+                        cmd: channel.cmd || ''
+                    }, ...bookmarks.value];
+                } else {
+                    await loadBookmarks();
+                }
+                if (findBookmarkForChannel(channel)) clearPlayerFavoriteOverride(channel);
+            } catch (e) {
+                console.error('Failed to save favourite', e);
+                setPlayerFavoriteOverride(channel, false);
+                showFavoriteActionNotice('Unable to update favourite. Please try again.');
+            } finally {
+                playerFavoritePending.value = false;
+            }
+        };
+
+        const chooseFavoriteCategory = async category => savePlayerFavorite(category);
+
         const toggleFavorite = async () => {
-            if (!currentChannel.value) return;
-            const mode = normalizePlaybackMode(currentChannel.value?.mode || contentMode.value);
+            const channel = currentChannel.value;
+            if (!channel) return;
+            const mode = normalizePlaybackMode(channel?.mode || contentMode.value);
             if (mode === 'series') {
                 await toggleSeriesWatchingNow();
                 return;
@@ -4742,36 +4857,44 @@ createApp({
                 await toggleVodWatchingNow();
                 return;
             }
-            const existing = findBookmarkForChannel(currentChannel.value);
-            try {
-                if (existing?.dbId) {
-                    const response = await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
-                        method: 'DELETE'
-                    });
-                    if (!response.ok) throw new Error(`Bookmark removal failed (${response.status})`);
-                } else {
-                    await fetch(`${window.location.origin}/bookmarks`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            accountId: currentChannel.value.accountId || '',
-                            categoryId: currentChannel.value.categoryId || '',
-                            mode: currentChannel.value.mode || 'itv',
-                            channelId: currentChannel.value.channelId || currentChannel.value.id || '',
-                            name: currentChannel.value.name || currentChannel.value.channelName || '',
-                            logo: resolveLogoUrl(currentChannel.value.logo || ''),
-                            cmd: currentChannel.value.cmd || '',
-                            drmType: currentChannel.value.drmType || '',
-                            drmLicenseUrl: currentChannel.value.drmLicenseUrl || '',
-                            clearKeysJson: currentChannel.value.clearKeysJson || '',
-                            inputstreamaddon: currentChannel.value.inputstreamaddon || '',
-                            manifestType: currentChannel.value.manifestType || ''
-                        })
-                    });
+            const existing = findBookmarkForChannel(channel);
+            if (!existing?.dbId) {
+                if (favoriteCategoryPickerOpen.value || playerFavoritePending.value) return;
+                setPlayerFavoriteOverride(channel, true);
+                favoritePickerChannel.value = channel;
+                favoriteCategoryPickerOpen.value = true;
+                if (favoriteCategoryOptions.value.length === 0) {
+                    favoriteCategoryPickerLoading.value = true;
+                    playerFavoritePending.value = true;
+                    try {
+                        const loaded = await loadBookmarkCategories();
+                        if (!loaded) {
+                            closeFavoriteCategoryPicker();
+                            showFavoriteActionNotice('Unable to load favourite categories. Please try again.');
+                        }
+                    } finally {
+                        favoriteCategoryPickerLoading.value = false;
+                        playerFavoritePending.value = false;
+                    }
                 }
-                await loadBookmarks();
+                return;
+            }
+
+            setPlayerFavoriteOverride(channel, false);
+            playerFavoritePending.value = true;
+            try {
+                const response = await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error(`Favorite removal failed (${response.status})`);
+                bookmarks.value = bookmarks.value.filter(bookmark => String(bookmark.dbId) !== String(existing.dbId));
+                clearPlayerFavoriteOverride(channel);
             } catch (e) {
-                console.error('Failed to update bookmark', e);
+                console.error('Failed to remove favourite', e);
+                setPlayerFavoriteOverride(channel, true);
+                showFavoriteActionNotice('Unable to update favourite. Please try again.');
+            } finally {
+                playerFavoritePending.value = false;
             }
         };
 
@@ -4907,6 +5030,7 @@ createApp({
                 isMuted: isMuted.value,
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
+                isFavoritePending: playerFavoritePending.value || favoriteCategoryPickerOpen.value,
                 isPlaying: headerVisible,
                 isPanelExpanded: playerExpanded.value ? false : wideViewLayoutActive.value
             });
@@ -5206,7 +5330,7 @@ createApp({
             setBrowserTitle();
         }, {immediate: true});
 
-        watch([isPlaying, controlsVisible, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle, strategyOverride, playbackNavigation], () => {
+        watch([isPlaying, controlsVisible, repeatEnabled, isMuted, isFullscreen, isCurrentFavorite, playerFavoritePending, favoriteCategoryPickerOpen, playbackMode, playbackLoading, currentChannelName, currentChannelDebugTitle, strategyOverride, playbackNavigation], () => {
             syncSharedHeader();
         }, {immediate: true});
 
@@ -5312,6 +5436,10 @@ createApp({
             recentBookmarkHistory,
             settingsMenuOpen,
             clearRecentConfirmOpen,
+            favoriteCategoryPickerOpen,
+            favoriteCategoryPickerLoading,
+            favoriteCategoryOptions,
+            favoriteActionNotice,
             draggedBookmarkId,
             dragOverBookmarkId,
             videoPlayer,
@@ -5392,6 +5520,8 @@ createApp({
             stopPlayback,
             stopPlaybackAndHide,
             toggleFavorite,
+            chooseFavoriteCategory,
+            closeFavoriteCategoryPicker,
             reloadPlayback,
             resumeBlockedPlayback,
             toggleRepeat,

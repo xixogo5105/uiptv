@@ -76,6 +76,28 @@ class BookmarkApplicationServiceTest extends DbBackedTest {
         service.deleteBookmark(BookmarkService.getInstance().read().getFirst().getDbId());
     }
 
+    @Test
+    void saveBookmarkUsesTheSelectedFavoritesCategory() {
+        Account account = createAccount("bookmark-category-save");
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+        bookmarkService.addCategory(new BookmarkCategory(null, "Sports"));
+        BookmarkCategory destination = bookmarkService.getAllCategories().getFirst();
+
+        BookmarkSaveRequest request = new BookmarkSaveRequest(
+                account.getDbId(), "", CatalogMode.ITV, "ch-category", "Sports Channel", "http://stream/category",
+                "", "", "", "", "", "", destination.getId()
+        );
+
+        BookmarkSaveResult saved = service.saveBookmark(request);
+
+        assertEquals("saved", saved.action());
+        assertEquals(destination.getId(), service.getBookmark(saved.bookmarkId()).getCategoryId());
+        assertNull(service.saveBookmark(new BookmarkSaveRequest(
+                account.getDbId(), "", CatalogMode.ITV, "ch-invalid-category", "Invalid Destination", "cmd",
+                "", "", "", "", "", "", "missing-category"
+        )));
+    }
+
     private Account createAccount(String name) {
         Account account = new Account(name, "user", "pass", "http://test/xtreme", null, null, null, null, null, null,
                 AccountType.XTREME_API, null, "http://test/xtreme", false);

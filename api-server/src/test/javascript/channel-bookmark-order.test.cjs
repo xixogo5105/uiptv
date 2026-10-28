@@ -105,7 +105,7 @@ test('channel cards show a bookmark marker and cache-bust the updated matcher', 
     assert.match(htmlSource, /bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on/,
         'bookmarked channels use the same red heart as the web player favorite control');
     assert.doesNotMatch(htmlSource, /bi-bookmarks?/, 'web navigation and empty states should not use bookmark glyphs');
-    assert.match(htmlSource, /bookmark-watch-utils\.js\?v=20261028channelBookmarks1/);
-    assert.match(htmlSource, /spa\.js\?v=20261028channelBookmarks2/);
+    assert.match(htmlSource, /bookmark-watch-utils\.js\?v=20261028favoritePicker1/);
+    assert.match(htmlSource, /spa\.js\?v=20261028favoritePicker1/);
     assert.match(serviceWorkerSource, /CACHE_NAME = 'uiptv-cache-v128'/);
 });

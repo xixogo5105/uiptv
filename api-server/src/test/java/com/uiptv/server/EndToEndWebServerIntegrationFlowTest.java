@@ -737,6 +737,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         JSONArray categories = jsonArrayBody(get("/bookmarks?view=categories"));
         assertTrue(categories.length() >= 1);
+        String favoriteCategoryId = categories.getJSONObject(0).optString("id");
+        assertFalse(favoriteCategoryId.isBlank());
 
         Account stalker = AccountService.getInstance().getByName("web-stalker");
         Category liveCategory = CategoryDb.get().getCategories(stalker).stream()
@@ -747,6 +749,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         JSONObject createPayload = new JSONObject();
         createPayload.put("accountId", stalker.getDbId());
         createPayload.put("categoryId", liveCategory.getDbId());
+        createPayload.put("bookmarkCategoryId", favoriteCategoryId);
         createPayload.put("mode", "itv");
         createPayload.put("channelId", "web-post-1");
         createPayload.put("name", "Posted Bookmark One");
@@ -760,6 +763,16 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         JSONArray bookmarks = jsonArrayBody(get("/bookmarks"));
         assertTrue(bookmarks.length() >= 2);
+        JSONObject createdBookmark = null;
+        for (int i = 0; i < bookmarks.length(); i++) {
+            JSONObject candidate = bookmarks.getJSONObject(i);
+            if (bookmarkId.equals(candidate.optString("dbId"))) {
+                createdBookmark = candidate;
+                break;
+            }
+        }
+        assertNotNull(createdBookmark);
+        assertEquals(favoriteCategoryId, createdBookmark.optString("categoryId"));
 
         JSONArray pageOne = jsonArrayBody(get("/bookmarks?offset=0&limit=1"));
         JSONArray pageTwo = jsonArrayBody(get("/bookmarks?offset=1&limit=1"));

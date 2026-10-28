@@ -166,11 +166,12 @@ public class HttpBookmarksJsonServer implements HttpHandler {
                         opt(body, "drmLicenseUrl", ""),
                         opt(body, "clearKeysJson", ""),
                         opt(body, "inputstreamaddon", ""),
-                        opt(body, "manifestType", "")
+                        opt(body, "manifestType", ""),
+                        opt(body, "bookmarkCategoryId", "")
                 )
         );
         if (result == null) {
-            writeJson(ex, 400, "{\"status\":\"error\",\"message\":\"Missing account/channel details\"}");
+            writeJson(ex, 400, "{\"status\":\"error\",\"message\":\"Unable to save favourite with the selected details or category\"}");
             return;
         }
         writeJson(ex, 200, "{\"status\":\"ok\",\"action\":\"" + escape(result.action()) + "\",\"bookmarkId\":\"" + escape(result.bookmarkId()) + "\"}");

@@ -132,7 +132,11 @@ val mobileMessageKeys = listOf(
     "playerSwitchToHardwareDecode", "playerSwitchToSoftwareDecode", "playerAccelerationSwitchFailed",
     "mobileEmbeddedOutputTitle", "mobileEmbeddedOutputDescription", "mobileEmbeddedOutputDirect",
     "mobileEmbeddedOutputDirectDescription", "mobileEmbeddedOutputGpu", "mobileEmbeddedOutputGpuDescription",
-    "mobileEmbeddedOutputNextStream", "mobileEmbeddedOutputSaveFailed", "mobileChooseBookmarkCategory", "autoUnableToLoadBookmarks"
+    "mobileEmbeddedOutputNextStream", "mobileEmbeddedOutputSaveFailed", "mobileChooseFavoriteCategory",
+    "autoFavoritesTitle", "autoFavoritesEmptyDetail", "autoRecentItemsEmptyDetail", "autoFavoriteRemoved",
+    "autoUnableToUpdateFavorite", "autoUnableToRemoveFavorite", "autoUnableToOpenItem",
+    "autoAddFavoriteDescription", "autoRemoveFavoriteDescription", "autoNoBookmarksFound", "autoRemoveBookmark",
+    "autoUnableToLoadBookmarks"
 )
 
 val generateUiptvSchemaMirror = tasks.register("generateUiptvSchemaMirror") {

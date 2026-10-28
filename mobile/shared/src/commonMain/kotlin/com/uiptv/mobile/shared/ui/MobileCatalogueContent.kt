@@ -270,7 +270,11 @@ internal fun CatalogueItems(
                         IconButton(onClick = { onToggleBookmark(item) }) {
                             Icon(
                                 if (item.isBookmarked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                contentDescription = if (item.isBookmarked) "Remove bookmark ${item.name}" else "Bookmark ${item.name}",
+                                contentDescription = if (item.isBookmarked) {
+                                    MobileMessages.text("autoRemoveFavoriteDescription", item.name)
+                                } else {
+                                    MobileMessages.text("autoAddFavoriteDescription", item.name)
+                                },
                                 tint = if (item.isBookmarked) MobileFavoriteRed else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -323,7 +327,7 @@ internal fun ItemActionsMenu(
             DropdownMenuItem(text = { Text("Choose player") }, onClick = { expanded = false; onChoosePlayer() })
             if (onChangeCategory != null) {
                 DropdownMenuItem(
-                    text = { Text(MobileMessages.text("mobileChooseBookmarkCategory")) },
+                    text = { Text(MobileMessages.text("mobileChooseFavoriteCategory")) },
                     onClick = { expanded = false; onChangeCategory() }
                 )
             }
@@ -344,7 +348,7 @@ internal fun BookmarkCategoryPicker(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(MobileMessages.text("mobileChooseBookmarkCategory")) },
+        title = { Text(MobileMessages.text("mobileChooseFavoriteCategory")) },
         text = {
             Column(
                 Modifier
@@ -383,8 +387,8 @@ internal fun BookmarkLibrary(
 ) {
     val recent = selectedCategoryId == com.uiptv.mobile.shared.browse.RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
     Column(modifier.fillMaxSize()) {
-        MobileScreenHeader("Bookmarks", "Your saved channels and titles", searchVisible = searchVisible,
-            searchQuery = query, searchLabel = "Search bookmarks", onSearchToggle = onSearch,
+        MobileScreenHeader(MobileMessages.text("autoFavoritesTitle"), "Your saved channels and titles", searchVisible = searchVisible,
+            searchQuery = query, searchLabel = MobileMessages.text("commonSearch"), onSearchToggle = onSearch,
             onSearchQueryChange = onQueryChange)
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -395,8 +399,16 @@ internal fun BookmarkLibrary(
             if (running) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (status.startsWith("Unable")) Text(status, color = MaterialTheme.colorScheme.error)
             if (bookmarks.isEmpty() && !running) EmptyState(
-                when { query.isNotBlank() -> "No matches"; recent -> "Nothing played recently"; else -> "No bookmarks here" },
-                when { query.isNotBlank() -> "Clear search to see saved items."; recent -> ""; else -> "Browse an account and tap the bookmark icon to save a channel or title." })
+                when {
+                    query.isNotBlank() -> "No matches"
+                    recent -> "Nothing played recently"
+                    else -> MobileMessages.text("autoNoBookmarksFound")
+                },
+                when {
+                    query.isNotBlank() -> "Clear search to see saved items."
+                    recent -> MobileMessages.text("autoRecentItemsEmptyDetail")
+                    else -> MobileMessages.text("autoFavoritesEmptyDetail")
+                })
             // A channel-only library is a list. Avoid grid span calculation and
             // grid prefetch/layout work for rows that always occupy the full width.
             val channelOnly = remember(bookmarks) { bookmarks.all { it.mode == BrowseMode.LIVE } }
@@ -419,8 +431,16 @@ internal fun BookmarkLibrary(
                         { onPlay(bookmark) }, { onChoosePlayer(bookmark) }, { onRemove(bookmark) }, if (bookmark.rowId > 0) ({ onChangeCategory(bookmark) }) else null)
                     else MobilePosterCard(bookmark.channelName, bookmark.logo, showThumbnails, logoRenderer,
                         { onPlay(bookmark) }, { onChoosePlayer(bookmark) }, secondaryAction = {
+                            if (recent && bookmark.rowId > 0) {
+                                Icon(
+                                    Icons.Filled.Favorite,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MobileFavoriteRed
+                                )
+                            }
                             ItemActionsMenu(bookmark.channelName, { onChoosePlayer(bookmark) }, { onRemove(bookmark) },
-                                if (recent) "Remove from Recent" else "Remove bookmark",
+                                if (recent) "Remove from Recent" else MobileMessages.text("autoRemoveBookmark"),
                                 if (bookmark.rowId > 0) ({ onChangeCategory(bookmark) }) else null)
                         })
                 }

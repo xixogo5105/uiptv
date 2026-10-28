@@ -1050,7 +1050,7 @@ private fun ChannelsScreen(
                 Text(
                     "You are about to remove $selectedCategoryCount cached categories. " +
                         "Cached ${mode.removalItemLabel()} in those categories will also be removed. " +
-                        "Bookmarks and Watching Now entries will stay. Refresh cache for this account to bring them back."
+                        "Favourites and Watching Now entries will stay. Refresh cache for this account to bring them back."
                 )
             },
             confirmButton = {
@@ -1150,7 +1150,7 @@ private fun ChannelsScreen(
                                                 if (it.rowId == item.rowId) it.copy(isBookmarked = bookmarked) else it
                                             })
                                         }
-                                        .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                                        .onFailure { statusText = MobileMessages.text("autoUnableToUpdateFavorite") }
                                 }
                             } else {
                                 scope.launch {
@@ -1184,7 +1184,7 @@ private fun ChannelsScreen(
                                 if (it.rowId == item.rowId) it.copy(isBookmarked = bookmarked) else it
                             })
                         }
-                        .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                                        .onFailure { statusText = MobileMessages.text("autoUnableToUpdateFavorite") }
                     running = false
                 }
             },
@@ -1547,7 +1547,7 @@ private fun BookmarksScreen(
                 }
             }
                 .onSuccess {
-                    statusText = if (clearingRecent) "Cleared from recently played" else "Removed bookmark"
+                    statusText = if (clearingRecent) "Cleared from recently played" else MobileMessages.text("autoFavoriteRemoved")
                     categories = browseActions.listBookmarkCategories()
                     bookmarks = browseActions.listBookmarks(activeBookmarkQuery(), selectedCategoryId)
                 }
@@ -1555,7 +1555,7 @@ private fun BookmarksScreen(
                     statusText = it.message ?: if (clearingRecent) {
                         "Unable to clear recently played item"
                     } else {
-                        "Unable to remove bookmark"
+                        MobileMessages.text("autoUnableToRemoveFavorite")
                     }
                 }
             running = false
@@ -1573,9 +1573,10 @@ private fun BookmarksScreen(
             }
                 .onSuccess {
                     bookmarks = it
-                    statusText = if (it.isEmpty()) "No bookmarks" else "${it.size} bookmarks"
+                    statusText = if (it.isEmpty()) MobileMessages.text("autoNoBookmarksFound")
+                    else "${MobileMessages.text("autoFavoritesTitle")} (${it.size})"
                 }
-                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; statusText = "Unable to load bookmarks" }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; statusText = MobileMessages.text("autoUnableToLoadBookmarks") }
             running = false
         }
     }
@@ -1597,7 +1598,7 @@ private fun BookmarksScreen(
                             statusText = it.message
                             if (it.launched) reload()
                         }
-                        .onFailure { statusText = "Unable to open bookmark" }
+                        .onFailure { statusText = MobileMessages.text("autoUnableToOpenItem") }
                     running = false
                     return@launch
                 }
@@ -1636,7 +1637,7 @@ private fun BookmarksScreen(
                         categories = browseActions.listBookmarkCategories()
                         bookmarks = browseActions.listBookmarks(activeBookmarkQuery(), selectedCategoryId)
                     }
-                        .onFailure { statusText = "Unable to update bookmark. Please try again." }
+                        .onFailure { statusText = MobileMessages.text("autoUnableToUpdateFavorite") }
                     running = false
                 }
             },
@@ -1678,7 +1679,7 @@ private fun BookmarksScreen(
                         statusText = it.message
                         if (it.launched && pending is PendingPlayback.Bookmark) reload()
                     }
-                    .onFailure { statusText = "Unable to open bookmark" }
+                    .onFailure { statusText = MobileMessages.text("autoUnableToOpenItem") }
                 running = false
             }
         }
@@ -1687,15 +1688,15 @@ private fun BookmarksScreen(
 
 private fun bookmarkEmptyTitle(query: String, selectedCategoryId: String?): String =
     when {
-        query.isNotBlank() -> "No bookmark matches"
-        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "No recent bookmarks"
-        else -> "No bookmarks"
+        query.isNotBlank() -> "No matches"
+        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "Nothing played recently"
+        else -> MobileMessages.text("autoNoBookmarksFound")
     }
 
 private fun bookmarkEmptyDetail(query: String, selectedCategoryId: String?): String =
     when {
         query.isNotBlank() -> "Try a shorter search term."
-        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "Play a bookmark to build this list."
+        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> MobileMessages.text("autoRecentItemsEmptyDetail")
         else -> "Save channels from the Channels screen."
     }
 
@@ -1753,11 +1754,19 @@ internal fun BookmarkRow(
                     if (bookmark.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))
                     }
+                    if (recentlyPlayed && bookmark.rowId > 0) {
+                        Icon(
+                            Icons.Filled.Favorite,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MobileFavoriteRed
+                        )
+                    }
                 }
             },
             trailingContent = {
                 ItemActionsMenu(bookmark.channelName, onChoosePlayer, onRemove,
-                    if (recentlyPlayed) "Remove from Recent" else "Remove bookmark",
+                    if (recentlyPlayed) "Remove from Recent" else MobileMessages.text("autoRemoveBookmark"),
                     onChangeCategory)
             },
             supportingContent = {
@@ -3458,7 +3467,7 @@ private fun RemoteSyncScreen(
             Text("Remove your locally stored recently played channels.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedButton(
-                modifier = Modifier.semantics { contentDescription = "Clear recently played bookmark channels" },
+                modifier = Modifier.semantics { contentDescription = "Clear recently played channels" },
                 enabled = !running,
                 onClick = ::clearRecentlyPlayedBookmarks
             ) { Text("Clear recent history") }
@@ -3607,7 +3616,7 @@ private fun RemoteSyncScreen(
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text("Reset Local Data") },
-            text = { Text("Delete all local accounts, categories, channels, bookmarks, and watch state from this Android app, then optimize the database file?") },
+            text = { Text("Delete all local accounts, categories, channels, favourites, and watch state from this Android app, then optimize the database file?") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -3643,7 +3652,7 @@ private fun RemoteSyncScreen(
             onDismissRequest = { confirmRestore = false },
             title = { Text("Restore backup?") },
             text = {
-                Text("This replaces all mobile data with the selected backup, including accounts, configuration, bookmarks, cache, and link tables.")
+                Text("This replaces all mobile data with the selected backup, including accounts, configuration, favourites, cache, and link tables.")
             },
             confirmButton = {
                 TextButton(
@@ -4162,7 +4171,7 @@ private fun AccountsScreen(
             onDismissRequest = { pendingDelete = null },
             title = { Text("Delete Account") },
             text = {
-                Text("Delete ${account.accountName}? Local cache, bookmarks for this account, and watch state will be removed.")
+                Text("Delete ${account.accountName}? Local cache, favourites for this account, and watch state will be removed.")
             },
             confirmButton = {
                 Button(
@@ -4215,7 +4224,7 @@ private fun AccountsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "Delete ${accountsToDelete.size} selected failed account${if (accountsToDelete.size == 1) "" else "s"}? Local cache, bookmarks, and watch state for the selected account${if (accountsToDelete.size == 1) "" else "s"} will be removed."
+                        "Delete ${accountsToDelete.size} selected failed account${if (accountsToDelete.size == 1) "" else "s"}? Local cache, favourites, and watch state for the selected account${if (accountsToDelete.size == 1) "" else "s"} will be removed."
                     )
                     accountsToDelete.forEach { account ->
                         Text(
@@ -5452,7 +5461,7 @@ private fun AppTabs(
     onHideNavigation: () -> Unit = {}
 ) {
     val tabs = listOf(
-        BottomTab("Bookmarks", Icons.Filled.Favorite),
+        BottomTab(MobileMessages.text("autoFavoritesTitle"), Icons.Filled.Favorite),
         BottomTab("Accounts", Icons.Outlined.AccountCircle),
         BottomTab("Watching", Icons.Outlined.PlayCircle),
         BottomTab("Settings", Icons.Outlined.Settings)

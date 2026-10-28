@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261028favoritePinIcons1" rel="stylesheet">
+    <link href="/css/spa.css?v=20261028favoritePicker1" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js"></script>
@@ -29,8 +29,8 @@
     <script src="/javascript/modern-player.js?v=20261016epgCards2"></script>
     <script src="/javascript/playback-utils.js?v=20261028switchDrivenPlayback1"></script>
     <script src="/javascript/player-controls.js?v=20261026channel-navigation1"></script>
-    <script src="/javascript/shared-player.js?v=20261026channel-navigation1"></script>
-    <script src="/javascript/bookmark-watch-utils.js?v=20261028channelBookmarks1"></script>
+    <script src="/javascript/shared-player.js?v=20261028favoritePicker1"></script>
+    <script src="/javascript/bookmark-watch-utils.js?v=20261028favoritePicker1"></script>
 </head>
 <body>
 
@@ -47,9 +47,9 @@
             </button>
 
             <nav aria-label="Content sections" class="top-tabs">
-                <button :class="{ active: activeTab === 'bookmarks' }" @click="switchTab('bookmarks')" class="top-tab-button" title="Bookmarks" type="button">
+                <button :class="{ active: activeTab === 'bookmarks' }" @click="switchTab('bookmarks')" class="top-tab-button" title="Favourites" type="button">
                     <i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i>
-                    <span>Bookmarks</span>
+                    <span>Favourites</span>
                 </button>
                 <button :class="{ active: activeTab === 'accounts' && !watchingNowDrilldown }" @click="switchTab('accounts')" class="top-tab-button" title="Accounts" type="button">
                     <i class="bi bi-person-circle"></i>
@@ -81,7 +81,7 @@
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
-                <a class="soft-button icon-only" download href="/bookmarks.m3u8" title="Download Favorites Playlist">
+                <a class="soft-button icon-only" download href="/bookmarks.m3u8" title="Download Favourites Playlist">
                     <i class="bi bi-download"></i>
                 </a>
                 <a class="soft-button icon-only" download href="/iptv.m3u8" title="Download Published Playlist">
@@ -110,10 +110,10 @@
                 <section class="content-screen" v-if="activeTab === 'bookmarks'">
                     <div class="screen-heading">
                         <div>
-                            <h1>Bookmarks</h1>
-                            <p>Favorite channels grouped for quick playback.</p>
+                            <h1>Favourites</h1>
+                            <p>Favourite channels grouped for quick playback.</p>
                         </div>
-                        <div aria-label="Bookmark categories" class="chip-row bookmark-tabs" role="tablist">
+                        <div aria-label="Favourite categories" class="chip-row bookmark-tabs" role="tablist">
                             <button
                                     :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
                                     :key="'bookmark-category-' + (category.id || 'all')"
@@ -170,6 +170,7 @@
                                                 <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker broadcast-indicator" v-if="isActiveBookmark(bookmark)">
                                                     <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                                 </span>
+                                                <span aria-hidden="true" class="channel-bookmark-indicator" v-if="isRecentlyPlayedBookmarksSelected && !bookmark.isUnsavedRecent"><i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i></span>
                                             </div>
                                             <div class="meta-line">{{ bookmark.accountName }}</div>
 
@@ -776,6 +777,38 @@
 
         </div>
 
+        <div class="favorite-action-notice" role="alert" aria-live="assertive" v-if="favoriteActionNotice">
+            <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+            <span>{{ favoriteActionNotice }}</span>
+            <button @click="favoriteActionNotice = ''" aria-label="Dismiss message" type="button"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <div @click.self="closeFavoriteCategoryPicker()" class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="favorite-category-title" v-if="favoriteCategoryPickerOpen">
+            <div class="confirmation-panel favorite-category-panel">
+                <header>
+                    <strong id="favorite-category-title">Save to a category</strong>
+                    <button @click="closeFavoriteCategoryPicker()" aria-label="Close category picker" class="close-btn" type="button">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </header>
+                <div class="confirmation-body">
+                    <p>Choose a category for this favourite.</p>
+                    <div class="favorite-category-list" v-if="favoriteCategoryOptions.length > 0">
+                        <button v-for="category in favoriteCategoryOptions" :key="category.id" @click="chooseFavoriteCategory(category)" class="favorite-category-option" type="button">
+                            <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                            <span>{{ category.name }}</span>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <p class="favorite-category-empty" v-else-if="favoriteCategoryPickerLoading">Loading categories…</p>
+                    <p class="favorite-category-empty" v-else>No favourite categories are available yet. Create a category, then try again.</p>
+                    <div class="confirmation-actions">
+                        <button @click="closeFavoriteCategoryPicker()" class="soft-button" type="button">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div @click.self="closeClearRecentConfirm" class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="clear-recent-title" v-if="clearRecentConfirmOpen">
             <div class="confirmation-panel">
                 <header>
@@ -796,7 +829,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261028channelBookmarks2"></script>
+    <script src="/javascript/spa.js?v=20261028favoritePicker1"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

@@ -593,7 +593,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
 
-        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), headerActions);
+        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavoritesTitle"), headerActions);
         header.getStyleClass().add("bookmarks-header-stack");
 
         VBox headerArea = new VBox(12, header);
@@ -884,8 +884,16 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         actions.setMinWidth(Region.USE_PREF_SIZE);
         actions.setMaxWidth(Double.MAX_VALUE);
         actions.getChildren().add(createBookmarkPlayMenuButton(item));
-        actions.getChildren().add(ChannelListUI.createBookmarkIcon());
+        if (shouldShowRecentBookmarkHeart(selectedCategoryId(), item == null ? null : item.getBookmarkId())) {
+            actions.getChildren().add(ChannelListUI.createBookmarkIcon());
+        }
         return actions;
+    }
+
+    static boolean shouldShowRecentBookmarkHeart(String categoryId, String bookmarkId) {
+        return RECENT_CATEGORY_ID.equals(categoryId)
+                && bookmarkId != null
+                && !com.uiptv.db.BookmarkPlayHistoryDb.isRecentId(bookmarkId);
     }
 
     private Region trackBookmarkEpg(Region card, BookmarkItem item) {
@@ -1324,7 +1332,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                         suppressAutoReloadOnBookmarkChange = false;
                     }
                     forceReload();
-                    showErrorAlert("Unable to save bookmark order.");
+                    showErrorAlert(I18n.tr("autoUnableToSaveFavoriteOrder"));
                 });
             }
         });
@@ -1545,7 +1553,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 .categoryId(playbackContext.sourceCategoryDbId)
                 .channelId(item.getChannelId())
                 .navigationQueue(navigationQueue)
-                .errorPrefix(I18n.tr("autoErrorPlayingBookmarkPrefix")));
+                .errorPrefix(I18n.tr("autoErrorPlayingBookmarkPrefix") + " "));
     }
 
     private void recordRecentPlayback(BookmarkItem item) {

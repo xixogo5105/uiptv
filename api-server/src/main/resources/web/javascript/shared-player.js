@@ -8,7 +8,7 @@
         <button id="next-video-btn" class="uiptv-control-btn" type="button" title="Next item" aria-label="Next item" data-action="next-video" data-label="Next item">
             <i class="bi bi-skip-forward-fill"></i>
         </button>
-        <button id="favorite-btn" class="uiptv-control-btn" type="button" title="Add favorite" data-action="favorite" data-label="Favorite">
+        <button id="favorite-btn" class="uiptv-control-btn" type="button" title="Add to Favourites" aria-label="Add to Favourites" data-action="favorite" data-label="Favourite">
             <i class="bi bi-heart uiptv-favorite-icon uiptv-favorite-off"></i>
         </button>
         <button id="reload-btn" class="uiptv-control-btn" type="button" title="Reload" data-action="reload" data-label="Reload">
@@ -193,7 +193,7 @@
 
         const setTitle = () => {};
 
-        const setState = ({repeatEnabled, isMuted, isFullscreen, isFavorite, isPlaying, isPanelExpanded} = {}) => {
+        const setState = ({repeatEnabled, isMuted, isFullscreen, isFavorite, isFavoritePending, isPlaying, isPanelExpanded} = {}) => {
             const repeatBtn = root.querySelector('#repeat-btn');
             const muteBtn = root.querySelector('#mute-btn');
             const fullscreenBtn = root.querySelector('#fullscreen-btn');
@@ -234,7 +234,10 @@
             }
             if (favoriteBtn) {
                 favoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
-                favoriteBtn.title = isFavorite ? 'Remove favorite' : 'Add favorite';
+                favoriteBtn.disabled = !!isFavoritePending;
+                favoriteBtn.setAttribute('aria-busy', isFavoritePending ? 'true' : 'false');
+                favoriteBtn.title = isFavorite ? 'Remove from Favourites' : 'Add to Favourites';
+                favoriteBtn.setAttribute('aria-label', favoriteBtn.title);
                 favoriteBtn.classList.toggle('uiptv-favorite-selected', !!isFavorite);
                 const icon = favoriteBtn.querySelector('i');
                 if (icon) {

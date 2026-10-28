@@ -34,6 +34,11 @@ test('saved favourites replace history snapshots without duplicates and removing
     assert.equal(utils.recentPlaybackItems(history, [], key, () => '')[0].isUnsavedRecent, true);
 });
 
+test('only saved items in Recent render a heart marker', () => {
+    const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
+    assert.match(html, /channel-bookmark-indicator[^>]+v-if="isRecentlyPlayedBookmarksSelected && !bookmark\.isUnsavedRecent"/);
+});
+
 test('ranking is bounded and provider IDs cannot collide across accounts and modes', () => {
     const snapshots = [item('same'), item('same', 'other'), item('same', 'account', 'vod')];
     const history = snapshots.map((snapshot, index) => ({key: key(snapshot), snapshot, playCount: index + 1, lastPlayedAt: index}));
