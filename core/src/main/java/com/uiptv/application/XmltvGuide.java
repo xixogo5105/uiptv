@@ -63,15 +63,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         }
     }
 
-    private static final class XmlReaderResource implements AutoCloseable {
-        private final XMLStreamReader reader;
-
-        private XmlReaderResource(XMLStreamReader reader) {
-            this.reader = reader;
-        }
-
-        private XMLStreamReader reader() { return reader; }
-
+    private record XmlReaderResource(XMLStreamReader reader) implements AutoCloseable {
         @Override
         public void close() throws javax.xml.stream.XMLStreamException { reader.close(); }
     }

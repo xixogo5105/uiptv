@@ -332,9 +332,6 @@ public class DatabaseSyncService {
     }
 
     private void deleteIfExists(Path path) throws SQLException {
-        if (path == null) {
-            return;
-        }
         try {
             Files.deleteIfExists(path);
         } catch (IOException ex) {
