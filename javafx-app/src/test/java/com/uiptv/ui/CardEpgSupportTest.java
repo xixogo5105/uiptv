@@ -17,8 +17,6 @@ class CardEpgSupportTest extends DbBackedUiTest {
                 mode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
                 var owner = new VBox(); var card = new VBox(new Label("Channel"));
                 var support = new CardEpgSupport(owner); var requests = new AtomicInteger();
-                assertSame(card, support.bind(card, () -> { requests.incrementAndGet(); return null; }));
-                support.queue(); support.refreshMode();
                 assertEquals(1, card.getChildren().size()); assertEquals(0, requests.get());
                 var menu = new ContextMenu();
                 support.addGuideMenu(menu, card, () -> { requests.incrementAndGet(); return null; });

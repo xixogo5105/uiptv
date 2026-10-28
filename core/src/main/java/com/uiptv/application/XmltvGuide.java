@@ -61,8 +61,6 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             context.qualityNames.remove("");
             return new XmltvGuide(completeProgrammes(context.programmes), Map.copyOf(context.names),
                     Map.copyOf(context.qualityNames), Map.copyOf(context.icons));
-        } catch (java.io.IOException | javax.xml.stream.XMLStreamException | InterruptedException | RuntimeException error) {
-            throw error;
         } finally { if (reader != null) reader.close(); }
     }
 
@@ -73,8 +71,10 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             List<EpgProgramme> completed = new ArrayList<>();
             for (int i = 0; i < values.size(); i++) {
                 var programme = values.get(i);
-                long stop = programme.stop() > programme.start() ? programme.stop()
-                        : i + 1 < values.size() ? values.get(i + 1).start() : 0;
+                long stop = programme.stop();
+                if (stop <= programme.start()) {
+                    stop = i + 1 < values.size() ? values.get(i + 1).start() : 0;
+                }
                 if (stop > programme.start()) completed.add(new EpgProgramme(programme.title(), programme.description(), programme.start(), stop));
             }
             result.put(id, EpgSchedules.normalize(completed));

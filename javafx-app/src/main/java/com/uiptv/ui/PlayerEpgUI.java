@@ -18,6 +18,7 @@ public class PlayerEpgUI extends VBox {
     private static final String PROGRAMME_TITLE_STYLE = "epg-programme-title";
     private static final String PROGRAMME_DESCRIPTION_STYLE = "epg-programme-description";
     private static final String PROGRAMME_CARD_STYLE = "epg-programme-card";
+    private static final String PROGRAMME_TIME_STYLE = "epg-programme-time";
     private final Label heading = new Label();
     private final Label sourceStatus = new Label();
     private final Label nowTitle = new Label();
@@ -51,10 +52,10 @@ public class PlayerEpgUI extends VBox {
             label.setMinHeight(Region.USE_PREF_SIZE);
         }
         heading.getStyleClass().add("epg-player-heading");
-        sourceStatus.getStyleClass().add("epg-programme-time");
+        sourceStatus.getStyleClass().add(PROGRAMME_TIME_STYLE);
         nowTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE); nextTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE);
         nowDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE); nextDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE);
-        nowTime.getStyleClass().add("epg-programme-time"); nextTime.getStyleClass().add("epg-programme-time");
+        nowTime.getStyleClass().add(PROGRAMME_TIME_STYLE); nextTime.getStyleClass().add(PROGRAMME_TIME_STYLE);
         Label nowBadge = new Label(I18n.tr("epgNow"));
         Label nextBadge = new Label(I18n.tr("epgNext"));
         nowBadge.getStyleClass().addAll("epg-programme-badge", "epg-now-badge"); nextBadge.getStyleClass().add("epg-programme-badge");

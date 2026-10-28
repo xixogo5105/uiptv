@@ -5,7 +5,6 @@ import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.layout.Region;
 import java.util.function.Supplier;
 
 /** Cards remain plain; an explicit Guide action loads one channel from its provider. */
@@ -18,10 +17,6 @@ final class CardEpgSupport {
         this.owner = owner;
         owner.sceneProperty().addListener((_, _, scene) -> { if (scene == null) stop(); });
     }
-    Region bind(Region card, Supplier<LiveGuideApplicationService.Row> source) { return card; }
-    void refreshMode() { }
-    void queue() { }
-    void setCompactProgrammeRows(boolean compact) { }
     void addGuideMenu(ContextMenu menu, Node anchor, Supplier<LiveGuideApplicationService.Row> source) {
         if (!EpgModeUI.isFeatureEnabled()) return;
         MenuItem guide = new MenuItem(I18n.tr("epgOpenGuide"));

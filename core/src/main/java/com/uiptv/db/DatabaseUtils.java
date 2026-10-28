@@ -46,8 +46,6 @@ public class DatabaseUtils {
     private static final String COLUMN_SERIES_ID = "seriesId";
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
-    private static final String COLUMN_SOURCE_ID = "source_id";
-    private static final String COLUMN_GUIDE_CHANNEL_ID = "guide_channel_id";
     private static final String COLUMN_UPDATED_AT = "updatedAt";
     private static final Set<String> KNOWN_TABLE_NAMES = new HashSet<>();
     private static final Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();

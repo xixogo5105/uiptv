@@ -103,7 +103,7 @@ public class CatalogApplicationService {
             applySeriesRowsWatched(account, categoryApiId, channels);
         }
         List<Channel> result = dedupeChannels(channels);
-        if (enrichEpg && account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrichCached(account, result);
+        if (enrichEpg && account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrichCached(result);
         return result;
     }
 
@@ -529,7 +529,7 @@ public class CatalogApplicationService {
         }
 
         List<Channel> result = dedupeChannels(merged);
-        if (account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrichCached(account, result);
+        if (account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrichCached(result);
         return new CatalogPagedChannelsResult(result, currentPage, hasMore, resolvedApiOffset);
     }
 

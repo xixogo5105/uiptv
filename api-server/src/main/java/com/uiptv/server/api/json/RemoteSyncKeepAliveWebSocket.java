@@ -20,7 +20,6 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Host-driven lease checks; importing guests must answer each WebSocket ping with a pong. */
 public final class RemoteSyncKeepAliveWebSocket extends JettyWebSocketServlet {
     private static final long PING_INTERVAL_SECONDS = 30;
-    private static final long PONG_TIMEOUT_SECONDS = 30;
 
     @Override
     protected void configure(JettyWebSocketServletFactory factory) {

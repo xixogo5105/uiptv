@@ -35,6 +35,7 @@ import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mockStatic;
 
@@ -365,7 +366,7 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
 
             Region refreshedCard = runOnFxThread(() -> renderedBookmarkCard(ui));
             assertNotNull(refreshedCard);
-            assertFalse(previousCard == refreshedCard,
+            assertNotSame(previousCard, refreshedCard,
                     "The virtual card must be recreated even when the bookmark rows did not change.");
         } finally {
             runOnFxThread(() -> {

@@ -34,6 +34,7 @@ public class M3U8Parser {
     private static final String KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type=";
     private static final String KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key=";
     private static final String EXTGRP = "#EXTGRP:";
+    private static final String ATTRIBUTE_GROUP_TITLE = "group-title";
     private static final String EXTVLCOPT = "#EXTVLCOPT:";
     private static final String WEBPROP = "#WEBPROP:";
     private static final String PLAYLIST_TYPE = "#EXT-X-PLAYLIST-TYPE:";
@@ -164,46 +165,58 @@ public class M3U8Parser {
     }
 
     private static Set<PlaylistEntry> parseCategory(BufferedReader reader) {
-        Set<PlaylistEntry> playlistEntries = new LinkedHashSet<>();
-        playlistEntries.add(new PlaylistEntry(CategoryType.ALL.displayName(), CategoryType.ALL.displayName(), null, null, null));
-        boolean hasUncategorizedEntries = false;
+        ParseCategoryState state = new ParseCategoryState();
         try {
             String line;
-            List<String> activeDirectiveGroups = List.of();
-            String pendingEntry = null;
-            List<String> pendingGroups = List.of();
             while ((line = reader.readLine()) != null) {
-                String trimmed = line.strip();
-                if (trimmed.startsWith(EXTGRP)) {
-                    activeDirectiveGroups = splitGroupTitles(trimmed.substring(EXTGRP.length()));
-                    if (pendingEntry != null && parseAttribute(pendingEntry, "group-title").isBlank()) {
-                        pendingGroups = activeDirectiveGroups;
-                    }
-                } else if (trimmed.startsWith(EXTINF)) {
-                    if (pendingEntry != null && processCategoryLineSafely(playlistEntries, pendingEntry, pendingGroups)) {
-                        hasUncategorizedEntries = true;
-                    }
-                    pendingEntry = trimmed;
-                    boolean hasGroupTitle = !parseAttribute(trimmed, "group-title").isBlank();
-                    if (hasGroupTitle) activeDirectiveGroups = List.of();
-                    pendingGroups = hasGroupTitle ? List.of() : activeDirectiveGroups;
-                }
+                processCategoryInputLine(line.strip(), state);
             }
-            if (pendingEntry != null && processCategoryLineSafely(playlistEntries, pendingEntry, pendingGroups)) {
-                hasUncategorizedEntries = true;
-            }
+            addPendingCategoryEntry(state);
         } catch (Exception e) {
             AppLog.addErrorLog(M3U8Parser.class, e.getMessage());
         }
-        if (hasUncategorizedEntries
-                && playlistEntries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase(UNCATEGORIZED))) {
-            playlistEntries.add(new PlaylistEntry(UNCATEGORIZED, UNCATEGORIZED, null, null, null));
+        if (state.hasUncategorizedEntries
+                && state.entries.stream().noneMatch(entry -> entry.getGroupTitle().equalsIgnoreCase(UNCATEGORIZED))) {
+            state.entries.add(new PlaylistEntry(UNCATEGORIZED, UNCATEGORIZED, null, null, null));
         }
-        return playlistEntries;
+        return state.entries;
     }
 
-    private static boolean processCategoryLineSafely(Set<PlaylistEntry> playlistEntries, String line) {
-        return processCategoryLineSafely(playlistEntries, line, List.of());
+    private static void processCategoryInputLine(String trimmed, ParseCategoryState state) {
+        if (trimmed.startsWith(EXTGRP)) {
+            state.activeDirectiveGroups = splitGroupTitles(trimmed.substring(EXTGRP.length()));
+            if (state.pendingEntry != null && parseAttribute(state.pendingEntry, ATTRIBUTE_GROUP_TITLE).isBlank()) {
+                state.pendingGroups = state.activeDirectiveGroups;
+            }
+            return;
+        }
+        if (!trimmed.startsWith(EXTINF)) return;
+        addPendingCategoryEntry(state);
+        state.pendingEntry = trimmed;
+        boolean hasGroupTitle = !parseAttribute(trimmed, ATTRIBUTE_GROUP_TITLE).isBlank();
+        if (hasGroupTitle) state.activeDirectiveGroups = List.of();
+        state.pendingGroups = hasGroupTitle ? List.of() : state.activeDirectiveGroups;
+    }
+
+    private static void addPendingCategoryEntry(ParseCategoryState state) {
+        if (state.pendingEntry == null) return;
+        if (processCategoryLineSafely(state.entries, state.pendingEntry, state.pendingGroups)) {
+            state.hasUncategorizedEntries = true;
+        }
+        state.pendingEntry = null;
+        state.pendingGroups = List.of();
+    }
+
+    private static final class ParseCategoryState {
+        private final Set<PlaylistEntry> entries = new LinkedHashSet<>();
+        private List<String> activeDirectiveGroups = List.of();
+        private String pendingEntry;
+        private List<String> pendingGroups = List.of();
+        private boolean hasUncategorizedEntries;
+
+        private ParseCategoryState() {
+            entries.add(new PlaylistEntry(CategoryType.ALL.displayName(), CategoryType.ALL.displayName(), null, null, null));
+        }
     }
 
     private static boolean processCategoryLineSafely(Set<PlaylistEntry> playlistEntries, String line, List<String> directiveGroups) {
@@ -215,13 +228,9 @@ public class M3U8Parser {
         }
     }
 
-    private static boolean processCategoryLine(Set<PlaylistEntry> playlistEntries, String line) {
-        return processCategoryLine(playlistEntries, line, List.of());
-    }
-
     private static boolean processCategoryLine(Set<PlaylistEntry> playlistEntries, String line, List<String> directiveGroups) {
         String tvgId = parseAttribute(line, "tvg-id");
-        List<String> groupTitles = splitGroupTitles(parseAttribute(line, "group-title"));
+        List<String> groupTitles = splitGroupTitles(parseAttribute(line, ATTRIBUTE_GROUP_TITLE));
         if (groupTitles.isEmpty()) groupTitles = directiveGroups;
         if (groupTitles.isEmpty()) {
             return true;
@@ -340,7 +349,7 @@ public class M3U8Parser {
             String title = parseTitle(line);
             if (title.isBlank()) title = parseAttribute(line, "tvg-name");
             return new EntryHeader(parseAttribute(line, "tvg-id"),
-                    splitGroupTitles(parseAttribute(line, "group-title")), title,
+                    splitGroupTitles(parseAttribute(line, ATTRIBUTE_GROUP_TITLE)), title,
                     parseAttribute(line, "tvg-logo"), attributes);
         }
 

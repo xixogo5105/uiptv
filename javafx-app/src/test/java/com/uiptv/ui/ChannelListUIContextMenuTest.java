@@ -344,8 +344,6 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             ChannelListUI.ChannelItem item = channelItem(true);
             ResponsiveCardGrid<ChannelListUI.ChannelItem> grid = channelGrid(ui);
             Region decoratedCard = createDrawerChannelRow(ui, item);
-            CardEpgSupport support = new CardEpgSupport(ui);
-            support.bind(decoratedCard, () -> null);
             grid = new ResponsiveCardGrid<>(ignored -> decoratedCard, true);
             grid.setItems(FXCollections.observableArrayList(item));
             Scene scene = new Scene(grid, 420, 180);

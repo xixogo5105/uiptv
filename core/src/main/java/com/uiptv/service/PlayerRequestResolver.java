@@ -85,8 +85,10 @@ public class PlayerRequestResolver {
 
     String resolveBookmarkSourceCategoryId(Account account, Bookmark bookmark) {
         Category source = Category.fromJson(bookmark.getCategoryJson());
-        String sourceId = source == null ? bookmark.getCategoryId()
-                : isNotBlank(source.getDbId()) ? source.getDbId() : source.getCategoryId();
+        String sourceId;
+        if (source == null) sourceId = bookmark.getCategoryId();
+        else if (isNotBlank(source.getDbId())) sourceId = source.getDbId();
+        else sourceId = source.getCategoryId();
         return resolveSeriesCategoryId(account, sourceId);
     }
 

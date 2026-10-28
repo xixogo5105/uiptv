@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static com.uiptv.util.StringUtils.isBlank;
@@ -24,7 +25,7 @@ public class PlaylistEntry extends BaseJson {
     private String inputstreamaddon;
     private String manifestType; // New field for manifest_type
     /** Kodi-style M3U attributes and per-entry directives retained for playback/export. */
-    private Map<String, Object> metadata;
+    private LinkedHashMap<String, Object> metadata;
 
     public PlaylistEntry(String id, String groupTitle, String title, String sourceUrl, String logo) {
         this.id = id;
@@ -58,5 +59,9 @@ public class PlaylistEntry extends BaseJson {
 
     public void setPlaylistEntry(String playlistEntry) {
         this.sourceUrl = playlistEntry;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata == null ? null : new LinkedHashMap<>(metadata);
     }
 }

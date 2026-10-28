@@ -24,13 +24,14 @@ import static com.uiptv.db.DatabaseUtils.DbTable.VOD_CHANNEL_TABLE;
 import static com.uiptv.db.DatabaseUtils.validatedTableName;
 
 public class CategoryCacheRemovalService {
+    private static final CategoryCacheRemovalService INSTANCE = new CategoryCacheRemovalService();
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private static final String DELETE_FROM = "DELETE FROM ";
     private static final String WHERE_ACCOUNT_CATEGORY_IN = " WHERE accountId=? AND categoryId IN (";
     private static final String WHERE_ACCOUNT_TYPE_ID_IN = " WHERE accountId=? AND accountType=? AND id IN (";
 
     public static CategoryCacheRemovalService getInstance() {
-        return new CategoryCacheRemovalService();
+        return INSTANCE;
     }
 
     public CategoryCacheRemovalResult removeCachedCategories(Account account, Collection<String> categoryDbIds) {

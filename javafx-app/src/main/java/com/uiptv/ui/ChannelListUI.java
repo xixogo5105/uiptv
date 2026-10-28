@@ -184,12 +184,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         EpgModeUI.observe(this, () -> {
             applyListContentMode();
             applyChannelGridSizing();
-            cardEpg.refreshMode();
-            // Match the startup path: recreate the current channel cards so
-            // cards made while playback-only EPG was enabled cannot remain
-            // hollow when full EPG is enabled again.
             channelGrid.setItems(channelGrid.getItems());
-            cardEpg.queue();
         });
         table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
     }
@@ -208,11 +203,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
         scrollFocusedChannelIntoView();
     }
 
-    /** Rebinds the currently open live-channel cards to the newly published cached guide. */
+    /** Refreshes the visible cards after guide data changes. */
     public void refreshCardsAfterManualEpgRefresh() {
         if (disposed.get() || listAction != Account.AccountAction.itv) return;
         channelGrid.refresh();
-        cardEpg.queue();
     }
 
     public void scrollFocusedChannelIntoView() {
@@ -676,14 +670,20 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGrid.setEpgCardSizingEnabled(cardEpgVisible);
         channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
         if (!thumbnailsEnabled) {
-            channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
-                    && listAction == Account.AccountAction.itv ? 150 : 42);
-            channelGrid.setCardWidthRange(cardEpgVisible ? 288 : 240, cardEpgVisible ? 912 : 760);
-            channelGrid.setGaps(16, 6);
+            applyPlainTextGridSizing(cardEpgVisible);
             return;
         }
-        channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
-                && listAction == Account.AccountAction.itv ? 168 : 76);
+        applyThumbnailGridSizing(cardEpgVisible);
+    }
+
+    private void applyPlainTextGridSizing(boolean cardEpgVisible) {
+        channelGrid.setCardMinHeight(cardEpgVisible ? 150 : 42);
+        channelGrid.setCardWidthRange(cardEpgVisible ? 288 : 240, cardEpgVisible ? 912 : 760);
+        channelGrid.setGaps(16, 6);
+    }
+
+    private void applyThumbnailGridSizing(boolean cardEpgVisible) {
+        channelGrid.setCardMinHeight(cardEpgVisible ? 168 : 76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(cardEpgVisible ? 312 : 260, cardEpgVisible ? 624 : 520);
             channelGrid.setGaps(7, 7);
@@ -905,7 +905,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private Region trackEpgCard(Region card, ChannelItem item) {
         if (listAction != Account.AccountAction.itv || item == null) return card;
-        return cardEpg.bind(card, () -> guideRow(item));
+        return card;
     }
 
     private com.uiptv.application.LiveGuideApplicationService.Row guideRow(ChannelItem item) {
@@ -1600,7 +1600,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
-        cardEpg.queue();
         if (enabled) {
             channelName.setCellFactory(column -> createThumbnailCell());
         } else {
@@ -2447,7 +2446,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         Account historyAccount = mediaContext.toAccount();
         startBackgroundTask(() -> {
             try {
-                new com.uiptv.application.RecentPlaybackApplicationService().record(historyAccount, channelForPlayback, sourceCategory);
+                new com.uiptv.application.RecentPlaybackApplicationService().recordRecent(historyAccount, channelForPlayback, sourceCategory);
             } catch (Exception error) {
                 com.uiptv.util.AppLog.addErrorLog(ChannelListUI.class, "Unable to save recent playback: " + error.getMessage());
             }

@@ -24,8 +24,14 @@ import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.model.Account.AccountAction.vod;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class CategoryCacheRemovalServiceTest extends DbBackedTest {
+
+    @Test
+    void getInstance_returnsCachedServiceInstance() {
+        assertSame(CategoryCacheRemovalService.getInstance(), CategoryCacheRemovalService.getInstance());
+    }
 
     @Test
     void removeCachedCategories_removesLiveCategoriesAndChannelsOnly() throws Exception {

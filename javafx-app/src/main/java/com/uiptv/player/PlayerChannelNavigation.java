@@ -14,15 +14,22 @@ public final class PlayerChannelNavigation {
     public record Queue(List<Runnable> actions, List<String> itemNames, int currentIndex) {
         public Queue {
             actions = List.copyOf(actions);
-            itemNames = itemNames == null ? List.of() : itemNames.stream()
-                    .map(name -> name == null ? "" : name.trim())
-                    .toList();
+            itemNames = normalizedNames(itemNames);
             if (itemNames.size() != actions.size()) {
                 throw new IllegalArgumentException("itemNames must match queue actions");
             }
             if (currentIndex < 0 || currentIndex >= actions.size()) {
                 throw new IllegalArgumentException("currentIndex must refer to a queue action");
             }
+        }
+
+        private static List<String> normalizedNames(List<String> itemNames) {
+            if (itemNames == null) return List.of();
+            return itemNames.stream().map(Queue::normalizedName).toList();
+        }
+
+        private static String normalizedName(String name) {
+            return name == null ? "" : name.trim();
         }
 
         public boolean canGoPrevious() {

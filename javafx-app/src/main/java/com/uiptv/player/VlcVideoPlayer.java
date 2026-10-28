@@ -638,24 +638,33 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             org.json.JSONObject properties = new org.json.JSONObject();
             org.json.JSONObject kodiProperties = metadata.optJSONObject("kodiprop");
             org.json.JSONObject vlcProperties = metadata.optJSONObject("extvlcopt");
-            if (kodiProperties != null) kodiProperties.keySet().forEach(key -> properties.put(key, kodiProperties.opt(key)));
-            if (vlcProperties != null) vlcProperties.keySet().forEach(key -> properties.put(key, vlcProperties.opt(key)));
+            copyProperties(kodiProperties, properties);
+            copyProperties(vlcProperties, properties);
             if (properties.isEmpty()) return List.of();
-            List<String> options = new ArrayList<>();
-            for (String key : List.of("http-user-agent", "http-referrer", "http-origin", "http-cookie", "network-caching", "http-reconnect")) {
-                String value = properties.optString(key, "").strip();
-                if (value.isBlank()) continue;
-                if (key.equals("http-reconnect")) {
-                    if (value.equalsIgnoreCase("true") || value.equals("1")) options.add(":http-reconnect");
-                    else if (value.equalsIgnoreCase("false") || value.equals("0")) options.add(":no-http-reconnect");
-                } else if (value.indexOf('\n') < 0 && value.indexOf('\r') < 0) {
-                    options.add(":" + key + "=" + value);
-                }
-            }
-            return options;
+            return toVlcOptions(properties);
         } catch (org.json.JSONException ignored) {
             return List.of();
         }
+    }
+
+    private static void copyProperties(org.json.JSONObject source, org.json.JSONObject destination) {
+        if (source != null) source.keySet().forEach(key -> destination.put(key, source.opt(key)));
+    }
+
+    private static List<String> toVlcOptions(org.json.JSONObject properties) {
+        List<String> options = new ArrayList<>();
+        for (String key : List.of("http-user-agent", "http-referrer", "http-origin", "http-cookie", "network-caching", "http-reconnect")) {
+            String value = properties.optString(key, "").strip();
+            if (value.isBlank()) continue;
+            if (key.equals("http-reconnect")) addReconnectOption(options, value);
+            else if (value.indexOf('\n') < 0 && value.indexOf('\r') < 0) options.add(":" + key + "=" + value);
+        }
+        return options;
+    }
+
+    private static void addReconnectOption(List<String> options, String value) {
+        if (value.equalsIgnoreCase("true") || value.equals("1")) options.add(":http-reconnect");
+        else if (value.equalsIgnoreCase("false") || value.equals("0")) options.add(":no-http-reconnect");
     }
 
     /**

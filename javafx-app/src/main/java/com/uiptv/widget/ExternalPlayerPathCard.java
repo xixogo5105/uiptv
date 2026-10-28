@@ -22,11 +22,9 @@ public class ExternalPlayerPathCard extends PlayerOptionCard {
                                   TextInputControl pathField,
                                   Button browseButton) {
         super(title, description, defaultSelector, createPathChooserContent(pathField, browseButton));
-        if (pathField != null) {
-            pathField.textProperty().addListener((observable, previousPath, currentPath) ->
-                    setTitle(PlayerPathDisplayName.withPlayerName(title, currentPath)));
-            setTitle(PlayerPathDisplayName.withPlayerName(title, pathField.getText()));
-        }
+        pathField.textProperty().addListener((observable, previousPath, currentPath) ->
+                setTitle(PlayerPathDisplayName.withPlayerName(title, currentPath)));
+        setTitle(PlayerPathDisplayName.withPlayerName(title, pathField.getText()));
     }
 
     private static HBox createPathChooserContent(TextInputControl pathField, Button browseButton) {

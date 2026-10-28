@@ -15,6 +15,7 @@ import static com.uiptv.db.SQLConnection.connect;
 /** Local, bounded playback history, independent of saved favourites. */
 public final class BookmarkPlayHistoryDb {
     public static final int MAX_RECENT_ITEMS = 25;
+    private static final String RECENT_ID_PREFIX = "recent:";
     private static final String TABLE = "BookmarkPlayHistory";
     private static final String RECORD_SQL = "INSERT INTO " + TABLE
             + " (accountName, accountAction, channelId, playCount, lastPlayedAt, snapshotJson) VALUES (?, ?, ?, 1, ?, ?) "
@@ -68,13 +69,14 @@ public final class BookmarkPlayHistoryDb {
     }
 
     public static boolean isRecentId(String id) {
-        return id != null && id.startsWith("recent:");
+        return id != null && id.startsWith(RECENT_ID_PREFIX);
     }
 
     public static Bookmark getRecentBookmark(String id) {
         if (!isRecentId(id)) return null;
-        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement("SELECT * FROM BookmarkPlayHistory WHERE id = ?")) {
-            statement.setString(1, id.substring("recent:".length()));
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(
+                "SELECT id, accountName, accountAction, channelId, snapshotJson FROM BookmarkPlayHistory WHERE id = ?")) {
+            statement.setString(1, id.substring(RECENT_ID_PREFIX.length()));
             try (ResultSet row = statement.executeQuery()) {
                 return row.next() ? readSnapshot(row) : null;
             }
@@ -87,7 +89,8 @@ public final class BookmarkPlayHistoryDb {
         List<Bookmark> recent = new ArrayList<>();
         // Prefer the saved favourite so group changes are reflected immediately;
         // the snapshot also keeps unbookmarked entries playable after cache reloads.
-        String sql = "SELECT h.*, b.id AS bookmarkId FROM BookmarkPlayHistory h LEFT JOIN Bookmark b "
+        String sql = "SELECT h.id, h.accountName, h.accountAction, h.channelId, h.playCount, h.lastPlayedAt, "
+                + "h.snapshotJson, b.id AS bookmarkId FROM BookmarkPlayHistory h LEFT JOIN Bookmark b "
                 + "ON b.id = (SELECT MIN(b2.id) FROM Bookmark b2 WHERE b2.accountName = h.accountName "
                 + "AND b2.channelId = h.channelId AND COALESCE(NULLIF(b2.accountAction, ''), 'itv') = h.accountAction) "
                 + "ORDER BY h.playCount DESC, h.lastPlayedAt DESC, h.id DESC LIMIT ?";
@@ -109,7 +112,7 @@ public final class BookmarkPlayHistoryDb {
     private static Bookmark readSnapshot(ResultSet row) throws SQLException {
         try {
             Bookmark item = Bookmark.fromJson(row.getString("snapshotJson"));
-            item.setDbId("recent:" + row.getLong("id"));
+            item.setDbId(RECENT_ID_PREFIX + row.getLong("id"));
             // Account rename updates the history identity without rewriting snapshots.
             item.setAccountName(row.getString("accountName"));
             item.setAccountAction(Account.AccountAction.valueOf(row.getString("accountAction")));

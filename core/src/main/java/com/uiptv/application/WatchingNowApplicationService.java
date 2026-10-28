@@ -70,9 +70,9 @@ public class WatchingNowApplicationService {
             cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
         }
 
-        List<Channel> episodesAsChannels = !cachedEpisodes.isEmpty()
-                ? cachedEpisodes
-                : toChannels(SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, categoryId, seriesId, () -> false));
+        List<Channel> episodesAsChannels = cachedEpisodes.isEmpty()
+                ? toChannels(SeriesEpisodeService.getInstance().getEpisodesForWatchingNow(account, categoryId, seriesId, () -> false))
+                : cachedEpisodes;
 
         applyWatchedFlag(episodesAsChannels, account, categoryId, seriesId);
         SeriesMetadata metadata = resolveMetadata(account, categoryId, seriesId);

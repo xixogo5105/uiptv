@@ -174,9 +174,9 @@ public class HttpProxyStreamServer implements HttpHandler {
 
     private void sendResponse(HttpExchange ex, HttpUtil.StreamResult upstream, ResponseBody responseBody,
                               String requestMethod) throws IOException {
-        long length = !responseBody.rewritten()
-                ? resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
-                : responseBody.bytes().length;
+        long length = responseBody.rewritten()
+                ? responseBody.bytes().length
+                : resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH));
         ex.sendResponseHeaders(upstream.statusCode(), length);
         if (METHOD_HEAD.equalsIgnoreCase(requestMethod)) return;
         try (OutputStream os = ex.getResponseBody()) {
@@ -395,30 +395,28 @@ public class HttpProxyStreamServer implements HttpHandler {
     }
 
     private boolean isNumericHost(String host) {
-        if (isBlank(host)) {
-            return false;
-        }
+        if (isBlank(host)) return false;
         String value = host.trim();
-        if (value.contains(":")) {
-            return true;
-        }
+        if (value.contains(":")) return true;
+        return isValidIpv4Literal(value);
+    }
+
+    private boolean isValidIpv4Literal(String value) {
         String[] octets = value.split("\\.", -1);
-        if (octets.length != 4) {
-            return false;
-        }
+        if (octets.length != 4) return false;
         for (String octet : octets) {
-            if (!isAsciiDigits(octet)) {
-                return false;
-            }
-            try {
-                if (Integer.parseInt(octet) > 255) {
-                    return false;
-                }
-            } catch (NumberFormatException _) {
-                return false;
-            }
+            if (!isValidIpv4Octet(octet)) return false;
         }
         return true;
+    }
+
+    private boolean isValidIpv4Octet(String octet) {
+        if (!isAsciiDigits(octet)) return false;
+        try {
+            return Integer.parseInt(octet) <= 255;
+        } catch (NumberFormatException _) {
+            return false;
+        }
     }
 
     private void collectCookies(Map<String, List<String>> responseHeaders, CookieJar cookies) {
@@ -427,11 +425,12 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
         List<String> setCookie = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
-            if (entry.getKey() != null && HEADER_SET_COOKIE.equalsIgnoreCase(entry.getKey())) {
-                if (entry.getValue() != null) setCookie.addAll(entry.getValue());
+            if (entry.getKey() != null && HEADER_SET_COOKIE.equalsIgnoreCase(entry.getKey())
+                    && entry.getValue() != null) {
+                setCookie.addAll(entry.getValue());
             }
         }
-        if (setCookie == null || setCookie.isEmpty()) {
+        if (setCookie.isEmpty()) {
             return;
         }
         for (String row : setCookie) {

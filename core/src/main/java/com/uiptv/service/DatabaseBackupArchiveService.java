@@ -168,15 +168,7 @@ public class DatabaseBackupArchiveService {
                     throw new IOException("Backup archive contains duplicate database entries.");
                 }
                 try (OutputStream output = databaseEntry ? Files.newOutputStream(stagedDatabase) : OutputStream.nullOutputStream()) {
-                    byte[] buffer = new byte[16 * 1024];
-                    int read;
-                    while ((read = zip.read(buffer)) != -1) {
-                        expandedBytes += read;
-                        if (expandedBytes > maxExpandedBytes) {
-                            throw new IOException("Backup archive expands beyond the supported size limit.");
-                        }
-                        output.write(buffer, 0, read);
-                    }
+                    expandedBytes += copyEntry(zip, output, maxExpandedBytes - expandedBytes);
                 }
                 if (databaseEntry) databaseFound = true;
                 zip.closeEntry();
@@ -191,6 +183,20 @@ public class DatabaseBackupArchiveService {
         if (Files.size(stagedDatabase) == 0L) {
             throw new IOException("Backup database is empty.");
         }
+    }
+
+    private long copyEntry(InputStream input, OutputStream output, long remainingLimit) throws IOException {
+        byte[] buffer = new byte[16 * 1024];
+        long copiedBytes = 0;
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            copiedBytes += read;
+            if (copiedBytes > remainingLimit) {
+                throw new IOException("Backup archive expands beyond the supported size limit.");
+            }
+            output.write(buffer, 0, read);
+        }
+        return copiedBytes;
     }
 
     private void migrateAndValidate(Path databaseFile) throws SQLException {

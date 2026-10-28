@@ -44,6 +44,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 @SuppressWarnings("java:S1874")
@@ -146,7 +147,8 @@ public class ImageCacheManager {
     private static final int HOST_PARALLEL_LIMIT = 2;
     private static final long HOST_LOG_WINDOW_MS = 60_000L;
     private static final Path DISK_CACHE_DIR = resolveDiskCacheDir();
-    private static volatile BiFunction<byte[], ImageProfile, Image> imageDecoder = ImageCacheManager::decodeWithJavaFx;
+    private static final AtomicReference<BiFunction<byte[], ImageProfile, Image>> IMAGE_DECODER =
+            new AtomicReference<>(ImageCacheManager::decodeWithJavaFx);
     private static final Object DISK_TRIM_LOCK = new Object();
     private static final Object TRANSIENT_TRIM_LOCK = new Object();
     private static volatile long lastDiskTrimMs = 0L;
@@ -669,11 +671,11 @@ public class ImageCacheManager {
     }
 
     private static Image decode(byte[] bytes, ImageProfile profile) {
-        return imageDecoder.apply(bytes, profile);
+        return IMAGE_DECODER.get().apply(bytes, profile);
     }
 
     static void setImageDecoderForTesting(BiFunction<byte[], ImageProfile, Image> decoder) {
-        imageDecoder = decoder == null ? ImageCacheManager::decodeWithJavaFx : decoder;
+        IMAGE_DECODER.set(decoder == null ? ImageCacheManager::decodeWithJavaFx : decoder);
     }
 
     private static Image decodeWithJavaFx(byte[] bytes, ImageProfile profile) {

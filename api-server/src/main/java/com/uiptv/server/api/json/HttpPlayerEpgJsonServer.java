@@ -33,8 +33,10 @@ public class HttpPlayerEpgJsonServer implements HttpHandler {
     static List<EpgProgramme> boundedSchedule(List<EpgProgramme> programmes, String requestedLimit) {
         int limit = MAX_SCHEDULE_PROGRAMMES;
         if (requestedLimit != null && !requestedLimit.isBlank()) {
-            try { limit = Math.max(1, Math.min(MAX_SCHEDULE_PROGRAMMES, Integer.parseInt(requestedLimit))); }
-            catch (NumberFormatException ignored) { }
+            try { limit = Math.clamp(Integer.parseInt(requestedLimit), 1, MAX_SCHEDULE_PROGRAMMES); }
+            catch (NumberFormatException ignored) {
+                // Keep the documented default when the optional limit is malformed.
+            }
         }
         return programmes.size() <= limit ? programmes : programmes.subList(0, limit);
     }

@@ -801,17 +801,6 @@ public class ConfigurationUI extends VBox {
         return createSettingControlRow(labelKey, switchToggle, SETTINGS_SWITCH_WIDTH);
     }
 
-    private Node createWrappingSettingSwitchRow(String labelKey, SwitchToggle switchToggle) {
-        GridPane row = (GridPane) createSettingSwitchRow(labelKey, switchToggle);
-        Label label = (Label) row.getChildren().getFirst();
-        label.setWrapText(true);
-        label.setTextOverrun(OverrunStyle.CLIP);
-        GridPane.setValignment(label, VPos.TOP);
-        GridPane.setValignment(switchToggle, VPos.CENTER);
-        row.getStyleClass().add("epg-advanced-switch-row");
-        return row;
-    }
-
     private Node createSettingSwitchHelpRow(String labelKey, SwitchToggle switchToggle, Hyperlink helpLink) {
         Label label = new Label(I18n.tr(labelKey));
         label.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);

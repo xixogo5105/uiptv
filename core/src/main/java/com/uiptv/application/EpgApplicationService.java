@@ -21,7 +21,7 @@ public class EpgApplicationService {
     public boolean isBackgroundRefreshEnabled() { return false; }
 
     /** Catalogue reads never load a guide or attach programme details. */
-    public void enrichCached(Account account, List<Channel> channels) {
+    public void enrichCached(List<Channel> channels) {
         if (channels != null) channels.forEach(channel -> { channel.setEpgNow(null); channel.setEpgNext(null); });
     }
 
@@ -30,6 +30,11 @@ public class EpgApplicationService {
                 || Thread.currentThread().isInterrupted()) return List.of();
         List<EpgProgramme> nativeGuide = new NativeEpgApplicationService().schedule(account, channel);
         if (usable(nativeGuide)) return shifted(channel, nativeGuide);
+        List<EpgProgramme> xmltvGuide = scheduleFromXmltvSources(account, channel);
+        return xmltvGuide.isEmpty() ? shifted(channel, nativeGuide) : xmltvGuide;
+    }
+
+    private List<EpgProgramme> scheduleFromXmltvSources(Account account, Channel channel) {
         for (String source : accountSources(account)) {
             if (Thread.currentThread().isInterrupted()) return List.of();
             try (BufferedInputStream buffered = new BufferedInputStream(open(source))) {
@@ -45,7 +50,7 @@ public class EpgApplicationService {
                 AppLog.addWarningLog(EpgApplicationService.class, "Account programme guide unavailable.");
             }
         }
-        return shifted(channel, nativeGuide);
+        return List.of();
     }
 
     private List<EpgProgramme> shifted(Channel channel, List<EpgProgramme> programmes) {
@@ -75,7 +80,9 @@ public class EpgApplicationService {
                 String id = metadata.optString(field, "").strip();
                 if (!id.isBlank()) return id;
             }
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+            // Provider metadata may be empty or malformed; use the provider channel id below.
+        }
         return account.getType() == AccountType.XTREME_API ? "" : channel.getChannelId();
     }
     List<String> accountSources(Account account) {
@@ -94,7 +101,9 @@ public class EpgApplicationService {
                 }
                 break;
             }
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+            // A malformed or unreadable local playlist has no usable auto-discovered guide URL.
+        }
         return List.of();
     }
     private static URI sourceUri(String source) {

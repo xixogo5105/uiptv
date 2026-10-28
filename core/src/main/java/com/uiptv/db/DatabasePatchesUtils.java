@@ -20,6 +20,8 @@ import java.util.HexFormat;
 import java.util.List;
 
 public class DatabasePatchesUtils {
+    private static final String EPG_CACHE_REMOVAL_MIGRATION = "0222_remove_epg_caches.sql";
+    private static final String MIGRATION_STATUS_SUCCESS = "success";
     private static final String MIGRATIONS_LIST_RESOURCE = "db/migrations/migrations.txt";
     private static final String BASELINE_RESOURCE = "db/migrations/0000_baseline.sql";
     private static final String MIGRATIONS_DIR_RESOURCE = "db/migrations/";
@@ -29,17 +31,17 @@ public class DatabasePatchesUtils {
         List<String> migrationNames = readMigrationNames(MIGRATIONS_LIST_RESOURCE);
         boolean compact = false;
         for (String migrationName : migrationNames) {
-            if ("0222_remove_epg_caches.sql".equals(migrationName)) {
+            if (EPG_CACHE_REMOVAL_MIGRATION.equals(migrationName)) {
                 MigrationRecord previous = findMigrationRecord(conn, migrationName);
-                compact = previous == null || !"success".equalsIgnoreCase(previous.status);
+                compact = previous == null || !MIGRATION_STATUS_SUCCESS.equalsIgnoreCase(previous.status);
             }
             applyMigration(conn, migrationName);
         }
-        if (compact && conn.getAutoCommit() && "success".equalsIgnoreCase(findMigrationRecord(conn, "0222_remove_epg_caches.sql").status)) {
+        if (compact && conn.getAutoCommit() && MIGRATION_STATUS_SUCCESS.equalsIgnoreCase(findMigrationRecord(conn, EPG_CACHE_REMOVAL_MIGRATION).status)) {
             try (Statement statement = conn.createStatement()) { statement.execute("VACUUM"); }
             catch (SQLException error) {
-                upsertMigrationRecord(conn, "0222_remove_epg_caches.sql",
-                        checksum(readResource(MIGRATIONS_DIR_RESOURCE + "0222_remove_epg_caches.sql")),
+                upsertMigrationRecord(conn, EPG_CACHE_REMOVAL_MIGRATION,
+                        checksum(readResource(MIGRATIONS_DIR_RESOURCE + EPG_CACHE_REMOVAL_MIGRATION)),
                         "failed", "Guide tables removed; compaction pending: " + safeError(error));
                 com.uiptv.util.AppLog.addWarningLog(DatabasePatchesUtils.class, "Guide tables removed; database compaction will be retried at the next startup.");
             }
@@ -82,13 +84,13 @@ public class DatabasePatchesUtils {
         String checksum = checksum(migrationSql);
 
         MigrationRecord existing = findMigrationRecord(conn, migrationName);
-        if (existing != null && "success".equalsIgnoreCase(existing.status) && checksum.equals(existing.checksum)) {
+        if (existing != null && MIGRATION_STATUS_SUCCESS.equalsIgnoreCase(existing.status) && checksum.equals(existing.checksum)) {
             return;
         }
 
         boolean originalAutoCommit = conn.getAutoCommit();
         Integer secureDelete = null;
-        if ("0222_remove_epg_caches.sql".equals(migrationName)) {
+        if (EPG_CACHE_REMOVAL_MIGRATION.equals(migrationName)) {
             try (Statement statement = conn.createStatement(); ResultSet value = statement.executeQuery("PRAGMA secure_delete")) {
                 if (value.next()) secureDelete = value.getInt(1);
             }
@@ -97,7 +99,7 @@ public class DatabasePatchesUtils {
         try {
             conn.setAutoCommit(false);
             executeMigrationContent(conn, migrationSql);
-            upsertMigrationRecord(conn, migrationName, checksum, "success", null);
+            upsertMigrationRecord(conn, migrationName, checksum, MIGRATION_STATUS_SUCCESS, null);
             conn.commit();
         } catch (Exception ex) {
             conn.rollback();
@@ -106,7 +108,10 @@ public class DatabasePatchesUtils {
          } finally {
             conn.setAutoCommit(originalAutoCommit);
             if (secureDelete != null) {
-                try (Statement statement = conn.createStatement()) { statement.execute("PRAGMA secure_delete=" + secureDelete); }
+                try (Statement statement = conn.createStatement()) {
+                    if (secureDelete == 0) statement.execute("PRAGMA secure_delete=0");
+                    else statement.execute("PRAGMA secure_delete=1");
+                }
             }
         }
     }

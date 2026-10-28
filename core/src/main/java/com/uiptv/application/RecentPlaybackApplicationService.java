@@ -8,7 +8,7 @@ import com.uiptv.service.BookmarkService;
 
 /** Records replayable channel metadata without creating a saved favourite. */
 public class RecentPlaybackApplicationService {
-    public void record(Account account, Channel channel, Category sourceCategory) {
+    public void recordRecent(Account account, Channel channel, Category sourceCategory) {
         if (account == null || channel == null) return;
         Bookmark item = new Bookmark(account.getAccountName(), sourceCategory == null ? "" : sourceCategory.getTitle(),
                 channel.getChannelId(), channel.getName(), channel.getCmd(), account.getServerPortalUrl(), null);

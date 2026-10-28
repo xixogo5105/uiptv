@@ -41,7 +41,7 @@ public class XtremeCredentialsManagementInline extends VBox {
     private final Button closeButton = new Button(I18n.tr("autoCancel"));
     private final CheckBox selectAllCheckBox = new CheckBox(I18n.tr("autoSelectAll"));
 
-    private ObservableList<CredentialItem> credentialItems;
+    private final ObservableList<CredentialItem> credentialItems;
     private String defaultUsername;
     private final BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave;
     private final Runnable closeHandler;

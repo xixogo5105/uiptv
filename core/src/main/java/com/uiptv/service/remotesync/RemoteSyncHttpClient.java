@@ -13,12 +13,6 @@ import java.net.http.WebSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
@@ -87,6 +81,9 @@ public class RemoteSyncHttpClient {
                         }
                     }).get(10, TimeUnit.SECONDS);
             return new KeepAlive(socket);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while opening remote sync keep-alive with the host", ex);
         } catch (Exception ex) {
             Throwable cause = ex.getCause() == null ? ex : ex.getCause();
             throw new IOException("Could not open remote sync keep-alive with the host", cause);
@@ -169,19 +166,8 @@ public class RemoteSyncHttpClient {
     }
 
     private static HttpClient createKeepAliveHttpClient() {
-        try {
-            X509TrustManager trustAll = new X509TrustManager() {
-                @Override public void checkClientTrusted(X509Certificate[] chain, String authType) { }
-                @Override public void checkServerTrusted(X509Certificate[] chain, String authType) { }
-                @Override public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-            };
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, new TrustManager[]{trustAll}, new SecureRandom());
-            SSLParameters sslParameters = new SSLParameters();
-            sslParameters.setEndpointIdentificationAlgorithm("");
-            return HttpClient.newBuilder().sslContext(sslContext).sslParameters(sslParameters).build();
-        } catch (java.security.GeneralSecurityException ex) {
-            throw new IllegalStateException("Could not initialize the remote sync keep-alive", ex);
-        }
+        // Use the platform trust store and default hostname verification. Remote sync may
+        // carry a database snapshot, so an untrusted or mismatched TLS peer must fail closed.
+        return HttpClient.newHttpClient();
     }
 }

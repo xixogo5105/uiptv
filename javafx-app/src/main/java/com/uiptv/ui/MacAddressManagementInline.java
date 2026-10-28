@@ -49,7 +49,7 @@ public class MacAddressManagementInline extends VBox {
     private final Button closeButton = new Button(I18n.tr("autoCancel"));
     private final CheckBox selectAllCheckBox = new CheckBox(I18n.tr("autoSelectAll"));
 
-    private ObservableList<MacItem> macItems;
+    private final ObservableList<MacItem> macItems;
     private String defaultMac;
     private final Account baseAccount;
     private final BiConsumer<List<String>, String> onSave;

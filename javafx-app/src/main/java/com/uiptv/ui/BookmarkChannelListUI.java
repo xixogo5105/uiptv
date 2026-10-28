@@ -173,11 +173,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     public void forceReload() {
-        forceReload(true);
-    }
-
-    private void forceReload(boolean refreshEpgCards) {
-        if (refreshEpgCards) cardEpg.queue();
         loadedOnce = true;
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
@@ -187,10 +182,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         startReloadThread(generation);
     }
 
-    /** Repeats the startup bookmark query and recreates visible virtual cards after EPG publication. */
+    /** Repeats the startup bookmark query after an explicit guide refresh. */
     public void refreshCardsAfterManualEpgRefresh() {
         rebuildCardsAfterEpgReload = true;
-        forceReload(false);
+        forceReload();
     }
 
     /**
@@ -379,7 +374,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (!rebuildCardsAfterEpgReload) return;
         rebuildCardsAfterEpgReload = false;
         bookmarkGrid.refresh();
-        cardEpg.queue();
     }
 
     private void applyPartialReload(long generation, List<BookmarkItem> partialItems) {
@@ -580,13 +574,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void applyEpgMode() {
         bookmarkPageScroll.setVisible(true); bookmarkPageScroll.setManaged(true);
         applyBookmarkGridDisplayMode(thumbnailsEnabled);
-        cardEpg.refreshMode();
-        // Rebind the current items through the same full card lifecycle used
-        // during startup. A lightweight refresh can leave virtual cards that
-        // were created in playback-only mode without an EPG panel after the
-        // mode is switched back while this page is already alive.
         bookmarkGrid.refresh();
-        cardEpg.queue();
     }
 
     private VBox createHeaderArea() {
@@ -898,7 +886,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private Region trackBookmarkEpg(Region card, BookmarkItem item) {
         if (item == null || item.getAccountAction() != Account.AccountAction.itv) return card;
-        return cardEpg.bind(card, () -> guideRow(item));
+        return card;
     }
 
     private com.uiptv.application.LiveGuideApplicationService.Row guideRow(BookmarkItem item) {
@@ -1024,7 +1012,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
-        cardEpg.queue();
         applyBookmarkGridDisplayMode(enabled);
         bookmarkGrid.refresh();
     }

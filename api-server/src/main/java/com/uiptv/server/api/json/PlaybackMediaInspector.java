@@ -19,6 +19,7 @@ final class PlaybackMediaInspector {
     private static final String STRATEGY_MPEGTS = "mpegts";
     private static final String STRATEGY_NATIVE = "native";
     private static final String STRATEGY_UNSUPPORTED = "unsupported";
+    private static final String FORMAT_MATROSKA = "matroska";
     private static final String STALKER_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3";
     private static final String WEB_USER_AGENT = "Mozilla/5.0";
 
@@ -80,7 +81,7 @@ final class PlaybackMediaInspector {
         if (path.endsWith(".mp4") || path.endsWith(".m4v")) {
             return new MediaInfo(STRATEGY_NATIVE, "mp4", "", "", 0L);
         }
-        if (path.endsWith(".mkv")) return new MediaInfo("mkv", "matroska", "", "", 0L);
+        if (path.endsWith(".mkv")) return new MediaInfo("mkv", FORMAT_MATROSKA, "", "", 0L);
         if (path.endsWith(".avi") || path.endsWith(".wmv")) {
             return new MediaInfo(STRATEGY_UNSUPPORTED, "container", "", "", 0L);
         }
@@ -142,7 +143,7 @@ final class PlaybackMediaInspector {
         if (type.contains("dash+xml")) return new MediaFormat("dash", "dash");
         if (type.contains("mp2t") || hasTransportStreamSync(bytes)) return new MediaFormat(STRATEGY_MPEGTS, STRATEGY_MPEGTS);
         if (type.contains("video/mp4") || hasMp4Signature(bytes)) return new MediaFormat(STRATEGY_NATIVE, "mp4");
-        if (type.contains("matroska") || hasMatroskaSignature(bytes)) return new MediaFormat("mkv", "matroska");
+        if (type.contains(FORMAT_MATROSKA) || hasMatroskaSignature(bytes)) return new MediaFormat("mkv", FORMAT_MATROSKA);
         if (type.contains("mpeg") || hasMpegProgramStreamSignature(bytes)) return new MediaFormat(STRATEGY_UNSUPPORTED, "mpeg");
         return new MediaFormat(STRATEGY_UNKNOWN, "");
     }

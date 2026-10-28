@@ -19,7 +19,7 @@ class RecentPlaybackHistoryTest extends com.uiptv.service.DbBackedTest {
         channel.setName("News"); channel.setCmd("https://example.test/live");
         channel.setDrmType("clearkey"); channel.setClearKeysJson("{\"kid\":\"key\"}");
         Category category = new Category(); category.setCategoryId("provider-category"); category.setDbId("29");
-        new RecentPlaybackApplicationService().record(account, channel, category);
+        new RecentPlaybackApplicationService().recordRecent(account, channel, category);
 
         assertTrue(BookmarkService.getInstance().read().isEmpty());
         Bookmark recent = BookmarkService.getInstance().readRecentBookmarks().getFirst();

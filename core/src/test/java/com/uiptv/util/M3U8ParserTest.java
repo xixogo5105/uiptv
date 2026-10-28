@@ -412,7 +412,8 @@ class M3U8ParserTest {
         Set<PlaylistEntry> categories = (Set<PlaylistEntry>) invoke("parseCategory", new Class[]{BufferedReader.class}, new ThrowingBufferedReader());
         assertTrue(categories.stream().anyMatch(entry -> CategoryType.ALL.displayName().equals(entry.getGroupTitle())));
 
-        assertFalse((Boolean) invoke("processCategoryLineSafely", new Class[]{Set.class, String.class}, null, "#EXTINF:-1 group-title=\"Bad\",Bad"));
+        assertFalse((Boolean) invoke("processCategoryLineSafely", new Class[]{Set.class, String.class, List.class},
+                null, "#EXTINF:-1 group-title=\"Bad\",Bad", List.of()));
         assertEquals("", invokeEntryParser("parseTitle", new Class[]{String.class}, "#EXTINF:-1 group-title=\"NoTitle\","));
         assertNull(invokeEntryParser("parseDrmType", new Class[]{String.class}, "#EXT-X-KEY:KEYFORMAT=\"other\""));
 

@@ -46,7 +46,7 @@ class EpgApplicationServiceTest extends DbBackedTest {
         var service = new EpgApplicationService(); var channel = channel();
         channel.setEpgNow(new EpgProgramme("Old card data", "", 1, 2));
         try (var nativeRequests = mockConstruction(NativeEpgApplicationService.class, (mock, context) -> when(mock.schedule(any(), any())).thenReturn(List.of()))) {
-            service.enrichCached(account(""), List.of(channel));
+            service.enrichCached(List.of(channel));
             assertNull(channel.getEpgNow()); assertNull(channel.getEpgNext()); assertTrue(nativeRequests.constructed().isEmpty());
             assertTrue(service.schedule(account(""), channel).isEmpty());
         }

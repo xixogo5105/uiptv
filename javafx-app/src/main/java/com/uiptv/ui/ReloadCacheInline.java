@@ -165,8 +165,8 @@ public class ReloadCacheInline extends VBox {
     private GridPane mainContent;
     private VBox accountColumn;
     private VBox logColumn;
-    private VBox progressCard;
-    private VBox failureHandlingCard;
+    private final VBox progressCard;
+    private final VBox failureHandlingCard;
     private ColumnConstraints accountsColumn;
     private ColumnConstraints logsColumn;
     private boolean accountSelectionHidden;
