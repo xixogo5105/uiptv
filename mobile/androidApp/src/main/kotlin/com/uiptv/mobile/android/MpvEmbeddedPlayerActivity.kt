@@ -170,6 +170,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private var userSeeking = false
     private var repeatEnabled = false
     private var reconnectScheduled = false
+    private var suppressReconnectForNextEndFile = false
     private var stoppingForLifecycle = false
     private var reconnectAttempt = 0
     private var audioStateRequestVersion = 0L
@@ -913,7 +914,10 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun resolveForPlayback(target: PlaybackTarget): PlaybackTarget =
+    private suspend fun resolveForPlayback(
+        target: PlaybackTarget,
+        forceStalkerRefresh: Boolean = false
+    ): PlaybackTarget =
         withContext(Dispatchers.IO) {
             val databaseHelper = AndroidUiptvDatabaseHelper(this@MpvEmbeddedPlayerActivity)
             try {
@@ -921,7 +925,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                     context = this@MpvEmbeddedPlayerActivity,
                     preferences = preferencesRepository,
                     databaseHelper = databaseHelper
-                ).resolvePlayableTarget(target)
+                ).resolvePlayableTarget(target, forceStalkerRefresh)
                 resolveAndroidStreamTarget(resolved)
             } finally {
                 databaseHelper.close()
@@ -1913,35 +1917,74 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun scheduleReconnectIfNeeded(reason: String): Boolean {
-        if (!repeatEnabled || stoppingForLifecycle || isFinishing || !playbackStarted) {
+        val retryingStartup = !playbackStarted
+        if ((!retryingStartup && !repeatEnabled) || stoppingForLifecycle || isFinishing) {
             return false
         }
         if (reconnectScheduled) {
             return true
         }
         if (reconnectAttempt >= MaxReconnectAttempts) {
-            showMessage("Failed to reconnect after $MaxReconnectAttempts attempts.")
+            showMessage(com.uiptv.mobile.shared.i18n.MobileMessages.text("autoFailedToReconnectAfter5Attempts"))
             return true
         }
         reconnectAttempt += 1
+        val delayMs = if (retryingStartup) {
+            StartupRetryDelaysMs[reconnectAttempt - 1]
+        } else if (reconnectAttempt == 1) {
+            0L
+        } else {
+            ReconnectDelayMs
+        }
+        val retryGeneration = streamLoadGeneration
+        val retryTarget = currentTarget
         reconnectScheduled = true
         beginStreamLoading()
-        val delayMs = if (reconnectAttempt == 1) 0L else ReconnectDelayMs
-        showMessage(
-            if (delayMs == 0L) {
-                "$reason. Reconnecting..."
-            } else {
-                "$reason. Reconnecting in ${delayMs / 1_000L}s..."
-            }
-        )
+        if (retryingStartup) {
+            showMessage(com.uiptv.mobile.shared.i18n.MobileMessages.text("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"))
+        } else {
+            showMessage(
+                if (delayMs == 0L) {
+                    "$reason. Reconnecting..."
+                } else {
+                    "$reason. Reconnecting in ${delayMs / 1_000L}s..."
+                }
+            )
+        }
         val task = Runnable {
             reconnectScheduled = false
-            if (!repeatEnabled || stoppingForLifecycle || isFinishing) {
+            reconnectRunnable = null
+            if ((!retryingStartup && !repeatEnabled) || stoppingForLifecycle || isFinishing) {
+                completeStreamLoading()
+                return@Runnable
+            }
+            if (retryGeneration != streamLoadGeneration) {
                 completeStreamLoading()
                 return@Runnable
             }
             messageView.visibility = View.GONE
-            startPlayback()
+            if (!retryingStartup) {
+                startPlayback()
+                return@Runnable
+            }
+            val target = retryTarget ?: currentTarget
+            if (target == null) {
+                completeStreamLoading()
+                showMessage(com.uiptv.mobile.shared.i18n.MobileMessages.text("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"))
+                return@Runnable
+            }
+            playbackScope.launch {
+                val refreshed = runCatching { resolveForPlayback(target, forceStalkerRefresh = true) }
+                    .getOrDefault(target)
+                if (
+                    activityDestroyed || stoppingForLifecycle || isFinishing ||
+                    retryGeneration != streamLoadGeneration || currentTarget != target
+                ) {
+                    return@launch
+                }
+                currentTarget = refreshed
+                startPlayback()
+            }
         }
         reconnectRunnable = task
         overlayHandler.postDelayed(task, delayMs)
@@ -2507,6 +2550,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private fun handleMpvEvent(eventId: Int) {
         when (eventId) {
             MPVLib.MpvEvent.MPV_EVENT_START_FILE -> {
+                suppressReconnectForNextEndFile = false
                 MobilePlaybackIndicator.clear()
                 beginStreamLoading()
                 updatePlayPauseButton()
@@ -2514,8 +2558,8 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
                 playbackStarted = true
                 MobilePlaybackIndicator.set(currentTarget)
+                cancelReconnect()
                 reconnectAttempt = 0
-                reconnectScheduled = false
                 mpvPaused = false
                 currentTarget?.let(::markOpened)
                 messageView.visibility = View.GONE
@@ -2537,7 +2581,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 completeStreamLoading()
                 mpvPaused = false
                 updatePlayPauseButton()
-                if (!playNextBingeIfNeeded()) {
+                if (suppressReconnectForNextEndFile) {
+                    suppressReconnectForNextEndFile = false
+                } else if (!playNextBingeIfNeeded()) {
                     scheduleReconnectIfNeeded("Stream stopped")
                 }
             }
@@ -2835,6 +2881,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun stopMpvPlayback() {
+        suppressReconnectForNextEndFile = true
         mpv?.let { runMpvCommandAsync(it, "stop") }
         playbackTimeMs = 0L
         playbackLengthMs = 0L
@@ -3108,6 +3155,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val ProgressUpdateMs = 1_000L
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
+        private val StartupRetryDelaysMs = longArrayOf(1_000L, 2_000L, 5_000L, 10_000L, 20_000L)
         private const val LogTag = "UIPTV-MpvEmbedded"
         private const val DiagnosticLogTag = "UIPTV-Playback"
         private const val ChromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"

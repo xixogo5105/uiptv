@@ -941,6 +941,62 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun playbackCoordinatorCanRefreshAResolvedStalkerLiveLinkAfterStartupFailure() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "handshake" to """{"js":{"token":"fresh-session"}}""",
+                "get_profile" to """{"js":{}}""",
+                "create_link" to """{"js":{"cmd":"ffmpeg http://stream.test/fresh/index.m3u8?ticket=fresh"}}"""
+            )
+        ).use { server ->
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "Portal Refresh",
+                    type = MobileAccountType.STALKER_PORTAL,
+                    url = "http://127.0.0.1:${server.port}",
+                    macAddress = "00:1A:79:00:00:01"
+                )
+            )
+            val accountId = requireNotNull(account.id)
+            val db = helper.writableDatabase
+            db.execSQL(
+                "INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(7101, 'sports', ?, 'itv', 'Sports')",
+                arrayOf(accountId.toString())
+            )
+            db.execSQL(
+                "INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(7102, '1098', '7101', 'Aus Fox Sports 501', 'ffmpeg http://portal.test/live.php?stream=1098&extension=ts')"
+            )
+            val coordinator = AndroidPlaybackCoordinator(
+                context = context,
+                preferences = AndroidDataStorePreferencesRepository(context),
+                databaseHelper = helper
+            )
+            val expiredTarget = PlaybackTarget(
+                accountId = accountId,
+                accountName = "Portal Refresh",
+                mode = BrowseMode.LIVE,
+                categoryProviderId = "sports",
+                categoryRowId = 7101,
+                channelId = "1098",
+                title = "Aus Fox Sports 501",
+                url = "http://stream.test/expired/index.m3u8?ticket=expired",
+                manifestType = "hls"
+            )
+
+            assertEquals(expiredTarget.url, coordinator.resolvePlayableTarget(expiredTarget).url)
+            assertTrue("A normal resolution should keep an already-resolved URL", server.requests.isEmpty())
+
+            val refreshed = coordinator.resolvePlayableTarget(expiredTarget, forceStalkerRefresh = true)
+
+            assertEquals(
+                "http://stream.test/fresh/index.m3u8?ticket=fresh&stream=1098&extension=ts",
+                refreshed.url
+            )
+            assertTrue(server.requests.any { it.contains("action=create_link") })
+        }
+    }
+
+    @Test
     fun playbackCoordinatorResolvesStalkerSeriesEpisodeCreateLink() = runBlocking {
         TestHttpServer(
             mapOf(

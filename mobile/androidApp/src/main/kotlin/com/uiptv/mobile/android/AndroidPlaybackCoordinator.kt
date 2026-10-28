@@ -427,7 +427,10 @@ class AndroidPlaybackCoordinator(
             packageName?.let(::setPackage)
         }
 
-    suspend fun resolvePlayableTarget(target: PlaybackTarget): PlaybackTarget {
+    suspend fun resolvePlayableTarget(
+        target: PlaybackTarget,
+        forceStalkerRefresh: Boolean = false
+    ): PlaybackTarget {
         val direct = target.resolved()
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
@@ -439,10 +442,12 @@ class AndroidPlaybackCoordinator(
         if (account.type != MobileAccountType.STALKER_PORTAL) {
             return direct
         }
-        if (target.url.isBlank()) {
+        val refreshLiveStalkerLink = forceStalkerRefresh && target.mode == BrowseMode.LIVE
+        if (target.url.isBlank() && !refreshLiveStalkerLink) {
             return direct
         }
         if (
+            !refreshLiveStalkerLink &&
             direct.url.isPlayableNetworkUrl() &&
             !shouldResolveStalkerPortalCommand(target.url) &&
             (target.mode != BrowseMode.LIVE || direct.url.isUsableResolvedStalkerLiveUrl())
