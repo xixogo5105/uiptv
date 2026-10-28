@@ -21,6 +21,7 @@ import com.uiptv.util.PlayerUrlUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
+import javafx.event.EventTarget;
 import javafx.geometry.Insets;
 import javafx.geometry.NodeOrientation;
 import javafx.geometry.Pos;
@@ -44,7 +45,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
-import javafx.scene.text.TextAlignment;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -128,8 +128,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final int[] LIVE_RECOVERY_DELAY_SECONDS = {1, 2, 5, 10, 20};
     private PauseTransition liveRecoveryTimer;
     protected Label errorLabel;
-    protected TextFlow nowShowingFlow;
+    protected TextFlow guideInfoFlow;
+    protected HBox nowShowingFlow;
+    protected TextFlow headerDetailsFlow;
     protected Text streamInfoText;
+    protected HBox timeRow;
     protected StackPane playerContainer = new StackPane();
 
     // Buttons and Icons
@@ -149,7 +152,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnHideBar;
     protected Button btnTracks;
     protected Button btnGuide;
-    private final BooleanProperty guideWideMode = new SimpleBooleanProperty();
     protected com.uiptv.ui.PlayerGuideOverlay guideOverlay;
     protected ContextMenu tracksContextMenu;
     protected ImageView playIcon;
@@ -182,6 +184,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected PauseTransition idleTimer;
     protected boolean isControlBarHiddenByUser = false;
     protected boolean isPointerInsidePlayer = false;
+    protected boolean isPointerInsideControlBar = false;
+    private boolean keepControlBarOpenForNavigation;
     protected StackPane hiddenBarMessage; // Changed from HBox to StackPane
     protected PauseTransition hiddenBarMessageHideTimer;
     protected static boolean hasShownHiddenBarMessage = false;
@@ -198,6 +202,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
     private final ConfigurationChangeListener layoutModeConfigurationChangeListener =
             _ -> Platform.runLater(this::updateLayoutModeButton);
+    private final javafx.beans.value.ChangeListener<com.uiptv.application.PlayerEpgApplicationService.Result> guideSummaryChangeListener =
+            (_, _, _) -> Platform.runLater(this::refreshNowShowingHeader);
     private double lastMouseEventScreenX = Double.NaN;
     private double lastMouseEventScreenY = Double.NaN;
 
@@ -258,12 +264,16 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     // --- UI Construction ---
     private void buildUI() {
-        nowShowingFlow = new TextFlow();
+        guideInfoFlow = new TextFlow();
+        guideInfoFlow.getStyleClass().add("player-stream-info-text");
+        nowShowingFlow = new HBox(5);
+        nowShowingFlow.setAlignment(Pos.CENTER_LEFT);
         nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
-        nowShowingFlow.setTextAlignment(TextAlignment.LEFT);
         streamInfoText = new Text();
         streamInfoText.getStyleClass().add("player-stream-info-text");
-        applyFixedControlBarOrientation(nowShowingFlow, streamInfoText);
+        headerDetailsFlow = new TextFlow();
+        headerDetailsFlow.getStyleClass().add("player-header-details");
+        applyFixedControlBarOrientation(nowShowingFlow, headerDetailsFlow, streamInfoText);
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
@@ -343,19 +353,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         timeLabel = new Label(I18n.tr("auto00000000"));
         timeLabel.getStyleClass().add("player-time-label");
 
-        HBox timeRow = new HBox(2.5);
+        timeRow = new HBox(2.5);
         timeRow.setAlignment(Pos.CENTER_LEFT);
         timeRow.getChildren().addAll(timeSlider, timeLabel);
         applyFixedControlBarOrientation(buttonRow, timeRow, volumeSlider, timeSlider);
 
-        controlsContainer = new VBox(2);
-        controlsContainer.setPadding(new Insets(5));
+        controlsContainer = new VBox(4);
+        controlsContainer.setPadding(new Insets(7));
         controlsContainer.getStyleClass().add("player-controls-container");
-        controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
+        controlsContainer.getChildren().addAll(guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(640);
         controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
-        applyFixedControlBarOrientation(controlsContainer, nowShowingFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
+        applyFixedControlBarOrientation(controlsContainer, guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
 
         playerContainer.getStyleClass().add("player-container");
         playerContainer.setFocusTraversable(true);
@@ -452,7 +462,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.getChildren().add(videoView);
         }
         playerContainer.getChildren().addAll(overlayWrapper, loadingSpinner, errorLabel, hiddenBarMessage);
-        guideOverlay = new com.uiptv.ui.PlayerGuideOverlay(playerContainer, btnGuide, fullscreen, guideWideMode);
+        guideOverlay = new com.uiptv.ui.PlayerGuideOverlay(playerContainer, btnGuide, this::isLiveGuideContent);
+        MediaPlayerFactory.guideSummaryProperty().addListener(guideSummaryChangeListener);
         StackPane.setAlignment(guideOverlay, Pos.CENTER);
         playerContainer.getChildren().add(guideOverlay);
         Platform.runLater(layoutControlOverlay);
@@ -476,8 +487,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             exitFullscreen();
             stop();
         });
-        btnPreviousChannel.setOnAction(e -> PlayerChannelNavigation.previous());
-        btnNextChannel.setOnAction(e -> PlayerChannelNavigation.next());
+        btnPreviousChannel.setOnAction(e -> navigateToAdjacentChannel(false));
+        btnNextChannel.setOnAction(e -> navigateToAdjacentChannel(true));
         btnRewind.setOnAction(e -> seekBySeconds(-15));
         btnFastForward.setOnAction(e -> seekBySeconds(15));
         btnRepeat.setOnAction(e -> {
@@ -505,6 +516,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         volumeSlider.valueProperty().addListener((e, t, newVal) -> setVolume(newVal.doubleValue()));
     }
 
+    private void navigateToAdjacentChannel(boolean next) {
+        boolean previousKeepOpenRequest = keepControlBarOpenForNavigation;
+        keepControlBarOpenForNavigation = true;
+        boolean moved = next ? PlayerChannelNavigation.next() : PlayerChannelNavigation.previous();
+        if (!moved) {
+            keepControlBarOpenForNavigation = previousKeepOpenRequest;
+        }
+    }
+
     private void wireSliderInteractions() {
         timeSlider.setOnMousePressed(e -> {
             restoreVisibleCursor();
@@ -513,7 +533,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         });
         timeSlider.setOnMouseReleased(e -> {
             restoreVisibleCursor();
-            seek((float) timeSlider.getValue());
+            if (isOnDemandContent()) {
+                seek((float) timeSlider.getValue());
+            }
             isUserSeeking = false;
             restartIdleTimerForActivePlayer();
         });
@@ -541,6 +563,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void handlePlayerMouseClick(MouseEvent event) {
         rememberMouseEventPosition(event);
         onPlayerInteraction();
+        if (isControlBarEvent(event)) {
+            return;
+        }
         if (event.getButton() == MouseButton.PRIMARY) {
             handlePrimaryPlayerClick(event);
             return;
@@ -548,6 +573,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (event.getButton() == MouseButton.SECONDARY) {
             showControlBar();
         }
+    }
+
+    private boolean isControlBarEvent(MouseEvent event) {
+        EventTarget target = event.getTarget();
+        if (!(target instanceof Node node)) {
+            return false;
+        }
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (current == controlsContainer) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void handlePrimaryPlayerClick(MouseEvent event) {
@@ -639,7 +677,18 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         });
 
         playerContainer.setOnMouseExited(e -> {
+            rememberMouseEventPosition(e);
+            if (isPointerOverControlBar(e)) {
+                isPointerInsidePlayer = true;
+                isPointerInsideControlBar = true;
+                if (!isControlBarHiddenByUser) {
+                    controlsContainer.setVisible(true);
+                }
+                idleTimer.stop();
+                return;
+            }
             isPointerInsidePlayer = false;
+            isPointerInsideControlBar = false;
             idleTimer.stop();
             restoreVisibleCursor();
             if (!isTracksMenuOpen) {
@@ -649,12 +698,23 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         controlsContainer.setOnMouseEntered(e -> {
             rememberMouseEventPosition(e);
+            isPointerInsideControlBar = true;
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
         });
         controlsContainer.setOnMouseExited(e -> {
+            rememberMouseEventPosition(e);
+            if (isPointerOverControlBar(e)) {
+                isPointerInsideControlBar = true;
+                isPointerInsidePlayer = true;
+                idleTimer.stop();
+                return;
+            }
+            isPointerInsideControlBar = false;
             if (isPointerInsidePlayer) {
-                idleTimer.playFromStart();
+                restartIdleTimerForActivePlayer();
+            } else {
+                idleTimer.stop();
             }
         });
         controlsContainer.setOnMouseMoved(e -> {
@@ -662,6 +722,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 e.consume();
                 return;
             }
+            isPointerInsideControlBar = true;
             isPointerInsidePlayer = true;
             handlePlayerInteraction();
             e.consume();
@@ -688,7 +749,18 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void handleIdleTimeout() {
-        if (!playerContainer.isVisible() || !playerContainer.isManaged() || !isPointerInsidePlayer || isTracksMenuOpen) {
+        if (isPointerOverControlBar(lastMouseEventScreenX, lastMouseEventScreenY)) {
+            isPointerInsideControlBar = true;
+            if (!isControlBarHiddenByUser) {
+                controlsContainer.setVisible(true);
+            }
+            idleTimer.stop();
+            restoreVisibleCursor();
+            return;
+        }
+        isPointerInsideControlBar = false;
+        if (!playerContainer.isVisible() || !playerContainer.isManaged() || !isPointerInsidePlayer
+                || isTracksMenuOpen) {
             restoreVisibleCursor();
             return;
         }
@@ -700,6 +772,23 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         } else {
             restoreVisibleCursor();
         }
+    }
+
+    private boolean isPointerOverControlBar(MouseEvent event) {
+        return event != null && isPointerOverControlBar(event.getScreenX(), event.getScreenY());
+    }
+
+    private boolean isPointerOverControlBar(double screenX, double screenY) {
+        if (controlsContainer == null || !controlsContainer.isVisible()) {
+            return false;
+        }
+        if (Double.isFinite(screenX) && Double.isFinite(screenY)) {
+            var screenBounds = controlsContainer.localToScreen(controlsContainer.getBoundsInLocal());
+            if (screenBounds != null) {
+                return screenBounds.contains(screenX, screenY);
+            }
+        }
+        return isPointerInsideControlBar;
     }
 
     private void restoreVisibleCursor() {
@@ -747,6 +836,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
         if (!isFullscreen && !isPointerInsidePlayer) {
+            return;
+        }
+        if (isPointerInsideControlBar) {
+            idleTimer.stop();
             return;
         }
         idleTimer.playFromStart();
@@ -917,6 +1010,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (response.getChannel() != null) {
                 this.currentChannel = response.getChannel();
             }
+            guideOverlay.updateAvailability();
         } else {
             uri = null;
         }
@@ -929,7 +1023,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             updateBingeWatchContext(uri);
             syncBingeWatchEpisodeFromWatchState();
             updateBingeWatchWatchStateListener();
-            preparePlayerUiForPlayback();
+            preparePlayerUiForPlayback(true);
 
             setMute(isMuted);
             btnMute.setGraphic(isMuted ? muteOnIcon : muteOffIcon);
@@ -945,18 +1039,21 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
     }
 
-    private void preparePlayerUiForPlayback() {
+    private void preparePlayerUiForPlayback(boolean consumeNavigationIntent) {
+        boolean keepControlBarOpen = keepControlBarOpenForNavigation || isPointerInsideControlBar;
+        if (consumeNavigationIntent) {
+            keepControlBarOpenForNavigation = false;
+        }
         playerContainer.setVisible(true);
         playerContainer.setManaged(true);
         playerContainer.setMinHeight(275);
-        isPointerInsidePlayer = false;
+        isPointerInsidePlayer = keepControlBarOpen;
+        isPointerInsideControlBar = keepControlBarOpen;
         isLiveLikeContent = true;
         loadingSpinner.setVisible(true);
         errorLabel.setVisible(false);
-        controlsContainer.setVisible(false);
-        timeSlider.setDisable(false);
-        timeSlider.setValue(0);
-        timeLabel.setText(I18n.tr("auto00000000"));
+        controlsContainer.setVisible(keepControlBarOpen && !isControlBarHiddenByUser);
+        updatePlaybackTimeUi(0, 0);
         restoreVisibleCursor();
         updateTrackButtonVisibility();
         updateTransportButtonsVisibility();
@@ -981,10 +1078,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         isRetrying.set(false);
         idleTimer.stop();
         isPointerInsidePlayer = false;
+        isPointerInsideControlBar = false;
         activeBingeWatchToken = "";
         activeBingeWatchEpisodeId = "";
         removeBingeWatchWatchStateListener();
         isLiveLikeContent = true;
+        guideOverlay.updateAvailability();
         updateTrackButtonVisibility();
         updateRepeatButtonVisibility();
         com.uiptv.widget.ResponsiveCardGrid.clearActivePlayingIndicator();
@@ -999,7 +1098,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     @Override
     public void showLoading() {
         if (isDisposed.get()) return;
-        preparePlayerUiForPlayback();
+        preparePlayerUiForPlayback(false);
         armStartupTimeout();
     }
 
@@ -1082,6 +1181,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void showPlaybackError() {
+        keepControlBarOpenForNavigation = false;
         startupTimeout.stop();
         loadingSpinner.setVisible(false);
         errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
@@ -1093,6 +1193,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void updateChannelInfo(Channel channel, Account account) {
         this.currentChannel = channel;
         this.currentAccount = account;
+        guideOverlay.updateAvailability();
         // This is called before playback resolves a provider link. Clear any
         // old guide context without triggering a fetch for a stream that may
         // never be opened.
@@ -1149,6 +1250,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
         try {
             ConfigurationService.getInstance().removeChangeListener(layoutModeConfigurationChangeListener);
+            MediaPlayerFactory.guideSummaryProperty().removeListener(guideSummaryChangeListener);
             // First stop any current playback and dispose current media
             stopForReload();
         } catch (Exception _) {
@@ -1309,7 +1411,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void updateLayoutModeButton() {
         Configuration configuration = readConfigurationSafely();
         boolean available = configuration != null && configuration.isEmbeddedPlayer();
-        guideWideMode.set(available && configuration.isWideView());
         applyLayoutModeButtonState(available, available && configuration.isWideView());
     }
 
@@ -1365,11 +1466,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         return h > 0 ? String.format("%02d:%02d:%02d", h, m, s) : String.format("%02d:%02d", m, s);
     }
 
-    protected void updatePlaybackTimeUi(long currentTimeMs, long totalTimeMs, boolean seekable) {
+    protected void updatePlaybackTimeUi(long currentTimeMs, long totalTimeMs) {
         long safeCurrent = Math.max(0, currentTimeMs);
         boolean hasKnownTotal = totalTimeMs > 0;
-        boolean isLikelyOnDemand = isOnDemandContent();
-        boolean isLiveLike = !isLikelyOnDemand && (!hasKnownTotal || !seekable);
+        boolean isLiveLike = !isOnDemandContent();
         isLiveLikeContent = isLiveLike;
         updateTransportButtonsVisibility();
 
@@ -1385,7 +1485,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
 
-        timeLabel.setText(formatTime(safeCurrent) + " / LIVE");
+        timeLabel.setText(I18n.tr("playerLive"));
         timeSlider.setDisable(true);
         if (!isUserSeeking) {
             timeSlider.setValue(1.0);
@@ -2098,6 +2198,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         return isNotBlank(activeBingeWatchToken);
     }
 
+    private boolean isLiveGuideContent() {
+        return currentChannel != null && currentAccount != null
+                && currentAccount.getAction() == Account.AccountAction.itv;
+    }
+
     private void updateTransportButtonsVisibility() {
         boolean showSeekButtons = isOnDemandContent();
         btnRewind.setVisible(showSeekButtons);
@@ -2192,21 +2297,67 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected void refreshNowShowingHeader() {
-        if (nowShowingFlow == null || streamInfoText == null) {
+        if (guideInfoFlow == null || nowShowingFlow == null || headerDetailsFlow == null || streamInfoText == null) {
             return;
         }
+        guideInfoFlow.getChildren().clear();
         nowShowingFlow.getChildren().clear();
+        headerDetailsFlow.getChildren().clear();
         String displayTitle = buildDisplayTitle();
+        boolean live = isLiveGuideContent();
+        if (live) {
+            var summary = MediaPlayerFactory.guideSummaryProperty().get();
+            if (summary != null && (summary.now() != null || summary.next() != null)) {
+                List<String> programmes = new ArrayList<>(2);
+                if (summary.now() != null && isNotBlank(summary.now().title())) {
+                    programmes.add(I18n.tr("epgNow") + ": " + summary.now().title());
+                }
+                if (summary.next() != null && isNotBlank(summary.next().title())) {
+                    programmes.add(I18n.tr("epgNext") + ": " + summary.next().title());
+                }
+                if (!programmes.isEmpty()) {
+                    Text programmeText = new Text(String.join(" · ", programmes));
+                    programmeText.getStyleClass().add("player-stream-info-text");
+                    guideInfoFlow.getChildren().add(programmeText);
+                }
+            }
+        }
+        guideInfoFlow.setVisible(!guideInfoFlow.getChildren().isEmpty());
+        guideInfoFlow.setManaged(!guideInfoFlow.getChildren().isEmpty());
+
         if (isNotBlank(displayTitle)) {
             Text channelNameText = new Text(displayTitle);
             channelNameText.getStyleClass().add("player-channel-title");
             applyFixedControlBarOrientation(channelNameText);
-            nowShowingFlow.getChildren().addAll(channelNameText, streamInfoText);
-        } else {
-            nowShowingFlow.getChildren().add(streamInfoText);
+            if (live) {
+                com.uiptv.widget.PlayingCardIndicator liveDot = new com.uiptv.widget.PlayingCardIndicator();
+                liveDot.getStyleClass().add("player-live-indicator");
+                liveDot.setVisible(true);
+                liveDot.setManaged(true);
+                Text liveLabel = new Text("  " + I18n.tr("playerLive"));
+                liveLabel.getStyleClass().add("player-live-label");
+                applyFixedControlBarOrientation(liveDot, liveLabel);
+                nowShowingFlow.getChildren().addAll(liveDot, channelNameText, liveLabel);
+            } else {
+                nowShowingFlow.getChildren().add(channelNameText);
+            }
         }
+
+        if (isNotBlank(streamInfoText.getText())) {
+            headerDetailsFlow.getChildren().add(streamInfoText);
+        }
+        headerDetailsFlow.setVisible(!headerDetailsFlow.getChildren().isEmpty());
+        headerDetailsFlow.setManaged(!headerDetailsFlow.getChildren().isEmpty());
+        updateTimelineVisibility();
         nowShowingFlow.setVisible(true);
         nowShowingFlow.setManaged(true);
+    }
+
+    private void updateTimelineVisibility() {
+        if (timeRow == null) return;
+        boolean visible = isOnDemandContent();
+        timeRow.setVisible(visible);
+        timeRow.setManaged(visible);
     }
 
     private BingeWatchService.PlaylistItem getCurrentPlaylistItem() {

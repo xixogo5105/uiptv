@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
+    /** libVLC's process-wide plugin-path setup and unload must not overlap across sessions. */
+    private static final Object NATIVE_FACTORY_LIFECYCLE_LOCK = new Object();
 
     private final Object playerLock = new Object();
     private final ExecutorService playExecutor = Executors.newVirtualThreadPerTaskExecutor();
@@ -130,14 +132,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void createNativePlayer(NativeSession target) {
-        target.factory = nativeFactory == null
-                ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
-        target.player.set(target.factory.mediaPlayers().newEmbeddedMediaPlayer());
-        target.surface = new VlcImageViewVideoSurface(videoImageView);
-        target.player.get().videoSurface().set(target.surface);
-        target.player.get().controls().setRepeat(false);
-        target.events = createMediaPlayerEvents();
-        target.player.get().events().addMediaPlayerEventListener(target.events);
+        List<String> factoryArgs = nativeFactory == null ? createVlcArgs() : List.of();
+        MediaPlayerFactory suppliedFactory = nativeFactory == null ? null : nativeFactory.get();
+        synchronized (NATIVE_FACTORY_LIFECYCLE_LOCK) {
+            target.factory = nativeFactory == null
+                    ? new MediaPlayerFactory(factoryArgs.toArray(new String[0])) : suppliedFactory;
+            target.player.set(target.factory.mediaPlayers().newEmbeddedMediaPlayer());
+            target.surface = new VlcImageViewVideoSurface(videoImageView);
+            target.player.get().videoSurface().set(target.surface);
+            target.player.get().controls().setRepeat(false);
+            target.events = createMediaPlayerEvents();
+            target.player.get().events().addMediaPlayerEventListener(target.events);
+        }
     }
 
     private void publishNativePlayer(NativeSession target) {
@@ -439,10 +445,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         withCurrentPlayer(player -> {
             try {
                 long totalTime = player.status().length();
-                boolean seekable = player.status().isSeekable();
                 Platform.runLater(() -> {
                     if (isCurrentPlayer(mp)) {
-                        updatePlaybackTimeUi(newTime, totalTime, seekable);
+                        updatePlaybackTimeUi(newTime, totalTime);
                         refreshRenderedImageStreamInfo();
                     }
                 });
@@ -937,24 +942,25 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void releaseNativePlayer(EmbeddedMediaPlayer playerToCleanup, MediaPlayerFactory factoryToCleanup) {
-        if (playerToCleanup != null) {
-            stopNativePlayback(playerToCleanup);
-            try {
-                playerToCleanup.videoSurface().set(null);
-            } catch (Exception _) {
-                // Best-effort: surface can already be released during teardown.
+        synchronized (NATIVE_FACTORY_LIFECYCLE_LOCK) {
+            if (playerToCleanup != null) {
+                try {
+                    playerToCleanup.videoSurface().set(null);
+                } catch (Exception _) {
+                    // Best-effort: surface can already be released during native teardown.
+                }
+                try {
+                    playerToCleanup.release();
+                } catch (Exception _) {
+                    // Best-effort: native VLC release can fail after partial teardown.
+                }
             }
-            try {
-                playerToCleanup.release();
-            } catch (Exception _) {
-                // Best-effort: native VLC release can fail after partial teardown.
-            }
-        }
-        if (factoryToCleanup != null) {
-            try {
-                factoryToCleanup.release();
-            } catch (Exception _) {
-                // Best-effort: factory cleanup should not block UI disposal.
+            if (factoryToCleanup != null) {
+                try {
+                    factoryToCleanup.release();
+                } catch (Exception _) {
+                    // Best-effort: factory cleanup should not block UI disposal.
+                }
             }
         }
     }
@@ -1092,10 +1098,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     protected void updateStreamInfo(int width, int height) {
         ResolutionDisplayUtil.ResolutionDisplay resolution = ResolutionDisplayUtil.normalize(width, height);
-        String newLabel = String.format("%n%s%s (vlc)", resolution.shortText(), formatCodecSuffix(videoCodec));
-        if (!newLabel.equals(lastStreamInfoLabel)) {
+        String newLabel = String.format("%s%s (vlc)", resolution.shortText(), formatCodecSuffix(videoCodec));
+        if (!newLabel.equals(lastStreamInfoLabel) || !newLabel.equals(streamInfoText.getText())) {
             lastStreamInfoLabel = newLabel;
             streamInfoText.setText(newLabel);
+            refreshNowShowingHeader();
         }
     }
 

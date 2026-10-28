@@ -4,44 +4,35 @@ import com.uiptv.application.*;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.util.I18n;
 import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableBooleanValue;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import java.util.function.BooleanSupplier;
 
 /** Current-channel guide inside the JavaFX video surface, without another window. */
 public final class PlayerGuideOverlay extends StackPane {
     private final StackPane player;
     private final Button button;
-    private final ObservableBooleanValue fullscreen;
-    private final ObservableBooleanValue wideMode;
+    private final BooleanSupplier liveContent;
     private Thread worker;
     private int generation;
-    private final ChangeListener<MediaPlayerFactory.GuideContext> contextListener = (_, _, _) -> { close(); updateAvailability(); };
-    private final ChangeListener<PlayerEpgApplicationService.Result> summaryListener = (_, _, _) -> updateAvailability();
+    private final javafx.beans.value.ChangeListener<MediaPlayerFactory.GuideContext> contextListener = (_, _, _) -> close();
 
-    public PlayerGuideOverlay(StackPane player, Button button, ObservableBooleanValue fullscreen) {
-        this(player, button, fullscreen, null);
-    }
-
-    public PlayerGuideOverlay(StackPane player, Button button, ObservableBooleanValue fullscreen, ObservableBooleanValue wideMode) {
-        this.player = player; this.button = button; this.fullscreen = fullscreen; this.wideMode = wideMode;
+    public PlayerGuideOverlay(StackPane player, Button button, BooleanSupplier liveContent) {
+        this.player = player; this.button = button; this.liveContent = liveContent;
         getStyleClass().add("player-guide-overlay"); setFocusTraversable(true); setMinSize(0, 0);
         maxWidthProperty().bind(player.widthProperty().multiply(.92)); setMaxHeight(Region.USE_PREF_SIZE);
         setVisible(false); setManaged(false);
         button.setTooltip(new Tooltip(I18n.tr("epgOpenGuide"))); button.setAccessibleText(I18n.tr("epgOpenGuide"));
         button.setOnAction(_ -> { if (isVisible()) close(); else open(); });
-        player.widthProperty().addListener((_, _, _) -> { close(); updateAvailability(); });
-        fullscreen.addListener((_, _, _) -> updateAvailability());
-        if (wideMode != null) wideMode.addListener((_, _, _) -> updateAvailability());
+        player.widthProperty().addListener((_, _, _) -> close());
         sceneProperty().addListener((_, oldScene, scene) -> {
             if (oldScene != null) {
                 MediaPlayerFactory.guideContextProperty().removeListener(contextListener);
-                MediaPlayerFactory.guideSummaryProperty().removeListener(summaryListener); close();
+                close();
             }
             if (scene != null) {
                 MediaPlayerFactory.guideContextProperty().addListener(contextListener);
-                MediaPlayerFactory.guideSummaryProperty().addListener(summaryListener); updateAvailability();
+                updateAvailability();
             }
         });
         EpgModeUI.observeCache(this, this::updateAvailability);
@@ -51,30 +42,23 @@ public final class PlayerGuideOverlay extends StackPane {
         updateAvailability();
     }
 
-    private void updateAvailability() {
-        // The guide belongs to the active player, including the normal
-        // split-layout player. The summary is loaded asynchronously, so using
-        // it as the availability gate makes the control disappear during the
-        // normal loading window (and whenever the adjacent EPG panel is not
-        // mounted). Opening the guide performs its own schedule load.
-        boolean wideLayout = wideMode == null || wideMode.get() || fullscreen.get();
-        boolean available = wideLayout
-                && MediaPlayerFactory.guideContextProperty().get() != null
-                && (EpgModeUI.isFeatureEnabled() || MediaPlayerFactory.guideSummaryProperty().get() != null);
+    public void updateAvailability() {
+        boolean available = EpgModeUI.isFeatureEnabled() && liveContent.getAsBoolean();
         button.setVisible(available); button.setManaged(available);
         if (!available) close();
     }
 
     private void open() {
         var context = MediaPlayerFactory.guideContextProperty().get();
-        if (context == null || (!EpgModeUI.isFeatureEnabled() && MediaPlayerFactory.guideSummaryProperty().get() == null)) return;
-        var summary = MediaPlayerFactory.guideSummaryProperty().get();
-        // The player panel normally publishes this snapshot first. If the user clicks Guide during that
-        // short loading window, resolve it explicitly instead of silently discarding the click.
-        load(context, summary);
+        if (!EpgModeUI.isFeatureEnabled() || !liveContent.getAsBoolean()) return;
+        if (context == null) {
+            showUnavailable();
+            return;
+        }
+        load(context);
     }
 
-    private void load(MediaPlayerFactory.GuideContext context, PlayerEpgApplicationService.Result snapshot) {
+    private void load(MediaPlayerFactory.GuideContext context) {
         close();
         int request = ++generation;
         showLoading();
@@ -83,6 +67,15 @@ public final class PlayerGuideOverlay extends StackPane {
             var row = new LiveGuideApplicationService.Row(context.account().dbId(), "", "", context.channel(), programmes);
             Platform.runLater(() -> { if (request == generation && getScene() != null && EpgModeUI.isFeatureEnabled()) show(row); });
         });
+    }
+
+    private void showUnavailable() {
+        Button cancel = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose"));
+        cancel.getStyleClass().add("epg-guide-action");
+        cancel.setOnAction(_ -> close());
+        VBox unavailable = new VBox(10, cancel, new Label(I18n.tr("epgNoGuide")));
+        unavailable.getStyleClass().add("epg-guide-popup");
+        getChildren().setAll(unavailable); setVisible(true); setManaged(true);
     }
 
     private void showLoading() {

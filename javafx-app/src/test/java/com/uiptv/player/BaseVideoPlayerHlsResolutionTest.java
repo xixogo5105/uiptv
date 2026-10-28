@@ -9,10 +9,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.uiptv.model.Configuration;
+import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.testsupport.FxTestSupport;
+import com.uiptv.ui.EpgModeUI;
 import com.uiptv.ui.RootApplication;
 import com.uiptv.util.HttpUtil;
+import com.uiptv.util.I18n;
+import javafx.event.Event;
+import javafx.event.EventType;
+import javafx.scene.Node;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.PickResult;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
@@ -168,6 +179,124 @@ class BaseVideoPlayerHlsResolutionTest {
     }
 
     @Test
+    void doubleClickOnControlBarDoesNotToggleFullscreen() throws Exception {
+        int fullscreenToggles = runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            Event.fireEvent(player.btnFullscreen, mouseClick(player.btnFullscreen, 2));
+            return player.fullscreenToggleCount;
+        });
+
+        assertEquals(0, fullscreenToggles);
+    }
+
+    @Test
+    void doubleClickOnPlayerStillTogglesFullscreen() throws Exception {
+        int fullscreenToggles = runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            Event.fireEvent(player.playerContainer, mouseClick(player.playerContainer, 2));
+            return player.fullscreenToggleCount;
+        });
+
+        assertEquals(1, fullscreenToggles);
+    }
+
+    @Test
+    void controlBarRemainsVisibleWhilePointerIsInsideIt() throws Exception {
+        boolean visible = runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            player.playerContainer.setVisible(true);
+            player.playerContainer.setManaged(true);
+            player.controlsContainer.setVisible(true);
+
+            Event.fireEvent(player.controlsContainer,
+                    mouseEvent(MouseEvent.MOUSE_ENTERED, player.controlsContainer, 1));
+            player.idleTimer.getOnFinished().handle(null);
+            return player.controlsContainer.isVisible();
+        });
+
+        assertTrue(visible);
+    }
+
+    @Test
+    void adjacentChannelNavigationKeepsControlBarVisible() throws Exception {
+        boolean visible = runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            player.playerContainer.setVisible(true);
+            player.playerContainer.setManaged(true);
+            player.controlsContainer.setVisible(true);
+
+            try {
+                PlayerChannelNavigation.setQueue(new PlayerChannelNavigation.Queue(
+                        List.of(
+                                () -> player.play(new PlayerResponse("http://example.com/first")),
+                                () -> player.play(new PlayerResponse("http://example.com/second"))),
+                        List.of("First", "Second"),
+                        0));
+                player.btnNextChannel.fire();
+                return player.controlsContainer.isVisible();
+            } finally {
+                PlayerChannelNavigation.clear();
+            }
+        });
+
+        assertTrue(visible);
+    }
+
+    @Test
+    void guideButtonIsReadyForLivePlaybackBeforeGuideDetailsArrive() throws Exception {
+        runOnFxThread(() -> {
+            try (MockedStatic<EpgModeUI> epgMode = mockStatic(EpgModeUI.class)) {
+                epgMode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+                TestPlayer player = new TestPlayer();
+                Account liveAccount = new Account();
+                liveAccount.setAction(Account.AccountAction.itv);
+                player.updateChannelInfo(new Channel(), liveAccount);
+
+                assertTrue(player.btnGuide.isVisible());
+                assertTrue(player.btnGuide.isManaged());
+                player.btnGuide.fire();
+                assertTrue(player.guideOverlay.isVisible(), "Guide should explain when details are not ready");
+
+                epgMode.when(EpgModeUI::isFeatureEnabled).thenReturn(false);
+                player.guideOverlay.updateAvailability();
+                assertFalse(player.btnGuide.isVisible());
+                assertFalse(player.guideOverlay.isVisible());
+                epgMode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
+
+                Account vodAccount = new Account();
+                vodAccount.setAction(Account.AccountAction.vod);
+                player.updateChannelInfo(new Channel(), vodAccount);
+                assertFalse(player.btnGuide.isVisible());
+                assertFalse(player.btnGuide.isManaged());
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void liveChannelHasFixedProgressAndLiveLabelEvenWhenVlcReportsDuration() throws Exception {
+        runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            Account account = new Account();
+            account.setAction(Account.AccountAction.itv);
+            player.updateChannelInfo(new Channel(), account);
+            player.updatePlaybackTimeUi(250_000, 260_000);
+
+            assertEquals(I18n.tr("playerLive"), player.timeLabel.getText());
+            assertTrue(player.timeSlider.isDisabled());
+            assertEquals(1.0, player.timeSlider.getValue());
+
+            account.setAction(Account.AccountAction.vod);
+            player.updateChannelInfo(new Channel(), account);
+            player.updatePlaybackTimeUi(125_000, 250_000);
+            assertFalse(player.timeSlider.isDisabled());
+            assertEquals(0.5, player.timeSlider.getValue());
+            assertEquals("02:05 / 04:10", player.timeLabel.getText());
+            return null;
+        });
+    }
+
+    @Test
     void fullscreenTemporarilySuppressesPrimaryStageAlwaysOnTop() throws Exception {
         runOnFxThread(() -> {
             TestPlayer player = new TestPlayer();
@@ -230,6 +359,35 @@ class BaseVideoPlayerHlsResolutionTest {
         return FxTestSupport.runOnFxThread(task);
     }
 
+    private static MouseEvent mouseClick(Node target, int clickCount) {
+        return mouseEvent(MouseEvent.MOUSE_CLICKED, target, clickCount);
+    }
+
+    private static MouseEvent mouseEvent(EventType<MouseEvent> eventType,
+                                         Node target,
+                                         int clickCount) {
+        return new MouseEvent(
+                eventType,
+                0,
+                0,
+                0,
+                0,
+                MouseButton.PRIMARY,
+                clickCount,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                new PickResult(target, 0, 0)
+        );
+    }
+
     private record LayoutButtonState(
             boolean visible,
             boolean layoutStyle,
@@ -242,6 +400,11 @@ class BaseVideoPlayerHlsResolutionTest {
 
     private static final class TestPlayer extends BaseVideoPlayer {
         private Consumer<Boolean> layoutSaveHandler = _ -> {};
+        private int fullscreenToggleCount;
+
+        @Override public void toggleFullscreen() {
+            fullscreenToggleCount++;
+        }
 
         @Override protected javafx.scene.Node getVideoView() { return null; }
         @Override protected void playMedia(String uri) { /* Test stub: playback is not exercised here. */ }

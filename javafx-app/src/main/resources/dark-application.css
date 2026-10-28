@@ -3098,6 +3098,10 @@
     -fx-background-radius: 50%;
 }
 
+.player-live-indicator {
+    -fx-opacity: 1;
+}
+
 .uiptv-responsive-card:activated .playing-card-indicator,
 .bookmark-card:activated .playing-card-indicator {
     -fx-opacity: 1;
@@ -4796,6 +4800,7 @@
 .player-controls-container {
     -fx-background-color: rgba(26, 26, 26, 0.84);
     -fx-background-radius: 10;
+    -fx-font-size: 0.9em;
 }
 
 .player-time-label {
@@ -4941,7 +4946,7 @@
 }
 
 .player-channel-title {
-    -fx-font-size: 1.231em;
+    -fx-font-size: 0.923em;
     -fx-font-weight: bold;
     -fx-fill: #e4c86a;
 }
@@ -5212,6 +5217,11 @@
 
 .player-stream-info-text {
     -fx-fill: white;
+}
+
+.player-live-label {
+    -fx-fill: white;
+    -fx-font-size: 0.923em;
 }
 
 .player-hiddenbar-close-icon {
