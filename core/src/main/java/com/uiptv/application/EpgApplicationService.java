@@ -101,19 +101,29 @@ public class EpgApplicationService {
         String playlist = account.getM3u8Path();
         if (playlist == null || playlist.isBlank()) return List.of();
         try (var reader = new BufferedReader(new InputStreamReader(open(playlist), StandardCharsets.UTF_8))) {
-            for (int i = 0; i < 20; i++) {
-                String line = reader.readLine();
-                if (line == null) return List.of();
-                if (line.replace("\uFEFF", "").strip().startsWith("#EXTM3U")) {
-                    for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
-                        var sources = parseSources(M3uPlaylistUtils.parseAttribute(line, attribute));
-                        if (!sources.isEmpty()) return sources.stream().map(source -> sourceUri(playlist).resolve(source).toString()).toList();
-                    }
-                    return List.of();
-                }
-            }
+            return playlistGuideSources(playlistHeader(reader), playlist);
         } catch (Exception _) {
             // A malformed or unreadable local playlist has no usable auto-discovered guide URL.
+        }
+        return List.of();
+    }
+
+    private String playlistHeader(BufferedReader reader) throws IOException {
+        for (int i = 0; i < 20; i++) {
+            String line = reader.readLine();
+            if (line == null) return "";
+            String candidate = line.replace("\uFEFF", "").strip();
+            if (candidate.startsWith("#EXTM3U")) return candidate;
+        }
+        return "";
+    }
+
+    private List<String> playlistGuideSources(String header, String playlist) {
+        if (header.isBlank()) return List.of();
+        for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
+            var sources = parseSources(M3uPlaylistUtils.parseAttribute(header, attribute));
+            if (!sources.isEmpty()) return sources.stream()
+                    .map(source -> sourceUri(playlist).resolve(source).toString()).toList();
         }
         return List.of();
     }

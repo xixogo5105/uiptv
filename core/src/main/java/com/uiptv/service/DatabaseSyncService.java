@@ -70,9 +70,7 @@ public class DatabaseSyncService {
                     progressListener
             );
         } finally {
-            if (sourceSnapshot != null) {
-                deleteIfExists(sourceSnapshot);
-            }
+            deleteIfExists(sourceSnapshot);
         }
     }
 
@@ -113,9 +111,13 @@ public class DatabaseSyncService {
     }
 
     private Path createSourceSnapshot(String sourceDB) throws SQLException {
-        Path snapshotPath = null;
+        Path snapshotPath;
         try {
             snapshotPath = SecureTempFileSupport.createTempFile("uiptv-db-sync-", ".db");
+        } catch (IOException ex) {
+            throw new SQLException("Unable to create database sync snapshot", ex);
+        }
+        try {
             try (Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDB);
                  Statement statement = sourceConn.createStatement()) {
                 executeSchemaStatement(
@@ -124,8 +126,6 @@ public class DatabaseSyncService {
                 );
             }
             return snapshotPath;
-        } catch (IOException ex) {
-            throw new SQLException("Unable to create database sync snapshot", ex);
         } catch (SQLException ex) {
             deleteIfExists(snapshotPath);
             throw ex;

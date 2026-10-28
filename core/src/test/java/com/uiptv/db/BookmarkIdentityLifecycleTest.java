@@ -15,7 +15,6 @@ class BookmarkIdentityLifecycleTest extends DbBackedTest {
         bookmark.setAccountAction(Account.AccountAction.itv);
         bookmark.setChannelJson("{\"channelId\":\"provider-channel\",\"cmd\":\"cmd\",\"logo\":\"saved-logo\"}");
         BookmarkService.getInstance().save(bookmark);
-        String bookmarkId = bookmark.getDbId();
         BookmarkService.getInstance().recordRecentPlayback(bookmark);
         account.setUsername("updated");
         AccountService.getInstance().save(account);

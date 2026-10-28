@@ -30,12 +30,12 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         this(programmes,names,qualityNames,Map.of());
     }
     public static XmltvGuide read(InputStream input, Instant now)
-            throws java.io.IOException, javax.xml.stream.XMLStreamException, InterruptedException {
+            throws javax.xml.stream.XMLStreamException, InterruptedException {
         return read(input, now, Limits.standard());
     }
 
     static XmltvGuide read(InputStream input, Instant now, Limits limits)
-            throws java.io.IOException, javax.xml.stream.XMLStreamException, InterruptedException {
+            throws javax.xml.stream.XMLStreamException, InterruptedException {
         XMLInputFactory factory = XMLInputFactory.newFactory();
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         // Large XMLTV descriptions can exceed the JDK default entity-text limit.
@@ -47,8 +47,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
         ParseContext context = new ParseContext(now, limits);
-        XMLStreamReader reader = factory.createXMLStreamReader(input);
-        try (XmlReaderResource readerClose = reader::close) {
+        try (XmlReaderResource readerClose = new XmlReaderResource(factory.createXMLStreamReader(input))) {
+            XMLStreamReader reader = readerClose.reader();
             while (reader.hasNext()) {
                 if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
                 int event = reader.next();
@@ -63,10 +63,17 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         }
     }
 
-    @FunctionalInterface
-    private interface XmlReaderResource extends AutoCloseable {
+    private static final class XmlReaderResource implements AutoCloseable {
+        private final XMLStreamReader reader;
+
+        private XmlReaderResource(XMLStreamReader reader) {
+            this.reader = reader;
+        }
+
+        private XMLStreamReader reader() { return reader; }
+
         @Override
-        void close() throws javax.xml.stream.XMLStreamException;
+        public void close() throws javax.xml.stream.XMLStreamException { reader.close(); }
     }
 
     private static Map<String,List<EpgProgramme>> completeProgrammes(Map<String,List<EpgProgramme>> source) {
