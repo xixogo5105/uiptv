@@ -82,14 +82,12 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.Backup
-import androidx.compose.material.icons.outlined.Bookmark
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayCircle
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.CloudSync
@@ -1506,9 +1504,9 @@ private fun FavouriteStar(
     compact: Boolean = false
 ) {
     IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
-        Icon(if (selected) androidx.compose.material.icons.Icons.Outlined.Bookmark else androidx.compose.material.icons.Icons.Outlined.BookmarkBorder,
+        Icon(if (selected) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
             contentDescription = contentDescription,
-            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            tint = if (selected) MobileFavoriteRed else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -4001,11 +3999,7 @@ private fun AccountsScreen(
                                 onClick = { accountFilter = filter },
                                 leadingIcon = if (filter == AccountFilter.PINNED) {
                                     {
-                                        Icon(
-                                            Icons.Outlined.PushPin,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                        DesktopPinnedAccountIcon(Modifier.size(16.dp))
                                     }
                                 } else {
                                     null
@@ -4335,13 +4329,9 @@ private fun AccountRow(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (account.pinToTop) {
-                    Icon(
-                        imageVector = Icons.Outlined.PushPin,
-                        contentDescription = "Pinned account",
-                        modifier = Modifier
-                            .size(18.dp)
-                            .padding(end = 4.dp),
-                        tint = DeepNightAccent
+                    DesktopPinnedAccountIcon(
+                        modifier = Modifier.size(18.dp).padding(end = 4.dp),
+                        contentDescription = "Pinned account"
                     )
                 }
                 Text(
@@ -5462,7 +5452,7 @@ private fun AppTabs(
     onHideNavigation: () -> Unit = {}
 ) {
     val tabs = listOf(
-        BottomTab("Bookmarks", Icons.Outlined.Bookmarks),
+        BottomTab("Bookmarks", Icons.Filled.Favorite),
         BottomTab("Accounts", Icons.Outlined.AccountCircle),
         BottomTab("Watching", Icons.Outlined.PlayCircle),
         BottomTab("Settings", Icons.Outlined.Settings)
@@ -5473,7 +5463,10 @@ private fun AppTabs(
             tabs.forEachIndexed { index, tab ->
                 androidx.compose.material3.NavigationRailItem(
                     selected = selectedTab == index, onClick = { onSelect(index) },
-                    icon = { Icon(tab.icon, contentDescription = tab.label) },
+                    icon = {
+                        if (index == 0) Icon(tab.icon, contentDescription = tab.label, tint = MobileFavoriteRed)
+                        else Icon(tab.icon, contentDescription = tab.label)
+                    },
                     alwaysShowLabel = false
                 )
             }
@@ -5483,7 +5476,10 @@ private fun AppTabs(
             tabs.forEachIndexed { index, tab ->
                 NavigationBarItem(
                     selected = selectedTab == index, onClick = { onSelect(index) },
-                    icon = { Icon(tab.icon, contentDescription = tab.label) }
+                    icon = {
+                        if (index == 0) Icon(tab.icon, contentDescription = tab.label, tint = MobileFavoriteRed)
+                        else Icon(tab.icon, contentDescription = tab.label)
+                    }
                 )
             }
         }

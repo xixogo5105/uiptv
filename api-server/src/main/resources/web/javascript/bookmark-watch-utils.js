@@ -75,6 +75,73 @@
         return tabs;
     };
 
+    const normalizeExact = value => String(value || '').trim();
+    const normalizeLower = value => normalizeExact(value).toLowerCase();
+
+    const readBookmarkSourceCategory = bookmark => {
+        try {
+            const category = JSON.parse(String(bookmark?.categoryJson || ''));
+            if (category && typeof category === 'object') return category;
+        } catch (_) { /* Older bookmarks may not carry source category JSON. */ }
+        return {};
+    };
+
+    const buildChannelBookmarkIndex = (bookmarks, accountName) => {
+        const account = normalizeExact(accountName);
+        const index = {byChannelId: new Map(), byCommand: new Map(), byName: new Map()};
+        if (!account) return index;
+        for (const bookmark of (Array.isArray(bookmarks) ? bookmarks : [])) {
+            if (normalizeExact(bookmark?.accountName) !== account) continue;
+            const sourceCategory = readBookmarkSourceCategory(bookmark);
+            const record = {
+                channelId: normalizeExact(bookmark.channelId),
+                command: normalizeExact(bookmark.cmd),
+                name: normalizeLower(bookmark.channelName),
+                categoryId: normalizeExact(sourceCategory.categoryId || bookmark.categoryId),
+                categoryTitle: normalizeLower(sourceCategory.title || bookmark.categoryTitle)
+            };
+            const add = (map, key) => {
+                if (!key) return;
+                const records = map.get(key) || [];
+                records.push(record);
+                map.set(key, records);
+            };
+            add(index.byChannelId, record.channelId);
+            add(index.byCommand, record.command);
+            if (!record.channelId && !record.command) add(index.byName, record.name);
+        }
+        return index;
+    };
+
+    const isChannelBookmarked = (channel, index, {
+        categoryId = '', categoryTitle = '', allCategories = false
+    } = {}) => {
+        if (!channel || !index) return false;
+        const channelId = normalizeExact(channel.channelId);
+        const command = normalizeExact(channel.cmd);
+        const name = normalizeLower(channel.name || channel.channelName);
+        const candidates = new Set([
+            ...(index.byChannelId?.get(channelId) || []),
+            ...(index.byCommand?.get(command) || []),
+            ...(!channelId && !command ? (index.byName?.get(name) || []) : [])
+        ]);
+        const expectedCategoryId = normalizeExact(categoryId);
+        const expectedCategoryTitle = normalizeLower(categoryTitle);
+        return [...candidates].some(bookmark => {
+            if (!allCategories) {
+                const sameCategoryById = expectedCategoryId && bookmark.categoryId
+                    && expectedCategoryId === bookmark.categoryId;
+                const sameCategoryByTitle = expectedCategoryTitle && bookmark.categoryTitle
+                    && expectedCategoryTitle === bookmark.categoryTitle;
+                if (!sameCategoryById && !sameCategoryByTitle) return false;
+            }
+            if ((channelId && bookmark.channelId === channelId)
+                || (command && bookmark.command === command)) return true;
+            return !channelId && !command && !bookmark.channelId && !bookmark.command
+                && !!name && bookmark.name === name;
+        });
+    };
+
     const normalizeWatchingNowVodRow = (row, resolveLogoUrl, normalizeChannel) => {
         const normalized = {
             ...row,
@@ -135,6 +202,8 @@
         loadBookmarksPaged,
         loadBookmarkCategories,
         buildBookmarkCategoryTabs,
+        buildChannelBookmarkIndex,
+        isChannelBookmarked,
         normalizeWatchingNowVodRow,
         fetchWatchingNowVod
     };

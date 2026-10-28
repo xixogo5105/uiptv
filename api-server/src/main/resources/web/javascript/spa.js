@@ -900,8 +900,17 @@ createApp({
         });
 
         const filteredChannels = computed(() => {
-            if (!searchQuery.value) return channels.value;
-            return channels.value.filter(c => (c.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
+            const query = String(searchQuery.value || '').trim().toLowerCase();
+            const visible = channels.value.filter(channel =>
+                !query || String(channel.name || '').toLowerCase().includes(query)
+            );
+            if (contentMode.value !== 'itv') return visible;
+            const bookmarked = [];
+            const remaining = [];
+            for (const channel of visible) {
+                (isChannelBookmarked(channel) ? bookmarked : remaining).push(channel);
+            }
+            return [...bookmarked, ...remaining];
         });
 
         const filteredEpisodes = computed(() => {
@@ -1880,6 +1889,51 @@ createApp({
 
         const BOOKMARK_PAGE_SIZE = 25;
         const bookmarkWatchUtils = window.UIPTVBookmarkWatchUtils;
+        const channelBookmarkIndex = computed(() => bookmarkWatchUtils.buildChannelBookmarkIndex(
+            bookmarks.value,
+            currentAccount.value?.accountName || ''
+        ));
+
+        const resolveChannelBookmarkCategory = channel => {
+            const selectedId = String(currentContext.value.categoryId || '').trim();
+            // loadChannels receives a local dbId when one is available. Resolve that
+            // namespace first; provider category IDs can collide with another row's dbId.
+            const selectedCategory = categories.value.find(category =>
+                String(category?.dbId || '').trim() === selectedId
+            ) || categories.value.find(category =>
+                String(category?.categoryId || '').trim() === selectedId
+            );
+            const channelCategoryId = String(channel?.categoryId || '').trim();
+            const allCategories = isAllCategory(selectedCategory) || selectedId.toLowerCase() === 'all';
+            if (allCategories) {
+                const sourceCategory = categories.value.find(category => !isAllCategory(category)
+                    && (String(category?.categoryId || '').trim() === channelCategoryId
+                        || String(category?.dbId || '').trim() === channelCategoryId));
+                return {
+                    categoryId: sourceCategory?.categoryId || channelCategoryId,
+                    categoryTitle: sourceCategory?.title || channel?.categoryTitle || '',
+                    allCategories: true
+                };
+            }
+
+            const accountType = String(currentContext.value.accountType || '').toUpperCase();
+            const usesProviderCategoryId = accountType === 'STALKER_PORTAL' || accountType === 'XTREME_API';
+            return {
+                categoryId: (usesProviderCategoryId ? selectedCategory?.categoryId : selectedCategory?.title)
+                    || channelCategoryId,
+                categoryTitle: selectedCategory?.title || channel?.categoryTitle || '',
+                allCategories: false
+            };
+        };
+
+        const isChannelBookmarked = channel => {
+            if (contentMode.value !== 'itv') return false;
+            return bookmarkWatchUtils.isChannelBookmarked(
+                channel,
+                channelBookmarkIndex.value,
+                resolveChannelBookmarkCategory(channel)
+            );
+        };
 
         const loadBookmarks = async () => {
             bookmarksLoading.value = true;
@@ -5188,6 +5242,7 @@ createApp({
             filteredAccounts,
             filteredCategories,
             filteredChannels,
+            isChannelBookmarked,
             filteredEpisodes,
             filteredSeriesEpisodes,
             filteredBookmarks,

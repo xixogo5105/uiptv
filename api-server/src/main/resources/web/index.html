@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261028playerVisibleLayout1" rel="stylesheet">
+    <link href="/css/spa.css?v=20261028favoritePinIcons1" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js"></script>
@@ -30,7 +30,7 @@
     <script src="/javascript/playback-utils.js?v=20261028switchDrivenPlayback1"></script>
     <script src="/javascript/player-controls.js?v=20261026channel-navigation1"></script>
     <script src="/javascript/shared-player.js?v=20261026channel-navigation1"></script>
-    <script src="/javascript/bookmark-watch-utils.js?v=20260921a"></script>
+    <script src="/javascript/bookmark-watch-utils.js?v=20261028channelBookmarks1"></script>
 </head>
 <body>
 
@@ -48,7 +48,7 @@
 
             <nav aria-label="Content sections" class="top-tabs">
                 <button :class="{ active: activeTab === 'bookmarks' }" @click="switchTab('bookmarks')" class="top-tab-button" title="Bookmarks" type="button">
-                    <i class="bi bi-bookmarks"></i>
+                    <i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i>
                     <span>Bookmarks</span>
                 </button>
                 <button :class="{ active: activeTab === 'accounts' && !watchingNowDrilldown }" @click="switchTab('accounts')" class="top-tab-button" title="Accounts" type="button">
@@ -180,7 +180,7 @@
                                     </article>
                             </template>
                             <div class="empty-state" v-if="!bookmarksLoading && filteredBookmarks.length === 0">
-                                <i class="bi bi-bookmark"></i>
+                                <i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i>
                                 <strong>{{ bookmarkEmptyTitle }}</strong>
                                 <span>{{ bookmarkEmptyDetail }}</span>
                             </div>
@@ -215,18 +215,6 @@
                             </select>
                         </div>
                         <div class="drilldown-actions" v-else>
-                            <button @click="goBackToAccounts" class="soft-button" type="button">
-                                <i class="bi bi-arrow-left"></i>
-                                <span>Accounts</span>
-                            </button>
-                            <button @click="goBackToCategories" class="soft-button" type="button" v-if="viewState === 'channels'">
-                                <i class="bi bi-grid"></i>
-                                <span>Categories</span>
-                            </button>
-                            <button @click="goBackToChannels" class="soft-button" type="button" v-if="viewState === 'episodes' || viewState === 'vodDetail'">
-                                <i class="bi bi-arrow-left"></i>
-                                <span>{{ contentMode === 'series' ? 'Series' : 'Movies' }}</span>
-                            </button>
                             <div aria-label="Content mode" class="segmented content-mode-tabs" role="group" v-if="supportsVodSeriesForSelectedAccount">
                                 <button :class="{ active: contentMode === 'itv' }" @click="setContentMode('itv')" type="button">Channels</button>
                                 <button :class="{ active: contentMode === 'vod' }" @click="setContentMode('vod')" type="button">Movies</button>
@@ -256,7 +244,10 @@
                                         class="row-card account-card"
                                         v-for="account in filteredAccounts">
                                     <span class="pin-slot">
-                                        <i class="bi bi-pin-angle-fill" v-if="isPinnedAccount(account)"></i>
+                                        <svg aria-hidden="true" class="account-pin-icon" :viewBox="resolvePinSvg(account).viewBox" v-if="isPinnedAccount(account)">
+                                            <path :d="resolvePinSvg(account).stemPath" :fill="resolvePinSvg(account).stemFill"></path>
+                                            <path :d="resolvePinSvg(account).headPath" :fill="resolvePinSvg(account).headFill"></path>
+                                        </svg>
                                     </span>
                                     <div class="content-copy">
                                         <div class="title-line">{{ account.accountName }}</div>
@@ -275,6 +266,9 @@
                     <div :class="{ 'series-episodes-layout': viewState === 'episodes' && contentMode === 'series' }" class="accounts-drilldown" v-else>
                         <section aria-label="Categories" class="browser-panel account-category-panel" v-show="!isCompactDrilldown || wideDrilldownPanel === 'categories'">
                             <header class="panel-heading">
+                                <button @click="goBackToAccounts" aria-label="Back to accounts" class="panel-back-button" title="Back to accounts" type="button">
+                                    <i aria-hidden="true" class="bi bi-arrow-left"></i>
+                                </button>
                                 <strong>Categories</strong>
                                 <span>{{ contentModeLabels[contentMode] }}</span>
                             </header>
@@ -308,6 +302,15 @@
 
                         <section aria-label="Content" class="browser-panel account-content-panel content-panel" v-show="!(viewState === 'episodes' && contentMode === 'series') && (!isCompactDrilldown || wideDrilldownPanel !== 'categories')">
                             <header class="panel-heading">
+                                <button
+                                        :aria-label="viewState === 'channels' ? 'Back to categories' : 'Back to ' + contentModeLabels[contentMode].toLowerCase()"
+                                        @click="viewState === 'channels' ? goBackToCategories() : goBackToChannels()"
+                                        class="panel-back-button"
+                                        :title="viewState === 'channels' ? 'Back to categories' : 'Back to ' + contentModeLabels[contentMode].toLowerCase()"
+                                        type="button"
+                                        v-if="(viewState === 'channels' && isCompactDrilldown) || viewState === 'vodDetail'">
+                                    <i aria-hidden="true" class="bi bi-arrow-left"></i>
+                                </button>
                                 <strong>{{ contentPanelTitle }}</strong>
                                 <span>{{ currentCategoryTitle }}</span>
                             </header>
@@ -342,6 +345,7 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ channel.name }}
+                                                <span aria-hidden="true" class="channel-bookmark-indicator" v-if="isChannelBookmarked(channel)"><i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i></span>
                                                 <span class="pill" v-if="channel.drmType">DRM</span>
                                                 <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(channel)">
@@ -395,6 +399,9 @@
                             <section aria-label="Series and episodes" class="browser-panel account-series-panel watching-episodes-panel">
                                 <header class="panel-heading episodes-panel-heading">
                                     <div class="episodes-heading-left">
+                                        <button @click="goBackToChannels" aria-label="Back to series" class="panel-back-button" title="Back to series" type="button">
+                                            <i aria-hidden="true" class="bi bi-arrow-left"></i>
+                                        </button>
                                         <strong>Episodes</strong>
                                         <div aria-label="Episode display style" class="episode-display-toggle" role="group">
                                             <button :aria-pressed="episodeDisplayMode === 'immersive'" :class="{ active: episodeDisplayMode === 'immersive' }" @click="setEpisodeDisplayMode('immersive')" type="button">Immersive</button>
@@ -789,7 +796,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261028switchDrivenPlayback1"></script>
+    <script src="/javascript/spa.js?v=20261028channelBookmarks2"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

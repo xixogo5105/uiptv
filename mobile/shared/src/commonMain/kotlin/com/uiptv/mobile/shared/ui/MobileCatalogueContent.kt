@@ -4,6 +4,7 @@
 package com.uiptv.mobile.shared.ui
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,14 +18,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +42,33 @@ import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.i18n.MobileMessages
 
 internal val LocalShowNavigation = staticCompositionLocalOf<(() -> Unit)?> { null }
+internal val MobileFavoriteRed = Color(0xFFE03131)
+
+private const val DESKTOP_PIN_VIEWBOX_SIZE = 320f
+private const val DESKTOP_PIN_STEM_PATH = "m 289.99122,309.99418 c -0.66028,0.58344 -50.08221,-43.19021 -52.50936,-45.29992 -2.42734,-2.10956 -51.06934,-43.57426 -52.83626,-46.26739 -1.76673,-2.69328 13.04928,-12.78624 13.70956,-13.36969 0.66024,-0.58341 12.52054,-14.06148 14.94736,-11.95215 2.42733,2.10957 37.03325,55.97684 38.80018,58.66996 1.76673,2.69328 38.54876,57.6358 37.88852,58.21919 z"
+private const val DESKTOP_PIN_HEAD_PATH = "m 56.34936,106.22036 c 20.30938,0.88278 45.68909,32.12704 73.173,75.95489 18.76942,29.93108 45.31357,11.58173 54.19751,2.7927 8.31501,-8.2259 25.42173,-32.179 -3.72915,-51.99008 -42.68539,-29.00919 -72.93354,-55.50764 -73.173,-75.954905 L 81.58356,81.621661 Z"
+
+@Composable
+internal fun DesktopPinnedAccountIcon(
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null
+) {
+    val pinStem = remember { PathParser().parsePathString(DESKTOP_PIN_STEM_PATH).toPath() }
+    val pinHead = remember { PathParser().parsePathString(DESKTOP_PIN_HEAD_PATH).toPath() }
+    val iconModifier = if (contentDescription.isNullOrBlank()) {
+        modifier
+    } else {
+        modifier.semantics { this.contentDescription = contentDescription }
+    }
+
+    Canvas(iconModifier) {
+        val scaleFactor = minOf(size.width, size.height) / DESKTOP_PIN_VIEWBOX_SIZE
+        withTransform({ scale(scaleFactor, scaleFactor, pivot = Offset.Zero) }) {
+            drawPath(pinStem, Color(0xFFCAD2D2))
+            drawPath(pinHead, Color(0xFFE30000))
+        }
+    }
+}
 
 internal data class MobileHeaderAddAction(
     val title: String,
@@ -234,8 +268,11 @@ internal fun CatalogueItems(
                 MobilePosterCard(item.name, item.logo, showThumbnails, logoRenderer, { onPlay(item) },
                     onLongClick = { onChoosePlayer(item) }, secondaryAction = {
                         IconButton(onClick = { onToggleBookmark(item) }) {
-                            Icon(if (item.isBookmarked) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = if (item.isBookmarked) "Remove bookmark ${item.name}" else "Bookmark ${item.name}")
+                            Icon(
+                                if (item.isBookmarked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                contentDescription = if (item.isBookmarked) "Remove bookmark ${item.name}" else "Bookmark ${item.name}",
+                                tint = if (item.isBookmarked) MobileFavoriteRed else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     })
             }

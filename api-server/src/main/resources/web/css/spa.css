@@ -746,9 +746,15 @@ a[href] {
 .pin-slot {
     width: 18px;
     min-width: 18px;
-    color: var(--accent);
     display: grid;
     place-items: center;
+}
+
+.account-pin-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
 }
 
 .logo-box,
@@ -895,6 +901,22 @@ a[href] {
     min-width: 0.875rem;
     margin-left: auto;
     margin-right: 2px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+.channel-bookmark-indicator {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.title-line .channel-bookmark-indicator {
+    min-width: 0.8rem;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
@@ -1131,6 +1153,32 @@ a[href] {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+}
+
+.panel-back-button {
+    flex: 0 0 34px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--outline) 32%, transparent);
+    border-radius: 50%;
+    background: var(--surface-high);
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.panel-back-button:hover {
+    border-color: color-mix(in srgb, var(--primary) 42%, var(--outline));
+    background: var(--primary-container);
+    color: var(--on-primary-container);
+}
+
+.panel-back-button:active {
+    transform: scale(0.96);
 }
 
 .panel-heading strong {

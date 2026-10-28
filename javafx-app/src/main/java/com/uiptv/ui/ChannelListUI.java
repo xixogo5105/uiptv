@@ -72,7 +72,7 @@ import static javafx.application.Platform.runLater;
 public class ChannelListUI extends HBox implements SearchTarget {
     private static final String IMAGE_CACHE_KEY_CHANNEL = "channel";
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
-    private static final String BOOKMARK_ICON_PATH = "M3 0 V14 L8 10 L13 14 V0 H3 Z";
+    private static final String BOOKMARK_HEART_PATH = "M7 12.7 6.1 11.9C2.9 9 1 7.2 1 4.9 1 3 2.5 1.5 4.4 1.5 5.5 1.5 6.5 2 7.2 2.8 7.9 2 8.9 1.5 10 1.5 11.9 1.5 13.4 3 13.4 4.9c0 2.3-1.9 4.1-5.1 7L7 12.7Z";
     private static final String BOOKMARK_ICON_STYLE_CLASS = "channel-bookmark-icon";
     private static final String BOOKMARK_GLYPH_STYLE_CLASS = "channel-bookmark-glyph";
     private static final String CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS = "channel-card-title-actions";
@@ -1151,12 +1151,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     static StackPane createBookmarkIcon() {
-        SVGPath bookmarkGlyph = new SVGPath();
-        bookmarkGlyph.setContent(BOOKMARK_ICON_PATH);
-        bookmarkGlyph.getStyleClass().add(BOOKMARK_GLYPH_STYLE_CLASS);
-        bookmarkGlyph.setMouseTransparent(true);
+        SVGPath heartGlyph = new SVGPath();
+        heartGlyph.setContent(BOOKMARK_HEART_PATH);
+        heartGlyph.getStyleClass().add(BOOKMARK_GLYPH_STYLE_CLASS);
+        heartGlyph.setMouseTransparent(true);
 
-        StackPane bookmarkIcon = new StackPane(bookmarkGlyph);
+        StackPane bookmarkIcon = new StackPane(heartGlyph);
         bookmarkIcon.getStyleClass().add(BOOKMARK_ICON_STYLE_CLASS);
         bookmarkIcon.setAlignment(Pos.CENTER);
         // Match the menu ring's roughly 3px side inset, so the visible gaps either

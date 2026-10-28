@@ -19,7 +19,7 @@ public class AppNavigationPane extends TabPane {
     public static final String ICON_IMPORT = "M5 20H19V18H5V20ZM19 9H15V3H9V9H5L12 16 19 9Z";
     public static final String ICON_LOGS = "M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM13 9V3.5L18.5 9H13ZM8 13H16V15H8V13ZM8 17H16V19H8V17Z";
     public static final String ICON_WATCHING = "M8 5V19L19 12 8 5Z";
-    public static final String ICON_FAVORITE = "M17 3H7C5.9 3 5 3.9 5 5V21L12 18 19 21V5C19 3.9 18.1 3 17 3Z";
+    public static final String ICON_FAVORITE = "M12 21.35 10.55 20.03C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z";
 
     public AppNavigationPane() {
         getStyleClass().add("uiptv-app-tabs");
@@ -65,6 +65,9 @@ public class AppNavigationPane extends TabPane {
         SVGPath icon = new SVGPath();
         icon.setContent(iconPath);
         icon.getStyleClass().add("uiptv-nav-icon");
+        if (ICON_FAVORITE.equals(iconPath)) {
+            icon.getStyleClass().add("uiptv-favorite-nav-icon");
+        }
         icon.setCursor(Cursor.HAND);
 
         StackPane item = new StackPane(icon);
