@@ -30,6 +30,34 @@ test('an explicit HLS URL is not misclassified as MPEG-TS', () => {
     assert.equal(utils.isTsLikeUrl(proxy('https://provider.example/master.m3u8?format=ts')), false);
 });
 
+test('MPEG-TS URL normalization preserves the selected playback URL', () => {
+    const sourceUrl = 'https://provider.example/live/stream.ts?token=x';
+    assert.equal(utils.resolveMpegTsPlaybackUrl(sourceUrl), sourceUrl);
+    assert.equal(utils.resolveMpegTsPlaybackUrl(proxy(sourceUrl)), proxy(sourceUrl));
+});
+
+test('playback mode labels show the actual route and uppercase media format', () => {
+    assert.equal(utils.resolvePlaybackModeLabel('https://provider.example/live.m3u8', 'videojs'), 'direct HLS');
+    assert.equal(utils.resolvePlaybackModeLabel(proxy('https://provider.example/live.m3u8'), 'videojs'), 'proxy HLS');
+    assert.equal(utils.resolvePlaybackModeLabel('https://provider.example/opaque', 'native', 'hls'), 'direct HLS');
+    assert.equal(utils.resolvePlaybackModeLabel('https://provider.example/live.php?id=1', 'mpegts'), 'direct MPEG-TS');
+    assert.equal(utils.resolvePlaybackModeLabel(proxy('https://provider.example/live/stream.ts'), 'mpegts'), 'proxy MPEG-TS');
+    assert.equal(utils.resolvePlaybackModeLabel('https://provider.example/manifest.mpd', 'shaka'), 'direct DASH');
+    assert.equal(utils.resolvePlaybackModeLabel(proxy('https://provider.example/movie.mkv'), 'mkv'), 'proxy MKV');
+    assert.equal(utils.resolvePlaybackModeLabel('https://provider.example/play?src=%2Fproxy-stream%3Fsrc%3Dx', 'native'), 'direct');
+});
+
+test('global or account proxy setting independently selects proxy routing', () => {
+    assert.equal(utils.shouldUseWebPlaybackProxy(true, false), true);
+    assert.equal(utils.shouldUseWebPlaybackProxy(false, true), true);
+    assert.equal(utils.shouldUseWebPlaybackProxy(false, false), false);
+    assert.equal(utils.shouldUseWebPlaybackProxy('false', '1'), true);
+    assert.match(spa, /const webPlaybackProxyEnabled = ref\(false\)/,
+        'the UI should default to direct playback until the server setting is loaded');
+    assert.match(spa, /const proxyUrl = buildProxyStreamUrl\(channel\.url, channel\.accountId\)/);
+    assert.match(spa, /if \(proxyUrl\) channel = \{\.\.\.channel, url: proxyUrl\}/);
+});
+
 test('player selection classifies the proxied source using the requested media mode', () => {
     assert.match(spa, /let isTs = isTsLikeUrl\(uri, manifestType, channel\.mode \|\| currentChannel\.value\?\.mode\)/);
     assert.match(spa, /let isHls = playbackUtils\.isHlsLikeUrl\(uri, manifestType\)/);
@@ -94,6 +122,8 @@ test('opaque HLS routes pass detected manifest metadata to the adaptive player',
     assert.match(routing,/await playbackUtils\.probeStreamFormat/);
     assert.match(routing,/throwIfPlaybackSuperseded\(requestId\)/);
     assert.match(routing,/manifestType: isHls \? 'm3u8'/);
+    assert.match(routing,/const probeUrl = uri/);
+    assert.match(routing,/detectedMediaStrategy: detected, url: uri/);
 });
 
 test('backend LAN proxy URLs are rebased to the page origin without nesting or changing the source',()=>{

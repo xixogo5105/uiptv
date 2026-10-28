@@ -125,22 +125,39 @@
         return supported;
     };
 
-        const resolvePlaybackModeLabel = (url, engine = '') => {
-            const lowerUrl = String(url || '').trim().toLowerCase();
+        const resolvePlaybackModeLabel = (url, engine = '', formatHint = '') => {
             const normalizedEngine = String(engine || '').trim().toLowerCase();
-            if (normalizedEngine === 'mpegts') return lowerUrl.includes('/proxy-stream') ? 'mpegts proxy' : 'mpegts';
-            if (normalizedEngine === 'shaka') {
-                if (lowerUrl.includes('.mpd')) return 'dash';
-                if (lowerUrl.includes('.m3u8')) return 'hls';
-                return 'shaka';
+            const normalizedHint = String(formatHint || '').trim().toLowerCase();
+            const sourceCandidates = getSourceUrlCandidates(url);
+            const route = sourceCandidates.length > 1 ? 'proxy' : (() => {
+                try {
+                    const parsed = new URL(String(url || '').trim(), window.location.origin);
+                    return parsed.pathname.toLowerCase() === '/proxy-stream' && parsed.searchParams.has('src')
+                        ? 'proxy' : 'direct';
+                } catch (_) {
+                    return /\/proxy-stream(?:[?#]|$)/i.test(String(url || '')) ? 'proxy' : 'direct';
+                }
+            })();
+            let format = '';
+            if (normalizedEngine === 'mpegts' || ['mpegts', 'mpeg2ts', 'ts', 'm2ts'].includes(normalizedHint)) {
+                format = 'MPEG-TS';
+            } else if (['hls', 'm3u8'].includes(normalizedHint) || isHlsLikeUrl(url, formatHint)) {
+                format = 'HLS';
+            } else if (['dash', 'mpd'].includes(normalizedHint) || isDashLikeUrl(url, formatHint)) {
+                format = 'DASH';
+            } else if (normalizedEngine === 'mkv' || normalizedHint === 'mkv' || isMkvLikeUrl(url)) {
+                format = 'MKV';
+            } else {
+                const source = sourceCandidates[sourceCandidates.length - 1] || String(url || '');
+                try {
+                    const path = new URL(source, window.location.origin).pathname.toLowerCase();
+                    if (/\.(mp4|m4v)$/.test(path)) format = 'MP4';
+                    else if (/\.(mp3|aac|m4a|ogg|opus|wav)$/.test(path)) format = 'Audio';
+                } catch (_) { /* Keep the format unset for opaque URLs. */ }
+                if (!format && normalizedEngine === 'videojs') format = 'Video.js';
+                if (!format && normalizedEngine === 'shaka') format = 'Shaka';
             }
-            if (normalizedEngine === 'videojs') {
-                if (lowerUrl.includes('.mpd')) return 'dash';
-                if (lowerUrl.includes('.m3u8')) return 'hls';
-                return 'videojs';
-            }
-            if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-            return 'direct';
+            return format ? `${route} ${format}` : route;
         };
 
     const downgradeHttpsToHttpForKnownPaths = (url) => {
@@ -188,7 +205,7 @@
         }
     };
 
-    const resolveMpegTsPlaybackUrl = (rawUrl) => buildProxyStreamUrl(rawUrl) || normalizeWebPlaybackUrl(rawUrl);
+    const resolveMpegTsPlaybackUrl = (rawUrl) => normalizeWebPlaybackUrl(rawUrl);
 
     const isBrowserUnsupportedMediaError = (error) => {
         const text = `${error?.name || ''} ${error?.message || error || ''}`.toLowerCase();
@@ -200,6 +217,13 @@
             || text.includes('media-error-4')
             || text.includes('media-error-code code 4');
     };
+
+    const isEnabledSetting = value => value === true || value === 1
+        || String(value || '').trim().toLowerCase() === 'true'
+        || String(value || '').trim() === '1';
+
+    const shouldUseWebPlaybackProxy = (globalEnabled, accountEnabled) =>
+        isEnabledSetting(globalEnabled) || isEnabledSetting(accountEnabled);
 
     const canPlayMimeType = (mimeType) => {
         const value = String(mimeType || '').trim();
@@ -350,6 +374,7 @@
         buildProxyStreamUrl,
         resolveMpegTsPlaybackUrl,
         isBrowserUnsupportedMediaError,
+        shouldUseWebPlaybackProxy,
         describeUnsupportedHlsManifest,
         describeMpegTsFailure,
         normalizeDisplayText,

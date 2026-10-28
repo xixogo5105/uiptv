@@ -55,6 +55,26 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void webPlaybackProxy_isEnabledByGlobalOrAccountSetting() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        Configuration configuration = service.read();
+        configuration.setWebPlaybackProxyEnabled(false);
+        service.save(configuration);
+
+        Account account = new Account();
+        assertFalse(service.isWebPlaybackProxyEnabled(account));
+
+        account.setWebPlaybackProxy(true);
+        assertTrue(service.isWebPlaybackProxyEnabled(account));
+
+        account.setWebPlaybackProxy(false);
+        configuration = service.read();
+        configuration.setWebPlaybackProxyEnabled(true);
+        service.save(configuration);
+        assertTrue(service.isWebPlaybackProxyEnabled(account));
+    }
+
+    @Test
     void epgPlaybackOnly_persistsWithoutShiftingOtherEpgSettings() {
         ConfigurationService service = ConfigurationService.getInstance();
         Configuration configuration = service.read();

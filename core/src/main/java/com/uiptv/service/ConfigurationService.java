@@ -142,10 +142,8 @@ public class ConfigurationService {
 
     public boolean isWebPlaybackProxyEnabled(Account account) {
         Configuration configuration = read();
-        return configuration != null
-                && configuration.isWebPlaybackProxyEnabled()
-                && account != null
-                && account.isWebPlaybackProxy();
+        return (configuration != null && configuration.isWebPlaybackProxyEnabled())
+                || (account != null && account.isWebPlaybackProxy());
     }
 
     public M3U8PublicationService.PublishedCategoryMode getPublishedM3uCategoryMode() {

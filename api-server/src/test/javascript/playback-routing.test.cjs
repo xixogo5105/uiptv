@@ -13,6 +13,16 @@ test('stacked player breakpoint and narrow-viewport state both use 920px', () =>
     assert.match(css, /@media \(max-width: 920px\) \{[\s\S]*?\.app-shell:not\(\.player-expanded\) \.content-shell \{\s*display: flex;/);
 });
 
+test('wide player layout and drilldown behavior are inactive while the player is hidden', () => {
+    const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
+    const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
+
+    assert.match(source, /const wideViewLayoutActive = computed\(\(\) => wideViewActive\.value && playerPanelVisible\.value\)/);
+    assert.match(source, /const isCompactDrilldown = computed\(\(\) => wideViewLayoutActive\.value \|\| contentStageNarrow\.value\)/);
+    assert.match(html, /'wide-view': wideViewLayoutActive/);
+    assert.match(css, /\.player-title span::before\s*\{\s*content: ' - ';/);
+});
+
 test('NATIVE_PROXY strategy routes backend-identified formats to the matching player', () => {
     const hint = source.indexOf("strategyHint === 'NATIVE_PROXY'");
     const override = source.indexOf("if (override === 'proxy')", hint);
@@ -20,19 +30,36 @@ test('NATIVE_PROXY strategy routes backend-identified formats to the matching pl
     assert.ok(hint >= 0 && override > hint, 'SPA must recognize the server proxy strategy hint');
     assert.match(branch, /override === 'auto'/,
         'explicit direct, proxy and MPEG-TS experiments must bypass automatic proxy routing');
-    assert.match(branch, /playbackUtils\.buildProxyStreamUrl\(uri\) \|\| uri/,
-        'an explicit server proxy route must use the local web proxy independently of account settings');
+    assert.match(branch, /buildProxyStreamUrl\(uri, channel\.accountId\) \|\| uri/,
+        'a server-selected proxy route must keep using the local proxy URL');
     assert.match(branch, /mediaStrategy === 'hls'/);
     assert.match(branch, /mediaStrategy === 'mpegts'/);
     assert.match(branch, /mediaStrategy === 'dash'/);
     assert.match(branch, /mediaStrategy === 'unsupported'/);
     assert.match(branch, /await loadVideoJs\(proxiedChannel, requestId\)/);
-    assert.match(branch, /await loadMpegTs\(/);
+    assert.match(branch, /await loadMpegTs\(\{\.\.\.proxiedChannel, url: proxyUrl\}, requestId\)/);
     assert.doesNotMatch(branch, /probeProxyMediaType/);
-    assert.match(source, /Promise\.race\(\[playWithGestureFallback\(playAction\), mpegTsStartupError\]\)/,
-        'MPEG-TS engine errors must reject startup with the engine diagnostic instead of timing out');
+    assert.match(source, /Promise\.race\(\[\s*withPlaybackMediaError\(video, \(\) => playWithGestureFallback\(playAction\), 'MPEG-TS'\),\s*mpegTsStartupError\s*\]\)/,
+        'MPEG-TS playback must wait for actual media start and reject engine errors');
     assert.match(source, /url: resolveMpegTsPlaybackUrl\(uri\)/,
-        'the MPEG-TS route test must use the same local proxy transport as production');
+        'automatic MPEG-TS playback must begin with its normalized provider URL');
+});
+
+test('automatic playback selects proxy up front when either switch is enabled', () => {
+    const start = source.indexOf('        const initPlayer =');
+    const end = source.indexOf('        const loadMkv =', start);
+    const initPlayer = source.slice(start, end);
+
+    assert.match(source, /shouldUseWebPlaybackProxy\(webPlaybackProxyEnabled\.value, account\?\.webPlaybackProxy\)/);
+    assert.match(initPlayer, /const proxyUrl = buildProxyStreamUrl\(channel\.url, channel\.accountId\)/);
+    assert.match(initPlayer, /if \(proxyUrl\) channel = \{\.\.\.channel, url: proxyUrl\}/);
+    assert.match(initPlayer, /const uri = channel\.url/);
+    assert.match(initPlayer, /await loadMpegTs\(\{\.\.\.channel, url: resolveMpegTsPlaybackUrl\(uri\)\}, requestId\)/);
+    assert.match(initPlayer, /await loadVideoJs\(channel, requestId\)/);
+    assert.doesNotMatch(source, /tryProxyPlaybackFallback|tryRuntimeProxyFallback/,
+        'automatic routing follows the switches and does not switch transport after playback starts');
+    assert.match(source, /await new Promise\(resolve => \{\s*onPlaying = \(\) => resolve\(true\)/,
+        'startup should wait for actual media playback before declaring playback successful');
 });
 
 test('playback request ownership lets a newer stream survive a failed older request', () => {
@@ -85,11 +112,12 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     assert.match(off, /circle cx="8" cy="8" r="4" fill="#8a97a5"/);
     assert.match(source, /broadcast-on\.svg\?v=20261017b/);
     assert.match(source, /broadcast-off\.svg\?v=20261017b/);
-    assert.match(html, /spa\.js\?v=20261026channel-navigation1/);
-    assert.match(html, /spa\.css\?v=20261024singleColumnScroll3/);
+    assert.match(html, /playback-utils\.js\?v=20261028switchDrivenPlayback1/);
+    assert.match(html, /spa\.js\?v=20261028switchDrivenPlayback1/);
+    assert.match(html, /spa\.css\?v=20261028playerVisibleLayout1/);
     assert.match(html, /class="broadcast-indicator"/);
     assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
     assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v119'/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v123'/);
 });
 

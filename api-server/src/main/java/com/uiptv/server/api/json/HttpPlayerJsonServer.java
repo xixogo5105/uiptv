@@ -7,12 +7,13 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
 import com.uiptv.util.AppLog;
-import com.uiptv.util.AccountType;
 import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -160,15 +161,15 @@ public class HttpPlayerJsonServer implements HttpHandler {
         if (response == null || isBlank(response.getUrl())) {
             return;
         }
-        String normalizedUrl = normalizeWebPlaybackUrl(mode, response.getUrl());
-        response.setUrl(normalizedUrl);
-        if (!ConfigurationService.getInstance().isWebPlaybackProxyEnabled(response.getAccount())) {
-            return;
+        String sourceUrl = normalizeWebPlaybackUrl(mode, response.getUrl());
+        if (ConfigurationService.getInstance().isWebPlaybackProxyEnabled(response.getAccount())) {
+            if (!isLocalProxyUrl(sourceUrl)) {
+                sourceUrl = buildLocalProxyUrl(sourceUrl);
+            }
+        } else if (isLocalProxyUrl(sourceUrl)) {
+            sourceUrl = unwrapLocalProxyUrl(sourceUrl);
         }
-        if (shouldBypassLocalProxyWebPlayback(response, mode, normalizedUrl)) {
-            return;
-        }
-        response.setUrl(buildLocalProxyUrl(normalizedUrl));
+        response.setUrl(sourceUrl);
     }
 
     private PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
@@ -314,26 +315,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
         if (isLocalProxyUrl(lowerUrl)) {
             return STRATEGY_HINT_NATIVE_PROXY;
         }
-        if (isStalkerOnDemandUrl(response)) {
-            return STRATEGY_HINT_NATIVE_PROXY;
-        }
-        if (isForcedWebPath(lowerUrl) && ConfigurationService.getInstance().isWebPlaybackProxyEnabled(response.getAccount())) {
-            return STRATEGY_HINT_NATIVE_PROXY;
-        }
         return STRATEGY_HINT_NATIVE;
-    }
-
-    private boolean isStalkerOnDemandUrl(PlayerResponse response) {
-        if (response == null || response.getAccount() == null
-                || response.getAccount().getType() != AccountType.STALKER_PORTAL || isBlank(response.getUrl())) {
-            return false;
-        }
-        String url = response.getUrl().toLowerCase();
-        return url.contains(PATH_PLAY_MOVIE)
-                || url.contains("/vod/play/")
-                || url.contains("/series/play/")
-                || url.contains("type=movie")
-                || url.contains("type=" + MODE_SERIES);
     }
 
     private boolean isDashUrl(String url) {
@@ -341,7 +323,46 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private boolean isLocalProxyUrl(String url) {
-        return url.contains(URL_FRAGMENT_PROXY_STREAM);
+        if (isBlank(url)) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(url);
+            if (!"/proxy-stream".equalsIgnoreCase(uri.getPath()) || isBlank(uri.getRawQuery())) {
+                return false;
+            }
+            for (String parameter : uri.getRawQuery().split("&")) {
+                if (parameter.startsWith("src=")) {
+                    return true;
+                }
+            }
+        } catch (IllegalArgumentException _) {
+            return false;
+        }
+        return false;
+    }
+
+    private String buildLocalProxyUrl(String sourceUrl) {
+        return ServerUrlUtil.getLocalServerUrl() + URL_FRAGMENT_PROXY_STREAM
+                + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
+    }
+
+    private String unwrapLocalProxyUrl(String url) {
+        try {
+            URI uri = URI.create(url);
+            if (!"/proxy-stream".equalsIgnoreCase(uri.getPath()) || isBlank(uri.getRawQuery())) {
+                return url;
+            }
+            for (String parameter : uri.getRawQuery().split("&")) {
+                String[] pair = parameter.split("=", 2);
+                if (pair.length == 2 && "src".equals(pair[0])) {
+                    return URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+                }
+            }
+        } catch (IllegalArgumentException _) {
+            // Keep malformed URLs unchanged so playback can report its normal network error.
+        }
+        return url;
     }
 
     private boolean hasChannelMetadata(Channel channel) {
@@ -383,31 +404,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return url;
     }
 
-    private String buildLocalProxyUrl(String sourceUrl) {
-        return ServerUrlUtil.getLocalServerUrl() + URL_FRAGMENT_PROXY_STREAM + URLEncoder.encode(sourceUrl, StandardCharsets.UTF_8);
-    }
-
-    private boolean shouldBypassLocalProxyWebPlayback(PlayerResponse response, String mode, String url) {
-        if (response == null || isBlank(url)) {
-            return false;
-        }
-        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!MODE_VOD.equals(normalizedMode)) {
-            return false;
-        }
-        boolean hasDrm = isNotBlank(response.getDrmType())
-                || isNotBlank(response.getDrmLicenseUrl())
-                || isNotBlank(response.getClearKeysJson())
-                || isNotBlank(response.getInputstreamaddon())
-                || isNotBlank(response.getManifestType());
-        if (hasDrm) {
-            return false;
-        }
-        String lower = url.toLowerCase();
-        return lower.contains(PATH_LIVE_PLAY)
-                || hasTrailingNumericPath(lower);
-    }
-
     private String sanitizeParam(String value) {
         if (isBlank(value)) {
             return "";
@@ -433,55 +429,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
             current = current.getCause();
         }
         return false;
-    }
-
-    private boolean isForcedWebPath(String url) {
-        if (isBlank(url)) return false;
-        return url.contains(PATH_PLAY_MOVIE)
-                || url.contains(PATH_LIVE_PLAY)
-                || url.contains("type=movie")
-                || url.contains("type=" + MODE_SERIES)
-                || url.contains("extension=mp4")
-                || url.contains("extension=mkv")
-                || url.contains("extension=mpg")
-                || url.contains("extension=mpeg")
-                || hasVideoFileExtension(url)
-                || hasTrailingNumericPath(url);
-    }
-
-    private boolean hasVideoFileExtension(String url) {
-        String path = stripQuery(url).toLowerCase();
-        return path.endsWith(".mpg")
-                || path.endsWith(".mpeg")
-                || path.endsWith(".mkv")
-                || path.endsWith(".avi")
-                || path.endsWith(".wmv");
-    }
-
-    private boolean hasTrailingNumericPath(String url) {
-        String path = stripQuery(url);
-        int slashIndex = path.lastIndexOf('/');
-        if (slashIndex < 0 || slashIndex == path.length() - 1) {
-            return false;
-        }
-        return isDigitsOnly(path.substring(slashIndex + 1));
-    }
-
-    private String stripQuery(String url) {
-        int queryIndex = url.indexOf('?');
-        return queryIndex >= 0 ? url.substring(0, queryIndex) : url;
-    }
-
-    private boolean isDigitsOnly(String value) {
-        if (isBlank(value)) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (!Character.isDigit(value.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private record ResolvedWebPlayback(PlayerResponse response,

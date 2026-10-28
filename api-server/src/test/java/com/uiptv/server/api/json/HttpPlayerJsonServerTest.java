@@ -25,6 +25,7 @@ import com.uiptv.testsupport.DbBackedTest;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.ServerUrlUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
@@ -49,6 +50,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpPlayerJsonServerTest extends DbBackedTest {
+
+    @BeforeEach
+    void disableGlobalProxyUnlessTheTestEnablesIt() {
+        ConfigurationService configurationService = ConfigurationService.getInstance();
+        com.uiptv.model.Configuration configuration = configurationService.read();
+        configuration.setWebPlaybackProxyEnabled(false);
+        configurationService.save(configuration);
+    }
 
     @Test
     void webPlayerResponseIncludesBackendMediaClassification() throws Exception {
@@ -144,23 +153,43 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
     }
 
     @Test
-    void webPlaybackProcessing_normalizesAndUsesProxyWithoutFfmpeg() throws Exception {
+    void webPlaybackProcessing_proxiesWhenGlobalOrAccountSwitchIsEnabled() throws Exception {
         HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        ConfigurationService configurationService = ConfigurationService.getInstance();
+        com.uiptv.model.Configuration configuration = configurationService.read();
+        configuration.setWebPlaybackProxyEnabled(true);
+        configurationService.save(configuration);
 
-        PlayerResponse directVodResponse = new PlayerResponse("https://host/live/play/tokenized/9412");
-        invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, directVodResponse, "vod");
-        assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
+        Account account = new Account();
+        PlayerResponse globalEnabled = new PlayerResponse("https://host/live/play/tokenized/9412");
+        globalEnabled.setAccount(account);
 
-        PlayerResponse proxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
-        Account proxyAccount = new Account();
-        proxyAccount.setWebPlaybackProxy(true);
-        proxyResponse.setAccount(proxyAccount);
         try (MockedStatic<ServerUrlUtil> serverUrlStatic = mockStatic(ServerUrlUtil.class)) {
             serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
 
-            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, proxyResponse, "series");
+            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, globalEnabled, "itv");
+            assertTrue(globalEnabled.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
 
-            assertTrue(proxyResponse.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
+            configuration = configurationService.read();
+            configuration.setWebPlaybackProxyEnabled(false);
+            configurationService.save(configuration);
+            account.setWebPlaybackProxy(true);
+            PlayerResponse accountEnabled = new PlayerResponse("https://host/play/movie.php?id=1");
+            accountEnabled.setAccount(account);
+            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, accountEnabled, "series");
+            assertTrue(accountEnabled.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
+
+            account.setWebPlaybackProxy(false);
+            PlayerResponse disabled = new PlayerResponse("https://host/live/play/tokenized/9412");
+            disabled.setAccount(account);
+            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, disabled, "itv");
+            assertEquals("https://host/live/play/tokenized/9412", disabled.getUrl());
+
+            PlayerResponse alreadyProxied = new PlayerResponse(
+                    "http://127.0.0.1:9090/proxy-stream?src=https%3A%2F%2Fhost%2Flive%2Findex.m3u8");
+            alreadyProxied.setAccount(account);
+            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, alreadyProxied, "itv");
+            assertEquals("https://host/live/index.m3u8", alreadyProxied.getUrl());
         }
 
         assertEquals("", invoke(handler, "sanitizeParam", new Class[]{String.class}, (String) null));
@@ -169,27 +198,16 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
     }
 
     @Test
-    void webPlaybackProxy_requiresAccountOptIn_andHonoursGlobalKillSwitch() throws Exception {
+    void strategyHintOnlyMarksUrlsThatAreAlreadyProxied() throws Exception {
         HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
         Account account = new Account();
         account.setWebPlaybackProxy(true);
-        PlayerResponse response = new PlayerResponse("http://host/live/index.m3u8");
+        PlayerResponse response = new PlayerResponse("http://host/live/play/12345");
         response.setAccount(account);
 
-        try (MockedStatic<ServerUrlUtil> serverUrlStatic = mockStatic(ServerUrlUtil.class)) {
-            serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
-            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, response, "itv");
-            assertTrue(response.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
-        }
-
-        ConfigurationService configurationService = ConfigurationService.getInstance();
-        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
-        configuration.setWebPlaybackProxyEnabled(false);
-        configurationService.save(configuration);
-        PlayerResponse disabled = new PlayerResponse("http://host/live/index.m3u8");
-        disabled.setAccount(account);
-        invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, disabled, "itv");
-        assertEquals("http://host/live/index.m3u8", disabled.getUrl());
+        assertEquals("http://host/live/play/12345", response.getUrl());
+        assertEquals("NATIVE", invoke(handler, "determineStrategyHint",
+                new Class[]{PlayerResponse.class}, response));
     }
 
     @Test
@@ -301,25 +319,16 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         stalker.setType(com.uiptv.util.AccountType.STALKER_PORTAL);
         PlayerResponse stalkerVod = new PlayerResponse("http://portal.test/play/movie.php?type=movie&id=1");
         stalkerVod.setAccount(stalker);
-        assertEquals("NATIVE_PROXY", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, stalkerVod),
-                "Stalker on-demand playback must use the same-origin web proxy even when account proxying is disabled");
+        assertEquals("NATIVE", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, stalkerVod));
         stalker.setWebPlaybackProxy(true);
-        assertEquals("NATIVE_PROXY", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, stalkerVod));
+        assertEquals("NATIVE", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, stalkerVod),
+                "The proxy hint is based on the API's already-proxied URL");
 
         assertNotNull(invoke(handler, "parseClearKeysJson", new Class[]{String.class}, "{\"kid\":\"key\"}"));
         assertNull(invoke(handler, "parseClearKeysJson", new Class[]{String.class}, "{bad"));
         assertTrue((Boolean) invoke(handler, "isClientDisconnect", new Class[]{Throwable.class}, new IOException("connection reset by peer")));
         assertFalse((Boolean) invoke(handler, "isClientDisconnect", new Class[]{Throwable.class}, new IllegalStateException("other")));
 
-        assertTrue((Boolean) invoke(handler, "isForcedWebPath", new Class[]{String.class}, "http://host/play/movie.php?id=1"));
-        assertTrue((Boolean) invoke(handler, "isForcedWebPath", new Class[]{String.class}, "http://host/user/pass/123"));
-        assertFalse((Boolean) invoke(handler, "isForcedWebPath", new Class[]{String.class}, ""));
-        assertTrue((Boolean) invoke(handler, "hasVideoFileExtension", new Class[]{String.class}, "http://host/movie.mkv?x=1"));
-        assertTrue((Boolean) invoke(handler, "hasTrailingNumericPath", new Class[]{String.class}, "http://host/live/123?token=x"));
-        assertFalse((Boolean) invoke(handler, "hasTrailingNumericPath", new Class[]{String.class}, "http://host/live/abc?token=x"));
-        assertEquals("http://host/live/123", invoke(handler, "stripQuery", new Class[]{String.class}, "http://host/live/123?token=x"));
-        assertTrue((Boolean) invoke(handler, "isDigitsOnly", new Class[]{String.class}, "123"));
-        assertFalse((Boolean) invoke(handler, "isDigitsOnly", new Class[]{String.class}, "12x"));
     }
 
     @SuppressWarnings("unchecked")

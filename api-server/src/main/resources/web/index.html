@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261024singleColumnScroll3" rel="stylesheet">
+    <link href="/css/spa.css?v=20261028playerVisibleLayout1" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js"></script>
@@ -27,7 +27,7 @@
     <script type="importmap">{"imports":{"mediabunny":"https://cdn.jsdelivr.net/npm/mediabunny@1.62.1/dist/bundles/mediabunny.min.mjs"}}</script>
     <script src="/javascript/mkv-player.js?v=20261024topPlayerHeight3"></script>
     <script src="/javascript/modern-player.js?v=20261016epgCards2"></script>
-    <script src="/javascript/playback-utils.js?v=20261024topPlayerHeight3"></script>
+    <script src="/javascript/playback-utils.js?v=20261028switchDrivenPlayback1"></script>
     <script src="/javascript/player-controls.js?v=20261026channel-navigation1"></script>
     <script src="/javascript/shared-player.js?v=20261026channel-navigation1"></script>
     <script src="/javascript/bookmark-watch-utils.js?v=20260921a"></script>
@@ -105,7 +105,7 @@
             </div>
         </header>
 
-        <div :class="{ 'player-hidden': !playerPanelVisible, 'wide-view': wideViewActive }" class="content-shell">
+        <div :class="{ 'player-hidden': !playerPanelVisible, 'wide-view': wideViewLayoutActive }" class="content-shell">
             <section :class="{ 'watching-stage': activeTab === 'watchingNow' }" aria-label="Content browser" class="content-stage">
                 <section class="content-screen" v-if="activeTab === 'bookmarks'">
                     <div class="screen-heading">
@@ -754,7 +754,7 @@
                 </div>
 
                 <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked" v-if="!playerExpanded"></div>
-                <section class="player-epg-panel" :aria-label="epgLabels.epgWebPlayerNowNext" v-if="epgEnabled && !playerExpanded && !wideViewActive && !narrowViewport">
+                <section class="player-epg-panel" :aria-label="epgLabels.epgWebPlayerNowNext" v-if="epgEnabled && !playerExpanded && !wideViewLayoutActive && !narrowViewport">
                     <template v-if="playerEpg">
                         <header><strong>{{ epgLabels.epgWebPlayerNowNext }}</strong><span>{{ playerEpg.channelName }}</span></header>
                         <small class="player-epg-status" v-if="playerEpg.guideStatus === 'STALE'">{{ epgLabels.epgSourceStale }}</small>
@@ -789,7 +789,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261026channel-navigation1"></script>
+    <script src="/javascript/spa.js?v=20261028switchDrivenPlayback1"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

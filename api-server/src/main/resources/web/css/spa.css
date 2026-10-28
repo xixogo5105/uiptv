@@ -2072,7 +2072,7 @@ a[href] {
     text-overflow: clip;
 }
 
-.content-shell.wide-view .player-title span::before {
+.player-title span::before {
     content: ' - ';
 }
 

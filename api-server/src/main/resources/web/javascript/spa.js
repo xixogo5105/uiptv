@@ -20,7 +20,7 @@ createApp({
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
         const epgEnabled = ref(false);
-        const webPlaybackProxyEnabled = ref(true);
+        const webPlaybackProxyEnabled = ref(false);
         const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
         const epgLabel = key => epgLabels.value?.[key] || '';
         const watchingNowDrilldown = ref(false);
@@ -130,7 +130,6 @@ createApp({
         }
         const seriesDetailCollapsed = ref(readSeriesDetailCollapsedPreference());
         const contentStageNarrow = ref(false);
-        const isCompactDrilldown = computed(() => wideViewActive.value || contentStageNarrow.value);
         const wideDrilldownPanel = ref('categories');
         const updateWideDrilldownPanel = () => {
             if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
@@ -258,7 +257,7 @@ createApp({
             if (!video || typeof video.addEventListener !== 'function' || typeof video.removeEventListener !== 'function') {
                 return Promise.resolve().then(playAction);
             }
-            let onError;
+            let onError, onPlaying;
             const mediaError = new Promise((_, reject) => {
                 onError = () => {
                     const detail = video.error?.message || video.error?.code || 'media element error';
@@ -266,8 +265,21 @@ createApp({
                 };
                 video.addEventListener('error', onError, {once: true});
             });
-            return Promise.race([Promise.resolve().then(playAction), mediaError])
-                .finally(() => video.removeEventListener('error', onError));
+            const waitForPlayback = async () => {
+                const result = await playAction();
+                if (result === false || (video.readyState >= 2 && !video.paused)) return result;
+                await new Promise(resolve => {
+                    onPlaying = () => resolve(true);
+                    video.addEventListener('playing', onPlaying, {once: true});
+                    if (video.readyState >= 2 && !video.paused) resolve(true);
+                });
+                return result;
+            };
+            return Promise.race([waitForPlayback(), mediaError])
+                .finally(() => {
+                    video.removeEventListener('error', onError);
+                    if (onPlaying) video.removeEventListener('playing', onPlaying);
+                });
         };
         // UI debounce flag to briefly disable play buttons after a click to give feedback and avoid rapid duplicates.
         const playClicksDisabled = ref(false);
@@ -1149,12 +1161,14 @@ createApp({
             const name = String(normalizeDisplayText(currentChannelName.value) || '').trim();
             const mode = String(playbackMode.value || '').trim();
             if (!name) return '';
-            return mode ? `${name} [${mode}]` : name;
+            return mode ? `${name} - ${mode}` : name;
         });
         const hasPlayerContent = computed(() =>
             !!currentChannel.value || !!isPlaying.value || !!playbackLoading.value || !!playbackError.value
         );
         const playerPanelVisible = computed(() => hasPlayerContent.value && !playerManuallyHidden.value);
+        const wideViewLayoutActive = computed(() => wideViewActive.value && playerPanelVisible.value);
+        const isCompactDrilldown = computed(() => wideViewLayoutActive.value || contentStageNarrow.value);
         const isExpandedPlayerAccordion = computed(() =>
             playerPanelVisible.value && (isCompactDrilldown.value || narrowViewport.value)
         );
@@ -1168,18 +1182,13 @@ createApp({
         const playbackUtils = window.UIPTVPlaybackUtils;
         const isTsLikeUrl = (url, manifestType = '', mode = '') => playbackUtils.isTsLikeUrl(url, manifestType, mode);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
-        const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
+        const resolvePlaybackModeLabel = (url, engine = '', formatHint = '') => playbackUtils.resolvePlaybackModeLabel(url, engine, formatHint);
         const isWebPlaybackProxyAllowed = (accountId = currentContext.value.accountId) => {
-            if (!webPlaybackProxyEnabled.value) return false;
             const normalizedAccountId = String(accountId || '').trim();
-            if (!normalizedAccountId) return false;
-            return accounts.value.some(account =>
+            const account = normalizedAccountId ? accounts.value.find(account =>
                 String(account?.dbId || '').trim() === normalizedAccountId
-                && (account?.webPlaybackProxy === true
-                    || account?.webPlaybackProxy === 1
-                    || String(account?.webPlaybackProxy || '').toLowerCase() === 'true'
-                    || String(account?.webPlaybackProxy || '') === '1')
-            );
+            ) : null;
+            return playbackUtils.shouldUseWebPlaybackProxy(webPlaybackProxyEnabled.value, account?.webPlaybackProxy);
         };
         const buildProxyStreamUrl = (url, accountId) =>
             isWebPlaybackProxyAllowed(accountId) ? playbackUtils.buildProxyStreamUrl(url) : '';
@@ -3674,6 +3683,8 @@ createApp({
         const initPlayer = async (channel, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
             channel = {...channel, url: normalizeWebPlaybackUrl(channel.url)};
+            const proxyUrl = buildProxyStreamUrl(channel.url, channel.accountId);
+            if (proxyUrl) channel = {...channel, url: proxyUrl};
             const uri = channel.url;
             if (!uri) {
                 console.error('No URL provided for playback.');
@@ -3719,7 +3730,7 @@ createApp({
             // Probe only unresolved automatic routes; known formats and DRM keep their path.
             if (!hasDRM && override === 'auto' && (!mediaStrategy || mediaStrategy === 'unknown')
                 && !isTs && !isHls && !isDash) {
-                const probeUrl = playbackUtils.buildProxyStreamUrl(uri) || uri;
+                const probeUrl = uri;
                 const detected = await playbackUtils.probeStreamFormat(probeUrl, playbackRequestState.controller?.signal);
                 throwIfPlaybackSuperseded(requestId);
                 if (detected) {
@@ -3727,9 +3738,17 @@ createApp({
                     isHls = detected === 'hls';
                     isDash = detected === 'dash';
                     isTs = detected === 'mpegts';
-                    channel = {...channel, url: probeUrl,
+                    channel = {...channel, detectedMediaStrategy: detected, url: uri,
                         manifestType: isHls ? 'm3u8' : isDash ? 'mpd' : channel.manifestType};
                 }
+            }
+
+            if (!hasDRM && mediaStrategy && mediaStrategy !== 'unknown') {
+                channel = {
+                    ...channel,
+                    detectedMediaStrategy: channel.detectedMediaStrategy || mediaStrategy,
+                    manifestType: channel.manifestType || (mediaStrategy === 'hls' ? 'm3u8' : mediaStrategy === 'dash' ? 'mpd' : channel.manifestType)
+                };
             }
 
             if (!hasDRM && override === 'auto' && (mediaStrategy === 'mkv' || playbackUtils.isMkvLikeUrl(uri))) {
@@ -3737,11 +3756,18 @@ createApp({
                 return;
             }
 
+            if (!hasDRM && override === 'auto' && mediaStrategy === 'unsupported') {
+                const format = channel.mediaInfo?.formatName || '';
+                const codecs = [channel.mediaInfo?.videoCodec, channel.mediaInfo?.audioCodec].filter(Boolean).join(', ');
+                const details = [format, codecs].filter(Boolean).join('; ');
+                throw new Error(`This stream uses a format or codec the web player cannot play directly${details ? ` (${details})` : ''}.`);
+            }
+
             // Follow the server's explicit same-origin route. Chromium needs an
             // adaptive player for proxied HLS instead of native HLS playback.
             if (strategyHint === 'NATIVE_PROXY' && !hasDRM && override === 'auto') {
-                // The server hint is independent of the optional account proxy setting.
-                const proxyUrl = playbackUtils.buildProxyStreamUrl(uri) || uri;
+                // The response URL is already routed through the local proxy by the enabled switch.
+                const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
                 const proxiedChannel = {
                     ...channel,
                     url: proxyUrl,
@@ -3753,7 +3779,7 @@ createApp({
                     const details = [format, codecs].filter(Boolean).join('; ');
                     throw new Error(`This stream uses a format or codec the web player cannot play directly${details ? ` (${details})` : ''}.`);
                 } else if (mediaStrategy === 'mpegts' || isTs) {
-                    await loadMpegTs({...proxiedChannel, url: resolveMpegTsPlaybackUrl(proxyUrl)}, requestId);
+                    await loadMpegTs({...proxiedChannel, url: proxyUrl}, requestId);
                 } else if ((mediaStrategy === 'hls' || isHls) && prefersNativeHls) {
                     await loadNative(proxiedChannel, requestId);
                 } else if (mediaStrategy === 'hls' || isHls) {
@@ -3780,7 +3806,7 @@ createApp({
             }
 
             if (override === 'proxy') {
-                const proxyUrl = playbackUtils.buildProxyStreamUrl(uri) || uri;
+                const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
                 await loadNative({...channel, url: proxyUrl}, requestId);
                 return;
             }
@@ -3815,98 +3841,28 @@ createApp({
                 return;
             }
 
-            const preferHlsFallback = isHls && !prefersNativeHls;
-            try {
-                if (hasDRM) {
-                    await loadShaka(channel, requestId);
-                } else if (isTs) {
-                    await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, requestId);
-                } else if (isHls && prefersNativeHls) {
-                    const proxyUrl = playbackUtils.buildProxyStreamUrl(uri);
-                    await loadNative(proxyUrl ? {...channel, url: proxyUrl} : channel, requestId);
-                } else if (isHls) {
-                    // Modern HLS controls and adaptive tracks; Shaka remains an independent fallback.
-                    const proxyUrl = playbackUtils.buildProxyStreamUrl(uri);
-                    const adaptiveChannel = proxyUrl ? {...channel, url: proxyUrl} : channel;
-                    try {
-                        await loadVideoJs(adaptiveChannel, requestId);
-                    } catch (videoJsError) {
-                        console.warn('Video.js HLS playback failed, trying Shaka fallback', videoJsError);
-                        await loadShaka(adaptiveChannel, requestId);
-                    }
-                } else if (canNative) {
-                    await loadNative(channel, requestId);
-                } else {
-                    await loadShaka(channel, requestId);
-                }
-            } catch (e) {
-                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e, requestId)) {
-                    return;
-                }
-                throw e;
-            }
-        };
-
-        const tryProxyPlaybackFallback = async (channel, preferShaka, previousError, requestId = playbackRequestState.currentId()) => {
-            throwIfPlaybackSuperseded(requestId);
-            const sourceUrl = String(channel?.url || '').trim();
-            const proxyUrl = buildProxyStreamUrl(sourceUrl, channel.accountId);
-            if (!proxyUrl || proxyUrl === sourceUrl) {
-                return false;
-            }
-            console.warn('Playback failed, retrying through local proxy.', previousError);
-            const attempts = preferShaka
-                ? [loadShaka, loadNative]
-                : [loadNative, loadVideoJs];
-            let lastError = previousError;
-            for (const attempt of attempts) {
-                throwIfPlaybackSuperseded(requestId);
-                await stopPlayback(true);
-                await new Promise(resolve => setTimeout(resolve, 80));
+            const isHlsPlayback = mediaStrategy === 'hls' || isHls;
+            if (hasDRM) {
+                await loadShaka(channel, requestId);
+            } else if (mediaStrategy === 'mpegts' || isTs) {
+                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, requestId);
+            } else if (isHlsPlayback && prefersNativeHls) {
+                await loadNative(channel, requestId);
+            } else if (isHlsPlayback) {
                 try {
-                    await attempt({...channel, url: proxyUrl}, requestId);
-                    throwIfPlaybackSuperseded(requestId);
-                    return true;
-                } catch (e) {
-                    if (e?.name === 'AbortError') throw e;
-                    lastError = e;
+                    await loadVideoJs(channel, requestId);
+                } catch (videoJsError) {
+                    console.warn('Video.js HLS playback failed, trying Shaka fallback', videoJsError);
+                    await loadShaka(channel, requestId);
                 }
-            }
-            console.warn('Proxy playback fallback failed.', lastError);
-            const compatibilityIssue = await detectHlsBrowserCompatibilityIssue(sourceUrl, channel.accountId);
-            if (compatibilityIssue) {
-                throw new Error(compatibilityIssue);
-            }
-            return false;
-        };
-
-        const detectHlsBrowserCompatibilityIssue = async (url, accountId) => {
-            const sourceUrl = String(url || '').trim();
-            if (!sourceUrl || /^(blob:|data:|file:)/i.test(sourceUrl)) {
-                return '';
-            }
-            const probeUrl = buildProxyStreamUrl(sourceUrl, accountId) || sourceUrl;
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            try {
-                const response = await fetch(probeUrl, {
-                    signal: controller.signal,
-                    headers: {Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*'}
-                });
-                const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-                const responseUrl = String(response.url || probeUrl).toLowerCase();
-                const lowerSource = sourceUrl.toLowerCase();
-                const looksHls = contentType.includes('mpegurl')
-                    || responseUrl.includes('.m3u8')
-                    || lowerSource.includes('.m3u8');
-                if (!response.ok || !looksHls) {
-                    return '';
-                }
-                return describeUnsupportedHlsManifest(await response.text());
-            } catch (_) {
-                return '';
-            } finally {
-                clearTimeout(timeoutId);
+            } else if (mediaStrategy === 'dash' || isDash) {
+                await loadShaka(channel, requestId);
+            } else if (mediaStrategy === 'native') {
+                await loadNative(channel, requestId);
+            } else if (canNative) {
+                await loadNative(channel, requestId);
+            } else {
+                await loadShaka(channel, requestId);
             }
         };
 
@@ -3915,10 +3871,11 @@ createApp({
             const video = ensureVideoElement();
             window.UIPTVModernPlayer.syncControls(video);
             bindPlaybackEvents(video);
+            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             let rejectFailure;
             const failed = new Promise((_, reject) => { rejectFailure = reject; });
             const player = new window.UIPTVMkvPlayer.MkvPlayer(video,
-                playbackUtils.buildProxyStreamUrl(channel.url) || channel.url, {
+                sourceUrl, {
                     label: key => epgLabel(key),
                     onError: error => {
                         if (mkvPlayer !== player || !isCurrentPlaybackRequest(requestId)) return;
@@ -3936,7 +3893,7 @@ createApp({
                     await withPlaybackMediaError(video, () => playWithGestureFallback(() => video.play()), 'MKV');
                 })(), failed]), 'MKV');
                 throwIfPlaybackSuperseded(requestId);
-                playbackMode.value = 'MKV';
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mkv');
             } catch (error) {
                 player.destroy();
                 if (mkvPlayer === player) mkvPlayer = null;
@@ -3969,8 +3926,7 @@ createApp({
             const engine = window.mpegts;
             if (!canUseMpegts()) {
                 console.warn('MPEG-TS playback requires mpegts.js, which is not available or not supported. Falling back to native playback, which will likely fail for MPEG-TS streams.');
-                const fallbackUrl = buildProxyStreamUrl(channel.url, channel.accountId) || sourceUrl;
-                await loadNative({...channel, url: fallbackUrl}, requestId);
+                await loadNative({...channel, url: sourceUrl}, requestId);
                 return;
             }
 
@@ -4023,11 +3979,14 @@ createApp({
                 player.load();
                 const playAction = typeof player.play === 'function' ? () => player.play() : () => video.play();
                 await withPlaybackStartupTimeout(
-                    Promise.race([playWithGestureFallback(playAction), mpegTsStartupError]),
+                    Promise.race([
+                        withPlaybackMediaError(video, () => playWithGestureFallback(playAction), 'MPEG-TS'),
+                        mpegTsStartupError
+                    ]),
                     'MPEG-TS'
                 );
                 throwIfPlaybackSuperseded(requestId);
-                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts', channel.detectedMediaStrategy || channel.manifestType);
             } catch (e) {
                 const message = describeMpegTsFailure(e);
                 if (mpegtsPlayer.value) {
@@ -4065,7 +4024,7 @@ createApp({
                     'Native'
                 );
                 throwIfPlaybackSuperseded(requestId);
-                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native', channel.detectedMediaStrategy || channel.mediaInfo?.strategy || channel.manifestType);
                 if (!started) return;
             } catch (e) {
                 throwIfPlaybackSuperseded(requestId);
@@ -4088,7 +4047,7 @@ createApp({
                             'Proxy'
                         );
                         throwIfPlaybackSuperseded(requestId);
-                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
+                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native', channel.detectedMediaStrategy || channel.mediaInfo?.strategy || channel.manifestType);
                         if (!started) return;
                         return;
                     } catch (retryProxyErr) {
@@ -4108,7 +4067,7 @@ createApp({
                             'HTTP fallback'
                         );
                         throwIfPlaybackSuperseded(requestId);
-                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
+                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native', channel.detectedMediaStrategy || channel.mediaInfo?.strategy || channel.manifestType);
                         if (!started) return;
                         return;
                     } catch (retryErr) {
@@ -4163,7 +4122,7 @@ createApp({
                     'Video.js'
                 );
                 throwIfPlaybackSuperseded(requestId);
-                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs');
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs', channel.detectedMediaStrategy || channel.mediaInfo?.strategy || manifestType);
                 refreshVideoJsTracks(player);
             } catch (error) {
                 if (videoJsPlayer.value === player) {
@@ -4274,7 +4233,7 @@ createApp({
                 await withPlaybackStartupTimeout(player.load(channel.url), 'Shaka');
                 await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Shaka');
                 throwIfPlaybackSuperseded(requestId);
-                playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka');
+                playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka', channel.detectedMediaStrategy || channel.mediaInfo?.strategy || channel.manifestType);
                 refreshShakaTracks(player);
                 player.addEventListener('trackschanged', () => refreshShakaTracks(player));
                 player.addEventListener('variantchanged', () => refreshShakaTracks(player));
@@ -4895,7 +4854,7 @@ createApp({
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
-                isPanelExpanded: playerExpanded.value ? false : wideViewActive.value
+                isPanelExpanded: playerExpanded.value ? false : wideViewLayoutActive.value
             });
             const navigation = playbackNavigation.value;
             const navigationAvailable = !!navigation && navigation.items.length > 1 && headerVisible;
@@ -5278,7 +5237,7 @@ createApp({
             showOverlay,
             showBookmarkModal,
             playerExpanded,
-            wideViewActive, narrowViewport,
+            wideViewActive, wideViewLayoutActive, narrowViewport,
             contentStageNarrow,
             isCompactDrilldown,
             isExpandedPlayerAccordion,
