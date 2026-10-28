@@ -190,7 +190,7 @@ public class ChannelService {
         } else if (cancelled) {
             log(logger, "Channel fetch cancelled before cache save for category " + categoryId + ".");
         }
-        List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
+        List<Channel> resolved = fetchedChannels.isEmpty() ? cachedChannels : fetchedChannels;
         return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true, account), streamingCallback ? null : callback);
     }
 
@@ -890,7 +890,7 @@ public class ChannelService {
                 channelList.addAll(parseVodRow(account, list.getJSONObject(i)));
             }
             List<Channel> censoredChannelList = maybeFilterChannels(dedupeChannels(channelList), censor, account);
-            Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
+            censoredChannelList.sort(Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
             return censoredChannelList;
         } catch (Exception _) {
             AppLog.addErrorLog(ChannelService.class, "Error while processing vod response data");

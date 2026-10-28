@@ -26,7 +26,6 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -38,7 +37,6 @@ import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import javafx.util.StringConverter;
 
 import java.io.File;
 import java.io.IOException;
@@ -3125,11 +3123,8 @@ public class ConfigurationUI extends VBox {
 
         VBox bulletList = null;
         boolean firstParagraph = true;
-        for (String block : Objects.toString(text, "").split("\\R\\s*\\R")) {
-            String paragraph = block.strip();
-            if (paragraph.isEmpty()) {
-                continue;
-            }
+        for (String paragraph : java.util.Arrays.stream(Objects.toString(text, "").split("\\R\\s*\\R"))
+                .map(String::strip).filter(block -> !block.isEmpty()).toList()) {
 
             String bulletText = stripHelpBullet(paragraph);
             if (bulletText != null) {

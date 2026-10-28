@@ -47,9 +47,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
         ParseContext context = new ParseContext(now, limits);
-        XMLStreamReader reader = null;
-        try {
-            reader = factory.createXMLStreamReader(input);
+        XMLStreamReader reader = factory.createXMLStreamReader(input);
+        try (XmlReaderResource readerClose = reader::close) {
             while (reader.hasNext()) {
                 if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
                 int event = reader.next();
@@ -61,7 +60,13 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             context.qualityNames.remove("");
             return new XmltvGuide(completeProgrammes(context.programmes), Map.copyOf(context.names),
                     Map.copyOf(context.qualityNames), Map.copyOf(context.icons));
-        } finally { if (reader != null) reader.close(); }
+        }
+    }
+
+    @FunctionalInterface
+    private interface XmlReaderResource extends AutoCloseable {
+        @Override
+        void close() throws javax.xml.stream.XMLStreamException;
     }
 
     private static Map<String,List<EpgProgramme>> completeProgrammes(Map<String,List<EpgProgramme>> source) {
@@ -100,7 +105,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         private int count;
         private long retainedBytes;
 
-        private ParseContext(Instant now, Limits limits) throws java.io.IOException {
+        private ParseContext(Instant now, Limits limits) {
             this.now = now;
             this.limits = limits;
             this.programmes = new HashMap<>();
@@ -146,12 +151,12 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         context.description = "";
     }
 
-    private static void handleEndElement(XMLStreamReader reader, ParseContext context) throws java.io.IOException {
+    private static void handleEndElement(XMLStreamReader reader, ParseContext context) {
         if (reader.getLocalName().equals(CHANNEL_ELEMENT)) context.id = null;
         if (reader.getLocalName().equals("programme")) finishProgramme(context);
     }
 
-    private static void finishProgramme(ParseContext context) throws java.io.IOException {
+    private static void finishProgramme(ParseContext context) {
         if (context.channel == null || context.start == null || context.title.isBlank()
                 || !context.start.isBefore(context.now.plus(Duration.ofDays(7)))
                 || context.stop != null && !context.stop.isAfter(context.now.minus(Duration.ofHours(6)))

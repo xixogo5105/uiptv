@@ -26,7 +26,7 @@ public class NativeEpgApplicationService {
         try {
             acquired = REQUESTS.tryAcquire(10, java.util.concurrent.TimeUnit.SECONDS);
             return acquired && !cancelled() ? fetch(account, channel) : List.of();
-        } catch (InterruptedException error) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             return List.of();
         } finally { if (acquired) REQUESTS.release(); }

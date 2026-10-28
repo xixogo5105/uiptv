@@ -32,22 +32,26 @@ public class ConfigurationDb extends BaseDb {
 
     public void clearAllCache() {
         try (Connection conn = connect(); Statement statement = conn.createStatement()) {
-            conn.setAutoCommit(false);
-            try {
-                for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                    statement.addBatch(DELETE_FROM + validatedTableName(table));
-                }
-                statement.addBatch("UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE) + " SET serverPortalUrl=''");
-                statement.executeBatch();
-                conn.commit();
-            } catch (Exception error) {
-                conn.rollback();
-                throw error;
-            }
+            clearAllCacheTransaction(conn, statement);
         } catch (Exception error) {
             throw new DatabaseAccessException("Unable to clear cached account data", error);
         }
         SQLConnection.vacuum();
+    }
+
+    private void clearAllCacheTransaction(Connection conn, Statement statement) throws SQLException {
+        conn.setAutoCommit(false);
+        try {
+            for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
+                statement.addBatch(DELETE_FROM + validatedTableName(table));
+            }
+            statement.addBatch("UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE) + " SET serverPortalUrl=''");
+            statement.executeBatch();
+            conn.commit();
+        } catch (SQLException error) {
+            conn.rollback();
+            throw error;
+        }
     }
 
     public void clearCache(Account account) {

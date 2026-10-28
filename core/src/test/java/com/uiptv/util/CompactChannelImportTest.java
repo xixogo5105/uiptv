@@ -5,8 +5,6 @@ import com.uiptv.db.ChannelDb;
 import com.uiptv.db.ConfigurationDb;
 import com.uiptv.model.*;
 import com.uiptv.service.*;
-import com.uiptv.util.AccountType;
-import com.uiptv.util.XtremeApiParser;
 import org.json.*;
 import org.junit.jupiter.api.Test;
 

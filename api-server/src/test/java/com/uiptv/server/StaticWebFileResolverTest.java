@@ -28,7 +28,7 @@ class StaticWebFileResolverTest {
             assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(new TestHttpExchange("/nested/valid.txt", "GET")));
             platform.when(com.uiptv.util.Platform::getWebServerRootPath).thenReturn(root.toString());
             try { java.nio.file.Files.createSymbolicLink(root.resolve("escape.txt"), secret); }
-            catch (UnsupportedOperationException | java.nio.file.FileSystemException unsupported) {
+            catch (UnsupportedOperationException | java.nio.file.FileSystemException _) {
                 org.junit.jupiter.api.Assumptions.abort("Symbolic links unavailable on this filesystem");
             }
             assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(new TestHttpExchange("/escape.txt", "GET")));

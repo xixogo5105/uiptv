@@ -34,7 +34,7 @@ public class HttpPlayerEpgJsonServer implements HttpHandler {
         int limit = MAX_SCHEDULE_PROGRAMMES;
         if (requestedLimit != null && !requestedLimit.isBlank()) {
             try { limit = Math.clamp(Integer.parseInt(requestedLimit), 1, MAX_SCHEDULE_PROGRAMMES); }
-            catch (NumberFormatException ignored) {
+            catch (NumberFormatException _) {
                 // Keep the documented default when the optional limit is malformed.
             }
         }

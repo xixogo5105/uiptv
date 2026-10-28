@@ -70,7 +70,9 @@ public class DatabaseSyncService {
                     progressListener
             );
         } finally {
-            deleteIfExists(sourceSnapshot);
+            if (sourceSnapshot != null) {
+                deleteIfExists(sourceSnapshot);
+            }
         }
     }
 

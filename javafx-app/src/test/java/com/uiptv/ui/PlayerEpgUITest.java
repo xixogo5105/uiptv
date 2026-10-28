@@ -1,7 +1,6 @@
 package com.uiptv.ui;
 
 import com.uiptv.application.*;
-import com.uiptv.model.Channel;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.util.AccountType;
 import javafx.scene.*;

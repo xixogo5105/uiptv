@@ -46,7 +46,7 @@ public class PingStalkerPortal {
         // Try reading and parsing xpcom.common.js first.
         com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Attempting to download xpcom.common.js from the portal.");
         try {
-            String pingUrl = !url.endsWith("/") ? url + "/" + "xpcom.common.js" : url + "xpcom.common.js";
+            String pingUrl = url.endsWith("/") ? url + "xpcom.common.js" : url + "/xpcom.common.js";
 
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");

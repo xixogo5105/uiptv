@@ -519,7 +519,7 @@ public class SeriesWatchStateService {
                 ? String.valueOf(watchedState.getEpisodeNum())
                 : "";
         String candidateEpisodeNum = stripToDigits(
-                !isBlank(episodeNum) ? episodeNum : String.valueOf(parseEpisodeNum("", episodeName)));
+                isBlank(episodeNum) ? String.valueOf(parseEpisodeNum("", episodeName)) : episodeNum);
         return isBlank(watchedEpisodeNum)
                 || (!isBlank(candidateEpisodeNum) && watchedEpisodeNum.equals(candidateEpisodeNum));
     }

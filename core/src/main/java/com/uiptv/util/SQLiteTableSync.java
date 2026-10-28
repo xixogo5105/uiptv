@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -401,13 +402,25 @@ public final class SQLiteTableSync {
     }
 
     private static List<String> getTableColumns(Connection conn, String tableName) throws SQLException {
+        String knownTableName = Arrays.stream(DatabaseUtils.DbTable.values())
+                .map(DatabaseUtils.DbTable::getTableName)
+                .filter(tableName::equals)
+                .findFirst()
+                .orElseThrow(() -> new SQLException("Unknown database table"));
         List<String> columns = new ArrayList<>();
-        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + SqlIdentifiers.quote(tableName) + ")")) {
+        // SQLite does not support bind parameters for PRAGMA identifiers. Resolve the name
+        // through the application's table enum before constructing this metadata query.
+        try (Statement stmt = conn.createStatement(); ResultSet rs = executeTableInfoQuery(stmt, knownTableName)) {
             while (rs.next()) {
                 columns.add(rs.getString("name"));
             }
         }
         return columns;
+    }
+
+    @SuppressWarnings("java:S2077")
+    private static ResultSet executeTableInfoQuery(Statement statement, String knownTableName) throws SQLException {
+        return statement.executeQuery("PRAGMA table_info(" + SqlIdentifiers.quote(knownTableName) + ")");
     }
 
     private static final class ConfigurationRow {

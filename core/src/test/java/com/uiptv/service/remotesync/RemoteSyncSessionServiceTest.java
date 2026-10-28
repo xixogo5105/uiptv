@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -80,17 +81,22 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
                 return -1;
             }
         };
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
         CompletableFuture<Void> firstUpload = CompletableFuture.runAsync(() -> {
             try {
                 withDatabase(database, () -> service.acceptUpload(sessionId, blockedBody));
-            } catch (Exception ignored) { }
+            } catch (Exception error) {
+                uploadFailure.set(error);
+            }
         });
         assertTrue(bodyRead.await(2, TimeUnit.SECONDS));
         assertEquals(RemoteSyncStatus.UPLOADING, service.getSessionState(sessionId).status());
+        InputStream emptyBody = new ByteArrayInputStream(new byte[0]);
         assertThrows(IllegalStateException.class,
-                () -> service.acceptUpload(sessionId, new ByteArrayInputStream(new byte[0])));
+                () -> service.acceptUpload(sessionId, emptyBody));
         finishBody.countDown();
         firstUpload.get(3, TimeUnit.SECONDS);
+        assertNotNull(uploadFailure.get(), "The intentionally invalid transfer should fail after the body completes");
         assertEquals(RemoteSyncStatus.FAILED, service.getSessionState(sessionId).status());
     }
 

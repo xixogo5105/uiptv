@@ -36,8 +36,6 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -233,7 +231,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         itemsLoaded.set(true);
         if (Platform.isFxApplicationThread() && (newChannels.size() > CHANNEL_UI_BATCH_SIZE
-                || listAction == Account.AccountAction.itv && EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly())) {
+                || listAction == Account.AccountAction.itv && EpgModeUI.isFeatureEnabled() && !EpgModeUI.PLAYBACK_ONLY)) {
             List<Channel> channels = new ArrayList<>(newChannels);
             Thread worker = new Thread(() -> addItemsIncrementally(channels), "uiptv-channel-card-batcher");
             worker.setDaemon(true);
@@ -665,7 +663,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyChannelGridSizing() {
-        boolean cardEpgVisible = EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+        boolean cardEpgVisible = EpgModeUI.isFeatureEnabled() && EpgModeUI.CARDS_ENABLED
                 && listAction == Account.AccountAction.itv;
         channelGrid.setEpgCardSizingEnabled(cardEpgVisible);
         channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);

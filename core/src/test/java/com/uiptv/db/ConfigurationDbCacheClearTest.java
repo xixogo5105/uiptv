@@ -134,7 +134,8 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertFalse(tableExists(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE),
                 "Test precondition: the cacheable table must be missing so clearCache hits a failure mid-sequence");
 
-        org.junit.jupiter.api.Assertions.assertThrows(DatabaseAccessException.class, () -> ConfigurationDb.get().clearCache(account));
+        ConfigurationDb configurationDb = ConfigurationDb.get();
+        org.junit.jupiter.api.Assertions.assertThrows(DatabaseAccessException.class, () -> configurationDb.clearCache(account));
 
         restoreTable(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE);
 

@@ -338,8 +338,9 @@ public class M3U8Parser {
             for (String groupTitle : effectiveGroupTitles(groups)) {
                 PlaylistEntry entry = new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo,
                         state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType);
-                entry.setMetadata(new LinkedHashMap<>(header.attributes));
-                if (!state.metadata.isEmpty()) entry.getMetadata().putAll(state.metadata);
+                Map<String, Object> metadata = new LinkedHashMap<>(header.attributes);
+                metadata.putAll(state.metadata);
+                entry.setMetadata(metadata);
                 consumer.accept(entry);
             }
         }
@@ -358,11 +359,16 @@ public class M3U8Parser {
             Pattern attributes = Pattern.compile("(?:^|\\s)([\\w-]+)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))");
             Matcher matcher = attributes.matcher(line);
             while (matcher.find()) {
-                String value = matcher.group(2) != null ? matcher.group(2)
-                        : matcher.group(3) != null ? matcher.group(3) : matcher.group(4);
+                String value = parsedAttributeValue(matcher);
                 values.put(matcher.group(1).toLowerCase(Locale.ROOT), value);
             }
             return values;
+        }
+
+        private static String parsedAttributeValue(Matcher matcher) {
+            if (matcher.group(2) != null) return matcher.group(2);
+            if (matcher.group(3) != null) return matcher.group(3);
+            return matcher.group(4);
         }
 
         private static List<String> effectiveGroupTitles(List<String> groupTitles) {
@@ -442,19 +448,7 @@ public class M3U8Parser {
             Map<String, String> headers = new LinkedHashMap<>();
             Map<String, String> vlcOptions = new LinkedHashMap<>();
             for (String pair : candidate.substring(delimiter + 1).split("&")) {
-                int equals = pair.indexOf('=');
-                if (equals <= 0) continue;
-                String name = pair.substring(0, equals).trim();
-                String value = pair.substring(equals + 1).trim();
-                if (name.isBlank() || value.isBlank()) continue;
-                headers.put(name, value);
-                switch (name.toLowerCase(Locale.ROOT)) {
-                    case "user-agent" -> vlcOptions.put("http-user-agent", value);
-                    case "referer", "referrer" -> vlcOptions.put("http-referrer", value);
-                    case "origin" -> vlcOptions.put("http-origin", value);
-                    case "cookie" -> vlcOptions.put("http-cookie", value);
-                    default -> { /* Preserve unrecognized headers for export and web playback. */ }
-                }
+                addUrlHeader(pair, headers, vlcOptions);
             }
             if (!headers.isEmpty()) state.metadata.put("urlHeaders", headers);
             if (!vlcOptions.isEmpty()) {
@@ -463,6 +457,22 @@ public class M3U8Parser {
                 existing.putAll(vlcOptions);
             }
             return candidate.substring(0, delimiter);
+        }
+
+        private static void addUrlHeader(String pair, Map<String, String> headers, Map<String, String> vlcOptions) {
+            int equals = pair.indexOf('=');
+            if (equals <= 0) return;
+            String name = pair.substring(0, equals).trim();
+            String value = pair.substring(equals + 1).trim();
+            if (name.isBlank() || value.isBlank()) return;
+            headers.put(name, value);
+            switch (name.toLowerCase(Locale.ROOT)) {
+                case "user-agent" -> vlcOptions.put("http-user-agent", value);
+                case "referer", "referrer" -> vlcOptions.put("http-referrer", value);
+                case "origin" -> vlcOptions.put("http-origin", value);
+                case "cookie" -> vlcOptions.put("http-cookie", value);
+                default -> { /* Preserve unrecognized headers for export and web playback. */ }
+            }
         }
 
         private static String normalizeLicenseType(String type, String currentType) {

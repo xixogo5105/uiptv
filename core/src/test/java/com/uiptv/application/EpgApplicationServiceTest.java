@@ -71,7 +71,7 @@ class EpgApplicationServiceTest extends DbBackedTest {
             assertTrue(requests.constructed().isEmpty());
         }
     }
-    @Test void playerGuideTranslatesLocalIdsAndRejectsAnotherAccountsCategory() throws Exception {
+    @Test void playerGuideTranslatesLocalIdsAndRejectsAnotherAccountsCategory() {
         var account = account(""); account.setDbId(null); account.setAccountName("Live identity"); account.setType(AccountType.XTREME_API);
         com.uiptv.db.AccountDb.get().save(account);
         account = AccountService.getInstance().getByName("Live identity");

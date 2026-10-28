@@ -82,12 +82,8 @@ public class RemoteSyncSessionService {
                 throw new IllegalStateException("Remote sync is temporarily busy. Try again later.");
             }
             session = new SessionState(
-                    UUID.randomUUID().toString(),
-                    request.direction(),
-                    request.verificationCode(),
-                    blankToFallback(request.requesterName(), requesterAddress),
-                    peer,
-                    request.options(),
+                    new SessionDetails(UUID.randomUUID().toString(), request.direction(), request.verificationCode(),
+                            blankToFallback(request.requesterName(), requesterAddress), peer, request.options()),
                     clock.instant().plus(APPROVAL_TTL),
                     clock
             );
@@ -429,6 +425,9 @@ public class RemoteSyncSessionService {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    private record SessionDetails(String sessionId, RemoteSyncDirection direction, String verificationCode,
+                                  String requesterName, String requesterAddress, RemoteSyncOptions options) { }
+
     private static final class SessionState {
         private final Object monitor = new Object();
         private final String sessionId;
@@ -445,20 +444,13 @@ public class RemoteSyncSessionService {
         private Path snapshotPath;
         private Instant terminalAt;
 
-        private SessionState(String sessionId,
-                             RemoteSyncDirection direction,
-                             String verificationCode,
-                             String requesterName,
-                             String requesterAddress,
-                             RemoteSyncOptions options,
-                             Instant expiresAt,
-                             Clock clock) {
-            this.sessionId = sessionId;
-            this.direction = direction;
-            this.verificationCode = verificationCode;
-            this.requesterName = requesterName;
-            this.requesterAddress = requesterAddress;
-            this.options = options;
+        private SessionState(SessionDetails details, Instant expiresAt, Clock clock) {
+            this.sessionId = details.sessionId();
+            this.direction = details.direction();
+            this.verificationCode = details.verificationCode();
+            this.requesterName = details.requesterName();
+            this.requesterAddress = details.requesterAddress();
+            this.options = details.options();
             this.clock = clock;
             this.status = RemoteSyncStatus.PENDING_APPROVAL;
             this.message = "Awaiting approval.";

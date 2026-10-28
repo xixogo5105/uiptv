@@ -25,7 +25,7 @@ public final class ChannelExtraJsonCompactor {
         if (source == null || source.isBlank()) return "{}";
         try {
             return compact(new JSONObject(source));
-        } catch (RuntimeException error) {
+        } catch (RuntimeException _) {
             if (malformedInputs.incrementAndGet() == 1) {
                 AppLog.addWarningLog(ChannelExtraJsonCompactor.class, "Invalid channel metadata discarded during import.");
             }

@@ -259,26 +259,21 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void fullEpgLiveBookmarksKeepTheResponsiveCardGrid() throws Exception {
+    void playbackGuideLiveBookmarksKeepTheResponsiveCardGrid() throws Exception {
         List<Boolean> layoutModes = runOnFxThread(() -> {
             try (MockedStatic<EpgModeUI> epgMode = mockStatic(EpgModeUI.class)) {
                 epgMode.when(EpgModeUI::isFeatureEnabled).thenReturn(true);
-                epgMode.when(EpgModeUI::isPlaybackOnly).thenReturn(false);
 
                 BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
                 filteredItems(ui).add(bookmarkItem("live-1", "News Channel", "Account"));
                 invokeBookmarkGridDisplayMode(ui);
                 ResponsiveCardGrid<?> grid = bookmarkGridOf(ui);
-                boolean fullEpgKeepsResponsiveColumns = !booleanField(grid, "singleColumn");
-
-                epgMode.when(EpgModeUI::isPlaybackOnly).thenReturn(true);
-                invokeBookmarkGridDisplayMode(ui);
                 boolean playbackOnlyKeepsResponsiveColumns = !booleanField(grid, "singleColumn");
-                return List.of(fullEpgKeepsResponsiveColumns, playbackOnlyKeepsResponsiveColumns);
+                return List.of(playbackOnlyKeepsResponsiveColumns);
             }
         });
 
-        assertEquals(List.of(true, true), layoutModes);
+        assertEquals(List.of(true), layoutModes);
     }
 
     @Test

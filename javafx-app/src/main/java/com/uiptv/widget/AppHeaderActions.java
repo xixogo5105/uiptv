@@ -140,7 +140,7 @@ public class AppHeaderActions extends HBox {
 
     private MenuItem createEpgModeMenuItem() {
         return createMenuItem(I18n.tr(com.uiptv.ui.EpgModeUI.isFeatureEnabled() ? "epgDisableMode" : "epgEnableMode"), ICON_GEAR,
-                () -> com.uiptv.ui.EpgModeUI.setEnabled(!com.uiptv.ui.EpgModeUI.isEnabled()));
+                () -> com.uiptv.ui.EpgModeUI.setEnabled(!com.uiptv.ui.EpgModeUI.isFeatureEnabled()));
     }
 
     private MenuItem createPlainTextModeMenuItem() {

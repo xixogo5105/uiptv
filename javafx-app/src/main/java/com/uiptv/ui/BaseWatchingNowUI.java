@@ -3007,7 +3007,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return I18n.formatDate(parsed);
         }
         String extracted = extractDateSubstring(v);
-        return !isBlank(extracted) ? extracted : collapseCommaSeparatedDate(v);
+        return isBlank(extracted) ? collapseCommaSeparatedDate(v) : extracted;
     }
 
     private String buildEpisodeDisplayTitle(String season, String episodeNum, String title) {
@@ -3056,7 +3056,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return leadingIso;
         }
         String matchedDate = firstMatchedDate(value, MONTH_DATE_PATTERN, SLASH_DATE_PATTERN, ISO_DATE_PATTERN);
-        return !isBlank(matchedDate) ? matchedDate : "";
+        return isBlank(matchedDate) ? "" : matchedDate;
     }
 
     private String extractLeadingIsoDate(String value) {

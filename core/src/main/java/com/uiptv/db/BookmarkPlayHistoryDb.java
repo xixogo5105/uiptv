@@ -118,7 +118,7 @@ public final class BookmarkPlayHistoryDb {
             item.setAccountAction(Account.AccountAction.valueOf(row.getString("accountAction")));
             item.setChannelId(row.getString("channelId"));
             return item;
-        } catch (org.json.JSONException | IllegalArgumentException ignored) {
+        } catch (org.json.JSONException | IllegalArgumentException _) {
             return null;
         }
     }

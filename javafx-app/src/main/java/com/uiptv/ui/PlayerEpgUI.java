@@ -5,7 +5,6 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import java.time.*;
@@ -101,7 +100,7 @@ public class PlayerEpgUI extends VBox {
         guideWorker = Thread.ofVirtual().start(() -> {
             PlayerEpgApplicationService.Result result;
             try { result = new PlayerEpgApplicationService().currentForPlayback(context.account().toAccount(), context.channel()); }
-            catch (Exception error) { result = null; }
+            catch (Exception _) { result = null; }
             var loaded = result;
             Platform.runLater(() -> {
                 if (request != generation.get()) return;

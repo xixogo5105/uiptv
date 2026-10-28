@@ -944,12 +944,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         title.setMinWidth(0);
         title.setMinHeight(Region.USE_PREF_SIZE);
         title.getStyleClass().add(STYLE_CLASS_STRONG_LABEL);
-        HBox titleRow = new HBox(8, title, badges);
-        titleRow.setAlignment(Pos.TOP_LEFT);
-        titleRow.setMinWidth(0);
-        titleRow.setMaxWidth(Double.MAX_VALUE);
+        HBox episodeTitleRow = new HBox(8, title, badges);
+        episodeTitleRow.setAlignment(Pos.TOP_LEFT);
+        episodeTitleRow.setMinWidth(0);
+        episodeTitleRow.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(title, Priority.ALWAYS);
-        text.getChildren().add(titleRow);
+        text.getChildren().add(episodeTitleRow);
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         addEpisodeMetaLabels(text, row, cardLabels);

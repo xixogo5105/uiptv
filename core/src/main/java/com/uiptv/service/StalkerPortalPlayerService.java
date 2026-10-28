@@ -425,7 +425,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         });
 
         String mergedUrl = normalizedResolvedBase + "?" + toQueryString(resolvedParams);
-        String prefix = !isBlank(resolvedPrefix) ? resolvedPrefix : originalPrefix;
+        String prefix = isBlank(resolvedPrefix) ? originalPrefix : resolvedPrefix;
         return isBlank(prefix) ? mergedUrl : prefix + " " + mergedUrl;
     }
 

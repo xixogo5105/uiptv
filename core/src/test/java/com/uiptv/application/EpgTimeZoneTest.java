@@ -1,13 +1,10 @@
 package com.uiptv.application;
 
-import com.uiptv.model.*;
 import com.uiptv.service.*;
-import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.*;
 import java.time.*;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class EpgTimeZoneTest extends DbBackedTest {
     @Test void absoluteTimesNeverReceiveAnAdditionalAccountOrDaylightSavingOffset() {

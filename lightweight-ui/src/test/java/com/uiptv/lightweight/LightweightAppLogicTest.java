@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -81,7 +82,7 @@ class LightweightAppLogicTest {
         ConfigurationApplicationService service = mock(ConfigurationApplicationService.class);
         when(service.isServerRunning()).thenReturn(false);
         IOException failure = new IOException("unavailable");
-        org.mockito.Mockito.doThrow(failure).when(service).startServer();
+        doThrow(failure).when(service).startServer();
 
         IOException actual = org.junit.jupiter.api.Assertions.assertThrows(IOException.class,
                 () -> LightweightAppLogic.toggleServer(service));

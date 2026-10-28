@@ -872,7 +872,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         } catch (Exception _) {
             // Offset timestamps are optional; try the plain date patterns next.
         }
-        String[] patterns = new String[]{
+        String[] patterns = {
                 "yyyy-MM-dd",
                 "yyyy-MM-dd HH:mm:ss",
                 "yyyy-MM-dd HH:mm",

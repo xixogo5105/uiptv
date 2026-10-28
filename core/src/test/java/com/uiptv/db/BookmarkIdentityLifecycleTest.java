@@ -15,6 +15,7 @@ class BookmarkIdentityLifecycleTest extends DbBackedTest {
         bookmark.setAccountAction(Account.AccountAction.itv);
         bookmark.setChannelJson("{\"channelId\":\"provider-channel\",\"cmd\":\"cmd\",\"logo\":\"saved-logo\"}");
         BookmarkService.getInstance().save(bookmark);
+        String bookmarkId = bookmark.getDbId();
         BookmarkService.getInstance().recordRecentPlayback(bookmark);
         account.setUsername("updated");
         AccountService.getInstance().save(account);
@@ -57,11 +58,15 @@ class BookmarkIdentityLifecycleTest extends DbBackedTest {
         AccountService.getInstance().save(account);
         Bookmark bookmark = new Bookmark("protected", "News", "provider-channel", "Station", "cmd", "portal", "category");
         BookmarkService.getInstance().save(bookmark);
+        String bookmarkId = bookmark.getDbId();
         try (var connection = SQLConnection.connect(); var statement = connection.createStatement()) {
             statement.execute("CREATE TRIGGER reject_bookmark_delete BEFORE DELETE ON Bookmark BEGIN SELECT RAISE(ABORT,'test failure'); END");
         }
-        assertThrows(DatabaseAccessException.class, () -> BookmarkDb.get().delete(bookmark.getDbId()));
-        assertThrows(IllegalStateException.class, () -> AccountService.getInstance().delete(account.getDbId()));
+        BookmarkDb bookmarkDb = BookmarkDb.get();
+        AccountService accountService = AccountService.getInstance();
+        assertThrows(DatabaseAccessException.class, () -> bookmarkDb.delete(bookmarkId));
+        String accountIdForDelete = account.getDbId();
+        assertThrows(IllegalStateException.class, () -> accountService.delete(accountIdForDelete));
         assertNotNull(AccountService.getInstance().getById(account.getDbId()));
         assertEquals(1, BookmarkService.getInstance().read().size());
         try (var connection = SQLConnection.connect(); var statement = connection.createStatement();

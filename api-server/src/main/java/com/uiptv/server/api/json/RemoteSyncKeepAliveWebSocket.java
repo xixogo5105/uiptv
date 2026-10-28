@@ -34,7 +34,7 @@ public final class RemoteSyncKeepAliveWebSocket extends JettyWebSocketServlet {
                         && status != RemoteSyncStatus.APPROVED
                         && status != RemoteSyncStatus.READY_FOR_DOWNLOAD) return null;
                 return new GuestHeartbeatSocket(sessionId);
-            } catch (IllegalArgumentException | IllegalStateException ex) {
+            } catch (IllegalArgumentException | IllegalStateException _) {
                 return null;
             }
         });
@@ -75,7 +75,7 @@ public final class RemoteSyncKeepAliveWebSocket extends JettyWebSocketServlet {
             payload.flip();
             try {
                 getRemote().sendPing(payload);
-            } catch (IOException ex) {
+            } catch (IOException _) {
                 close(1011, "Could not ping sync guest");
             }
         }

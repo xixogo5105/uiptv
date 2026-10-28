@@ -23,22 +23,28 @@ final class LiveXmltvReader {
                 int event = reader.next();
                 if (event == XMLStreamConstants.START_ELEMENT) {
                     handleStart(reader, state, name);
-                } else if (event == XMLStreamConstants.END_ELEMENT) {
-                    if (handleEnd(reader, state, now)) break;
-                }
+                } else if (event == XMLStreamConstants.END_ELEMENT && handleEnd(reader, state, now)) break;
             }
         } finally { reader.close(); }
-        state.programmes.sort(Comparator.comparingLong(EpgProgramme::start));
+        return completeProgrammes(state.programmes);
+    }
+
+    private static List<EpgProgramme> completeProgrammes(List<EpgProgramme> programmes) {
+        programmes.sort(Comparator.comparingLong(EpgProgramme::start));
         List<EpgProgramme> completed = new ArrayList<>();
-        for (int i = 0; i < state.programmes.size(); i++) {
-            var p = state.programmes.get(i);
+        for (int i = 0; i < programmes.size(); i++) {
+            var p = programmes.get(i);
             long end = p.stop();
             if (end <= p.start()) {
-                end = i + 1 < state.programmes.size() ? state.programmes.get(i + 1).start() : 0;
+                end = inferredEnd(programmes, i);
             }
             if (end > p.start()) completed.add(new EpgProgramme(p.title(), p.description(), p.start(), end));
         }
         return EpgSchedules.normalize(completed);
+    }
+
+    private static long inferredEnd(List<EpgProgramme> programmes, int index) {
+        return index + 1 < programmes.size() ? programmes.get(index + 1).start() : 0;
     }
 
     private static void handleStart(XMLStreamReader reader, ParseState state, String name) throws XMLStreamException {
@@ -46,13 +52,11 @@ final class LiveXmltvReader {
             case CHANNEL_ELEMENT -> handleChannelStart(reader, state);
             case "display-name" -> handleDisplayName(reader, state, name);
             case "programme" -> handleProgrammeStart(reader, state);
-            case "title" -> {
-                if (state.channel.equals(state.selected) && !state.ambiguous) state.title = text(reader, 512);
-            }
-            case "desc" -> {
-                if (state.channel.equals(state.selected) && !state.ambiguous) state.description = text(reader, 2048);
-            }
-            default -> { }
+            case String element when element.equals("title") && state.channel.equals(state.selected) && !state.ambiguous ->
+                    state.title = text(reader, 512);
+            case String element when element.equals("desc") && state.channel.equals(state.selected) && !state.ambiguous ->
+                    state.description = text(reader, 2048);
+            default -> { /* Other XMLTV elements do not affect the requested channel guide. */ }
         }
     }
 

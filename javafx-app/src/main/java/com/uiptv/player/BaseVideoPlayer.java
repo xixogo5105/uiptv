@@ -2136,14 +2136,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnPreviousChannel.setVisible(available);
         btnPreviousChannel.setManaged(available);
         btnPreviousChannel.setDisable(!available || !queue.canGoPrevious());
-        String previousTooltip = navigationTooltip("playerPreviousItem", "playerPreviousItemWithName",
+        String previousTooltip = navigationTooltip(I18N_PLAYER_PREVIOUS_ITEM, "playerPreviousItemWithName",
                 available ? queue.previousItemName() : "");
         btnPreviousChannel.setTooltip(new Tooltip(previousTooltip));
         btnPreviousChannel.setAccessibleText(previousTooltip);
         btnNextChannel.setVisible(available);
         btnNextChannel.setManaged(available);
         btnNextChannel.setDisable(!available || !queue.canGoNext());
-        String nextTooltip = navigationTooltip("playerNextItem", "playerNextItemWithName",
+        String nextTooltip = navigationTooltip(I18N_PLAYER_NEXT_ITEM, "playerNextItemWithName",
                 available ? queue.nextItemName() : "");
         btnNextChannel.setTooltip(new Tooltip(nextTooltip));
         btnNextChannel.setAccessibleText(nextTooltip);

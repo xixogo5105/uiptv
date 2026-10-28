@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.io.Serializable;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
@@ -25,7 +26,7 @@ public class PlaylistEntry extends BaseJson {
     private String inputstreamaddon;
     private String manifestType; // New field for manifest_type
     /** Kodi-style M3U attributes and per-entry directives retained for playback/export. */
-    private LinkedHashMap<String, Object> metadata;
+    private LinkedHashMap<String, Serializable> metadata;
 
     public PlaylistEntry(String id, String groupTitle, String title, String sourceUrl, String logo) {
         this.id = id;
@@ -62,6 +63,16 @@ public class PlaylistEntry extends BaseJson {
     }
 
     public void setMetadata(Map<String, Object> metadata) {
-        this.metadata = metadata == null ? null : new LinkedHashMap<>(metadata);
+        if (metadata == null) {
+            this.metadata = null;
+            return;
+        }
+        this.metadata = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (!(value instanceof Serializable serializable)) {
+                throw new IllegalArgumentException("Playlist metadata values must be serializable");
+            }
+            this.metadata.put(key, serializable);
+        });
     }
 }

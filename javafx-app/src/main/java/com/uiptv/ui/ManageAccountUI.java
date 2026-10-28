@@ -637,7 +637,7 @@ public class ManageAccountUI extends VBox {
         }
         macAddress.getItems().clear();
         List<String> items = new ArrayList<>(Arrays.stream(newVal.replace(SPACE, "").split(",")).toList());
-        Collections.sort(items);
+        items.sort(null);
         macAddress.getItems().addAll(items);
         if (!MacAddressVerificationUtils.containsAddress(items, macAddress.getValue())) {
             macAddress.setValue(newVal.split(",")[0].trim());

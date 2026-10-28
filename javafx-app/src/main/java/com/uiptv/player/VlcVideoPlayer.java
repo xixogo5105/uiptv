@@ -642,7 +642,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             copyProperties(vlcProperties, properties);
             if (properties.isEmpty()) return List.of();
             return toVlcOptions(properties);
-        } catch (org.json.JSONException ignored) {
+        } catch (org.json.JSONException _) {
             return List.of();
         }
     }

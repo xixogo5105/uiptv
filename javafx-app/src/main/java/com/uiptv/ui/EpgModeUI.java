@@ -7,6 +7,8 @@ import javafx.scene.Node;
 
 /** Observable enable switch for explicit live guide requests. */
 public final class EpgModeUI {
+    public static final boolean CARDS_ENABLED = false;
+    public static final boolean PLAYBACK_ONLY = true;
     private static final BooleanProperty enabled = new SimpleBooleanProperty(false);
     private static final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
     static {
@@ -19,15 +21,12 @@ public final class EpgModeUI {
         Thread.ofVirtual().start(() -> {
             boolean value;
             try { value = com.uiptv.service.ConfigurationService.getInstance().read().isEpgEnabled(); }
-            catch (RuntimeException error) { value = false; }
+            catch (RuntimeException _) { value = false; }
             boolean result = value;
             javafx.application.Platform.runLater(() -> { if (request == revision.get()) enabled.set(result); });
         });
     }
     public static boolean isFeatureEnabled() { return enabled.get(); }
-    public static boolean isEnabled() { return enabled.get(); }
-    public static boolean isCardsEnabled() { return false; }
-    public static boolean isPlaybackOnly() { return true; }
     public static void setEnabled(boolean value) {
         Thread.ofVirtual().start(() -> new com.uiptv.application.EpgSettingsApplicationService().setEnabled(value));
     }

@@ -9,7 +9,6 @@ import com.uiptv.util.HtmlEntityDecoder;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
-import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.BookmarkCard;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -1020,7 +1019,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         // Plain-text cards use the same responsive column strategy as thumbnail cards;
         // only the card height and vertical gap differ between the two modes.
         bookmarkGrid.setSingleColumn(false);
-        boolean cardEpgVisible = EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+        boolean cardEpgVisible = EpgModeUI.isFeatureEnabled() && EpgModeUI.CARDS_ENABLED
                 && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv);
         bookmarkGrid.setEpgCardSizingEnabled(cardEpgVisible);
         bookmarkGrid.setCardWidthRange(cardEpgVisible ? 306 : 255, cardEpgVisible ? 414 : 345);
@@ -1031,7 +1030,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private double bookmarkCardHeight(boolean thumbnailsEnabled) {
-        boolean hasLiveItems = EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+        boolean hasLiveItems = EpgModeUI.isFeatureEnabled() && EpgModeUI.CARDS_ENABLED
                 && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv);
         if (hasLiveItems) return 168;
         return thumbnailsEnabled ? GRID_NORMAL_CARD_MIN_HEIGHT : GRID_PLAIN_TEXT_CARD_MIN_HEIGHT;

@@ -37,20 +37,29 @@ public class EpgApplicationService {
     private List<EpgProgramme> scheduleFromXmltvSources(Account account, Channel channel) {
         for (String source : accountSources(account)) {
             if (Thread.currentThread().isInterrupted()) return List.of();
-            try (BufferedInputStream buffered = new BufferedInputStream(open(source))) {
-                buffered.mark(2);
-                int first = buffered.read(), second = buffered.read(); buffered.reset();
-                InputStream xml = first == 0x1f && second == 0x8b ? new GZIPInputStream(buffered) : buffered;
-                List<EpgProgramme> programmes = LiveXmltvReader.read(new LimitedInputStream(xml, sourceSizeLimit()),
-                        guideId(account, channel), channel.getName(), Instant.now());
-                if (!programmes.isEmpty()) return shifted(channel, programmes);
-            } catch (InterruptedException error) {
-                Thread.currentThread().interrupt(); return List.of();
-            } catch (Exception error) {
-                AppLog.addWarningLog(EpgApplicationService.class, "Account programme guide unavailable.");
-            }
+            List<EpgProgramme> programmes = readXmltvSource(source, account, channel);
+            if (Thread.currentThread().isInterrupted()) return List.of();
+            if (!programmes.isEmpty()) return shifted(channel, programmes);
         }
         return List.of();
+    }
+
+    private List<EpgProgramme> readXmltvSource(String source, Account account, Channel channel) {
+        try (BufferedInputStream buffered = new BufferedInputStream(open(source))) {
+            buffered.mark(2);
+            int first = buffered.read();
+            int second = buffered.read();
+            buffered.reset();
+            InputStream xml = first == 0x1f && second == 0x8b ? new GZIPInputStream(buffered) : buffered;
+            return LiveXmltvReader.read(new LimitedInputStream(xml, sourceSizeLimit()),
+                    guideId(account, channel), channel.getName(), Instant.now());
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (Exception _) {
+            AppLog.addWarningLog(EpgApplicationService.class, "Account programme guide unavailable.");
+            return List.of();
+        }
     }
 
     private List<EpgProgramme> shifted(Channel channel, List<EpgProgramme> programmes) {
@@ -59,7 +68,7 @@ public class EpgApplicationService {
             if (!Double.isFinite(hours) || Math.abs(hours) > 24 || hours == 0) return programmes;
             long offset = (long) (hours * 3_600_000);
             return programmes.stream().map(p -> new EpgProgramme(p.title(),p.description(),p.start()+offset,p.stop()+offset)).toList();
-        } catch (RuntimeException error) { return programmes; }
+        } catch (RuntimeException _) { return programmes; }
     }
 
     static boolean usable(List<EpgProgramme> programmes) {
@@ -80,7 +89,7 @@ public class EpgApplicationService {
                 String id = metadata.optString(field, "").strip();
                 if (!id.isBlank()) return id;
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // Provider metadata may be empty or malformed; use the provider channel id below.
         }
         return account.getType() == AccountType.XTREME_API ? "" : channel.getChannelId();
@@ -93,15 +102,17 @@ public class EpgApplicationService {
         if (playlist == null || playlist.isBlank()) return List.of();
         try (var reader = new BufferedReader(new InputStreamReader(open(playlist), StandardCharsets.UTF_8))) {
             for (int i = 0; i < 20; i++) {
-                String line = reader.readLine(); if (line == null) break;
-                if (!line.replace("\uFEFF", "").strip().startsWith("#EXTM3U")) continue;
-                for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
-                    var sources = parseSources(M3uPlaylistUtils.parseAttribute(line, attribute));
-                    if (!sources.isEmpty()) return sources.stream().map(source -> sourceUri(playlist).resolve(source).toString()).toList();
+                String line = reader.readLine();
+                if (line == null) return List.of();
+                if (line.replace("\uFEFF", "").strip().startsWith("#EXTM3U")) {
+                    for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
+                        var sources = parseSources(M3uPlaylistUtils.parseAttribute(line, attribute));
+                        if (!sources.isEmpty()) return sources.stream().map(source -> sourceUri(playlist).resolve(source).toString()).toList();
+                    }
+                    return List.of();
                 }
-                break;
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // A malformed or unreadable local playlist has no usable auto-discovered guide URL.
         }
         return List.of();
@@ -126,7 +137,8 @@ public class EpgApplicationService {
         private void consumed(int count) throws IOException {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Guide loading cancelled");
             if (System.nanoTime() > deadline) throw new IOException("Guide loading deadline exceeded");
-            if (count > 0 && (remaining -= count) < 0) throw new IOException("Guide exceeds size limit");
+            if (count > 0) remaining -= count;
+            if (remaining < 0) throw new IOException("Guide exceeds size limit");
         }
         @Override public int read() throws IOException { int value = in.read(); consumed(value < 0 ? 0 : 1); return value; }
         @Override public int read(byte[] b, int o, int l) throws IOException { int count = in.read(b,o,l); consumed(count); return count; }

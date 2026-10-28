@@ -1,7 +1,6 @@
 package com.uiptv.service;
 
 import com.uiptv.db.DatabasePatchesUtils;
-import com.uiptv.db.SQLConnection;
 import com.uiptv.service.remotesync.SecureTempFileSupport;
 import org.json.JSONObject;
 

@@ -613,7 +613,7 @@ public class ImdbMetadataService {
         if (!localeTag.toLowerCase(Locale.ROOT).startsWith("en")) {
             JSONObject primaryLocalized = fetchPrimaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
             JSONObject secondaryLocalized = fetchSecondaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
-            JSONObject localized = !primaryLocalized.isEmpty() ? primaryLocalized : secondaryLocalized;
+            JSONObject localized = primaryLocalized.isEmpty() ? secondaryLocalized : primaryLocalized;
             if (!localized.isEmpty()) {
                 applyLocalizedTmdbFields(details, localized);
             }

@@ -87,7 +87,7 @@ public class PlayerUrlUtils {
         // For Stalker live channels, some portals expose multiple cmd variants and
         // the first one can contain an empty stream id (stream=), causing 405.
         if (account.getType() == STALKER_PORTAL && account.getAction() == Account.AccountAction.itv) {
-            String[] candidates = new String[]{channel.getCmd(), channel.getCmd_1(), channel.getCmd_2(), channel.getCmd_3()};
+            String[] candidates = {channel.getCmd(), channel.getCmd_1(), channel.getCmd_2(), channel.getCmd_3()};
             for (String c : candidates) {
                 if (isUsableLiveCmd(c)) return c;
             }

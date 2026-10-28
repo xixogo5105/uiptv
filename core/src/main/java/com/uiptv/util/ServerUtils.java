@@ -60,7 +60,7 @@ public class ServerUtils {
             StringBuilder jsonArrayString = new StringBuilder("[");
             readCase.forEach(channel -> jsonArrayString.append(channel.toJson()).append(","));
             jsonArrayString.deleteCharAt(jsonArrayString.length() - 1);
-            return !jsonArrayString.isEmpty() ? jsonArrayString.append("]").toString() : "[]";
+            return jsonArrayString.append("]").toString();
         }
         return "[]";
     }

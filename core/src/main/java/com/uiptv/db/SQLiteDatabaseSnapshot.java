@@ -10,11 +10,13 @@ import java.sql.Statement;
 
 /** Uses SQLite's transaction and file locks, including for connections opened outside UIPTV. */
 public final class SQLiteDatabaseSnapshot {
+    private static final String SQLITE_JDBC_PREFIX = "jdbc:sqlite:";
+
     private SQLiteDatabaseSnapshot() { }
 
     public static void requireIntegrity(Path database) throws SQLException {
         if (!Files.isRegularFile(database)) throw new SQLException("Snapshot database does not exist");
-        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database);
+        try (Connection connection = DriverManager.getConnection(SQLITE_JDBC_PREFIX + database);
              Statement statement = connection.createStatement();
              ResultSet result = statement.executeQuery("PRAGMA integrity_check")) {
             if (!result.next() || !"ok".equalsIgnoreCase(result.getString(1))) {
@@ -24,7 +26,7 @@ public final class SQLiteDatabaseSnapshot {
     }
 
     public static void create(Path source, Path snapshot) throws SQLException {
-        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + source)) {
+        try (Connection connection = DriverManager.getConnection(SQLITE_JDBC_PREFIX + source)) {
             boolean[] completed = {false};
             int result = connection.unwrap(org.sqlite.SQLiteConnection.class).getDatabase().backup(
                     "main", snapshot.toAbsolutePath().toString(),
@@ -37,7 +39,7 @@ public final class SQLiteDatabaseSnapshot {
         requireIntegrity(snapshot);
         // sqlite3_backup owns the write transaction and coordinates all connections,
         // including external readers/writers. Never unlink the database or WAL/SHM.
-        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + target);
+        try (Connection connection = DriverManager.getConnection(SQLITE_JDBC_PREFIX + target);
              Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA busy_timeout = 1000");
             boolean[] completed = {false};

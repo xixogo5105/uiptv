@@ -42,8 +42,7 @@ public class LiveGuideApplicationService {
     }
     public List<Row> visible(String accountId, String visibleIds) throws IOException {
         Set<String> ids = new HashSet<>(Arrays.asList(visibleIds.split(",")));
-        List<Row> selected = list(accountId).stream().filter(r -> ids.contains(r.bookmarkId().isBlank() ? r.channel().getDbId() : r.bookmarkId())).limit(32).toList();
-        return selected;
+        return list(accountId).stream().filter(r -> ids.contains(r.bookmarkId().isBlank() ? r.channel().getDbId() : r.bookmarkId())).limit(32).toList();
     }
 
     public List<Row> list(String accountId) throws IOException {
