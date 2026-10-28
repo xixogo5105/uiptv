@@ -13,6 +13,29 @@ import static org.junit.jupiter.api.Assertions.*;
 class StaticWebFileResolverTest {
 
     @Test
+    void containmentChecksIncludeDecodedTraversalAndSymlinks(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        Path root = java.nio.file.Files.createDirectory(directory.resolve("web"));
+        Path nested = java.nio.file.Files.createDirectories(root.resolve("nested"));
+        java.nio.file.Files.writeString(nested.resolve("valid.txt"), "asset");
+        Path secret = java.nio.file.Files.writeString(directory.resolve("secret.txt"), "outside");
+        try (var platform = org.mockito.Mockito.mockStatic(com.uiptv.util.Platform.class)) {
+            platform.when(com.uiptv.util.Platform::getWebServerRootPath).thenReturn(root.toString());
+            assertEquals("asset", StaticWebFileResolver.readUtf8(StaticWebFileResolver.resolve(
+                    new TestHttpExchange("/nested/valid.txt", "GET"))));
+            assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(new TestHttpExchange("/%2e%2e/secret.txt", "GET")));
+            assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(new TestHttpExchange("/nested", "GET")));
+            platform.when(com.uiptv.util.Platform::getWebServerRootPath).thenReturn(directory.resolve("missing").toString());
+            assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(new TestHttpExchange("/nested/valid.txt", "GET")));
+            platform.when(com.uiptv.util.Platform::getWebServerRootPath).thenReturn(root.toString());
+            try { java.nio.file.Files.createSymbolicLink(root.resolve("escape.txt"), secret); }
+            catch (UnsupportedOperationException | java.nio.file.FileSystemException unsupported) {
+                org.junit.jupiter.api.Assumptions.abort("Symbolic links unavailable on this filesystem");
+            }
+            assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(new TestHttpExchange("/escape.txt", "GET")));
+        }
+    }
+
+    @Test
     void resolveAndReadUtf8_returnRealFile() throws Exception {
         TestHttpExchange exchange = new TestHttpExchange("/javascript/spa.js", "GET");
         Path resolved = StaticWebFileResolver.resolve(exchange);

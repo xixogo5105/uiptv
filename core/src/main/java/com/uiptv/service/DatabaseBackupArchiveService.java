@@ -13,7 +13,6 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -73,23 +72,23 @@ public class DatabaseBackupArchiveService {
         Path sourceDatabase = Path.of(sourceDatabasePath);
         Path destinationArchive = Path.of(archivePath);
         requireExistingFile(sourceDatabase, "Database file does not exist.");
-        checkpointDatabase(sourceDatabase);
         createParentDirectories(destinationArchive);
-
-        long databaseBytes = Files.size(sourceDatabase);
-        try (OutputStream output = Files.newOutputStream(destinationArchive);
-             ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(output))) {
-            writeMetadata(zip, databaseBytes);
-            zip.putNextEntry(new ZipEntry(DATABASE_ENTRY));
-            Files.copy(sourceDatabase, zip);
-            zip.closeEntry();
+        Path snapshot = SecureTempFileSupport.createTempFile("uiptv-backup-", ".db");
+        try {
+            com.uiptv.db.SQLiteDatabaseSnapshot.create(sourceDatabase, snapshot);
+            long databaseBytes = Files.size(snapshot);
+            try (OutputStream output = Files.newOutputStream(destinationArchive);
+                 ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(output))) {
+                writeMetadata(zip, databaseBytes);
+                zip.putNextEntry(new ZipEntry(DATABASE_ENTRY));
+                Files.copy(snapshot, zip);
+                zip.closeEntry();
+            }
+            return new BackupArchiveReport(destinationArchive.toAbsolutePath().toString(),
+                    databaseBytes, Files.size(destinationArchive));
+        } finally {
+            Files.deleteIfExists(snapshot);
         }
-
-        return new BackupArchiveReport(
-                destinationArchive.toAbsolutePath().toString(),
-                databaseBytes,
-                Files.size(destinationArchive)
-        );
     }
 
     public BackupArchiveReport restoreBackupArchive(String backupPath, String targetDatabasePath) throws IOException, SQLException {
@@ -207,30 +206,8 @@ public class DatabaseBackupArchiveService {
 
     private void replaceLiveDatabase(Path stagedDatabase, Path targetDatabase) throws IOException, SQLException {
         createParentDirectories(targetDatabase);
-        if (Files.exists(targetDatabase)) {
-            checkpointDatabase(targetDatabase);
-        }
-        Path absoluteTarget = targetDatabase.toAbsolutePath();
-        Path replacement = Files.createTempFile(absoluteTarget.getParent(), ".uiptv-restore-", ".db");
-        try {
-            Files.copy(stagedDatabase, replacement, StandardCopyOption.REPLACE_EXISTING);
-            migrateAndValidate(replacement);
-            deleteDatabaseSidecars(targetDatabase);
-            try {
-                Files.move(replacement, absoluteTarget, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException ex) {
-                throw new IOException("The database filesystem does not support a safe atomic restore.", ex);
-            }
-        } finally {
-            Files.deleteIfExists(replacement);
-        }
-    }
-
-    private void checkpointDatabase(Path databaseFile) throws SQLException {
-        try (Connection conn = DriverManager.getConnection(SQLITE_PREFIX + databaseFile);
-             Statement stmt = conn.createStatement()) {
-            stmt.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-        }
+        migrateAndValidate(stagedDatabase);
+        com.uiptv.db.SQLiteDatabaseSnapshot.restore(stagedDatabase, targetDatabase);
     }
 
     private void requireIntegrity(Connection conn) throws SQLException {
@@ -275,10 +252,7 @@ public class DatabaseBackupArchiveService {
         }
     }
 
-    private void deleteDatabaseSidecars(Path databaseFile) throws IOException {
-        Files.deleteIfExists(Path.of(databaseFile.toString() + "-wal"));
-        Files.deleteIfExists(Path.of(databaseFile.toString() + "-shm"));
-    }
+
 
     private void deleteRecursively(Path path) throws IOException {
         if (!Files.exists(path)) {

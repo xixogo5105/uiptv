@@ -25,6 +25,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ServerUtilsTest {
 
     @Test
+    void generatedResponsesDoNotAdvertiseCredentialsWithWildcardOrigin() throws Exception {
+        StubExchange exchange = new StubExchange("/json", "GET", null);
+        ServerUtils.generateJsonResponse(exchange, "{}");
+        assertEquals("*", exchange.getResponseHeaders().getFirst("Access-Control-Allow-Origin"));
+        assertEquals(null, exchange.getResponseHeaders().getFirst("Access-Control-Allow-Credentials"));
+        assertEquals(null, exchange.getResponseHeaders().getFirst("Access-Control-Allow-Credentials-Header"));
+    }
+
+    @Test
     void queryBodyAndJsonHelpers_handleEncodingAndEmptyLists() throws Exception {
         StubExchange exchange = new StubExchange("/path?name=one%20two&empty=", "POST", "payload");
 

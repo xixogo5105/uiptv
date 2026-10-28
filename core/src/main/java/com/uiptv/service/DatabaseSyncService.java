@@ -6,7 +6,6 @@ import com.uiptv.service.remotesync.SecureTempFileSupport;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -89,20 +88,21 @@ public class DatabaseSyncService {
                 : Map.of();
 
         notifyProgress(progressListener, 1, 4, "Cloning database");
-        replaceTargetDatabase(sourceSnapshot, Path.of(targetDB));
 
         notifyProgress(progressListener, 2, 4, "Applying migrations");
-        ensureDatabaseReady(targetDB);
+        ensureDatabaseReady(sourceSnapshot.toString());
 
         boolean configurationCopied = false;
         if (preservedConfiguration != null && preservedConfiguration.hasRows()) {
-            restoreConfigurationRows(targetDB, preservedConfiguration);
+            restoreConfigurationRows(sourceSnapshot.toString(), preservedConfiguration);
         } else if (!preservedPlayerPaths.isEmpty()) {
-            restoreFirstConfigurationValues(targetDB, preservedPlayerPaths);
-            configurationCopied = hasConfigurationRows(targetDB);
+            restoreFirstConfigurationValues(sourceSnapshot.toString(), preservedPlayerPaths);
+            configurationCopied = hasConfigurationRows(sourceSnapshot.toString());
         } else if (syncConfiguration) {
-            configurationCopied = hasConfigurationRows(targetDB);
+            configurationCopied = hasConfigurationRows(sourceSnapshot.toString());
         }
+
+        replaceTargetDatabase(sourceSnapshot, Path.of(targetDB));
 
         notifyProgress(progressListener, 3, 4, "Counting cloned rows");
         List<TableSyncResult> tableResults = countKnownTables(targetDB);
@@ -131,35 +131,7 @@ public class DatabaseSyncService {
     }
 
     private void replaceTargetDatabase(Path sourceSnapshot, Path targetPath) throws SQLException {
-        try {
-            Path parent = targetPath.toAbsolutePath().getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            checkpointDatabase(targetPath);
-            deleteDatabaseSidecars(targetPath);
-            Files.copy(sourceSnapshot, targetPath, StandardCopyOption.REPLACE_EXISTING);
-            deleteDatabaseSidecars(targetPath);
-        } catch (IOException ex) {
-            throw new SQLException("Unable to replace target database", ex);
-        }
-    }
-
-    private void checkpointDatabase(Path databasePath) {
-        if (!Files.exists(databasePath)) {
-            return;
-        }
-        try (Connection conn = DriverManager.getConnection(SQLITE_PREFIX + databasePath);
-             Statement statement = conn.createStatement()) {
-            statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-        } catch (SQLException _) {
-            // The replacement below is still authoritative; this only reduces stale WAL sidecars.
-        }
-    }
-
-    private void deleteDatabaseSidecars(Path databasePath) throws IOException {
-        Files.deleteIfExists(Path.of(databasePath.toString() + "-wal"));
-        Files.deleteIfExists(Path.of(databasePath.toString() + "-shm"));
+        com.uiptv.db.SQLiteDatabaseSnapshot.restore(sourceSnapshot, targetPath);
     }
 
     private ConfigurationRows readConfigurationRows(String dbPath) throws SQLException {
@@ -369,7 +341,7 @@ public class DatabaseSyncService {
     }
 
     private String quoteIdentifier(String identifier) {
-        return "\"" + identifier.replace("\"", "\"\"") + "\"";
+        return com.uiptv.util.SqlIdentifiers.quote(identifier);
     }
 
     private String escapeSqlLiteral(String value) {

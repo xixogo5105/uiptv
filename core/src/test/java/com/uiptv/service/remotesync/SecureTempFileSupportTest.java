@@ -14,6 +14,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SecureTempFileSupportTest {
 
     @Test
+    void aclRestrictionsMustBeSupportedAppliedAndVerified() throws Exception {
+        var view = org.mockito.Mockito.mock(java.nio.file.attribute.AclFileAttributeView.class);
+        var owner = org.mockito.Mockito.mock(java.nio.file.attribute.UserPrincipal.class);
+        org.mockito.Mockito.when(view.getOwner()).thenReturn(owner);
+        java.util.concurrent.atomic.AtomicReference<java.util.List<java.nio.file.attribute.AclEntry>> entries =
+                new java.util.concurrent.atomic.AtomicReference<>(java.util.List.of());
+        org.mockito.Mockito.doAnswer(invocation -> { entries.set(invocation.getArgument(0)); return null; })
+                .when(view).setAcl(org.mockito.ArgumentMatchers.anyList());
+        org.mockito.Mockito.when(view.getAcl()).thenAnswer(invocation -> entries.get());
+        SecureTempFileSupport.ensureOwnerOnlyAcl(view, true);
+        assertEquals(1, entries.get().size());
+        assertEquals(owner, entries.get().getFirst().principal());
+        assertEquals(java.nio.file.attribute.AclEntryType.ALLOW, entries.get().getFirst().type());
+        assertTrue(entries.get().getFirst().flags().contains(java.nio.file.attribute.AclEntryFlag.FILE_INHERIT));
+        org.mockito.Mockito.when(view.getAcl()).thenReturn(java.util.List.of());
+        assertThrows(IOException.class, () -> SecureTempFileSupport.ensureOwnerOnlyAcl(view, false));
+        org.mockito.Mockito.doThrow(new IOException("permission denied")).when(view).setAcl(org.mockito.ArgumentMatchers.anyList());
+        assertThrows(IOException.class, () -> SecureTempFileSupport.ensureOwnerOnlyAcl(view, false));
+        assertThrows(IOException.class, () -> SecureTempFileSupport.ensureOwnerOnlyAcl(null, false));
+    }
+
+    @Test
     void createTempFile_usesApplicationTempDirectory() throws Exception {
         Path tempFile = SecureTempFileSupport.createTempFile("sync-", ".tmp");
 
@@ -35,11 +57,11 @@ class SecureTempFileSupportTest {
     }
 
     @Test
-    void resolvePermissionFailure_reportsSpecificFailure() throws Exception {
-        assertEquals("owner-only", invoke("resolvePermissionFailure", false, true, true));
-        assertEquals("read", invoke("resolvePermissionFailure", true, false, true));
-        assertEquals("write", invoke("resolvePermissionFailure", true, true, false));
-        assertEquals("execute", invoke("resolvePermissionFailure", true, true, true));
+    void existingApplicationDirectoryIsRestrictedAgain(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.getFileStore(directory).supportsFileAttributeView("posix"));
+        Files.setPosixFilePermissions(directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwxrwxrwx"));
+        SecureTempFileSupport.ensureAppTempDirectory(directory);
+        assertEquals("rwx------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(directory)));
     }
 
     @Test
@@ -69,12 +91,6 @@ class SecureTempFileSupportTest {
             Files.deleteIfExists(file);
             Files.deleteIfExists(directory);
         }
-    }
-
-    private String invoke(String methodName, boolean permissionsCleared, boolean ownerReadable, boolean ownerWritable) throws Exception {
-        Method method = SecureTempFileSupport.class.getDeclaredMethod(methodName, boolean.class, boolean.class, boolean.class);
-        method.setAccessible(true);
-        return (String) method.invoke(null, permissionsCleared, ownerReadable, ownerWritable);
     }
 
     private void invokeVoid(String methodName, Path path) throws Exception {

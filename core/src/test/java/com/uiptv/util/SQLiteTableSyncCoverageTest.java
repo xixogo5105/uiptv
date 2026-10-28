@@ -18,6 +18,55 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SQLiteTableSyncCoverageTest extends DbBackedTest {
 
     @Test
+    void replacementConstraintFailureRollsBackDeletion() throws Exception {
+        Path source = tempDir.resolve("constraint-source.db");
+        Path target = tempDir.resolve("constraint-target.db");
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + source);
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE Account(id INTEGER PRIMARY KEY, value TEXT)");
+            statement.execute("INSERT INTO Account VALUES (1, NULL)");
+        }
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + target);
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE Account(id INTEGER PRIMARY KEY, value TEXT NOT NULL)");
+            statement.execute("INSERT INTO Account VALUES (2, 'preserved')");
+        }
+        org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class, () ->
+                SQLiteTableSync.replaceTable(source.toString(), target.toString(), DatabaseUtils.DbTable.ACCOUNT_TABLE));
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + target);
+             Statement statement = connection.createStatement(); ResultSet result = statement.executeQuery("SELECT * FROM Account")) {
+            assertTrue(result.next()); assertEquals(2, result.getInt("id"));
+            assertEquals("preserved", result.getString("value"));
+        }
+    }
+
+    @Test
+    void schemaMetadataNamesAreQuotedWhenCopyingAndReplacing() throws Exception {
+        Path source = tempDir.resolve("quoted-source.db");
+        Path target = tempDir.resolve("quoted-target.db");
+        for (Path database : java.util.List.of(source, target)) {
+            try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database);
+                 Statement statement = connection.createStatement()) {
+                statement.execute("CREATE TABLE Account (id INTEGER PRIMARY KEY, \"select\" TEXT, \"space name\" TEXT, \"quote\"\"name\" TEXT)");
+            }
+        }
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + source);
+             Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO Account VALUES (1, 'reserved', 'space', 'quote')");
+        }
+        assertEquals(1, SQLiteTableSync.syncTables(source.toString(), target.toString(), DatabaseUtils.DbTable.ACCOUNT_TABLE));
+        assertEquals(1, SQLiteTableSync.replaceTable(source.toString(), target.toString(), DatabaseUtils.DbTable.ACCOUNT_TABLE));
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + target);
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("SELECT * FROM Account")) {
+            assertTrue(result.next());
+            assertEquals("reserved", result.getString("select"));
+            assertEquals("space", result.getString("space name"));
+            assertEquals("quote", result.getString("quote\"name"));
+        }
+    }
+
+    @Test
     void syncAndReplaceTablesCopyRowsAndHandleEmptyTables() throws Exception {
         Path source = tempDir.resolve("source.db");
         Path target = tempDir.resolve("target.db");

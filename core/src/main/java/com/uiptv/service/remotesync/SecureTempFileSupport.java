@@ -5,16 +5,19 @@ import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.DosFileAttributeView;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryFlag;
+import java.util.EnumSet;
+import java.util.List;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
 public final class SecureTempFileSupport {
-    private static final String READ_PERMISSION = "read";
-    private static final String WRITE_PERMISSION = "write";
-    private static final String EXECUTE_PERMISSION = "execute";
     private static final Set<PosixFilePermission> OWNER_ONLY_DIRECTORY_PERMISSIONS = Set.of(
             PosixFilePermission.OWNER_READ,
             PosixFilePermission.OWNER_WRITE,
@@ -41,8 +44,13 @@ public final class SecureTempFileSupport {
             return Files.createTempFile(tempDirectory, prefix, suffix, permissions);
         } catch (UnsupportedOperationException _) {
             Path path = Files.createTempFile(tempDirectory, prefix, suffix);
-            ensureOwnerOnlyFileAccess(path);
-            return path;
+            try {
+                ensureOwnerOnlyFileAccess(path);
+                return path;
+            } catch (IOException | RuntimeException failure) {
+                try { Files.deleteIfExists(path); } catch (IOException cleanup) { failure.addSuppressed(cleanup); }
+                throw failure;
+            }
         }
     }
 
@@ -54,23 +62,34 @@ public final class SecureTempFileSupport {
             return Files.createTempDirectory(tempDirectory, prefix, permissions);
         } catch (UnsupportedOperationException _) {
             Path path = Files.createTempDirectory(tempDirectory, prefix);
-            ensureOwnerOnlyDirectoryAccess(path);
-            return path;
+            try {
+                ensureOwnerOnlyDirectoryAccess(path);
+                return path;
+            } catch (IOException | RuntimeException failure) {
+                try { Files.deleteIfExists(path); } catch (IOException cleanup) { failure.addSuppressed(cleanup); }
+                throw failure;
+            }
         }
     }
 
     private static Path ensureAppTempDirectory() throws IOException {
+        return ensureAppTempDirectory(APP_TEMP_DIRECTORY);
+    }
+
+    static Path ensureAppTempDirectory(Path directory) throws IOException {
         try {
             FileAttribute<Set<PosixFilePermission>> permissions =
                     PosixFilePermissions.asFileAttribute(OWNER_ONLY_DIRECTORY_PERMISSIONS);
-            return Files.createDirectories(APP_TEMP_DIRECTORY, permissions);
+            Files.createDirectories(directory, permissions);
+            ensureOwnerOnlyDirectoryAccess(directory);
+            return directory;
         } catch (UnsupportedOperationException _) {
-            Files.createDirectories(APP_TEMP_DIRECTORY);
-            ensureOwnerOnlyDirectoryAccess(APP_TEMP_DIRECTORY);
-            return APP_TEMP_DIRECTORY;
+            Files.createDirectories(directory);
+            ensureOwnerOnlyDirectoryAccess(directory);
+            return directory;
         } catch (FileAlreadyExistsException _) {
-            ensureOwnerOnlyDirectoryAccess(APP_TEMP_DIRECTORY);
-            return APP_TEMP_DIRECTORY;
+            ensureOwnerOnlyDirectoryAccess(directory);
+            return directory;
         }
     }
 
@@ -107,42 +126,24 @@ public final class SecureTempFileSupport {
     }
 
     private static void applyBestEffortOwnerOnlyAccess(File file, boolean executable) throws IOException {
-        boolean readableCleared = file.setReadable(false, false);
-        boolean writableCleared = file.setWritable(false, false);
-        boolean executableCleared = file.setExecutable(false, false);
+        Path path = file.toPath();
+        AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class);
+        ensureOwnerOnlyAcl(view, executable);
+    }
 
-        boolean ownerReadable = file.setReadable(true, true);
-        boolean ownerWritable = file.setWritable(true, true);
-        boolean ownerExecutable = !executable || file.setExecutable(true, true);
-        boolean permissionsCleared = readableCleared && writableCleared && executableCleared;
-
-        if (!permissionsCleared || !ownerReadable || !ownerWritable || !ownerExecutable) {
-            DosFileAttributeView dosView = Files.getFileAttributeView(file.toPath(), DosFileAttributeView.class);
-            if (dosView != null) {
-                return;
-            }
-
-            String permission = resolvePermissionFailure(
-                    permissionsCleared,
-                    ownerReadable,
-                    ownerWritable
-            );
-            throw new IOException("Unable to set " + permission + " permissions for " + file.toPath());
+    static void ensureOwnerOnlyAcl(AclFileAttributeView view, boolean executable) throws IOException {
+        if (view == null) {
+            throw new IOException("Owner-only temp access requires POSIX permissions or ACL support");
+        }
+        var builder = AclEntry.newBuilder().setType(AclEntryType.ALLOW)
+                .setPrincipal(view.getOwner())
+                .setPermissions(EnumSet.allOf(AclEntryPermission.class));
+        if (executable) builder.setFlags(AclEntryFlag.DIRECTORY_INHERIT, AclEntryFlag.FILE_INHERIT);
+        List<AclEntry> ownerOnly = List.of(builder.build());
+        view.setAcl(ownerOnly);
+        if (!view.getAcl().equals(ownerOnly)) {
+            throw new IOException("Unable to verify owner-only temp access");
         }
     }
 
-    private static String resolvePermissionFailure(boolean permissionsCleared,
-                                                   boolean ownerReadable,
-                                                   boolean ownerWritable) {
-        if (!permissionsCleared) {
-            return "owner-only";
-        }
-        if (!ownerReadable) {
-            return READ_PERMISSION;
-        }
-        if (!ownerWritable) {
-            return WRITE_PERMISSION;
-        }
-        return EXECUTE_PERMISSION;
-    }
 }

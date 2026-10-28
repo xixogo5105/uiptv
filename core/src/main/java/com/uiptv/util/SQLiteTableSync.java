@@ -139,7 +139,7 @@ public final class SQLiteTableSync {
             throw new SQLException("No common columns found for table " + tableName);
         }
 
-        String columnList = String.join(", ", commonColumns);
+        String columnList = commonColumns.stream().map(SqlIdentifiers::quote).collect(Collectors.joining(", "));
         String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
         String selectSql = SQL_SELECT + columnList + SQL_FROM + tableName;
         String insertSql = "INSERT OR REPLACE INTO " + tableName + " (" + columnList + SQL_VALUES + placeholders + ")";
@@ -175,7 +175,7 @@ public final class SQLiteTableSync {
             throw new SQLException("No common columns found for table " + tableName);
         }
 
-        String columnList = String.join(", ", commonColumns);
+        String columnList = commonColumns.stream().map(SqlIdentifiers::quote).collect(Collectors.joining(", "));
         String placeholders = commonColumns.stream().map(column -> "?").collect(Collectors.joining(", "));
         String selectSql = SQL_SELECT + columnList + SQL_FROM + tableName;
         String deleteSql = "DELETE FROM " + tableName;
@@ -303,7 +303,7 @@ public final class SQLiteTableSync {
         List<String> columns = new ArrayList<>();
         columns.add(ACCOUNT_ID);
         columns.addAll(extraColumns);
-        return String.join(", ", columns);
+        return columns.stream().map(SqlIdentifiers::quote).collect(Collectors.joining(", "));
     }
 
     private static String buildSelectionPlaceholders(int count) {
@@ -315,6 +315,7 @@ public final class SQLiteTableSync {
     private static ConfigurationRow readFirstConfigurationRow(Connection conn, List<String> columns) throws SQLException {
         String columnList = columns.stream()
                 .filter(column -> !"id".equalsIgnoreCase(column))
+                .map(SqlIdentifiers::quote)
                 .collect(Collectors.joining(", "));
         if (columnList.isBlank()) {
             return null;
@@ -343,7 +344,7 @@ public final class SQLiteTableSync {
         }
 
         if (targetId == null) {
-            String columnList = String.join(", ", columns);
+            String columnList = columns.stream().map(SqlIdentifiers::quote).collect(Collectors.joining(", "));
             String placeholders = columns.stream().map(column -> "?").collect(Collectors.joining(", "));
             String sql = SQL_INSERT_INTO + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName()
                     + " (" + columnList + SQL_VALUES + placeholders + ")";
@@ -354,7 +355,7 @@ public final class SQLiteTableSync {
             return;
         }
 
-        String assignments = columns.stream().map(column -> column + "=?").collect(Collectors.joining(", "));
+        String assignments = columns.stream().map(column -> SqlIdentifiers.quote(column) + "=?").collect(Collectors.joining(", "));
         String sql = "UPDATE " + DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName()
                 + " SET " + assignments + " WHERE id = ?";
         try (PreparedStatement statement = conn.prepareStatement(sql)) {
@@ -401,7 +402,7 @@ public final class SQLiteTableSync {
 
     private static List<String> getTableColumns(Connection conn, String tableName) throws SQLException {
         List<String> columns = new ArrayList<>();
-        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + tableName + ")")) {
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + SqlIdentifiers.quote(tableName) + ")")) {
             while (rs.next()) {
                 columns.add(rs.getString("name"));
             }

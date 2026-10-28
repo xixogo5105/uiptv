@@ -166,9 +166,6 @@ public class ServerUtils {
         httpExchange.getResponseHeaders().add(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Headers", "*");
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials", "true");
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials-Header", "*");
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials-Header", "*");
         httpExchange.getResponseHeaders().add(CONTENT_TYPE_HEADER, contentType);
         if (isNotBlank(fileName) && DOWNLOADABLE.contains(contentType)) {
             String safeFileName = sanitizeContentDispositionFileName(fileName);

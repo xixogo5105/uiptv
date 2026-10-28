@@ -33,6 +33,52 @@ class DatabaseBackupArchiveServiceTest {
     Path tempDir;
 
     @Test
+    void backupIncludesCommittedWalChangesWhileAnOlderReaderIsActive() throws Exception {
+        Path source = tempDir.resolve("wal-backup-source.db");
+        Path archive = tempDir.resolve("wal-backup.zip");
+        Path extracted = tempDir.resolve("wal-extracted.db");
+        createReadyDatabase(source);
+        seedAccount(source, 1, "original");
+        try (Connection reader = DriverManager.getConnection("jdbc:sqlite:" + source);
+             Statement statement = reader.createStatement()) {
+            try (ResultSet mode = statement.executeQuery("PRAGMA journal_mode=WAL")) {
+                assertTrue(mode.next());
+            }
+            reader.setAutoCommit(false);
+            try (ResultSet rows = statement.executeQuery("SELECT COUNT(*) FROM Account")) {
+                assertTrue(rows.next()); assertEquals(1, rows.getInt(1));
+            }
+            seedAccount(source, 2, "committed-in-wal");
+            fixedClockService().createBackupArchive(source.toString(), archive.toString());
+            fixedClockService().extractBackupDatabase(archive.toString(), extracted.toString());
+            assertEquals(2, countAccounts(extracted));
+            reader.commit();
+        }
+    }
+
+    @Test
+    void restoreKeepsAnOpenWalConnectionUsable() throws Exception {
+        Path source = tempDir.resolve("open-source.db");
+        Path target = tempDir.resolve("open-target.db");
+        createReadyDatabase(source);
+        createReadyDatabase(target);
+        seedAccount(source, 1, "restored");
+        seedAccount(target, 2, "original");
+        try (Connection live = DriverManager.getConnection("jdbc:sqlite:" + target);
+             Statement statement = live.createStatement()) {
+            try (ResultSet mode = statement.executeQuery("PRAGMA journal_mode=WAL")) {
+                assertTrue(mode.next()); assertEquals("wal", mode.getString(1));
+            }
+            fixedClockService().restoreBackupArchive(source.toString(), target.toString());
+            try (ResultSet rows = statement.executeQuery("SELECT accountName FROM Account")) {
+                assertTrue(rows.next()); assertEquals("restored", rows.getString(1));
+            }
+            statement.executeUpdate("UPDATE Account SET accountName='written-after-restore'");
+            assertEquals("written-after-restore", firstAccountName(target));
+        }
+    }
+
+    @Test
     void createsAndroidCompatibleBackupArchive() throws Exception {
         Path database = tempDir.resolve("source.db");
         createReadyDatabase(database);
