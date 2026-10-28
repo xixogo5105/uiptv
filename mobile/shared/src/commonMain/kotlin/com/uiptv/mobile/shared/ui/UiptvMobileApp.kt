@@ -1754,6 +1754,13 @@ internal fun BookmarkRow(
                     if (bookmark.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))
                     }
+                }
+            },
+            trailingContent = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     if (recentlyPlayed && bookmark.rowId > 0) {
                         Icon(
                             Icons.Filled.Favorite,
@@ -1762,12 +1769,10 @@ internal fun BookmarkRow(
                             tint = MobileFavoriteRed
                         )
                     }
+                    ItemActionsMenu(bookmark.channelName, onChoosePlayer, onRemove,
+                        if (recentlyPlayed) "Remove from Recent" else MobileMessages.text("autoRemoveBookmark"),
+                        onChangeCategory)
                 }
-            },
-            trailingContent = {
-                ItemActionsMenu(bookmark.channelName, onChoosePlayer, onRemove,
-                    if (recentlyPlayed) "Remove from Recent" else MobileMessages.text("autoRemoveBookmark"),
-                    onChangeCategory)
             },
             supportingContent = {
                 Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
