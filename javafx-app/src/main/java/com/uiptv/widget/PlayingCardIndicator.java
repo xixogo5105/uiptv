@@ -15,13 +15,15 @@ public class PlayingCardIndicator extends StackPane {
         setManaged(false);
         setVisible(false);
 
-        Circle recordingDot = new Circle(2);
+        Circle recordingRing = new Circle(5);
+        recordingRing.getStyleClass().add("playing-card-recording-ring");
+        Circle recordingDot = new Circle(1.4);
         recordingDot.getStyleClass().add("playing-card-recording-dot");
-        getChildren().add(recordingDot);
+        getChildren().addAll(recordingRing, recordingDot);
 
     }
 
-    /** Kept for existing callers; the replacement recording dot never animates. */
+    /** Kept for existing callers; the playing marker never animates. */
     boolean isAnimationRunning() {
         return false;
     }

@@ -2491,12 +2491,6 @@ createApp({
             });
         };
 
-        const broadcastIndicatorSrc = (broadcasting) => {
-            return broadcasting
-                ? '/images/broadcast-on.svg?v=20261017b'
-                : '/images/broadcast-off.svg?v=20261017b';
-        };
-
         const selectAccount = async (account) => {
             watchingNowDrilldown.value = false;
             const nextAccountId = String(account?.dbId || '');
@@ -5503,7 +5497,6 @@ createApp({
             hidePlayerPanel,
             togglePlayerPanel,
             toggleWideView,
-            broadcastIndicatorSrc,
             formatPlaybackTime,
             seekPlayback,
             removeRecentlyPlayedBookmark,

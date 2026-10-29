@@ -14,7 +14,7 @@
     --outline: #60707d;
     --error: #ffb4ab;
     --warning: #ffd54f;
-    --broadcast-indicator-bg: #1c1c1c;
+    --broadcast-icon-color: #ffffff;
     --shadow: rgba(0, 0, 0, 0.32);
 }
 
@@ -34,7 +34,7 @@
     --outline: #6d7b87;
     --error: #ba1a1a;
     --warning: #775c00;
-    --broadcast-indicator-bg: #e5e5e5;
+    --broadcast-icon-color: #000000;
     --shadow: rgba(17, 24, 32, 0.14);
 }
 
@@ -55,7 +55,7 @@
         --outline: #6d7b87;
         --error: #ba1a1a;
         --warning: #775c00;
-        --broadcast-indicator-bg: #e5e5e5;
+        --broadcast-icon-color: #000000;
         --shadow: rgba(17, 24, 32, 0.14);
     }
 }
@@ -994,10 +994,24 @@ a[href] {
 
 .broadcast-icon {
     display: block;
-    width: 0.5rem;
-    height: 0.5rem;
-    object-fit: contain;
+    position: relative;
+    width: 0.75rem;
+    height: 0.75rem;
+    border: 1.5px solid var(--broadcast-icon-color);
+    border-radius: 50%;
     flex: 0 0 auto;
+}
+
+.broadcast-icon::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0.2rem;
+    height: 0.2rem;
+    border-radius: 50%;
+    background: var(--broadcast-icon-color);
+    transform: translate(-50%, -50%);
 }
 
 .broadcast-indicator {
@@ -1008,17 +1022,6 @@ a[href] {
     height: 0.875rem;
     flex: 0 0 0.875rem;
     border-radius: 50%;
-    background: var(--broadcast-indicator-bg);
-}
-
-.soft-button.broadcasting .broadcast-icon {
-    width: 1.05rem;
-    height: 1.05rem;
-}
-
-.live-marker .broadcast-icon {
-    width: 0.5rem;
-    height: 0.5rem;
 }
 
 .binge-watch-button {
@@ -1036,25 +1039,6 @@ a[href] {
     color: var(--muted);
     font-size: 0.82rem;
     line-height: 1.35;
-}
-
-.row-action-button {
-    flex: 0 0 auto;
-    width: 32px;
-    height: 32px;
-    margin-left: auto;
-    border: 1px solid color-mix(in srgb, var(--outline) 32%, transparent);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-highest) 72%, transparent);
-    color: var(--muted);
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-}
-
-.row-action-button:hover {
-    color: var(--error);
-    border-color: color-mix(in srgb, var(--error) 48%, transparent);
 }
 
 .empty-state {
@@ -1649,13 +1633,13 @@ a[href] {
     column-gap: 10px;
 }
 
-.media-card.has-row-status-action {
-    grid-template-columns: 48px minmax(0, 1fr) 32px 32px;
-}
-
 .media-card.poster-content-card {
     grid-template-columns: 64px minmax(0, 1fr);
     min-height: 102px;
+}
+
+.media-card.poster-content-card.has-trailing-icons {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
 }
 
 .media-card.poster-content-card > .poster-thumb,
@@ -1779,14 +1763,17 @@ a[href] {
     align-self: center;
 }
 
-.media-card > .row-action-button {
+.media-card-status-icons {
     grid-column: 3;
     grid-row: 1;
     align-self: center;
-}
-
-.media-card.has-row-status-action > .row-action-button {
-    grid-column: 4;
+    justify-self: end;
+    min-width: 0;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .episode-card .logo-box {

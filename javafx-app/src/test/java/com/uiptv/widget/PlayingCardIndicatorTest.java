@@ -36,7 +36,7 @@ class PlayingCardIndicatorTest {
     }
 
     @Test
-    void lightThemeIndicatorUsesVisibleNeutralCircle() throws Exception {
+    void lightThemeIndicatorUsesThemeColoredRingAndCenterDot() throws Exception {
         runOnFxThread(() -> {
             PlayingCardIndicator indicator = new PlayingCardIndicator();
             StackPane root = new StackPane(indicator);
@@ -46,7 +46,11 @@ class PlayingCardIndicatorTest {
             ).toExternalForm());
             root.applyCss();
 
-            assertEquals(Color.web("#e5e5e5"), indicator.getBackground().getFills().getFirst().getFill());
+            var ring = (javafx.scene.shape.Circle) indicator.lookup(".playing-card-recording-ring");
+            var dot = (javafx.scene.shape.Circle) indicator.lookup(".playing-card-recording-dot");
+            assertEquals(Color.TRANSPARENT, ring.getFill());
+            assertEquals(Color.BLACK, ring.getStroke());
+            assertEquals(Color.BLACK, dot.getFill());
             return null;
         });
     }

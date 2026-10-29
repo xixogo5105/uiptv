@@ -72,10 +72,8 @@
             <div class="topbar-actions">
                 <button :class="{ broadcasting: isPlaying || playbackLoading }" @click="togglePlayerPanel" class="soft-button icon-only" type="button" v-if="hasPlayerContent" :title="playerPanelVisible ? 'Hide player' : 'Show player'">
                     <span class="broadcast-indicator">
-                        <img
-                                :alt="(isPlaying || playbackLoading) ? 'Broadcasting' : 'Not broadcasting'"
-                                :src="broadcastIndicatorSrc(isPlaying || playbackLoading)"
-                                class="broadcast-icon">
+                        <span :aria-label="(isPlaying || playbackLoading) ? 'Broadcasting' : 'Not broadcasting'"
+                                class="broadcast-icon" role="img"></span>
                     </span>
                 </button>
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
@@ -146,7 +144,7 @@
                                             active: isActiveBookmark(bookmark),
                                             disabled: isDisabledBookmark(bookmark),
                                             draggable: canReorderBookmarks,
-                                            'has-row-status-action': isRecentlyPlayedBookmarksSelected && isActiveBookmark(bookmark),
+                                            'has-trailing-icons': isActiveBookmark(bookmark) || (isRecentlyPlayedBookmarksSelected && !bookmark.isUnsavedRecent),
                                             'drag-source': String(draggedBookmarkId || '') === String(bookmark.dbId || ''),
                                             'drag-target': String(dragOverBookmarkId || '') === String(bookmark.dbId || '')
                                         }"
@@ -167,17 +165,16 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ bookmark.channelName }}
-                                                <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker broadcast-indicator" v-if="isActiveBookmark(bookmark)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                                </span>
-                                                <span aria-hidden="true" class="channel-bookmark-indicator" v-if="isRecentlyPlayedBookmarksSelected && !bookmark.isUnsavedRecent"><i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i></span>
                                             </div>
                                             <div class="meta-line">{{ bookmark.accountName }}</div>
 
                                         </div>
-                                        <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
-                                            <i class="bi bi-trash3"></i>
-                                        </button>
+                                        <div class="media-card-status-icons" v-if="isActiveBookmark(bookmark) || (isRecentlyPlayedBookmarksSelected && !bookmark.isUnsavedRecent)">
+                                            <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker broadcast-indicator" v-if="isActiveBookmark(bookmark)">
+                                                <span aria-label="Broadcasting" class="broadcast-icon" role="img"></span>
+                                            </span>
+                                            <span aria-hidden="true" class="channel-bookmark-indicator" v-if="isRecentlyPlayedBookmarksSelected && !bookmark.isUnsavedRecent"><i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i></span>
+                                        </div>
                                     </article>
                             </template>
                             <div class="empty-state" v-if="!bookmarksLoading && filteredBookmarks.length === 0">
@@ -336,7 +333,7 @@
                                     <article
                                             :key="channel.dbId || channel.channelId || channel.id"
                                             @click="handleChannelSelection(channel)"
-                                            :class="{ 'poster-content-card': contentMode === 'vod' || contentMode === 'series', active: isActiveChannel(channel), disabled: isDisabledChannel(channel) }"
+                                            :class="{ 'poster-content-card': contentMode === 'vod' || contentMode === 'series', 'has-trailing-icons': isChannelBookmarked(channel) || isActiveChannel(channel), active: isActiveChannel(channel), disabled: isDisabledChannel(channel) }"
                                             class="row-card media-card"
                                             v-for="channel in filteredChannels" >
                                         <img :class="contentMode === 'itv' ? 'logo-img' : 'poster-thumb'" :src="channel.logo" @error="imageError" @load="imageLoad" alt="" v-if="channel.logo">
@@ -346,15 +343,17 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ channel.name }}
-                                                <span aria-hidden="true" class="channel-bookmark-indicator" v-if="isChannelBookmarked(channel)"><i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i></span>
                                                 <span class="pill" v-if="channel.drmType">DRM</span>
                                                 <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
-                                                <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(channel)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                                </span>
                                             </div>
 
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
+                                        </div>
+                                        <div class="media-card-status-icons" v-if="isChannelBookmarked(channel) || isActiveChannel(channel)">
+                                            <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(channel)">
+                                                <span aria-label="Broadcasting" class="broadcast-icon" role="img"></span>
+                                            </span>
+                                            <span aria-hidden="true" class="channel-bookmark-indicator" v-if="isChannelBookmarked(channel)"><i class="bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on"></i></span>
                                         </div>
                                     </article>
                                     <div class="empty-state compact" v-if="filteredChannels.length === 0">
@@ -482,7 +481,7 @@
                                                 <div class="title-line">
                                                     {{ getEpisodeDisplayTitle(episode, idx) }}
                                                     <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(episode)">
-                                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                        <span aria-label="Broadcasting" class="broadcast-icon" role="img"></span>
                                                     </span>
                                                     <span class="pill" v-if="episode.watched">WATCHED</span>
                                                 </div>
@@ -546,7 +545,7 @@
                                             <div class="watching-card-title-row">
                                                 <span class="watching-card-title">{{ row.seriesTitle }}</span>
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveWatchingNowRow(row)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                    <span aria-label="Broadcasting" class="broadcast-icon" role="img"></span>
                                                 </span>
                                                 <button @click.stop="removeWatchingNowSeriesRow(row)" :aria-label="'Remove ' + row.seriesTitle + ' from Watching Now'" class="watching-card-icon-button watching-card-remove" title="Remove from Watching Now" type="button">
                                                     <i class="bi bi-trash3"></i>
@@ -596,7 +595,7 @@
                                             <div class="watching-card-title-row">
                                                 <span class="watching-card-title">{{ row.vodName }}</span>
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveWatchingNowVodRow(row)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                    <span aria-label="Broadcasting" class="broadcast-icon" role="img"></span>
                                                 </span>
                                                 <button @click.stop="toggleWatchingNowVodMenu(row)" :aria-expanded="watchingNowActionMenuKey === row.key" :aria-label="'More actions for ' + row.vodName" class="watching-card-icon-button" title="More actions" type="button">
                                                     <i class="bi bi-three-dots"></i>
@@ -716,7 +715,7 @@
                                             <div class="title-line">
                                                 {{ getEpisodeDisplayTitle(episode, idx) }}
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(episode)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                    <span aria-label="Broadcasting" class="broadcast-icon" role="img"></span>
                                                 </span>
                                                 <span class="pill" v-if="episode.watched">WATCHED</span>
                                             </div>

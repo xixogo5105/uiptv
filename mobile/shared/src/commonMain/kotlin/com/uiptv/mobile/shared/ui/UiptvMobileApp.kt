@@ -8,6 +8,7 @@ package com.uiptv.mobile.shared.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -118,6 +119,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -188,7 +190,6 @@ private val DeepNightSurfaceBase = Color(0xFF111318)
 private val DeepNightSurfaceHighBase = Color(0xFF1D2026)
 private val DeepNightSurfaceHighestBase = Color(0xFF292C32)
 private val DeepNightAccentBase = Color(0xFFC1C6DD)
-private val RecordingDotRed = Color(0xFFE53935)
 private val DeepNightTextBase = Color(0xFFF4F7FA)
 private val DeepNightMutedTextBase = Color(0xFFAEB8C2)
 private val DeepNightBackgroundBase = Color(0xFF0F1216)
@@ -1430,17 +1431,18 @@ internal fun BrowseItemRow(
 
 @Composable
 private fun PlayingIndicator(modifier: Modifier = Modifier) {
+    val indicatorColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color.White else Color.Black
     Box(
         modifier = modifier
             .size(14.dp)
-            .background(DeepNightSurfaceBase, CircleShape)
+            .border(1.dp, indicatorColor, CircleShape)
             .semantics { contentDescription = "Currently playing" },
         contentAlignment = Alignment.Center
     ) {
         Box(
             Modifier
-                .size(4.dp)
-                .background(RecordingDotRed, CircleShape)
+                .size(3.dp)
+                .background(indicatorColor, CircleShape)
         )
     }
 }

@@ -99,25 +99,19 @@ test('native startup observes media element errors instead of waiting for the ti
     assert.ok(native > helper, 'native playback must use media-error startup handling');
 });
 
-test('SPA recording assets match the desktop recording-dot geometry and cache version', () => {
-    const on = fs.readFileSync('api-server/src/main/resources/web/images/broadcast-on.svg', 'utf8');
-    const off = fs.readFileSync('api-server/src/main/resources/web/images/broadcast-off.svg', 'utf8');
+test('broadcast markers use a themed ring and center dot', () => {
     const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
     const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
     const sw = fs.readFileSync('api-server/src/main/resources/web/sw.js', 'utf8');
 
-    assert.match(on, /viewBox="0 0 16 16"/);
-    assert.match(off, /viewBox="0 0 16 16"/);
-    assert.match(on, /circle cx="8" cy="8" r="4" fill="#e53935"/);
-    assert.match(off, /circle cx="8" cy="8" r="4" fill="#8a97a5"/);
-    assert.match(source, /broadcast-on\.svg\?v=20261017b/);
-    assert.match(source, /broadcast-off\.svg\?v=20261017b/);
+    assert.match(css, /--broadcast-icon-color: #ffffff/);
+    assert.match(css, /--broadcast-icon-color: #000000/);
+    assert.match(css, /\.broadcast-icon\s*\{[\s\S]*border: 1\.5px solid var\(--broadcast-icon-color\)/);
+    assert.match(css, /\.broadcast-icon::after\s*\{[\s\S]*background: var\(--broadcast-icon-color\)/);
     assert.match(html, /playback-utils\.js\?v=20261028switchDrivenPlayback1/);
     assert.match(html, /spa\.js\?v=20261028channelBookmarks2/);
     assert.match(html, /spa\.css\?v=20261028favoritePinIcons1/);
     assert.match(html, /class="broadcast-indicator"/);
-    assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
-    assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v128'/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v129'/);
 });
 

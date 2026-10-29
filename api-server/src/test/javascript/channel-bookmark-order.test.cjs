@@ -107,5 +107,5 @@ test('channel cards show a bookmark marker and cache-bust the updated matcher', 
     assert.doesNotMatch(htmlSource, /bi-bookmarks?/, 'web navigation and empty states should not use bookmark glyphs');
     assert.match(htmlSource, /bookmark-watch-utils\.js\?v=20261028favoritePicker1/);
     assert.match(htmlSource, /spa\.js\?v=20261028favoritePicker1/);
-    assert.match(serviceWorkerSource, /CACHE_NAME = 'uiptv-cache-v128'/);
+    assert.match(serviceWorkerSource, /CACHE_NAME = 'uiptv-cache-v129'/);
 });

@@ -3038,8 +3038,7 @@
 
 .playing-card-indicator {
     -fx-opacity: 0;
-    -fx-background-color: -uiptv-border-subtle;
-    -fx-background-radius: 50%;
+    -fx-background-color: transparent;
 }
 
 .player-live-indicator {
@@ -3051,8 +3050,14 @@
     -fx-opacity: 1;
 }
 
+.playing-card-recording-ring {
+    -fx-fill: transparent;
+    -fx-stroke: #000000;
+    -fx-stroke-width: 1.2;
+}
+
 .playing-card-recording-dot {
-    -fx-fill: #e53935;
+    -fx-fill: #000000;
 }
 
 .uiptv-responsive-card:selected .bookmark-channel-title,

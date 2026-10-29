@@ -541,7 +541,20 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
         playerPalette = resolvePlayerPalette()
         renderedPlayPauseState = null
+        updateLiveIndicatorTheme()
         if (::rootLayout.isInitialized) applyPlayerTheme()
+    }
+
+    private fun updateLiveIndicatorTheme() {
+        if (!::recordingDot.isInitialized || recordingDot.childCount == 0) return
+        val color = if (
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        ) Color.WHITE else Color.BLACK
+        val ring = recordingDot.getChildAt(0) as? ViewGroup ?: return
+        (ring.background as? GradientDrawable)?.setStroke(dp(1), color)
+        ring.getChildAt(0)?.background?.let { background ->
+            (background as? GradientDrawable)?.setColor(color)
+        }
     }
 
     private fun resolvePlayerPalette(): PlayerPalette {
@@ -1189,21 +1202,25 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            val liveIndicatorColor = if (
+                (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            ) Color.WHITE else Color.BLACK
             recordingDot = FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
                 contentDescription = "Live broadcast"
                 addView(FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
                     contentDescription = "Live broadcast indicator"
                     background = GradientDrawable().apply {
                         shape = GradientDrawable.OVAL
-                        setColor(Color.rgb(28, 31, 35))
+                        setColor(Color.TRANSPARENT)
+                        setStroke(dp(1), liveIndicatorColor)
                     }
                     addView(View(this@MpvEmbeddedPlayerActivity).apply {
                         background = GradientDrawable().apply {
                             shape = GradientDrawable.OVAL
-                            setColor(Color.rgb(229, 57, 53))
+                            setColor(liveIndicatorColor)
                         }
-                    }, FrameLayout.LayoutParams(dp(8), dp(8), Gravity.CENTER))
-                }, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.CENTER))
+                    }, FrameLayout.LayoutParams(dp(3), dp(3), Gravity.CENTER))
+                }, FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER))
                 visibility = if (isLiveStream()) View.VISIBLE else View.GONE
             }
             addView(recordingDot, LinearLayout.LayoutParams(dp(RecordingDotSlotWidthDp), dp(ControlHeaderHeightDp)).apply {

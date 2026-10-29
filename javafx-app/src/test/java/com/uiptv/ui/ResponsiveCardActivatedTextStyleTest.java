@@ -65,14 +65,16 @@ class ResponsiveCardActivatedTextStyleTest {
     }
 
     @Test
-    void broadcastIndicatorAppearsOnActivatedCardsWithThemeContrast() throws Exception {
+    void broadcastIndicatorAppearsAsThemeColoredRingAndDot() throws Exception {
         for (String theme : THEMES) {
             IndicatorSnapshot hidden = runOnFxThread(() -> indicatorSnapshot(theme, State.PLAIN));
             IndicatorSnapshot shown = runOnFxThread(() -> indicatorSnapshot(theme, State.ACTIVATED));
+            Color expected = theme.contains("dark") ? Color.WHITE : Color.BLACK;
 
             assertEquals(0, hidden.opacity(), 0.001, theme + ": indicator must start hidden");
             assertEquals(1, shown.opacity(), 0.001, theme + ": indicator must appear on activation");
-            assertEquals(Color.web("#e53935"), shown.dotFill(), theme + ": recording dot should be red");
+            assertEquals(expected, shown.ringStroke(), theme + ": ring should follow the theme text color");
+            assertEquals(expected, shown.dotFill(), theme + ": center dot should follow the theme text color");
         }
     }
 
@@ -89,8 +91,9 @@ class ResponsiveCardActivatedTextStyleTest {
                 card.pseudoClassStateChanged(ACTIVATED, true);
                 root.applyCss();
             }
+            Circle ring = (Circle) indicator.lookup(".playing-card-recording-ring");
             Circle dot = (Circle) indicator.lookup(".playing-card-recording-dot");
-            return new IndicatorSnapshot(indicator.getOpacity(), dot.getFill());
+            return new IndicatorSnapshot(indicator.getOpacity(), ring.getStroke(), dot.getFill());
         });
     }
 
@@ -160,6 +163,6 @@ class ResponsiveCardActivatedTextStyleTest {
     private record Snapshot(List<Paint> labelFills, List<Paint> textFills) {
     }
 
-    private record IndicatorSnapshot(double opacity, Paint dotFill) {
+    private record IndicatorSnapshot(double opacity, Paint ringStroke, Paint dotFill) {
     }
 }

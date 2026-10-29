@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v128';
+const CACHE_NAME = 'uiptv-cache-v129';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -9,8 +9,6 @@ const urlsToCache = [
   '/icon-192.png',
   '/icon-512.png',
   '/icon-maskable-512.png',
-  '/images/broadcast-on.svg?v=20261017b',
-  '/images/broadcast-off.svg?v=20261017b',
   '/css/shared-player.css',
   '/css/spa.css',
   '/javascript/playback-utils.js',
