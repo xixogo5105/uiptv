@@ -483,6 +483,10 @@
     -fx-background-color: linear-gradient(to right, #f87171, #ef4444);
 }
 
+.progress-bar-segment.skipped {
+    -fx-background-color: #94a3b8;
+}
+
 /* terminal.css */
 .terminal {
     -fx-control-inner-background: #1c1c1c;
@@ -4608,6 +4612,7 @@
 .reload-status-done,
 .reload-status-yellow,
 .reload-status-bad,
+.reload-status-skipped,
 .reload-problem-level-bad,
 .reload-problem-level-yellow {
     -fx-font-weight: bold;
@@ -4638,6 +4643,10 @@
 .reload-status-bad,
 .reload-problem-level-bad {
     -fx-text-fill: #ff8a80;
+}
+
+.reload-status-skipped {
+    -fx-text-fill: #a8b3c2;
 }
 
 .reload-problem-accounts-popup {

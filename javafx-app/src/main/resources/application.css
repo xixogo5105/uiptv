@@ -439,6 +439,10 @@
     -fx-background-color: linear-gradient(to right, #ef4444, #dc2626);
 }
 
+.progress-bar-segment.skipped {
+    -fx-background-color: #94a3b8;
+}
+
 .log-scroll-pane {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
@@ -4541,6 +4545,7 @@
 .reload-status-done,
 .reload-status-yellow,
 .reload-status-bad,
+.reload-status-skipped,
 .reload-problem-level-bad,
 .reload-problem-level-yellow {
     -fx-font-weight: bold;
@@ -4571,6 +4576,10 @@
 .reload-status-bad,
 .reload-problem-level-bad {
     -fx-text-fill: #b91c1c;
+}
+
+.reload-status-skipped {
+    -fx-text-fill: #64748b;
 }
 
 .reload-problem-accounts-popup {

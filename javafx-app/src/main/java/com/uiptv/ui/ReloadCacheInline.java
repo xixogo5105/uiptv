@@ -104,11 +104,11 @@ public class ReloadCacheInline extends VBox {
     private static final double PROBLEM_ACCOUNTS_ROW_HEIGHT_ESTIMATE = 64;
 
     private enum AccountRunStatus {
-        QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY
+        QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY, SKIPPED
     }
 
     private enum SummaryLevel {
-        GOOD, YELLOW, BAD
+        GOOD, YELLOW, BAD, SKIPPED
     }
 
     private enum GlobalFailureDecision {
@@ -938,11 +938,12 @@ public class ReloadCacheInline extends VBox {
                     if (!disposed) {
                         totalFetchedChannels += result.countedChannels;
                         SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed,
-                                result.accountIssues, result.acceptableZeroResult);
+                                result.accountIssues, result.acceptableZeroResult, result.skipped);
                         summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
                         progressBar.updateSegment(i, segmentStatus(summaryStatus));
                         updateProgressSummary(i + 1, selectedAccounts.size());
-                        AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
+                        AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount,
+                                result.failed, result.skipped);
                         finalStatuses.put(account.getDbId(), finalStatus);
                         updateAccountStatus(account, finalStatus, result.availableChannelCount);
                     }
@@ -1029,6 +1030,13 @@ public class ReloadCacheInline extends VBox {
         if (isReloadStopped()) {
             return new AccountReloadResult(true, 0, 0, List.of(I18n.tr("autoStop")));
         }
+        if (account != null && !account.isCacheEnabled()) {
+            // A disabled-cache account is intentionally not a reload failure: it has no cache to
+            // refresh. Carry a distinct result through the UI so it is rendered neutrally and is
+            // never offered for deletion.
+            logMessage(account, I18n.tr("reloadCacheDisabledSkipping"));
+            return AccountReloadResult.skipped();
+        }
         String domainKey = resolveRepeatFailureDomain(account);
         if (domainKey != null && ignoredFailureDomains.contains(domainKey)) {
             logMessage(account, LOG_SKIPPED_IGNORED_DOMAIN);
@@ -1114,10 +1122,15 @@ public class ReloadCacheInline extends VBox {
             case GOOD -> SegmentedProgressBar.SegmentStatus.SUCCESS;
             case YELLOW -> SegmentedProgressBar.SegmentStatus.WARNING;
             case BAD -> SegmentedProgressBar.SegmentStatus.FAILURE;
+            case SKIPPED -> SegmentedProgressBar.SegmentStatus.SKIPPED;
         };
     }
 
-    private AccountRunStatus finalAccountRunStatus(SummaryStatus summaryStatus, int availableChannelCount, boolean failed) {
+    private AccountRunStatus finalAccountRunStatus(SummaryStatus summaryStatus, int availableChannelCount, boolean failed,
+                                                   boolean skipped) {
+        if (skipped || summaryStatus.level == SummaryLevel.SKIPPED) {
+            return AccountRunStatus.SKIPPED;
+        }
         AccountRunStatus badStatus;
         if (availableChannelCount > 0) {
             badStatus = AccountRunStatus.YELLOW;
@@ -1130,6 +1143,7 @@ public class ReloadCacheInline extends VBox {
             case GOOD -> AccountRunStatus.DONE;
             case YELLOW -> AccountRunStatus.YELLOW;
             case BAD -> badStatus;
+            case SKIPPED -> AccountRunStatus.SKIPPED;
         };
     }
 
@@ -1160,7 +1174,7 @@ public class ReloadCacheInline extends VBox {
         Map<String, SummaryStatus> problematicAccounts = new LinkedHashMap<>();
         for (Account account : processedAccounts) {
             SummaryStatus status = summaryStatusByAccountId.get(account.getDbId());
-            if (status != null && status.level != SummaryLevel.GOOD) {
+            if (status != null && (status.level == SummaryLevel.YELLOW || status.level == SummaryLevel.BAD)) {
                 problematicAccounts.put(account.getDbId(), status);
             }
         }
@@ -1173,18 +1187,29 @@ public class ReloadCacheInline extends VBox {
         private final int availableChannelCount;
         private final List<String> accountIssues;
         private final boolean acceptableZeroResult;
+        private final boolean skipped;
 
         private AccountReloadResult(boolean failed, int countedChannels, int availableChannelCount, List<String> accountIssues) {
-            this(failed, countedChannels, availableChannelCount, accountIssues, false);
+            this(failed, countedChannels, availableChannelCount, accountIssues, false, false);
         }
 
         private AccountReloadResult(boolean failed, int countedChannels, int availableChannelCount, List<String> accountIssues,
                                     boolean acceptableZeroResult) {
+            this(failed, countedChannels, availableChannelCount, accountIssues, acceptableZeroResult, false);
+        }
+
+        private AccountReloadResult(boolean failed, int countedChannels, int availableChannelCount, List<String> accountIssues,
+                                    boolean acceptableZeroResult, boolean skipped) {
             this.failed = failed;
             this.countedChannels = countedChannels;
             this.availableChannelCount = availableChannelCount;
             this.accountIssues = accountIssues;
             this.acceptableZeroResult = acceptableZeroResult;
+            this.skipped = skipped;
+        }
+
+        private static AccountReloadResult skipped() {
+            return new AccountReloadResult(false, 0, 0, List.of(), true, true);
         }
     }
 
@@ -1461,12 +1486,16 @@ public class ReloadCacheInline extends VBox {
             latestSummaryLines.add(I18n.tr("reloadSummaryGood", summary.successCount));
             latestSummaryLines.add(I18n.tr("reloadSummaryYellow", summary.yellowCount));
             latestSummaryLines.add(I18n.tr("reloadSummaryBad", summary.badCount));
+            latestSummaryLines.add(I18n.tr("reloadSummarySkipped", summary.skippedCount));
             latestSummaryLines.add(I18n.tr("reloadSummaryChannelsLoaded", totalSuccessChannels));
             if (!summary.yellowNames.isEmpty()) {
                 latestSummaryLines.add(I18n.tr("reloadSummaryYellowAccounts", String.join(", ", summary.yellowNames)));
             }
             if (!summary.badNames.isEmpty()) {
                 latestSummaryLines.add(I18n.tr("reloadSummaryBadAccounts", String.join(", ", summary.badNames)));
+            }
+            if (!summary.skippedNames.isEmpty()) {
+                latestSummaryLines.add(I18n.tr("reloadSummarySkippedAccounts", String.join(", ", summary.skippedNames)));
             }
         }
         if (totalCensoredCategories > 0) {
@@ -1495,22 +1524,31 @@ public class ReloadCacheInline extends VBox {
             applyFallbackRunStatus(summary, account, fallbackStatus);
             return;
         }
-        if (accountSummary.level == SummaryLevel.GOOD) {
-            summary.successCount++;
-            return;
+        switch (accountSummary.level) {
+            case GOOD -> summary.successCount++;
+            case YELLOW -> {
+                summary.yellowCount++;
+                summary.yellowNames.add(account.getAccountName());
+            }
+            case BAD -> {
+                summary.badCount++;
+                summary.badNames.add(account.getAccountName());
+            }
+            case SKIPPED -> {
+                summary.skippedCount++;
+                summary.skippedNames.add(account.getAccountName());
+            }
         }
-        if (accountSummary.level == SummaryLevel.YELLOW) {
-            summary.yellowCount++;
-            summary.yellowNames.add(account.getAccountName());
-            return;
-        }
-        summary.badCount++;
-        summary.badNames.add(account.getAccountName());
     }
 
     private void applyFallbackRunStatus(RunSummary summary, Account account, AccountRunStatus fallbackStatus) {
         if (fallbackStatus == AccountRunStatus.DONE) {
             summary.successCount++;
+            return;
+        }
+        if (fallbackStatus == AccountRunStatus.SKIPPED) {
+            summary.skippedCount++;
+            summary.skippedNames.add(account.getAccountName());
             return;
         }
         summary.badCount++;
@@ -1591,8 +1629,10 @@ public class ReloadCacheInline extends VBox {
         private int successCount;
         private int yellowCount;
         private int badCount;
+        private int skippedCount;
         private final List<String> yellowNames = new ArrayList<>();
         private final List<String> badNames = new ArrayList<>();
+        private final List<String> skippedNames = new ArrayList<>();
     }
 
     private void setRunningAccount(Account currentAccount, int current, int total) {
@@ -2067,7 +2107,16 @@ public class ReloadCacheInline extends VBox {
 
     private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues,
                                              boolean acceptableZeroResult) {
+        return buildSummaryStatus(fetchedChannelCount, failed, issues, acceptableZeroResult, false);
+    }
+
+    private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues,
+                                             boolean acceptableZeroResult, boolean skipped) {
         List<String> normalizedReasons = issues == null ? new ArrayList<>() : new ArrayList<>(issues);
+        if (skipped) {
+            normalizedReasons.clear();
+            return new SummaryStatus(SummaryLevel.SKIPPED, fetchedChannelCount, normalizedReasons);
+        }
         if (acceptableZeroResult && !failed) {
             normalizedReasons.clear();
             return new SummaryStatus(SummaryLevel.GOOD, fetchedChannelCount, normalizedReasons);
@@ -2481,6 +2530,7 @@ public class ReloadCacheInline extends VBox {
             case GOOD -> I18n.tr("reloadSummaryLevelGood");
             case YELLOW -> I18n.tr("reloadSummaryLevelYellow");
             case BAD -> I18n.tr("reloadSummaryLevelBad");
+            case SKIPPED -> I18n.tr("reloadSummaryLevelSkipped");
         };
     }
 
@@ -2693,6 +2743,11 @@ public class ReloadCacheInline extends VBox {
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText(I18n.tr("autoFailed2"));
                     setRunStatusStyle("reload-status-bad");
+                    break;
+                case SKIPPED:
+                    runningIndicator.setVisible(false);
+                    runStatusLabel.setText(I18n.tr("reloadSummaryLevelSkipped"));
+                    setRunStatusStyle("reload-status-skipped");
                     break;
                 default:
                     runningIndicator.setVisible(false);

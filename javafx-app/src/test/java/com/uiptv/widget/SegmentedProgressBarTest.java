@@ -56,7 +56,7 @@ class SegmentedProgressBarTest {
         runOnFxThread(() -> {
             progressBar.updateSegment(0, SegmentedProgressBar.SegmentStatus.SUCCESS);
             progressBar.updateSegment(1, SegmentedProgressBar.SegmentStatus.WARNING);
-            progressBar.updateSegment(2, null);
+            progressBar.updateSegment(2, SegmentedProgressBar.SegmentStatus.SKIPPED);
             progressBar.updateSegment(4, SegmentedProgressBar.SegmentStatus.SUCCESS);
             return null;
         });
@@ -68,7 +68,7 @@ class SegmentedProgressBarTest {
                 .toList());
         assertTrue(segmentStyles.get(0).contains("success"));
         assertTrue(segmentStyles.get(1).contains("warning"));
-        assertTrue(segmentStyles.get(2).contains("failure"));
+        assertTrue(segmentStyles.get(2).contains("skipped"));
         assertEquals(3, segmentStyles.size());
     }
 
