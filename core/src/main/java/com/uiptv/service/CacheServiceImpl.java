@@ -7,6 +7,7 @@ import com.uiptv.service.cache.AccountCacheReloaderFactory;
 import com.uiptv.util.AccountCopyUtil;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
+import com.uiptv.util.I18n;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,6 +35,12 @@ public class CacheServiceImpl implements CacheService {
     @Override
     public void reloadCacheWithPhases(Account account, ReloadPhaseLoggerCallback logger) throws IOException {
         if (account == null) {
+            return;
+        }
+        if (!account.isCacheEnabled()) {
+            if (logger != null) {
+                logger.log(I18n.tr("reloadCacheDisabledSkipping"), account.getAction());
+            }
             return;
         }
         // Reloaders mutate the account in place (action, token, serverPortalUrl, macAddress).

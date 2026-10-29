@@ -166,10 +166,12 @@ class MobilePlaybackTest {
             channelName = "News One",
             command = "https://stream.test/news.m3u8",
             mode = BrowseMode.LIVE,
-            logo = "https://images.test/news.png"
+            logo = "https://images.test/news.png",
+            catalogCacheEnabledAtSave = false
         ).toPlaybackTarget()
 
         assertEquals("https://images.test/news.png", target.logo)
+        assertEquals(false, target.catalogCacheEnabledAtSave)
     }
 
     @Test

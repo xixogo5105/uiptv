@@ -49,13 +49,16 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
 
-        EpisodeList cached = loadFromDbCache(account, categoryId, seriesId);
-        if (hasEpisodes(cached)) {
-            return cached;
-        }
-        EpisodeList staleCache = loadFromDbAnyAge(account, categoryId, seriesId);
-        if (hasEpisodes(staleCache) && partialCallback != null) {
-            partialCallback.accept(staleCache);
+        EpisodeList staleCache = null;
+        if (account.isCacheEnabled()) {
+            EpisodeList cached = loadFromDbCache(account, categoryId, seriesId);
+            if (hasEpisodes(cached)) {
+                return cached;
+            }
+            staleCache = loadFromDbAnyAge(account, categoryId, seriesId);
+            if (hasEpisodes(staleCache) && partialCallback != null) {
+                partialCallback.accept(staleCache);
+            }
         }
 
         BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled;
@@ -79,15 +82,17 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
 
-        EpisodeList cached = loadFromDbAnyAge(account, categoryId, seriesId);
-        if (hasEpisodes(cached)) {
-            return cached;
-        }
+        if (account.isCacheEnabled()) {
+            EpisodeList cached = loadFromDbAnyAge(account, categoryId, seriesId);
+            if (hasEpisodes(cached)) {
+                return cached;
+            }
 
-        EpisodeList snapshot = SeriesWatchingNowSnapshotService.getInstance()
-                .loadEpisodeList(account.getDbId(), categoryId, seriesId);
-        if (hasEpisodes(snapshot)) {
-            return snapshot;
+            EpisodeList snapshot = SeriesWatchingNowSnapshotService.getInstance()
+                    .loadEpisodeList(account.getDbId(), categoryId, seriesId);
+            if (hasEpisodes(snapshot)) {
+                return snapshot;
+            }
         }
 
         BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled;
@@ -137,7 +142,9 @@ public class SeriesEpisodeService {
         try {
             EpisodeList episodes = XtremeApiParser.parseEpisodes(seriesId, account);
             if (hasEpisodes(episodes)) {
-                saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
+                if (account.isCacheEnabled()) {
+                    saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
+                }
                 publishPartial(partialCallback, episodes);
                 return episodes;
             }
@@ -168,7 +175,7 @@ public class SeriesEpisodeService {
                 return fallback == null ? new EpisodeList() : fallback;
             }
         }
-        if (!seriesChannels.isEmpty()) {
+        if (!seriesChannels.isEmpty() && account.isCacheEnabled()) {
             SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, seriesChannels);
         }
         return toEpisodeList(seriesChannels);
@@ -181,6 +188,9 @@ public class SeriesEpisodeService {
     }
 
     private EpisodeList loadFromDbCache(Account account, String categoryId, String seriesId) {
+        if (account == null || !account.isCacheEnabled()) {
+            return new EpisodeList();
+        }
         List<Channel> cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
         if (cachedChannels == null || cachedChannels.isEmpty()) {
             return loadFromAnyCategoryCache(account, seriesId);
@@ -192,7 +202,7 @@ public class SeriesEpisodeService {
     }
 
     private EpisodeList loadFromAnyCategoryCache(Account account, String seriesId) {
-        if (account == null || isBlank(seriesId) || account.getType() != XTREME_API) {
+        if (account == null || !account.isCacheEnabled() || isBlank(seriesId) || account.getType() != XTREME_API) {
             return null;
         }
         List<Channel> cachedChannels = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
@@ -206,6 +216,9 @@ public class SeriesEpisodeService {
     }
 
     private EpisodeList loadFromDbAnyAge(Account account, String categoryId, String seriesId) {
+        if (account == null || !account.isCacheEnabled()) {
+            return null;
+        }
         List<Channel> cachedChannels = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
         if (cachedChannels != null && !cachedChannels.isEmpty()) {
             return toEpisodeList(cachedChannels);
@@ -220,7 +233,7 @@ public class SeriesEpisodeService {
     }
 
     private void saveEpisodesToDbCache(Account account, String categoryId, String seriesId, EpisodeList episodes) {
-        if (account == null || isBlank(seriesId) || !hasEpisodes(episodes)) {
+        if (account == null || !account.isCacheEnabled() || isBlank(seriesId) || !hasEpisodes(episodes)) {
             return;
         }
         List<Channel> channels = new ArrayList<>();

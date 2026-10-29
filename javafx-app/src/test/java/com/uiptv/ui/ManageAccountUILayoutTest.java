@@ -4,6 +4,7 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.DangerousButton;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.SwitchToggle;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -93,6 +94,29 @@ class ManageAccountUILayoutTest {
         assertTrue(snapshot.macListPrefHeight() <= 136);
         assertTrue(!snapshot.accountInfoVisible());
         assertTrue(!snapshot.accountInfoManaged());
+    }
+
+    @Test
+    void catalogCachingIsEnabledByDefaultAndDisableSwitchIsLocalized() throws Exception {
+        CachingSwitchSnapshot snapshot = runOnFxThread(() -> {
+            ManageAccountUI ui = new ManageAccountUI();
+            SwitchToggle disableCaching = field(ui, "disableCachingSwitch", SwitchToggle.class);
+            VBox formContainer = field(ui, "formContainer", VBox.class);
+            Node switchRow = field(ui, "disableCachingSwitchRow", Node.class);
+            return new CachingSwitchSnapshot(
+                    !disableCaching.isSelected(),
+                    switchRow.isManaged(),
+                    switchRow.isVisible(),
+                    formContainer.getChildren().contains(switchRow),
+                    I18n.tr("manageAccountDisableCaching")
+            );
+        });
+
+        assertTrue(snapshot.cachingEnabledByDefault());
+        assertTrue(snapshot.switchRowManaged());
+        assertTrue(snapshot.switchRowVisible());
+        assertTrue(snapshot.switchRowInForm());
+        assertEquals("Disable catalog caching", snapshot.localizedLabel());
     }
 
     @Test
@@ -217,6 +241,15 @@ class ManageAccountUILayoutTest {
             boolean browseButtonInRow,
             boolean browseButtonNotSeparateFormChild,
             double formSpacing
+    ) {
+    }
+
+    private record CachingSwitchSnapshot(
+            boolean cachingEnabledByDefault,
+            boolean switchRowManaged,
+            boolean switchRowVisible,
+            boolean switchRowInForm,
+            String localizedLabel
     ) {
     }
 }

@@ -12,6 +12,7 @@ import com.uiptv.util.AppLog;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.ServerUtils;
+import com.uiptv.service.cache.M3uCacheReloader;
 import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -29,6 +30,7 @@ import static com.uiptv.util.M3U8Parser.parsePathCategory;
 import static com.uiptv.util.M3U8Parser.parseSourceCategory;
 
 public class CategoryService {
+    private static final String LIVE_CATEGORY_ID_PREFIX = "live:";
     private final ContentFilterService contentFilterService;
 
     private CategoryService() {
@@ -59,6 +61,9 @@ public class CategoryService {
         if (account == null) {
             return Collections.emptyList();
         }
+        if (!account.isCacheEnabled()) {
+            return Collections.emptyList();
+        }
         if (account.getAction() == vod) {
             return VodCategoryDb.get().getCategories(account);
         }
@@ -73,8 +78,19 @@ public class CategoryService {
     }
 
     public List<Category> get(Account account, boolean censor, LoggerCallback logger) {
+        if (account == null) {
+            return Collections.emptyList();
+        }
         if (account != null && !account.isParentalLock()) {
             censor = false;
+        }
+        if (!account.isCacheEnabled()) {
+            List<Category> liveCategories = account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL
+                    ? new M3uCacheReloader().loadLiveCategories(account, logger)
+                    : fetchCategoriesFromBackend(account, logger);
+            List<Category> visible = maybeFilterCategories(liveCategories, censor);
+            assignLiveCategoryIds(account, visible);
+            return visible;
         }
         if (usesVodSeriesCategoryCache(account)) {
             return getVodSeriesCategories(account, censor, logger);
@@ -108,6 +124,32 @@ public class CategoryService {
             cachedCategories.addAll(CategoryDb.get().getCategories(account));
         }
         return maybeFilterCategories(cachedCategories, censor);
+    }
+
+    private void assignLiveCategoryIds(Account account, List<Category> categories) {
+        if (categories == null) {
+            return;
+        }
+        for (Category category : categories) {
+            if (category == null) {
+                continue;
+            }
+            category.setAccountId(account.getDbId());
+            category.setAccountType(account.getType() == null ? "" : account.getType().name());
+            if (CategoryType.isAll(category.getTitle())) {
+                category.setDbId(CategoryType.ALL.identifier());
+                continue;
+            }
+            // M3U catalogues are grouped by the playlist's group title. Its entry ID is
+            // usually a channel tvg-id, so it cannot be used to fetch a category's items.
+            String providerId = account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL
+                    ? category.getTitle()
+                    : category.getCategoryId();
+            if (providerId == null || providerId.isBlank()) {
+                providerId = category.getTitle() == null ? "" : category.getTitle();
+            }
+            category.setDbId(LIVE_CATEGORY_ID_PREFIX + (account.getDbId() == null ? "" : account.getDbId()) + ":" + providerId);
+        }
     }
 
     private boolean usesVodSeriesCategoryCache(Account account) {

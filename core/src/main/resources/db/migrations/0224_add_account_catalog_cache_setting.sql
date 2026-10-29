@@ -1,0 +1,1 @@
+--@add_column Account cacheEnabled TEXT DEFAULT '1'

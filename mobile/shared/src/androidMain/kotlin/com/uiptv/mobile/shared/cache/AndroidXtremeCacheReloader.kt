@@ -7,6 +7,7 @@ import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,6 +18,37 @@ import java.net.URL
 class AndroidXtremeCacheReloader(
     private val databaseHelper: AndroidUiptvDatabaseHelper
 ) {
+    internal fun fetchLiveCategories(account: MobileAccount): List<AndroidPortalCategory> {
+        val categories = fetchCategories(account)
+        return buildList {
+            add(AndroidPortalCategory("all", "All"))
+            addAll(categories.map { AndroidPortalCategory(it.id, it.name) })
+        }
+    }
+
+    internal fun fetchLiveChannels(account: MobileAccount, categoryId: String): List<AndroidPortalChannel> {
+        val streams = fetchLiveStreams(account, categoryId).filter { stream ->
+            when (categoryId) {
+                "all" -> true
+                "uncategorized" -> stream.categoryId.isBlank()
+                else -> stream.categoryId == categoryId
+            }
+        }
+        val base = normalizeBaseUrl(account.url)
+        return streams.map { stream ->
+            val extension = stream.containerExtension.ifBlank { "ts" }
+            AndroidPortalChannel(
+                channelId = stream.streamId,
+                categoryId = stream.categoryId,
+                name = stream.name,
+                command = "$base/${account.username.pathSegment()}/${account.password.pathSegment()}/${stream.streamId.pathSegment()}.$extension",
+                logo = stream.logo,
+                hd = if (stream.name.contains("HD", ignoreCase = true)) 1 else 0,
+                extraJson = stream.extraJson
+            )
+        }
+    }
+
     suspend fun refreshAccount(accountId: Long): M3uRefreshResult = withContext(Dispatchers.IO) {
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
@@ -25,6 +57,9 @@ class AndroidXtremeCacheReloader(
 
         if (account.type != MobileAccountType.XTREME_API) {
             return@withContext M3uRefreshResult.skipped("${account.type.displayName} is not an Xtreme API account.")
+        }
+        if (!account.cacheEnabled) {
+            return@withContext M3uRefreshResult.skipped(MobileMessages.text("reloadCacheDisabledSkipping"))
         }
         if (account.url.isBlank() || account.username.isBlank() || account.password.isBlank()) {
             return@withContext M3uRefreshResult.failed("Xtreme server URL, username, and password are required.")
@@ -82,8 +117,10 @@ class AndroidXtremeCacheReloader(
         }
     }
 
-    private fun fetchLiveStreams(account: MobileAccount): List<XtremeStream> {
-        val json = JSONArray(readApi(account, "get_live_streams"))
+    private fun fetchLiveStreams(account: MobileAccount, categoryId: String = "all"): List<XtremeStream> {
+        val params = if (categoryId == "all" || categoryId == "uncategorized") emptyMap()
+            else mapOf("category_id" to categoryId)
+        val json = JSONArray(readApi(account, "get_live_streams", params))
         return buildList {
             for (index in 0 until json.length()) {
                 val item = json.optJSONObject(index) ?: continue

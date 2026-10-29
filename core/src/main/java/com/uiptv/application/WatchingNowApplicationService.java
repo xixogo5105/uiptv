@@ -65,9 +65,12 @@ public class WatchingNowApplicationService {
             return List.of();
         }
 
-        List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
-        if (cachedEpisodes.isEmpty()) {
-            cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
+        List<Channel> cachedEpisodes = List.of();
+        if (account.isCacheEnabled()) {
+            cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
+            if (cachedEpisodes.isEmpty()) {
+                cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
+            }
         }
 
         List<Channel> episodesAsChannels = cachedEpisodes.isEmpty()
@@ -76,15 +79,17 @@ public class WatchingNowApplicationService {
 
         applyWatchedFlag(episodesAsChannels, account, categoryId, seriesId);
         SeriesMetadata metadata = resolveMetadata(account, categoryId, seriesId);
-        SeriesWatchingNowSnapshotService.getInstance().saveChannels(
-                account,
-                categoryId,
-                seriesId,
-                metadata.categoryDbId,
-                metadata.seriesTitle,
-                metadata.seriesPoster,
-                episodesAsChannels
-        );
+        if (account.isCacheEnabled()) {
+            SeriesWatchingNowSnapshotService.getInstance().saveChannels(
+                    account,
+                    categoryId,
+                    seriesId,
+                    metadata.categoryDbId,
+                    metadata.seriesTitle,
+                    metadata.seriesPoster,
+                    episodesAsChannels
+            );
+        }
         return episodesAsChannels;
     }
 
@@ -102,15 +107,17 @@ public class WatchingNowApplicationService {
                 request.season(),
                 request.episodeNum()
         );
-        SeriesWatchingNowSnapshotService.getInstance().saveChannels(
-                account,
-                request.categoryId(),
-                request.seriesId(),
-                request.categoryDbId(),
-                request.seriesTitle(),
-                request.seriesPoster(),
-                request.episodes() == null ? List.of() : request.episodes()
-        );
+        if (account.isCacheEnabled()) {
+            SeriesWatchingNowSnapshotService.getInstance().saveChannels(
+                    account,
+                    request.categoryId(),
+                    request.seriesId(),
+                    request.categoryDbId(),
+                    request.seriesTitle(),
+                    request.seriesPoster(),
+                    request.episodes() == null ? List.of() : request.episodes()
+            );
+        }
     }
 
     public void removeSeries(String accountId, String categoryId, String seriesId) {

@@ -75,6 +75,7 @@ public class ManageAccountUI extends VBox {
     private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
     private final CheckBox webPlaybackProxyCheckBox = new CheckBox(I18n.tr("manageWebPlaybackProxy"));
     private final SwitchToggle pinToTopSwitch = new SwitchToggle();
+    private final SwitchToggle disableCachingSwitch = new SwitchToggle();
     private final SwitchToggle parentalLockSwitch = new SwitchToggle();
     private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
     private final SwitchToggle webPlaybackProxySwitch = new SwitchToggle();
@@ -97,6 +98,7 @@ public class ManageAccountUI extends VBox {
     private Region actionSpacer;
     private boolean actionLayoutWrapped;
     private Node pinToTopSwitchRow;
+    private Node disableCachingSwitchRow;
     private Node resolveChainAndDeepRedirectsSwitchRow;
     private Node webPlaybackProxySwitchRow;
     private Node parentalLockSwitchRow;
@@ -210,6 +212,7 @@ public class ManageAccountUI extends VBox {
         resolveChainAndDeepRedirectsSwitch.selectedProperty().bindBidirectional(resolveChainAndDeepRedirectsCheckBox.selectedProperty());
         webPlaybackProxySwitch.selectedProperty().bindBidirectional(webPlaybackProxyCheckBox.selectedProperty());
         pinToTopSwitchRow = createManageAccountSwitchRow("autoPinAccountOnTop", pinToTopSwitch);
+        disableCachingSwitchRow = createManageAccountSwitchRow("manageAccountDisableCaching", disableCachingSwitch);
         resolveChainAndDeepRedirectsSwitchRow = createManageAccountSwitchRow("manageResolveChainAndDeepRedirects", resolveChainAndDeepRedirectsSwitch);
         webPlaybackProxySwitchRow = createManageAccountSwitchRow("manageWebPlaybackProxy", webPlaybackProxySwitch);
         parentalLockSwitchRow = createManageAccountSwitchRow("filterLockStateToggleLabel", parentalLockSwitch);
@@ -263,16 +266,16 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, epg, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, epg, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, disableCachingSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, epg, pinToTopSwitchRow, disableCachingSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_URL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, disableCachingSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountTypePillBar, name, url, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, disableCachingSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
         }
 
@@ -712,6 +715,7 @@ public class ManageAccountUI extends VBox {
         pinToTopCheckBox.setSelected(false);
         resolveChainAndDeepRedirectsCheckBox.setSelected(false);
         webPlaybackProxyCheckBox.setSelected(false);
+        disableCachingSwitch.setSelected(false);
         httpMethodCombo.setValue("GET");
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
@@ -750,6 +754,7 @@ public class ManageAccountUI extends VBox {
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
         account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
         account.setParentalLock(parentalLockSwitch.isSelected());
+        account.setCacheEnabled(!disableCachingSwitch.isSelected());
         return account;
     }
 
@@ -903,6 +908,7 @@ public class ManageAccountUI extends VBox {
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
+        disableCachingSwitch.setSelected(!account.isCacheEnabled());
         resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
         webPlaybackProxyCheckBox.setSelected(account.isWebPlaybackProxy());
         parentalLockSwitch.setSelected(account.isParentalLock());

@@ -32,7 +32,10 @@ public class PlayerRequestResolver {
                                                 String mode, String seriesParentId, String seriesId,
                                                 Channel requestChannel) throws IOException {
         Account playbackAccount = accountWithMode(account, resolveMode(mode, account == null ? null : account.getAction()));
-        Channel channel = mergeRequestChannel(resolveRequestedChannel(playbackAccount, categoryId, channelId, mode), requestChannel);
+        Channel channel = playbackAccount != null && !playbackAccount.isCacheEnabled()
+                && requestChannel != null && isNotBlank(requestChannel.getCmd())
+                ? requestChannel
+                : mergeRequestChannel(resolveRequestedChannel(playbackAccount, categoryId, channelId, mode), requestChannel);
         String scopedCategoryId = resolveSeriesCategoryId(playbackAccount, categoryId);
         return PlayerService.getInstance().get(playbackAccount, channel, seriesId, seriesParentId, scopedCategoryId);
     }
@@ -40,7 +43,9 @@ public class PlayerRequestResolver {
     Channel resolveBookmarkChannel(Bookmark bookmark) {
         Channel channel = readBookmarkSnapshot(bookmark);
         if (channel != null) {
-            return channel;
+            Channel legacy = createLegacyBookmarkChannel(bookmark);
+            if (isBlank(channel.getChannelId())) channel.setChannelId(legacy.getChannelId());
+            return mergeRequestChannel(channel, legacy);
         }
         return createLegacyBookmarkChannel(bookmark);
     }
@@ -76,6 +81,12 @@ public class PlayerRequestResolver {
         if (isBlank(rawCategoryId)) {
             return "";
         }
+        if (!account.isCacheEnabled()) {
+            String liveCategoryPrefix = "live:" + (account.getDbId() == null ? "" : account.getDbId()) + ":";
+            return rawCategoryId.startsWith(liveCategoryPrefix)
+                    ? rawCategoryId.substring(liveCategoryPrefix.length())
+                    : rawCategoryId;
+        }
         Category category = SeriesCategoryDb.get().getById(rawCategoryId);
         if (category != null && isNotBlank(category.getCategoryId())) {
             return category.getCategoryId();
@@ -85,6 +96,19 @@ public class PlayerRequestResolver {
 
     String resolveBookmarkSourceCategoryId(Account account, Bookmark bookmark) {
         Category source = Category.fromJson(bookmark.getCategoryJson());
+        if (account != null && account.getAction() == Account.AccountAction.series
+                && source != null && isNotBlank(source.getCategoryId())) {
+            return source.getCategoryId();
+        }
+        if (account != null && !account.isCacheEnabled()) {
+            if (account.getAction() != Account.AccountAction.series || source == null || isBlank(source.getDbId())) {
+                return "";
+            }
+            String liveCategoryPrefix = "live:" + (account.getDbId() == null ? "" : account.getDbId()) + ":";
+            return source.getDbId().startsWith(liveCategoryPrefix)
+                    ? source.getDbId().substring(liveCategoryPrefix.length())
+                    : "";
+        }
         String sourceId;
         if (source == null) sourceId = bookmark.getCategoryId();
         else if (isNotBlank(source.getDbId())) sourceId = source.getDbId();
@@ -143,6 +167,13 @@ public class PlayerRequestResolver {
     }
 
     private Channel resolveRequestedChannel(Account account, String categoryId, String channelId, String mode) {
+        if (account != null && !account.isCacheEnabled()) {
+            try {
+                return ChannelService.getInstance().getLiveChannelByChannelId(categoryId, channelId, account);
+            } catch (IOException _) {
+                return null;
+            }
+        }
         String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
         if ("vod".equals(normalizedMode) && account != null) {
             Channel vodChannel = VodChannelDb.get().getChannelByChannelId(channelId, categoryId, account.getDbId());

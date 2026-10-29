@@ -38,6 +38,7 @@ public final class AccountCopyUtil {
         copy.setDbId(source.getDbId());
         copy.setToken(source.getToken());
         copy.setPinToTop(source.isPinToTop());
+        copy.setCacheEnabled(source.isCacheEnabled());
         copy.setResolveChainAndDeepRedirects(source.isResolveChainAndDeepRedirects());
         copy.setType(source.getType());
         copy.setHttpMethod(source.getHttpMethod());
@@ -69,6 +70,7 @@ public final class AccountCopyUtil {
         copy.setAction(source.getAction());
         copy.setHttpMethod(source.getHttpMethod());
         copy.setTimezone(source.getTimezone());
+        copy.setCacheEnabled(source.isCacheEnabled());
         copy.setResolveChainAndDeepRedirects(source.isResolveChainAndDeepRedirects());
         copy.setServerPortalUrl(source.getServerPortalUrl());
         return copy;

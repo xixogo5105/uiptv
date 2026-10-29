@@ -5,13 +5,25 @@ import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Account;
 import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.model.PlayerResponse;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class PlayerRequestResolverTest extends DbBackedTest {
 
@@ -83,6 +95,7 @@ class PlayerRequestResolverTest extends DbBackedTest {
         PlayerRequestResolver resolver = new PlayerRequestResolver();
 
         assertEquals("Channel Snapshot", resolver.resolveBookmarkChannel(channelBookmark).getName());
+        assertEquals("http://encoded", resolver.resolveBookmarkChannel(channelBookmark).getCmd());
         assertEquals("VOD Snapshot", resolver.resolveBookmarkChannel(vodBookmark).getName());
         Channel legacyChannel = resolver.resolveBookmarkChannel(legacy);
         assertEquals("http://stream", legacyChannel.getCmd());
@@ -104,6 +117,8 @@ class PlayerRequestResolverTest extends DbBackedTest {
 
         assertEquals("api-cat", resolver.resolveSeriesCategoryId(account, saved.getDbId()));
         assertEquals("raw-cat", resolver.resolveSeriesCategoryId(account, "raw-cat"));
+        account.setCacheEnabled(false);
+        assertEquals("api-cat", resolver.resolveSeriesCategoryId(account, "live:resolver-series-id:api-cat"));
         account.setAction(Account.AccountAction.itv);
         assertEquals("", resolver.resolveSeriesCategoryId(account, saved.getDbId()));
     }
@@ -118,5 +133,73 @@ class PlayerRequestResolverTest extends DbBackedTest {
         assertEquals("provider-category", resolver.resolveBookmarkSourceCategoryId(account, bookmark));
         bookmark.setCategoryId(null);
         assertEquals("provider-category", resolver.resolveBookmarkSourceCategoryId(account, bookmark));
+    }
+
+    @Test
+    void bookmarkSourceCategoryUsesProviderIdWhenCachingIsDisabledAndCategoryRowsAreAbsent() {
+        Account account = new Account("no-cache-series", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://test", false);
+        account.setDbId("no-cache-series-id");
+        account.setAction(Account.AccountAction.series);
+        account.setCacheEnabled(false);
+
+        Category liveCategory = new Category("provider-category", "Shows", "shows", false, 0);
+        liveCategory.setDbId("live:no-cache-series-id:provider-category");
+        Bookmark bookmark = new Bookmark("no-cache-series", "Shows", "series-1", "Series One", "cmd://series-1", "portal", "favorites");
+        bookmark.setCategoryJson(liveCategory.toJson());
+
+        PlayerRequestResolver resolver = new PlayerRequestResolver();
+
+        assertEquals("provider-category", resolver.resolveBookmarkSourceCategoryId(account, bookmark));
+        assertEquals(java.util.List.of(), SeriesCategoryDb.get().getCategories(account));
+    }
+
+    @Test
+    void bookmarkPlaybackUsesSavedSnapshotsWithoutLoadingCategoriesOrChannels() throws Exception {
+        Account account = new Account("bookmark-no-cache", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://test", false);
+        account.setDbId("bookmark-no-cache-id");
+        account.setAction(Account.AccountAction.series);
+        account.setCacheEnabled(false);
+
+        Category liveCategory = new Category("provider-series", "Shows", "shows", false, 0);
+        liveCategory.setDbId("live:bookmark-no-cache-id:provider-series");
+        Channel savedChannel = new Channel();
+        savedChannel.setChannelId("episode-1");
+        savedChannel.setName("Episode One");
+        savedChannel.setCmd("http://stream/episode-1.mkv");
+        Bookmark bookmark = new Bookmark("bookmark-no-cache", "Shows", "episode-1", "Episode One", "cmd", "portal", "favorites");
+        bookmark.setAccountAction(Account.AccountAction.series);
+        bookmark.setCategoryJson(liveCategory.toJson());
+        bookmark.setChannelJson(savedChannel.toJson());
+
+        BookmarkService bookmarkService = mock(BookmarkService.class);
+        AccountService accountService = mock(AccountService.class);
+        PlayerService playerService = mock(PlayerService.class);
+        PlayerResponse response = new PlayerResponse("http://resolved/episode-1.mkv");
+        try (MockedStatic<BookmarkService> bookmarkStatic = mockStatic(BookmarkService.class);
+             MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<PlayerService> playerStatic = mockStatic(PlayerService.class);
+             MockedStatic<CategoryService> categoryStatic = mockStatic(CategoryService.class);
+             MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class)) {
+            bookmarkStatic.when(BookmarkService::getInstance).thenReturn(bookmarkService);
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            playerStatic.when(PlayerService::getInstance).thenReturn(playerService);
+            when(bookmarkService.getBookmark("bookmark-id")).thenReturn(bookmark);
+            when(accountService.getAll()).thenReturn(Map.of(account.getAccountName(), account));
+            when(playerService.get(any(Account.class), any(Channel.class), eq("episode-1"), eq("show-1"), eq("provider-series")))
+                    .thenReturn(response);
+
+            PlayerResponse resolved = new PlayerRequestResolver().resolveBookmarkPlayback("bookmark-id", "series", "show-1");
+
+            ArgumentCaptor<Account> playbackAccount = ArgumentCaptor.forClass(Account.class);
+            ArgumentCaptor<Channel> playbackChannel = ArgumentCaptor.forClass(Channel.class);
+            verify(playerService).get(playbackAccount.capture(), playbackChannel.capture(), eq("episode-1"), eq("show-1"), eq("provider-series"));
+            assertFalse(playbackAccount.getValue().isCacheEnabled());
+            assertEquals("http://stream/episode-1.mkv", playbackChannel.getValue().getCmd());
+            assertEquals(response, resolved);
+            categoryStatic.verifyNoInteractions();
+            channelStatic.verifyNoInteractions();
+        }
     }
 }

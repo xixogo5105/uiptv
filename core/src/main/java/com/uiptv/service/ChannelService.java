@@ -9,6 +9,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
+import com.uiptv.service.cache.M3uCacheReloader;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.AppLog;
@@ -103,6 +104,12 @@ public class ChannelService {
 
     public List<Channel> get(String categoryId, Account account, String dbId, LoggerCallback logger, Consumer<List<Channel>> callback,
                              Supplier<Boolean> isCancelled, Consumer<PageProgress> progressCallback) throws IOException {
+        if (!account.isCacheEnabled()) {
+            if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
+                return getNonLiveChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
+            }
+            return getLiveChannelsWithoutCache(categoryId, account, logger, callback, isCancelled, progressCallback);
+        }
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             return getNonLiveChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
         }
@@ -119,6 +126,30 @@ public class ChannelService {
         }
         List<Channel> result = maybeFilterChannels(dedupeChannels(channels), true, account);
         return publishChannels(result, callback);
+    }
+
+    /** Loads one provider channel directly for playback when the account catalogue cache is disabled. */
+    public Channel getLiveChannelByChannelId(String categoryKey, String channelId, Account account) throws IOException {
+        if (account == null || isBlank(channelId)) {
+            return null;
+        }
+        String fetchCategoryKey = resolveLiveCategoryKey(categoryKey, account);
+        return get(fetchCategoryKey, account, categoryKey).stream()
+                .filter(channel -> channel != null && channelId.equals(channel.getChannelId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String resolveLiveCategoryKey(String categoryKey, Account account) {
+        if (isBlank(categoryKey) || CategoryType.isAll(categoryKey)) {
+            return categoryKey;
+        }
+        String key = categoryKey.trim();
+        String liveCategoryPrefix = "live:" + (account.getDbId() == null ? "" : account.getDbId()) + ":";
+        if (!key.startsWith(liveCategoryPrefix)) {
+            return categoryKey;
+        }
+        return key.substring(liveCategoryPrefix.length());
     }
 
     private List<Channel> loadCachedLiveChannels(String categoryId, String dbId, Account account, LoggerCallback logger) throws IOException {
@@ -143,7 +174,59 @@ public class ChannelService {
         if (shouldUseVodSeriesDbCache(account)) {
             return getCachedVodSeriesChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
         }
+        if (account.getType() == XTREME_API) {
+            return fetchXtremeChannelsDirect(categoryId, account, callback, isCancelled, progressCallback);
+        }
         return getVodOrSeries(categoryId, account, callback, isCancelled, logger, progressCallback);
+    }
+
+    private List<Channel> fetchXtremeChannelsDirect(String categoryId, Account account,
+                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                     Consumer<PageProgress> progressCallback) {
+        Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
+            List<Channel> visible = maybeFilterChannels(batch, true, account);
+            if (!visible.isEmpty()) callback.accept(visible);
+        };
+        List<Channel> fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback,
+                isCancelled == null ? null : isCancelled::get);
+        fetched.forEach(this::resolveLogoIfNeeded);
+        List<Channel> visible = maybeFilterChannels(dedupeChannels(fetched), true, account);
+        if (progressCallback != null) {
+            progressCallback.accept(new PageProgress(visible.size(), visible.size(), 1, 1));
+        }
+        return visible;
+    }
+
+    private List<Channel> getLiveChannelsWithoutCache(String categoryId, Account account, LoggerCallback logger,
+                                                       Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                       Consumer<PageProgress> progressCallback) throws IOException {
+        List<Channel> fetched;
+        if (account.getType() == STALKER_PORTAL) {
+            ensureStalkerSession(account, logger);
+            fetched = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled,
+                    true, logger, progressCallback);
+        } else if (account.getType() == XTREME_API) {
+            Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
+                List<Channel> visible = maybeFilterChannels(batch, true, account);
+                if (!visible.isEmpty()) callback.accept(visible);
+            };
+            fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback,
+                    isCancelled == null ? null : isCancelled::get);
+            if (progressCallback != null) {
+                progressCallback.accept(new PageProgress(fetched.size(), fetched.size(), 1, 1));
+            }
+        } else if (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) {
+            fetched = new M3uCacheReloader().loadLiveChannels(account, categoryId, logger);
+            if (progressCallback != null) {
+                progressCallback.accept(new PageProgress(fetched.size(), fetched.size(), 1, 1));
+            }
+        } else {
+            fetched = List.of();
+        }
+        fetched.forEach(this::resolveLogoIfNeeded);
+        List<Channel> visible = maybeFilterChannels(dedupeChannels(fetched), true, account);
+        boolean providerAlreadyStreamed = callback != null && account.getType() == XTREME_API;
+        return providerAlreadyStreamed ? visible : publishChannels(visible, callback);
     }
 
     private List<Channel> getCachedVodSeriesChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
@@ -322,7 +405,8 @@ public class ChannelService {
     }
 
     private boolean shouldUseVodSeriesDbCache(Account account) {
-        return (account.getAction() == vod || account.getAction() == series)
+        return account.isCacheEnabled()
+                && (account.getAction() == vod || account.getAction() == series)
                 && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
     }
 
@@ -441,7 +525,7 @@ public class ChannelService {
     }
 
     public Channel findCachedLiveChannel(Account account, String channelId, String channelName) {
-        if (account == null || isBlank(account.getDbId())) {
+        if (account == null || !account.isCacheEnabled() || isBlank(account.getDbId())) {
             return null;
         }
         Channel byId = getChannelByChannelIdAndAccount(channelId, account.getDbId());
@@ -477,7 +561,7 @@ public class ChannelService {
     }
 
     private Channel findCachedVodOrSeriesChannel(Account account, String categoryHint, String channelId, String channelName, boolean seriesLookup) {
-        if (account == null || isBlank(account.getDbId())) {
+        if (account == null || !account.isCacheEnabled() || isBlank(account.getDbId())) {
             return null;
         }
         String dbCategoryId = resolveCategoryDbId(account, categoryHint);

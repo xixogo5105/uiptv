@@ -18,6 +18,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -260,7 +261,11 @@ class AndroidCacheMaintenanceWorker(
                     val result = refreshAccountSafely(account, m3uReloader, xtremeReloader, stalkerReloader)
                     when (result.status) {
                         CacheRefreshJobStatus.SUCCEEDED -> passedAccounts += account.accountName
-                        CacheRefreshJobStatus.SKIPPED -> skippedAccounts += account.accountName
+                        CacheRefreshJobStatus.SKIPPED -> skippedAccounts += if (account.cacheEnabled) {
+                            account.accountName
+                        } else {
+                            "${account.accountName}: ${MobileMessages.text("reloadCacheDisabledSkipping")}"
+                        }
                         CacheRefreshJobStatus.FAILED -> {
                             failedAccounts += account.accountName
                             account.id?.let { failedAccountIds += it }
@@ -315,14 +320,18 @@ class AndroidCacheMaintenanceWorker(
         m3uReloader: AndroidM3uCacheReloader,
         xtremeReloader: AndroidXtremeCacheReloader,
         stalkerReloader: AndroidStalkerCacheReloader
-    ): M3uRefreshResult =
-        try {
+    ): M3uRefreshResult {
+        if (!account.cacheEnabled) {
+            return M3uRefreshResult.skipped(MobileMessages.text("reloadCacheDisabledSkipping"))
+        }
+        return try {
             refreshAccount(account, m3uReloader, xtremeReloader, stalkerReloader)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             M3uRefreshResult.failed(e.message ?: "Unexpected refresh error.")
         }
+    }
 
     private suspend fun refreshAccount(
         account: MobileAccount,

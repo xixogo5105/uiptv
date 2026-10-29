@@ -6,6 +6,7 @@ import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.PlayerRequestResolver;
@@ -38,7 +39,9 @@ public class PlaybackApplicationService {
 
     public PlaybackPlaylistResult buildPlaylist(PlaybackPlaylistRequest request) throws IOException {
         Account account = AccountService.getInstance().getById(request.accountId());
-        Channel channel = ChannelDb.get().getChannelById(request.channelId(), request.categoryId());
+        Channel channel = account.isCacheEnabled()
+                ? ChannelDb.get().getChannelById(request.channelId(), request.categoryId())
+                : ChannelService.getInstance().getLiveChannelByChannelId(request.categoryId(), request.channelId(), account);
         HandshakeService.getInstance().hardTokenRefresh(account);
         String originalCmd = channel.getCmd();
         channel.setCmd(URLDecoder.decode(originalCmd, UTF_8));

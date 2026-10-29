@@ -46,6 +46,8 @@ public class AccountDb extends BaseDb {
         account.setXtremeCredentialsJson(nullSafeString(resultSet, "xtremeCredentialsJson"));
         String parentalLockCol = nullSafeString(resultSet, "parentalLock");
         account.setParentalLock(parentalLockCol == null || parentalLockCol.isBlank() || "1".equals(parentalLockCol) || "true".equalsIgnoreCase(parentalLockCol));
+        String cacheEnabledCol = nullSafeString(resultSet, "cacheEnabled");
+        account.setCacheEnabled(cacheEnabledCol == null || cacheEnabledCol.isBlank() || "1".equals(cacheEnabledCol) || "true".equalsIgnoreCase(cacheEnabledCol));
         return account;
     }
 
@@ -88,9 +90,10 @@ public class AccountDb extends BaseDb {
             statement.setString(19, account.getHttpMethod());
             statement.setString(20, account.getTimezone());
             statement.setString(21, account.isParentalLock() ? "1" : "0");
+            statement.setString(22, account.isCacheEnabled() ? "1" : "0");
 
             if (accountExist) {
-                statement.setInt(22, Integer.valueOf(dbAccount.getDbId()));
+                statement.setInt(23, Integer.valueOf(dbAccount.getDbId()));
             }
             int affectedRows = statement.executeUpdate();
             if (affectedRows != 1) {

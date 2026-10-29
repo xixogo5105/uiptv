@@ -17,6 +17,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BookmarkResolverTest extends DbBackedTest {
 
     @Test
+    void savedCatalogPolicySurvivesAccountCachingChanges() {
+        Account account = new Account("saved-policy", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, "http://test/list.m3u8", false);
+        account.setCacheEnabled(false);
+        AccountService.getInstance().save(account);
+        Bookmark bookmark = new Bookmark(account.getAccountName(), "Sports", "channel", "Match", "http://stream", "", "");
+        BookmarkService.getInstance().save(bookmark);
+        account.setCacheEnabled(true);
+        AccountService.getInstance().save(account);
+        Bookmark saved = BookmarkService.getInstance().getBookmark(bookmark.getDbId());
+        BookmarkService.getInstance().save(saved);
+        assertEquals(false, new org.json.JSONObject(saved.getCategoryJson()).getBoolean("catalogCacheEnabledAtSave"));
+        assertEquals("http://stream", new PlayerRequestResolver().resolveBookmarkChannel(saved).getCmd());
+    }
+
+    @Test
     void resolveBookmark_usesSnapshotData_andDefaultsAccountAction() {
         Account account = new Account("bookmark-acc", "user", "pass", "http://test", null, null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://test/list.m3u8", false);
@@ -43,6 +59,31 @@ class BookmarkResolverTest extends DbBackedTest {
         assertEquals("inputstream.adaptive", resolved.getInputstreamaddon());
         assertEquals("dash", resolved.getManifestType());
         assertEquals(Account.AccountAction.itv, resolved.getAccountAction());
+    }
+
+    @Test
+    void resolveBookmarkUsesSavedSnapshotWhenCachingIsDisabledAndCatalogRowsAreAbsent() {
+        Account account = new Account("bookmark-no-catalog-cache", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, "http://test/list.m3u8", false);
+        account.setCacheEnabled(false);
+        AccountService.getInstance().save(account);
+
+        Channel snapshot = new Channel();
+        snapshot.setLogo("http://img.example/saved-logo.png");
+        snapshot.setDrmType("widevine");
+        snapshot.setDrmLicenseUrl("http://license.example/key");
+        Bookmark bookmark = new Bookmark(account.getAccountName(), "Sports", "channel-8", "Saved live channel",
+                "http://stream.example/channel-8", "http://portal", "live-category-id");
+        bookmark.setChannelJson(snapshot.toJson());
+
+        BookmarkResolver.ResolvedBookmark resolved = new BookmarkResolver()
+                .resolveBookmark(bookmark, new BookmarkResolver().prepare(List.of(bookmark)));
+
+        assertEquals("http://img.example/saved-logo.png", resolved.getLogo());
+        assertEquals("widevine", resolved.getDrmType());
+        assertEquals("http://license.example/key", resolved.getDrmLicenseUrl());
+        assertTrue(CategoryDb.get().getAllAccountCategories(account.getDbId()).isEmpty());
+        assertTrue(ChannelDb.get().getChannelsByChannelIdsAndAccount(List.of("channel-8"), account.getDbId()).isEmpty());
     }
 
     @Test
@@ -79,5 +120,12 @@ class BookmarkResolverTest extends DbBackedTest {
         assertEquals("inputstream.adaptive", resolved.getInputstreamaddon());
         assertEquals("hls", resolved.getManifestType());
         assertTrue(resolved.getLogo().contains("news"));
+
+        Bookmark liveBookmark = new Bookmark("bookmark-cache", "News", "ch-9", "Saved live title", "cmd", "http://portal", "");
+        liveBookmark.setCategoryJson("{\"catalogCacheEnabledAtSave\":false}");
+        BookmarkResolver.ResolvedBookmark liveResolved = resolver.resolveBookmark(
+                liveBookmark, resolver.prepare(List.of(liveBookmark)));
+        assertTrue(liveResolved.getLogo() == null || liveResolved.getLogo().isBlank());
+        assertTrue(liveResolved.getDrmType() == null || liveResolved.getDrmType().isBlank());
     }
 }

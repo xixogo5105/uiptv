@@ -27,7 +27,9 @@ data class MobileAccount(
     val pinToTop: Boolean = false,
     val resolveChainAndDeepRedirects: Boolean = false,
     val httpMethod: String = "GET",
-    val timezone: String = "Europe/London"
+    val timezone: String = "Europe/London",
+    /** Catalog-cache policy synchronized from the desktop Account row. */
+    val cacheEnabled: Boolean = true
 ) {
     fun normalizedForSave(): MobileAccount {
         val trimmedUrl = url.trim()

@@ -7,10 +7,14 @@ import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.cache.AndroidCatalogMode
+import com.uiptv.mobile.shared.cache.AndroidPortalCategory
 import com.uiptv.mobile.shared.cache.AndroidPortalChannel
 import com.uiptv.mobile.shared.cache.AndroidPortalEpisode
+import com.uiptv.mobile.shared.cache.AndroidM3uCacheReloader
+import com.uiptv.mobile.shared.cache.M3uEntry
 import com.uiptv.mobile.shared.cache.AndroidStalkerCacheReloader
 import com.uiptv.mobile.shared.cache.AndroidVodSeriesCatalogClient
+import com.uiptv.mobile.shared.cache.AndroidXtremeCacheReloader
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,9 +46,16 @@ class AndroidSQLiteBrowseRepository(
         val selectedAccountId = accountId
             ?: accounts.firstOrNull { it.id in cachedAccountIds }?.id
             ?: accounts.firstOrNull()?.id
-        var categories = if (selectedAccountId == null) emptyList() else {
-            loadCategories(db, selectedAccountId, mode).filterByCategoryFilters(filters)
+        val selectedAccount = selectedAccountId?.let { selectedId ->
+            AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == selectedId }
         }
+        val cachedCategoryRows = if (selectedAccountId == null) emptyList() else {
+            loadCategories(db, selectedAccountId, mode)
+        }
+        if (selectedAccount != null && (!selectedAccount.cacheEnabled || cachedCategoryRows.isEmpty())) {
+            return@withContext loadLiveBrowse(db, accounts, selectedAccount, mode, categoryRowId, query, filters)
+        }
+        var categories = cachedCategoryRows.filterByCategoryFilters(filters)
         val selectedCategoryRowId = categoryRowId?.takeIf { selected -> categories.any { it.rowId == selected } }
         if (selectedAccountId != null && selectedCategoryRowId != null) {
             val selectedCategory = categories.firstOrNull { it.rowId == selectedCategoryRowId }
@@ -70,6 +81,202 @@ class AndroidSQLiteBrowseRepository(
             selectedCategoryRowId = selectedCategoryRowId,
             items = items
         )
+    }
+
+    private fun loadLiveBrowse(
+        db: SQLiteDatabase,
+        accounts: List<BrowseAccountOption>,
+        account: MobileAccount,
+        mode: BrowseMode,
+        requestedCategoryRowId: Long?,
+        query: String,
+        filters: FilterConfig
+    ): MobileBrowseSnapshot {
+        val accountId = requireNotNull(account.id)
+        val m3uReloader = if (
+            mode == BrowseMode.LIVE &&
+            account.type in setOf(MobileAccountType.M3U8_URL, MobileAccountType.M3U8_LOCAL)
+        ) {
+            AndroidM3uCacheReloader(databaseHelper.applicationContext(), databaseHelper)
+        } else {
+            null
+        }
+        val m3uEntries = m3uReloader?.loadEntries(account)
+        val portalCategories = when (mode) {
+            BrowseMode.LIVE -> when (account.type) {
+                MobileAccountType.XTREME_API -> AndroidXtremeCacheReloader(databaseHelper).fetchLiveCategories(account)
+                MobileAccountType.STALKER_PORTAL -> AndroidStalkerCacheReloader(databaseHelper).fetchLiveCategories(account)
+                MobileAccountType.M3U8_URL,
+                MobileAccountType.M3U8_LOCAL -> m3uEntries.orEmpty().liveM3uCategories(m3uReloader!!)
+            }
+            BrowseMode.VOD,
+            BrowseMode.SERIES -> mode.toCatalogMode()?.let {
+                AndroidVodSeriesCatalogClient().fetchCategories(account, it)
+            }.orEmpty()
+        }
+        val categories = portalCategories
+            .map { providerCategory ->
+                MobileBrowseCategory(
+                    rowId = syntheticCategoryRowId(accountId, mode, providerCategory.id),
+                    providerId = providerCategory.id,
+                    accountId = accountId,
+                    title = providerCategory.title.ifBlank { "Uncategorized" },
+                    itemCount = -1
+                )
+            }
+            .filterByCategoryFilters(filters)
+        val selectedCategory = requestedCategoryRowId?.let { rowId -> categories.firstOrNull { it.rowId == rowId } }
+        val items = if (selectedCategory == null) {
+            emptyList()
+        } else {
+            val bookmarkedIds = loadBookmarkedChannelIds(db, account.accountName, mode)
+            val liveItems = if (m3uReloader != null) {
+                requireNotNull(m3uEntries).toLiveBrowseItems(account, selectedCategory, m3uReloader, bookmarkedIds)
+            } else {
+                val channels = when (mode) {
+                    BrowseMode.LIVE -> when (account.type) {
+                        MobileAccountType.XTREME_API -> AndroidXtremeCacheReloader(databaseHelper)
+                            .fetchLiveChannels(account, selectedCategory.providerId)
+                        MobileAccountType.STALKER_PORTAL -> AndroidStalkerCacheReloader(databaseHelper)
+                            .fetchLiveChannels(account, selectedCategory.providerId)
+                        MobileAccountType.M3U8_URL,
+                        MobileAccountType.M3U8_LOCAL -> emptyList()
+                    }
+                    BrowseMode.VOD,
+                    BrowseMode.SERIES -> AndroidVodSeriesCatalogClient().fetchChannels(
+                        account,
+                        requireNotNull(mode.toCatalogMode()),
+                        selectedCategory.providerId
+                    )
+                }
+                channels.toLiveBrowseItems(account, mode, selectedCategory, bookmarkedIds)
+            }
+            liveItems
+                .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) || it.channelId.contains(query.trim(), ignoreCase = true) }
+                .filterByChannelFilters(filters)
+        }
+        return MobileBrowseSnapshot(
+            accounts = accounts,
+            selectedAccountId = accountId,
+            mode = mode,
+            categories = categories,
+            selectedCategoryRowId = selectedCategory?.rowId,
+            items = items
+        )
+    }
+
+    private fun List<M3uEntry>.liveM3uCategories(reloader: AndroidM3uCacheReloader): List<AndroidPortalCategory> {
+        val groupTitles = flatMap { entry -> entry.m3uGroups() }
+            .distinctBy { it.lowercase() }
+            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+        return buildList {
+            add(AndroidPortalCategory("all", "All"))
+            addAll(groupTitles.map { title -> AndroidPortalCategory(reloader.stableCategoryId(title), title) })
+        }
+    }
+
+    private fun List<M3uEntry>.toLiveBrowseItems(
+        account: MobileAccount,
+        category: MobileBrowseCategory,
+        reloader: AndroidM3uCacheReloader,
+        bookmarkedIds: Set<String>
+    ): List<MobileBrowseItem> =
+        mapIndexedNotNull { index, entry ->
+            val groups = entry.m3uGroups()
+            val categoryMatches = category.providerId == "all" ||
+                groups.any { reloader.stableCategoryId(it) == category.providerId }
+            if (!categoryMatches) return@mapIndexedNotNull null
+            val channelId = entry.tvgId.ifBlank { reloader.stableChannelId(entry.url, index) }
+            val extra = jsonObjectOrNull(entry.extraJson)
+            MobileBrowseItem(
+                rowId = syntheticItemRowId(account.id ?: 0L, BrowseMode.LIVE, category.providerId, channelId, index),
+                accountId = account.id ?: 0L,
+                accountName = account.accountName,
+                mode = BrowseMode.LIVE,
+                categoryRowId = category.rowId,
+                categoryProviderId = category.providerId,
+                categoryTitle = category.title,
+                channelId = channelId,
+                epgId = extra?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty(),
+                name = entry.name.ifBlank { channelId },
+                number = entry.channelNumber,
+                command = entry.url,
+                logo = entry.logo,
+                drmType = entry.drmType,
+                drmLicenseUrl = entry.drmLicenseUrl,
+                clearKeysJson = entry.clearKeysJson,
+                inputstreamAddon = entry.inputstreamaddon,
+                manifestType = entry.manifestType,
+                isHd = entry.name.contains("HD", ignoreCase = true),
+                isBookmarked = channelId in bookmarkedIds,
+                plot = extra?.firstCleanString("plot", "description", "overview").orEmpty(),
+                releaseDate = extra?.firstCleanString("releaseDate", "release_date", "released", "year").orEmpty(),
+                rating = extra?.firstCleanString("rating", "rating_imdb").orEmpty(),
+                duration = extra?.firstCleanString("duration", "runtime", "time").orEmpty(),
+                genre = extra?.firstCleanString("genre").orEmpty(),
+                imdbUrl = extra?.firstCleanString("imdbUrl").orEmpty()
+            )
+        }
+
+    private fun List<AndroidPortalChannel>.toLiveBrowseItems(
+        account: MobileAccount,
+        mode: BrowseMode,
+        category: MobileBrowseCategory,
+        bookmarkedIds: Set<String>
+    ): List<MobileBrowseItem> =
+        mapIndexed { index, channel ->
+            val extra = jsonObjectOrNull(channel.extraJson)
+            MobileBrowseItem(
+                rowId = syntheticItemRowId(account.id ?: 0L, mode, category.providerId, channel.channelId, index),
+                accountId = account.id ?: 0L,
+                accountName = account.accountName,
+                mode = mode,
+                categoryRowId = category.rowId,
+                categoryProviderId = category.providerId,
+                categoryTitle = category.title,
+                channelId = channel.channelId,
+                epgId = extra?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty(),
+                name = channel.name.ifBlank { channel.channelId },
+                number = channel.number,
+                command = channel.command,
+                logo = channel.logo,
+                isHd = channel.hd == 1,
+                isBookmarked = channel.channelId in bookmarkedIds,
+                plot = channel.plot.ifBlank { extra?.firstCleanString("plot", "description", "overview").orEmpty() },
+                releaseDate = channel.releaseDate.ifBlank { extra?.firstCleanString("release_date", "released", "year").orEmpty() },
+                rating = channel.rating.ifBlank { extra?.firstCleanString("rating_imdb", "rating").orEmpty() },
+                duration = channel.duration.ifBlank { extra?.firstCleanString("duration", "runtime", "time").orEmpty() },
+                genre = extra?.firstCleanString("genre").orEmpty(),
+                imdbUrl = extra?.firstCleanString("imdbUrl").orEmpty()
+            )
+        }
+
+    private fun M3uEntry.m3uGroups(): List<String> =
+        groupTitle.split(';').map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("Uncategorized") }
+
+    private fun loadBookmarkedChannelIds(db: SQLiteDatabase, accountName: String, mode: BrowseMode): Set<String> =
+        db.rawQuery(
+            "SELECT channelId FROM Bookmark WHERE accountName = ? AND accountAction = ?",
+            arrayOf(accountName, mode.accountAction())
+        ).use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.string("channelId")) }
+        }
+
+    private fun syntheticCategoryRowId(accountId: Long, mode: BrowseMode, providerId: String): Long {
+        var hash = 1469598103934665603L
+        "$accountId|${mode.name}|$providerId".forEach { hash = (hash xor it.code.toLong()) * 1099511628211L }
+        return Long.MIN_VALUE + (hash and Long.MAX_VALUE)
+    }
+
+    private fun syntheticItemRowId(
+        accountId: Long,
+        mode: BrowseMode,
+        categoryProviderId: String,
+        channelId: String,
+        index: Int
+    ): Long {
+        val value = "$accountId|${mode.name}|$categoryProviderId|$channelId|$index".hashCode().toLong() and Long.MAX_VALUE
+        return value.coerceAtLeast(1L)
     }
 
     override suspend fun listBookmarkCategories(): List<MobileBookmarkCategory> = withContext(Dispatchers.IO) {
@@ -214,7 +421,12 @@ class AndroidSQLiteBrowseRepository(
     }
 
     private fun List<MobileBookmark>.withCachedBookmarkFallbacks(db: SQLiteDatabase): List<MobileBookmark> {
-        val targets = filter { it.needsBookmarkFallback() && it.bookmarkFallbackKey() != null }
+        val cacheEnabledByAccount = map { it.accountName }.distinct()
+            .associateWith { accountCacheEnabled(db, it) }
+        val targets = filter {
+            it.catalogCacheEnabledAtSave != false && cacheEnabledByAccount[it.accountName] == true &&
+                it.needsBookmarkFallback() && it.bookmarkFallbackKey() != null
+        }
         if (targets.isEmpty()) {
             return this
         }
@@ -228,6 +440,9 @@ class AndroidSQLiteBrowseRepository(
         }
 
         return map { bookmark ->
+            if (bookmark.catalogCacheEnabledAtSave == false || cacheEnabledByAccount[bookmark.accountName] != true) {
+                return@map bookmark
+            }
             val key = bookmark.bookmarkFallbackKey()
             val fallback = if (key == null) null else fallbacks[key]
             if (fallback == null) {
@@ -351,8 +566,21 @@ class AndroidSQLiteBrowseRepository(
                     put("inputstreamaddon", item.inputstreamAddon)
                     put("manifestType", item.manifestType)
                     put("categoryJson", JSONObject().put("dbId", item.categoryRowId.toString())
-                        .put("categoryId", item.categoryProviderId).put("title", item.categoryTitle).toString())
-                    put("channelJson", "")
+                        .put("categoryId", item.categoryProviderId)
+                        .put("title", item.categoryTitle)
+                        .put("catalogCacheEnabledAtSave", accountCacheEnabled(db, item.accountName))
+                        .toString())
+                    put("channelJson", JSONObject().apply {
+                        put("channelId", item.channelId)
+                        put("name", item.name)
+                        put("cmd", item.command)
+                        put("logo", item.logo)
+                        put("drmType", item.drmType)
+                        put("drmLicenseUrl", item.drmLicenseUrl)
+                        put("clearKeysJson", item.clearKeysJson)
+                        put("inputstreamaddon", item.inputstreamAddon)
+                        put("manifestType", item.manifestType)
+                    }.toString())
                     put("vodJson", "")
                     put("seriesJson", "")
                 }
@@ -502,21 +730,27 @@ class AndroidSQLiteBrowseRepository(
             return@withContext emptyList()
         }
         val db = databaseHelper.writableDatabase
-        val cached = loadSeriesEpisodesFromDb(db, item, exactCategory = true)
-            .ifEmpty { loadSeriesEpisodesFromDb(db, item, exactCategory = false) }
-            .ifEmpty { loadSeriesEpisodesFromSnapshot(db, item) }
-        if (cached.isNotEmpty() && cached.all { it.command.isNotBlank() }) {
-            return@withContext cached.withWatchingMarker(db, item)
-        }
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
             .firstOrNull { it.id == item.accountId }
-            ?: return@withContext cached.withWatchingMarker(db, item)
+            ?: return@withContext emptyList()
+        val cached = if (account.cacheEnabled) {
+            loadSeriesEpisodesFromDb(db, item, exactCategory = true)
+                .ifEmpty { loadSeriesEpisodesFromDb(db, item, exactCategory = false) }
+                .ifEmpty { loadSeriesEpisodesFromSnapshot(db, item) }
+        } else {
+            emptyList()
+        }
+        if (cached.isNotEmpty() && cached.all { it.command.isNotBlank() }) {
+            return@withContext cached.withWatchingMarker(db, item)
+        }
         val fetched = runCatching {
             AndroidVodSeriesCatalogClient().fetchSeriesEpisodes(account, item.categoryProviderId, item.contentId)
         }.getOrDefault(emptyList())
         if (fetched.isNotEmpty()) {
-            saveFetchedSeriesEpisodes(db, item, fetched)
+            if (account.cacheEnabled) {
+                saveFetchedSeriesEpisodes(db, item, fetched)
+            }
             fetched.toWatchingNowEpisodes(item).withWatchingMarker(db, item)
         } else {
             cached.withWatchingMarker(db, item)
@@ -695,6 +929,9 @@ class AndroidSQLiteBrowseRepository(
             .listAccounts()
             .firstOrNull { it.id == accountId }
             ?: return false
+        if (!account.cacheEnabled) {
+            return false
+        }
         if (account.type != MobileAccountType.XTREME_API && account.type != MobileAccountType.STALKER_PORTAL) {
             return false
         }
@@ -719,6 +956,9 @@ class AndroidSQLiteBrowseRepository(
             .listAccounts()
             .firstOrNull { it.id == accountId }
             ?: return false
+        if (!account.cacheEnabled) {
+            return false
+        }
         if (account.type != MobileAccountType.STALKER_PORTAL) {
             return false
         }
@@ -1741,9 +1981,24 @@ class AndroidSQLiteBrowseRepository(
             inputstreamAddon = renderData.inputstreamaddon,
             manifestType = renderData.manifestType,
             categoryProviderId = sourceCategory?.optString("categoryId").orEmpty(),
-            categoryRowId = sourceCategory?.optString("dbId")?.toLongOrNull() ?: 0L
+            categoryRowId = sourceCategory?.optString("dbId")?.toLongOrNull() ?: 0L,
+            catalogCacheEnabledAtSave = sourceCategory?.takeIf { it.has("catalogCacheEnabledAtSave") }
+                ?.optBoolean("catalogCacheEnabledAtSave")
         )
     }
+
+    private fun accountCacheEnabled(db: SQLiteDatabase, accountName: String): Boolean =
+        db.rawQuery(
+            "SELECT cacheEnabled FROM Account WHERE accountName = ? LIMIT 1",
+            arrayOf(accountName)
+        ).use { cursor ->
+            if (!cursor.moveToFirst() || cursor.isNull(0)) {
+                true
+            } else {
+                val value = cursor.getString(0).orEmpty()
+                value.isBlank() || value == "1" || value.equals("true", ignoreCase = true)
+            }
+        }
 
     private fun Cursor.resolvedBookmarkRenderData(): BookmarkRenderData {
         val data = BookmarkRenderData(

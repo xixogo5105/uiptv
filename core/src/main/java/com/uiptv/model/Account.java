@@ -56,6 +56,7 @@ public class Account extends BaseJson {
     private String dbId;
     private String token;
     private boolean pinToTop;
+    private boolean cacheEnabled = true;
     private boolean resolveChainAndDeepRedirects;
     private boolean webPlaybackProxy;
     private AccountType type = STALKER_PORTAL;

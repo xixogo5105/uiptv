@@ -51,6 +51,73 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CatalogApplicationServiceTest extends DbBackedTest {
 
     @Test
+    void listChannelsUsesLiveCategoryKeyWithoutFetchingCategoryListAgain() throws Exception {
+        Account account = new Account("live-category-account", "user", "pass", "http://provider", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://provider", false);
+        account.setDbId("live-category-account-id");
+        account.setAction(Account.AccountAction.itv);
+        account.setCacheEnabled(false);
+
+        AccountService accountService = mock(AccountService.class);
+        ChannelService channelService = mock(ChannelService.class);
+        Channel currentChannel = new Channel();
+        currentChannel.setChannelId("match-1");
+        currentChannel.setName("Current match");
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<CategoryService> categoryStatic = mockStatic(CategoryService.class);
+             MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class)) {
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            when(accountService.getById(account.getDbId())).thenReturn(account);
+            when(channelService.get(eq("sports"), any(Account.class), eq("live:live-category-account-id:sports")))
+                    .thenReturn(List.of(currentChannel));
+
+            List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
+                    new CatalogChannelsQuery(account.getDbId(), CatalogMode.ITV, "live:live-category-account-id:sports", ""), false);
+
+            assertEquals("Current match", channels.getFirst().getName());
+            verify(channelService).get(eq("sports"), any(Account.class), eq("live:live-category-account-id:sports"));
+            categoryStatic.verifyNoInteractions();
+        }
+    }
+
+    @Test
+    void listChannelsRecognizesSyntheticAllCategoryWhenCachingIsDisabled() throws Exception {
+        Account account = new Account("live-all-account", "user", "pass", "http://provider", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://provider", false);
+        account.setDbId("live-all-account-id");
+        account.setAction(Account.AccountAction.itv);
+        account.setCacheEnabled(false);
+
+        AccountService accountService = mock(AccountService.class);
+        CategoryService categoryService = mock(CategoryService.class);
+        ChannelService channelService = mock(ChannelService.class);
+        Category liveCategory = new Category("sports", "Sports", "Sports", false, 0);
+        liveCategory.setDbId("live:live-all-account-id:sports");
+        Channel currentChannel = new Channel();
+        currentChannel.setChannelId("match-2");
+        currentChannel.setName("Current match");
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<CategoryService> categoryStatic = mockStatic(CategoryService.class);
+             MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class)) {
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            categoryStatic.when(CategoryService::getInstance).thenReturn(categoryService);
+            channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            when(accountService.getById(account.getDbId())).thenReturn(account);
+            when(categoryService.get(account, false)).thenReturn(List.of(liveCategory));
+            when(channelService.get(eq("sports"), any(Account.class), eq("live:live-all-account-id:sports")))
+                    .thenReturn(List.of(currentChannel));
+
+            List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
+                    new CatalogChannelsQuery(account.getDbId(), CatalogMode.ITV, "all", ""), false);
+
+            assertEquals("Current match", channels.getFirst().getName());
+            verify(categoryService).get(account, false);
+            verify(channelService).get(eq("sports"), any(Account.class), eq("live:live-all-account-id:sports"));
+        }
+    }
+
+    @Test
     void listCategories_appliesModeAndReturnsResolvedCategories() {
         Account account = new Account("categories", "user", "pass", "http://127.0.0.1/mock", null, null, null, null, null, null, AccountType.XTREME_API, null, "http://127.0.0.1/mock", false);
         Category category = new Category("10", "Sports", "sports", false, 0);

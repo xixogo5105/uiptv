@@ -99,6 +99,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final Map<String, ChannelItem> channelItemByKey = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicReference<Map<String, String>> categoryTitleByCategoryId = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
+    private final Map<String, Category> categorySnapshotByKey;
     private final AtomicReference<Map<String, SeriesWatchState>> currentSeriesWatchStates = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
@@ -166,6 +167,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     public ChannelListUI(AccountMediaContext mediaContext, String categoryTitle, String categoryId, Account.AccountAction listAction, boolean allCategory) {
+        this(mediaContext, categoryTitle, categoryId, listAction, allCategory, List.of());
+    }
+
+    public ChannelListUI(AccountMediaContext mediaContext, String categoryTitle, String categoryId,
+                         Account.AccountAction listAction, boolean allCategory, List<Category> categorySnapshots) {
         this.allCategory = allCategory;
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
@@ -175,6 +181,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 : mediaContext.withAction(this.listAction);
         this.account = this.mediaContext.toAccount();
         this.categoryTitle = categoryTitle;
+        this.categorySnapshotByKey = indexCategorySnapshots(categorySnapshots);
+        populateCategoryTitleIndexes(categorySnapshots);
         channelChangePulse.setOnFinished(_ -> drainChannelChanges());
         preloadAllCategoryContextAsync();
         initWidgets();
@@ -185,6 +193,38 @@ public class ChannelListUI extends HBox implements SearchTarget {
             channelGrid.setItems(channelGrid.getItems());
         });
         table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
+    }
+
+    private static Map<String, Category> indexCategorySnapshots(List<Category> categories) {
+        Map<String, Category> indexed = new HashMap<>();
+        if (categories != null) {
+            for (Category category : categories) {
+                if (category == null) continue;
+                addCategorySnapshotKey(indexed, category.getDbId(), category);
+                addCategorySnapshotKey(indexed, category.getCategoryId(), category);
+                addCategorySnapshotKey(indexed, category.getTitle(), category);
+            }
+        }
+        return Map.copyOf(indexed);
+    }
+
+    private static void addCategorySnapshotKey(Map<String, Category> indexed, String key, Category category) {
+        if (isBlank(key)) return;
+        indexed.putIfAbsent(key.trim(), category);
+        indexed.putIfAbsent(key.trim().toLowerCase(Locale.ROOT), category);
+    }
+
+    private void populateCategoryTitleIndexes(List<Category> categories) {
+        if (categories == null || categories.isEmpty()) return;
+        Map<String, String> byId = new HashMap<>();
+        Map<String, String> byTitle = new HashMap<>();
+        for (Category category : categories) {
+            if (category == null || isBlank(category.getTitle())) continue;
+            if (!isBlank(category.getCategoryId())) byId.putIfAbsent(category.getCategoryId(), category.getTitle());
+            byTitle.putIfAbsent(normalizeCategoryKey(category.getTitle()), category.getTitle());
+        }
+        categoryTitleByCategoryId.set(Map.copyOf(byId));
+        categoryTitleByNormalizedTitle.set(Map.copyOf(byTitle));
     }
 
     public void setMediaDrawerMode(boolean mediaDrawerMode) {
@@ -1947,6 +1987,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (!isAllCategoryView()) {
             return;
         }
+        if (!categorySnapshotByKey.isEmpty()) {
+            runLater(this::refreshBookmarkStatesAsync);
+            return;
+        }
         new Thread(() -> {
             if (disposed.get()) {
                 return;
@@ -2336,9 +2380,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 bookmark.setAccountAction(listAction);
                 bookmark.setCategoryId(bookmarkCategoryId);
 
-                Category cat = new Category();
-                cat.setCategoryId(ctx.categoryId);
-                cat.setTitle(ctx.categoryTitle);
+                Category cat = categorySnapshotForBookmark(ctx);
                 bookmark.setCategoryJson(cat.toJson());
 
                 if (item.getChannel() != null) {
@@ -2358,6 +2400,22 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 refreshBookmarkStatesAsync();
             });
         }, "channel-bookmark-save");
+    }
+
+    private Category categorySnapshotForBookmark(BookmarkContext context) {
+        Category source = categorySnapshotByKey.get(normalizeExact(context.categoryId));
+        if (source == null) source = categorySnapshotByKey.get(normalizeCategoryKey(context.categoryId));
+        if (source == null) source = categorySnapshotByKey.get(normalizeCategoryKey(context.categoryTitle));
+        Category snapshot = source == null ? new Category() : Category.fromJson(source.toJson());
+        if (snapshot == null) snapshot = new Category();
+        if (isBlank(snapshot.getCategoryId())) snapshot.setCategoryId(context.categoryId);
+        if (isBlank(snapshot.getTitle())) snapshot.setTitle(context.categoryTitle);
+        if (isBlank(snapshot.getAccountId())) snapshot.setAccountId(account.getDbId());
+        if (isBlank(snapshot.getAccountType()) && account.getType() != null) snapshot.setAccountType(account.getType().name());
+        if (!account.isCacheEnabled() && isBlank(snapshot.getDbId())) {
+            snapshot.setDbId("live:" + Objects.toString(account.getDbId(), "") + ":" + Objects.toString(context.categoryId, ""));
+        }
+        return snapshot;
     }
 
     private void saveVodWatchingNow(ChannelItem item) {

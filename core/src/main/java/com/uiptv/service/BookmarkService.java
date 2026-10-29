@@ -45,6 +45,7 @@ public class BookmarkService {
     }
 
     public void save(Bookmark bookmark) {
+        stampCatalogPolicy(bookmark);
         if (BookmarkPlayHistoryDb.isRecentId(bookmark.getDbId())) bookmark.setDbId(null);
         boolean created = BookmarkDb.get().save(bookmark);
         if (created) {
@@ -52,6 +53,21 @@ public class BookmarkService {
             BookmarkDb.get().saveBookmarkOrder(bookmark.getDbId(), nextDisplayOrder);
         }
         touchChange();
+    }
+
+    private void stampCatalogPolicy(Bookmark bookmark) {
+        org.json.JSONObject snapshot;
+        try {
+            snapshot = new org.json.JSONObject(bookmark.getCategoryJson());
+        } catch (Exception ignored) {
+            snapshot = new org.json.JSONObject();
+        }
+        if (snapshot.has("catalogCacheEnabledAtSave")) return;
+        AccountService accountService = AccountService.getInstance();
+        com.uiptv.model.Account account = accountService.getAll().get(bookmark.getAccountName());
+        if (account == null) return;
+        snapshot.put("catalogCacheEnabledAtSave", account.isCacheEnabled());
+        bookmark.setCategoryJson(snapshot.toString());
     }
 
     public List<Bookmark> read() {

@@ -4,6 +4,7 @@ import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class AccountViewTest {
@@ -12,6 +13,7 @@ class AccountViewTest {
     void accountViewSnapshotsMutableAccountAndBuildsModeAdapter() {
         Account source = sampleAccount();
         source.setAction(Account.AccountAction.itv);
+        source.setCacheEnabled(false);
 
         AccountView view = AccountView.from(source);
 
@@ -24,6 +26,8 @@ class AccountViewTest {
         assertEquals("Original", adapter.getAccountName());
         assertEquals("account-1", adapter.getDbId());
         assertEquals("token-1", adapter.getToken());
+        assertFalse(view.cacheEnabled());
+        assertFalse(adapter.isCacheEnabled());
         assertEquals(Account.AccountAction.series, adapter.getAction());
         assertEquals(Account.AccountAction.vod, source.getAction());
     }
@@ -32,6 +36,7 @@ class AccountViewTest {
     void accountMediaContextPreservesSnapshotAndCreatesIndependentModeAdapters() {
         Account source = sampleAccount();
         source.setAction(Account.AccountAction.itv);
+        source.setCacheEnabled(false);
 
         AccountMediaContext context = AccountMediaContext.from(source, Account.AccountAction.vod);
 
@@ -43,6 +48,7 @@ class AccountViewTest {
 
         assertEquals("http://portal.example", vodAdapter.getServerPortalUrl());
         assertEquals(Account.AccountAction.vod, vodAdapter.getAction());
+        assertFalse(vodAdapter.isCacheEnabled());
         assertEquals(Account.AccountAction.series, seriesAdapter.getAction());
         assertEquals(Account.AccountAction.series, source.getAction());
     }
@@ -72,6 +78,7 @@ class AccountViewTest {
         account.setDbId("account-1");
         account.setToken("token-1");
         account.setServerPortalUrl("http://portal.example");
+        account.setCacheEnabled(false);
         account.setResolveChainAndDeepRedirects(true);
         account.setHttpMethod("POST");
         account.setTimezone("UTC");

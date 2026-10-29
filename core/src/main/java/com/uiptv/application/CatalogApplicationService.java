@@ -92,14 +92,14 @@ public class CatalogApplicationService {
         List<Channel> channels;
         if (shouldServeSeriesEpisodes(account, categoryId, movieId)) {
             channels = getStalkerSeriesEpisodes(account, categoryId, movieId);
-        } else if (ALL_CATEGORY.equalsIgnoreCase(categoryId)) {
+        } else if (CategoryType.isAll(categoryId)) {
             channels = readAllCategoryChannels(account);
         } else {
             channels = readSingleCategoryChannels(account, categoryId);
         }
 
         if (account.getAction() == Account.AccountAction.series && isBlank(movieId)) {
-            String categoryApiId = ALL_CATEGORY.equalsIgnoreCase(categoryId) ? "" : resolveCategoryApiId(account, categoryId);
+            String categoryApiId = CategoryType.isAll(categoryId) ? "" : resolveCategoryApiId(account, categoryId);
             applySeriesRowsWatched(account, categoryApiId, channels);
         }
         List<Channel> result = dedupeChannels(channels);
@@ -120,21 +120,23 @@ public class CatalogApplicationService {
             return getStalkerSeriesEpisodes(account, query.categoryId(), query.seriesId());
         }
 
-        String categoryId = resolveSeriesCategoryId(query.categoryId());
-        List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, query.seriesId());
-        if (cachedEpisodes.isEmpty() && account.getType() == AccountType.XTREME_API) {
-            cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, query.seriesId());
-        }
-
-        if (isCachedFresh(account, categoryId, query.seriesId(), cachedEpisodes)) {
-            applyWatchedFlag(cachedEpisodes, account, categoryId, query.seriesId());
-            return cachedEpisodes;
+        String categoryId = resolveSeriesCategoryId(account, query.categoryId());
+        List<Channel> cachedEpisodes = List.of();
+        if (account.isCacheEnabled()) {
+            cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, query.seriesId());
+            if (cachedEpisodes.isEmpty() && account.getType() == AccountType.XTREME_API) {
+                cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, query.seriesId());
+            }
+            if (isCachedFresh(account, categoryId, query.seriesId(), cachedEpisodes)) {
+                applyWatchedFlag(cachedEpisodes, account, categoryId, query.seriesId());
+                return cachedEpisodes;
+            }
         }
 
         List<Channel> episodes = loadProviderEpisodes(account, query.seriesId());
-        if (!episodes.isEmpty()) {
+        if (!episodes.isEmpty() && account.isCacheEnabled()) {
             SeriesEpisodeDb.get().saveAll(account, categoryId, query.seriesId(), episodes);
-        } else if (account.getType() == AccountType.XTREME_API) {
+        } else if (episodes.isEmpty() && account.isCacheEnabled() && account.getType() == AccountType.XTREME_API) {
             episodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, query.seriesId());
         }
         applyWatchedFlag(episodes, account, categoryId, query.seriesId());
@@ -160,7 +162,7 @@ public class CatalogApplicationService {
             ));
             return sliceChannels(episodes, query.page(), query.pageSize(), query.prefetchPages());
         }
-        if (account.getType() == AccountType.STALKER_PORTAL && !ALL_CATEGORY.equalsIgnoreCase(categoryId)) {
+        if (account.getType() == AccountType.STALKER_PORTAL && !CategoryType.isAll(categoryId)) {
             return buildStalkerPagedResponse(account, categoryId, movieId, query.page(), query.pageSize(), query.prefetchPages(), query.apiOffset());
         }
 
@@ -231,12 +233,12 @@ public class CatalogApplicationService {
         }
 
         String seriesId = safe(query.seriesId());
-        String categoryId = resolveSeriesCategoryId(query.categoryId());
+        String categoryId = resolveSeriesCategoryId(account, query.categoryId());
         String seriesName = safe(query.seriesName());
         JSONArray episodes = new JSONArray();
         JSONArray episodesMeta = new JSONArray();
 
-        if (isNotBlank(seriesId)) {
+        if (account.isCacheEnabled() && isNotBlank(seriesId)) {
             List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
             if (!cached.isEmpty() && SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())) {
                 episodes = toJsonArray(cached);
@@ -271,7 +273,7 @@ public class CatalogApplicationService {
 
     private void persistSeriesEpisodes(Account account, String categoryId, String seriesId,
                                        SeriesProviderDetails providerDetails, List<Channel> enriched) {
-        if (enriched.isEmpty() || !isNotBlank(seriesId)) return;
+        if (!account.isCacheEnabled() || enriched.isEmpty() || !isNotBlank(seriesId)) return;
         if (!providerDetails.episodes().isEmpty()) {
             SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, enriched);
         } else {
@@ -292,11 +294,11 @@ public class CatalogApplicationService {
         return account.getAction() == Account.AccountAction.series
                 && account.getType() == AccountType.STALKER_PORTAL
                 && isNotBlank(movieId)
-                && !ALL_CATEGORY.equalsIgnoreCase(categoryId);
+                && !CategoryType.isAll(categoryId);
     }
     private List<Channel> getStalkerSeriesEpisodes(Account account, String categoryId, String movieId) {
         String categoryApiId = resolveCategoryApiId(account, categoryId);
-        if (SeriesEpisodeDb.get().isFresh(account, categoryApiId, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
+        if (account.isCacheEnabled() && SeriesEpisodeDb.get().isFresh(account, categoryApiId, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
             List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryApiId, movieId);
             if (!cached.isEmpty()) {
                 applyWatchedFlag(cached, account, categoryApiId, movieId);
@@ -307,7 +309,9 @@ public class CatalogApplicationService {
         List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
         if (!episodes.isEmpty()) {
             episodes.forEach(SeriesEpisodeService.getInstance()::populateEpisodeNumbers);
-            List<Channel> seriesRows = SeriesChannelDb.get().getChannelsBySeriesIds(account, List.of(movieId));
+            List<Channel> seriesRows = account.isCacheEnabled()
+                    ? SeriesChannelDb.get().getChannelsBySeriesIds(account, List.of(movieId))
+                    : List.of();
             String seriesName = seriesRows.stream()
                     .map(Channel::getName)
                     .filter(StringUtils::isNotBlank)
@@ -317,7 +321,9 @@ public class CatalogApplicationService {
                 Map<String, JSONObject> episodesMeta = indexEpisodesMeta(imdb.optJSONArray(KEY_EPISODES_META));
                 episodes.forEach(episode -> enrichEpisode(episode, episodesMeta));
             }
-            SeriesEpisodeDb.get().saveAll(account, categoryApiId, movieId, episodes);
+            if (account.isCacheEnabled()) {
+                SeriesEpisodeDb.get().saveAll(account, categoryApiId, movieId, episodes);
+            }
             applyWatchedFlag(episodes, account, categoryApiId, movieId);
             return episodes;
         }
@@ -369,7 +375,7 @@ public class CatalogApplicationService {
     }
 
     private boolean isCachedFresh(Account account, String categoryId, String seriesId, List<Channel> cachedEpisodes) {
-        return !cachedEpisodes.isEmpty() && (
+        return account.isCacheEnabled() && !cachedEpisodes.isEmpty() && (
                 SeriesEpisodeDb.get().isFresh(account, categoryId, seriesId, ConfigurationService.getInstance().getCacheExpiryMs())
                         || (account.getType() == AccountType.XTREME_API
                         && SeriesEpisodeDb.get().isFreshInAnyCategory(account, seriesId, ConfigurationService.getInstance().getCacheExpiryMs()))
@@ -441,9 +447,12 @@ public class CatalogApplicationService {
         }
     }
 
-    private String resolveSeriesCategoryId(String rawCategoryId) {
+    private String resolveSeriesCategoryId(Account account, String rawCategoryId) {
         if (StringUtils.isBlank(rawCategoryId)) {
             return "";
+        }
+        if (account != null && !account.isCacheEnabled()) {
+            return resolveCategoryApiId(account, rawCategoryId);
         }
         Category category = SeriesCategoryDb.get().getById(rawCategoryId);
         if (category != null && StringUtils.isNotBlank(category.getCategoryId())) {
@@ -455,6 +464,17 @@ public class CatalogApplicationService {
     private Channel resolveProviderVodChannel(Account account, String categoryId, String channelId) {
         if (account == null || isBlank(channelId)) {
             return null;
+        }
+        if (!account.isCacheEnabled()) {
+            String categoryApiId = resolveCategoryApiId(account, categoryId);
+            try {
+                return ChannelService.getInstance().get(categoryApiId, account, categoryId).stream()
+                        .filter(channel -> channel != null && channelId.equals(channel.getChannelId()))
+                        .findFirst()
+                        .orElse(null);
+            } catch (IOException _) {
+                return null;
+            }
         }
         Channel providerChannel = VodChannelDb.get().getChannelByChannelId(channelId, categoryId, account.getDbId());
         if (providerChannel == null) {
@@ -582,14 +602,17 @@ public class CatalogApplicationService {
         for (Channel row : rows) {
             if (row == null) continue;
             String rowCategoryId = StringUtils.isBlank(row.getCategoryId()) ? fallbackCategoryId : row.getCategoryId();
-            rowCategoryId = normalizeSeriesCategoryId(rowCategoryId);
+            rowCategoryId = normalizeSeriesCategoryId(account, rowCategoryId);
             row.setWatched(SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), rowCategoryId, row.getChannelId()) != null);
         }
     }
 
-    private String normalizeSeriesCategoryId(String categoryId) {
+    private String normalizeSeriesCategoryId(Account account, String categoryId) {
         if (StringUtils.isBlank(categoryId)) {
             return "";
+        }
+        if (account != null && !account.isCacheEnabled()) {
+            return resolveCategoryApiId(account, categoryId);
         }
         Category category = SeriesCategoryDb.get().getById(categoryId);
         if (category != null && isNotBlank(category.getCategoryId())) {
@@ -599,6 +622,21 @@ public class CatalogApplicationService {
     }
 
     private Category resolveCategoryByDbId(Account account, String categoryId) {
+        if (account != null && !account.isCacheEnabled()) {
+            String requestedCategoryId = safe(categoryId);
+            if (isBlank(requestedCategoryId) || CategoryType.isAll(requestedCategoryId)) {
+                return null;
+            }
+            String liveCategoryPrefix = "live:" + safe(account.getDbId()) + ":";
+            String providerCategoryId = requestedCategoryId.startsWith(liveCategoryPrefix)
+                    ? requestedCategoryId.substring(liveCategoryPrefix.length())
+                    : requestedCategoryId;
+            Category category = new Category(providerCategoryId, providerCategoryId, providerCategoryId, false, 0);
+            category.setDbId(requestedCategoryId);
+            category.setAccountId(account.getDbId());
+            category.setAccountType(account.getType() == null ? "" : account.getType().name());
+            return category;
+        }
         if (account.getAction() == Account.AccountAction.vod) {
             return VodCategoryDb.get().getById(categoryId);
         }
@@ -614,6 +652,9 @@ public class CatalogApplicationService {
     }
 
     private List<Category> resolveCategoriesForAccount(Account account) {
+        if (account != null && !account.isCacheEnabled()) {
+            return CategoryService.getInstance().get(account, false);
+        }
         if (account.getAction() == Account.AccountAction.vod) {
             return VodCategoryDb.get().getCategories(account);
         }

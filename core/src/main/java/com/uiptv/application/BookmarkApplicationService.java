@@ -1,6 +1,8 @@
 package com.uiptv.application;
 
 import com.uiptv.db.CategoryDb;
+import com.uiptv.db.VodCategoryDb;
+import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Bookmark;
@@ -10,6 +12,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkResolver;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.CategoryService;
 import com.uiptv.util.I18n;
 
 import java.util.ArrayList;
@@ -82,7 +85,25 @@ public class BookmarkApplicationService {
         String categoryTitle = "";
         Category sourceCategory = null;
         if (isNotBlank(request.categoryId())) {
-            Category category = CategoryDb.get().getCategoryByDbId(request.categoryId(), account);
+            Category category;
+            if (account.isCacheEnabled()) {
+                category = switch (account.getAction()) {
+                    case vod -> VodCategoryDb.get().getById(request.categoryId());
+                    case series -> SeriesCategoryDb.get().getById(request.categoryId());
+                    default -> CategoryDb.get().getCategoryByDbId(request.categoryId(), account);
+                };
+                if (category != null && account.getAction() != Account.AccountAction.itv
+                        && !account.getDbId().equals(category.getAccountId())) {
+                    category = null;
+                }
+            } else {
+                category = CategoryService.getInstance().get(account, false).stream()
+                        .filter(candidate -> candidate != null && (request.categoryId().equals(candidate.getDbId())
+                                || request.categoryId().equals(candidate.getCategoryId())
+                                || request.categoryId().equalsIgnoreCase(safe(candidate.getTitle()))))
+                        .findFirst()
+                        .orElse(null);
+            }
             if (category != null) {
                 categoryTitle = category.getTitle();
                 sourceCategory = category;

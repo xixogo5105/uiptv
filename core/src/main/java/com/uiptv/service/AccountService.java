@@ -3,6 +3,8 @@ package com.uiptv.service;
 import com.uiptv.db.*;
 import com.uiptv.model.Account;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.AccountCopyUtil;
+import com.uiptv.util.AppLog;
 import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.ServerUtils;
 import com.uiptv.util.XtremeCredentialsJson;
@@ -60,6 +62,20 @@ public class AccountService {
         }
         account.setDbId(persisted.getDbId());
         touchChange();
+        if (previous != null && previous.isCacheEnabled() && !persisted.isCacheEnabled()) {
+            clearCatalogCacheInBackground(AccountCopyUtil.detachedCopy(persisted));
+        }
+    }
+
+    private void clearCatalogCacheInBackground(Account account) {
+        Thread.ofVirtual().name("uiptv-account-catalog-cache-clear").start(() -> {
+            try {
+                ConfigurationDb.get().clearCatalogCache(account);
+            } catch (Exception error) {
+                AppLog.addErrorLog(AccountService.class,
+                        "Unable to clear catalogue cache after disabling account caching: " + error.getMessage());
+            }
+        });
     }
 
     private Account findSavedAccount(Account account) {

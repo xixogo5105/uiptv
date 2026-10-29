@@ -15,6 +15,7 @@ data class MobileBrowseCategory(
     val providerId: String,
     val accountId: Long,
     val title: String,
+    /** Negative when the live provider has not returned a count. */
     val itemCount: Int = 0
 )
 
@@ -89,6 +90,8 @@ data class MobileBookmark(
     val manifestType: String = "",
     val categoryProviderId: String = "",
     val categoryRowId: Long = 0,
+    /** Snapshot of the account cache setting when the favourite was saved; null denotes a legacy favourite. */
+    val catalogCacheEnabledAtSave: Boolean? = null,
     val recentPlayCount: Int = 0
 )
 

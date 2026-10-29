@@ -27,6 +27,49 @@ import java.util.function.Consumer;
 import static com.uiptv.model.CategoryType.ALL;
 
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
+    /** Reads a category list directly from an M3U source without touching the catalogue tables. */
+    public List<Category> loadLiveCategories(Account account, LoggerCallback logger) {
+        if (!canReadFreshCategoriesFromSource(account)) {
+            return List.of();
+        }
+        M3uReloadData raw = readDirectM3uData(account, logger);
+        M3uReloadData visible = applyM3uCensoring(raw, shouldApplyCategoryCensoring(account), shouldApplyChannelCensoring(account));
+        return filterCategoriesForM3u(visible.categories(), visible.channelsByCategory(), logger);
+    }
+
+    /** Reads a category's current channels directly from an M3U source without storing them. */
+    public List<Channel> loadLiveChannels(Account account, String categoryTitle, LoggerCallback logger) {
+        if (!canReadFreshCategoriesFromSource(account) || StringUtils.isBlank(categoryTitle)) {
+            return List.of();
+        }
+        M3uReloadData raw = readDirectM3uData(account, logger);
+        M3uReloadData visible = applyM3uCensoring(raw, shouldApplyCategoryCensoring(account), shouldApplyChannelCensoring(account));
+        List<Category> categories = filterCategoriesForM3u(visible.categories(), visible.channelsByCategory(), logger);
+        String resolvedTitle = categories.stream()
+                .filter(category -> category != null && category.getTitle() != null
+                        && categoryTitle.trim().equalsIgnoreCase(category.getTitle().trim()))
+                .map(Category::getTitle)
+                .findFirst()
+                .orElse(null);
+        if (resolvedTitle == null) {
+            return List.of();
+        }
+        List<Channel> channels = visible.channelsByCategory().get(resolvedTitle);
+        return channels == null ? List.of() : new ArrayList<>(channels);
+    }
+
+    private M3uReloadData readDirectM3uData(Account account, LoggerCallback logger) {
+        try {
+            M3uSourceAccumulator accumulator = new M3uSourceAccumulator();
+            forEachM3uEntry(account, accumulator::accept);
+            List<Category> categories = normalizeCategoriesByTitle(accumulator.categories()).categories();
+            return new M3uReloadData(categories, accumulator.channelsByCategory());
+        } catch (RuntimeException e) {
+            log(logger, "Failed to load fresh M3U source: " + e.getMessage());
+            return new M3uReloadData(List.of(), new LinkedHashMap<>());
+        }
+    }
+
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
         boolean categoryCensoringEnabled = shouldApplyCategoryCensoring(account);
@@ -218,14 +261,8 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
 
     private M3uReloadData loadM3uReloadData(Account account, LoggerCallback logger) {
         if (canReadFreshCategoriesFromSource(account)) {
-            M3uSourceAccumulator accumulator = new M3uSourceAccumulator();
-            try {
-                forEachM3uEntry(account, accumulator::accept);
-                List<Category> categories = normalizeCategoriesByTitle(accumulator.categories()).categories();
-                return new M3uReloadData(categories, accumulator.channelsByCategory());
-            } catch (RuntimeException e) {
-                log(logger, "Failed to load fresh M3U source: " + e.getMessage());
-            }
+            M3uReloadData direct = readDirectM3uData(account, logger);
+            if (!direct.categories().isEmpty()) return direct;
         }
 
         List<Category> categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories();

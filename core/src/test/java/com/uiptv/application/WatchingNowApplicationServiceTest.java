@@ -9,13 +9,17 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
+import com.uiptv.shared.Episode;
+import com.uiptv.shared.EpisodeList;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
 import com.uiptv.service.VodWatchStateService;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.XtremeApiParser;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.util.List;
 
@@ -24,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mockStatic;
 
 class WatchingNowApplicationServiceTest extends DbBackedTest {
 
@@ -85,6 +92,35 @@ class WatchingNowApplicationServiceTest extends DbBackedTest {
         assertNotNull(SeriesWatchingNowSnapshotService.getInstance().getSnapshot(account.getDbId(), savedCategory.getCategoryId(), "series-2"));
         assertTrue(service.listSeriesEpisodes("missing", savedCategory.getCategoryId(), "series-2").isEmpty());
         assertTrue(service.listSeriesEpisodes(account.getDbId(), savedCategory.getCategoryId(), "").isEmpty());
+    }
+
+    @Test
+    void listSeriesEpisodesUsesLiveEpisodesAndDoesNotPersistSnapshotWhenCachingIsDisabled() {
+        Account account = new Account("watch-series-live", "user", "pass", "http://test.com/xtreme/", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://test.com/xtreme/", false);
+        account.setAction(Account.AccountAction.series);
+        account.setCacheEnabled(false);
+        AccountService.getInstance().save(account);
+        account = AccountService.getInstance().getById(account.getDbId());
+        SeriesEpisodeDb.get().saveAll(account, "provider-cat", "series-live", List.of(episode("stale-ep", "Stale episode", "1", "1")));
+
+        Episode freshEpisode = new Episode();
+        freshEpisode.setId("fresh-ep");
+        freshEpisode.setTitle("Fresh episode");
+        freshEpisode.setCmd("http://stream/fresh-ep.mkv");
+        EpisodeList liveEpisodes = new EpisodeList();
+        liveEpisodes.setEpisodes(List.of(freshEpisode));
+
+        try (MockedStatic<XtremeApiParser> parser = mockStatic(XtremeApiParser.class)) {
+            parser.when(() -> XtremeApiParser.parseEpisodes(eq("series-live"), any(Account.class))).thenReturn(liveEpisodes);
+
+            List<Channel> episodes = service.listSeriesEpisodes(account.getDbId(), "provider-cat", "series-live");
+
+            assertEquals("Fresh episode", episodes.getFirst().getName());
+            parser.verify(() -> XtremeApiParser.parseEpisodes(eq("series-live"), any(Account.class)));
+        }
+        assertEquals("Stale episode", SeriesEpisodeDb.get().getEpisodes(account, "provider-cat", "series-live").getFirst().getName());
+        assertNull(SeriesWatchingNowSnapshotService.getInstance().getSnapshot(account.getDbId(), "provider-cat", "series-live"));
     }
 
     @Test

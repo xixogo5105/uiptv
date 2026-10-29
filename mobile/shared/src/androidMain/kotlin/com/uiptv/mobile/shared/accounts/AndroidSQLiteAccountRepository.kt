@@ -17,7 +17,7 @@ class AndroidSQLiteAccountRepository(
             SELECT id, accountName, username, password, xtremeCredentialsJson, url,
                 macAddress, macAddressList, serialNumber, deviceId1, deviceId2, signature,
                 epg, m3u8Path, type, serverPortalUrl, pinToTop,
-                resolveChainAndDeepRedirects, httpMethod, timezone
+                resolveChainAndDeepRedirects, httpMethod, timezone, cacheEnabled
             FROM Account
             WHERE UPPER(COALESCE(type, '')) <> 'RSS_FEED'
             ORDER BY CASE WHEN LOWER(COALESCE(pinToTop, '0')) IN ('1', 'true', 'yes') THEN 1 ELSE 0 END DESC,
@@ -199,7 +199,10 @@ class AndroidSQLiteAccountRepository(
             pinToTop = booleanString("pinToTop"),
             resolveChainAndDeepRedirects = booleanString("resolveChainAndDeepRedirects"),
             httpMethod = string("httpMethod").ifBlank { "GET" },
-            timezone = string("timezone").ifBlank { "Europe/London" }
+            timezone = string("timezone").ifBlank { "Europe/London" },
+            cacheEnabled = string("cacheEnabled").let { value ->
+                value.isBlank() || value == "1" || value.equals("true", ignoreCase = true)
+            }
         )
 
     private fun MobileAccount.toContentValues(): ContentValues =
@@ -223,6 +226,7 @@ class AndroidSQLiteAccountRepository(
             put("resolveChainAndDeepRedirects", if (resolveChainAndDeepRedirects) "1" else "0")
             put("httpMethod", httpMethod)
             put("timezone", timezone)
+            put("cacheEnabled", if (cacheEnabled) "1" else "0")
         }
 
     private fun Cursor.string(column: String): String {

@@ -101,3 +101,4 @@
 0221_add_epg_source_blacklist.sql
 0222_remove_epg_caches.sql
 0223_add_recent_playback_snapshot.sql
+0224_add_account_catalog_cache_setting.sql

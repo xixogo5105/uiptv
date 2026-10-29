@@ -7,6 +7,7 @@ import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -19,6 +20,62 @@ import kotlin.math.ceil
 class AndroidStalkerCacheReloader(
     private val databaseHelper: AndroidUiptvDatabaseHelper
 ) {
+    internal fun fetchLiveCategories(account: MobileAccount): List<AndroidPortalCategory> {
+        var lastFailure = "Unable to load Stalker categories."
+        for (mac in account.stalkerMacCandidates()) {
+            val candidate = account.withStalkerMac(mac)
+            try {
+                val categories = fetchCategories(candidate, connect(candidate))
+                if (categories.isNotEmpty()) {
+                    return buildList {
+                        add(AndroidPortalCategory("all", "All"))
+                        addAll(categories.map { AndroidPortalCategory(it.id, it.title) })
+                    }
+                }
+                lastFailure = "No Stalker categories found."
+            } catch (error: Exception) {
+                lastFailure = error.message ?: lastFailure
+            }
+        }
+        error(lastFailure)
+    }
+
+    internal fun fetchLiveChannels(account: MobileAccount, categoryId: String): List<AndroidPortalChannel> {
+        var lastFailure = "Unable to load Stalker channels."
+        for (mac in account.stalkerMacCandidates()) {
+            val candidate = account.withStalkerMac(mac)
+            try {
+                val session = connect(candidate)
+                val streams = if (categoryId == "all") {
+                    fetchGlobalChannels(candidate, session)
+                } else {
+                    fetchCategoryChannels(candidate, session, categoryId)
+                }
+                if (streams.isNotEmpty()) {
+                    return streams.map { stream ->
+                        AndroidPortalChannel(
+                            channelId = stream.channelId,
+                            categoryId = stream.categoryId,
+                            name = stream.name,
+                            number = stream.number,
+                            command = stream.command,
+                            logo = stream.logo,
+                            censored = stream.censored,
+                            status = stream.status,
+                            hd = stream.hd,
+                            extraJson = stream.extraJson
+                        )
+                    }
+                }
+                lastFailure = "No Stalker channels found in the selected category."
+            } catch (error: Exception) {
+                lastFailure = error.message ?: lastFailure
+            }
+        }
+        if (categoryId == "all") return emptyList()
+        error(lastFailure)
+    }
+
     suspend fun refreshAccount(accountId: Long): M3uRefreshResult = withContext(Dispatchers.IO) {
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
@@ -27,6 +84,9 @@ class AndroidStalkerCacheReloader(
 
         if (account.type != MobileAccountType.STALKER_PORTAL) {
             return@withContext M3uRefreshResult.skipped("${account.type.displayName} is not a Stalker Portal account.")
+        }
+        if (!account.cacheEnabled) {
+            return@withContext M3uRefreshResult.skipped(MobileMessages.text("reloadCacheDisabledSkipping"))
         }
         if (account.url.isBlank() && account.serverPortalUrl.isBlank()) {
             return@withContext M3uRefreshResult.failed("Stalker portal URL is required.")
@@ -110,7 +170,7 @@ class AndroidStalkerCacheReloader(
         categoryRowId: Long,
         categoryProviderId: String
     ): Int {
-        if (account.type != MobileAccountType.STALKER_PORTAL || categoryProviderId.isBlank() || categoryProviderId == "all") {
+        if (!account.cacheEnabled || account.type != MobileAccountType.STALKER_PORTAL || categoryProviderId.isBlank() || categoryProviderId == "all") {
             return 0
         }
         for (mac in account.stalkerMacCandidates()) {

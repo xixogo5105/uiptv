@@ -22,6 +22,9 @@ public class CategoryResolver {
                         if (category == null) {
                             return false;
                         }
+                        if (!account.isCacheEnabled()) {
+                            return true;
+                        }
                         if (isUncategorized(category)) {
                             return ChannelService.getInstance().hasCachedLiveChannelsByDbCategoryId(category.getDbId());
                         }

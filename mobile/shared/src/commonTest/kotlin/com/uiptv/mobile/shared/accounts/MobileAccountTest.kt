@@ -91,6 +91,16 @@ class MobileAccountTest {
     }
 
     @Test
+    fun normalizedForSavePreservesSyncedCatalogCachePolicy() {
+        val account = MobileAccount(
+            accountName = "Desktop account",
+            cacheEnabled = false
+        )
+
+        assertEquals(false, account.normalizedForSave().cacheEnabled)
+    }
+
+    @Test
     fun normalizedForSaveSeedsXtremeCredentialJsonFromFields() {
         val account = MobileAccount(
             type = MobileAccountType.XTREME_API,

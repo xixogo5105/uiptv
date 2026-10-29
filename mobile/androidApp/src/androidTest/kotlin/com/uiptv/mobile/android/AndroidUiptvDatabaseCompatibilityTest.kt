@@ -27,6 +27,7 @@ import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.db.AndroidUiptvMigrationApplier
 import com.uiptv.mobile.shared.db.UiptvSchemaInfo
 import com.uiptv.mobile.shared.db.UiptvSyncSchema
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
@@ -156,9 +157,9 @@ class AndroidUiptvDatabaseCompatibilityTest {
             SQLiteDatabase.openOrCreateDatabase(snapshot, null).use { source ->
                 AndroidUiptvMigrationApplier(AndroidMigrationSource(context)).applyAll(source)
                 source.execSQL("ALTER TABLE Account ADD COLUMN futureDesktopColumn TEXT")
-                source.execSQL("INSERT INTO Account(id, accountName, type, futureDesktopColumn) VALUES(7, 'Desktop Account', 'M3U8_URL', 'ignored')")
+                source.execSQL("INSERT INTO Account(id, accountName, type, cacheEnabled, futureDesktopColumn) VALUES(7, 'Desktop Account', 'M3U8_URL', '0', 'ignored')")
                 source.execSQL("INSERT INTO AccountInfo(id, accountId, expireDate) VALUES(8, '7', '1893456000')")
-                source.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName) VALUES(9, 'Desktop Account', 'c1', 'News One')")
+                source.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName, cmd, accountAction, categoryJson, channelJson) VALUES(9, 'Desktop Account', 'c1', 'News One', 'https://stream.test/news', 'itv', '{\"categoryId\":\"provider-news\",\"title\":\"News\",\"catalogCacheEnabledAtSave\":false}', '{\"channelId\":\"c1\",\"name\":\"News One\",\"cmd\":\"https://stream.test/news\"}')")
                 source.execSQL("INSERT INTO BookmarkCategory(id, name) VALUES(10, 'News')")
                 source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
                 source.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(12, 'live-desktop', '7', 'itv', 'Live Desktop')")
@@ -180,12 +181,40 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 assertFalse("EPG tables must never return in restored snapshots", it.moveToFirst())
             }
             assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
+            assertEquals("0", target.columnValues("SELECT cacheEnabled FROM Account WHERE id = 7").single())
             assertEquals("Target-only accounts must not survive a full clone", 0, target.countRows("Account", "id = 99"))
             assertEquals("Target-only categories must not survive a full clone", 0, target.countRows("Category", "id = 98"))
             assertEquals("Target-only channels must not survive a full clone", 0, target.countRows("Channel", "id = 97"))
             assertEquals("Target-only Watching state must not survive a full clone", 0, target.countRows("SeriesWatchState", "id = 96"))
             assertEquals("Target-only Watching snapshots must not survive a full clone", 0, target.countRows("SeriesWatchingNowSnapshot", "id = 95"))
             assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
+            assertEquals(
+                "{\"categoryId\":\"provider-news\",\"title\":\"News\",\"catalogCacheEnabledAtSave\":false}",
+                target.columnValues("SELECT categoryJson FROM Bookmark WHERE id = 9").single()
+            )
+            assertEquals(
+                "{\"channelId\":\"c1\",\"name\":\"News One\",\"cmd\":\"https://stream.test/news\"}",
+                target.columnValues("SELECT channelJson FROM Bookmark WHERE id = 9").single()
+            )
+            val syncedBookmark = runBlocking {
+                AndroidSQLiteBrowseRepository(helper).listBookmarks("", null).single()
+            }
+            assertEquals("provider-news", syncedBookmark.categoryProviderId)
+            assertEquals("https://stream.test/news", syncedBookmark.command)
+            assertEquals(false, syncedBookmark.catalogCacheEnabledAtSave)
+            val historyStore = AndroidBookmarkPlayHistoryStore(target)
+            historyStore.record(syncedBookmark)
+            val recentBookmark = historyStore.topBookmarks(emptyList(), "").single()
+            assertEquals(false, recentBookmark.catalogCacheEnabledAtSave)
+            assertEquals("https://stream.test/news", recentBookmark.command)
+            val syncedAccount = runBlocking {
+                AndroidSQLiteAccountRepository(helper).listAccounts().single { it.id == 7L }
+            }
+            assertFalse(syncedAccount.cacheEnabled)
+            runBlocking {
+                AndroidSQLiteAccountRepository(helper).saveAccount(syncedAccount.copy(url = "https://edited.test/list.m3u"))
+            }
+            assertEquals("0", target.columnValues("SELECT cacheEnabled FROM Account WHERE id = 7").single())
             assertEquals(1, target.countRows("Category", "id = 12 AND accountId = '7' AND title = 'Live Desktop'"))
             assertEquals(1, target.countRows("Channel", "id = 13 AND categoryId = '12' AND name = 'Live One'"))
             assertEquals(1, target.countRows("Configuration", "filterCategoriesList = 'sports,news' AND filterChannelsList = 'kids' AND pauseFiltering = '1' AND cacheExpiryDays = '9' AND enableThumbnails = '1' AND publishedM3uCategoryMode = 'ALL' AND filterLockUnlockDurationMinutes = '30'"))
@@ -279,6 +308,128 @@ class AndroidUiptvDatabaseCompatibilityTest {
         assertEquals(0, db.countRows("Account", "id = $accountId"))
         assertEquals(0, db.countRows("Bookmark", "accountName = 'Phone M3U'"))
         assertEquals(0, db.countRows("BookmarkOrder", "bookmark_db_id = '801'"))
+    }
+
+    @Test
+    fun disabledAccountsAreSkippedByEveryAndroidCacheReloader() = runBlocking {
+        val repository = AndroidSQLiteAccountRepository(helper)
+        val m3u = repository.saveAccount(
+            MobileAccount(
+                accountName = "Disabled M3U",
+                type = MobileAccountType.M3U8_URL,
+                url = "http://127.0.0.1:1/list.m3u",
+                cacheEnabled = false
+            )
+        )
+        val xtreme = repository.saveAccount(
+            MobileAccount(
+                accountName = "Disabled Xtreme",
+                type = MobileAccountType.XTREME_API,
+                url = "http://127.0.0.1:1",
+                username = "user",
+                password = "pass",
+                cacheEnabled = false
+            )
+        )
+        val stalker = repository.saveAccount(
+            MobileAccount(
+                accountName = "Disabled Stalker",
+                type = MobileAccountType.STALKER_PORTAL,
+                url = "http://127.0.0.1:1",
+                macAddress = "00:11:22:33:44:55",
+                cacheEnabled = false
+            )
+        )
+
+        val results = listOf(
+            AndroidM3uCacheReloader(context, helper).refreshAccount(requireNotNull(m3u.id)),
+            AndroidXtremeCacheReloader(helper).refreshAccount(requireNotNull(xtreme.id)),
+            AndroidStalkerCacheReloader(helper).refreshAccount(requireNotNull(stalker.id))
+        )
+
+        assertEquals(listOf(CacheRefreshJobStatus.SKIPPED, CacheRefreshJobStatus.SKIPPED, CacheRefreshJobStatus.SKIPPED), results.map { it.status })
+        assertTrue(results.all { it.message == MobileMessages.text("reloadCacheDisabledSkipping") })
+        assertEquals(0, repository.cacheSummary(requireNotNull(m3u.id)).totalItems)
+        assertEquals(0, repository.cacheSummary(requireNotNull(xtreme.id)).totalItems)
+        assertEquals(0, repository.cacheSummary(requireNotNull(stalker.id)).totalItems)
+    }
+
+    @Test
+    fun disabledM3uAccountBrowsesLiveAndBookmarkKeepsItsSavePolicyWithoutCatalogRows() = runBlocking {
+        val playlist = File.createTempFile("uiptv-live-playlist-", ".m3u", context.cacheDir).apply {
+            writeText(
+                """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="news-one" group-title="News",News One
+                https://stream.test/news.m3u8
+                #EXTINF:-1 group-title="Sports",Sports One
+                https://stream.test/sports.m3u8
+                """.trimIndent()
+            )
+        }
+        try {
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "Live M3U",
+                    type = MobileAccountType.M3U8_LOCAL,
+                    m3u8Path = playlist.absolutePath,
+                    cacheEnabled = false
+                )
+            )
+            val accountId = requireNotNull(account.id)
+            val repository = AndroidSQLiteBrowseRepository(helper)
+
+            val categorySnapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, null, "")
+            val newsCategory = categorySnapshot.categories.single { it.title == "News" }
+            assertEquals(-1, newsCategory.itemCount)
+            val itemSnapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, newsCategory.rowId, "")
+            val item = itemSnapshot.items.single()
+
+            assertEquals("News One", item.name)
+            assertEquals("https://stream.test/news.m3u8", item.command)
+            assertEquals(0, helper.writableDatabase.countRows("Category", "accountId = '$accountId'"))
+            assertEquals(0, helper.writableDatabase.countRows("Channel", "channelId = 'news-one'"))
+
+            assertTrue(repository.toggleBookmark(item, null))
+            val bookmark = repository.listBookmarks("News One", null).single()
+            assertEquals(false, bookmark.catalogCacheEnabledAtSave)
+            assertEquals("news-one", bookmark.channelId)
+            assertEquals("https://stream.test/news.m3u8", bookmark.command)
+        } finally {
+            playlist.delete()
+        }
+    }
+
+    @Test
+    fun accountWithNoSyncedCategoriesFallsBackToLiveBrowse() = runBlocking {
+        val playlist = File.createTempFile("uiptv-empty-cache-playlist-", ".m3u", context.cacheDir).apply {
+            writeText(
+                """
+                #EXTM3U
+                #EXTINF:-1 group-title="News",News One
+                https://stream.test/news.m3u8
+                #EXTINF:-1 group-title="Sports",Sports One
+                https://stream.test/sports.m3u8
+                """.trimIndent()
+            )
+        }
+        try {
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "Uncached M3U",
+                    type = MobileAccountType.M3U8_LOCAL,
+                    m3u8Path = playlist.absolutePath
+                )
+            )
+            val repository = AndroidSQLiteBrowseRepository(helper)
+            val categories = repository.loadBrowse(requireNotNull(account.id), BrowseMode.LIVE, null, "")
+            val news = categories.categories.single { it.title == "News" }
+            val items = repository.loadBrowse(requireNotNull(account.id), BrowseMode.LIVE, news.rowId, "")
+
+            assertEquals("News One", items.items.single().name)
+        } finally {
+            playlist.delete()
+        }
     }
 
     @Test

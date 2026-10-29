@@ -121,7 +121,8 @@ public class DatabaseUtils {
                 new DataColumn("webPlaybackProxy", "TEXT"),
                 new DataColumn("httpMethod", "TEXT"),
                 new DataColumn("timezone", "TEXT"),
-                new DataColumn("parentalLock", "TEXT")
+                new DataColumn("parentalLock", "TEXT"),
+                new DataColumn("cacheEnabled", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_INFO_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

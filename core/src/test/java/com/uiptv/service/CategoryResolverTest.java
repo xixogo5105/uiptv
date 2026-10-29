@@ -43,4 +43,19 @@ class CategoryResolverTest extends DbBackedTest {
         assertEquals(CategoryType.ALL.displayName(), resolved.get(0).getTitle());
         assertEquals("News", resolved.get(1).getTitle());
     }
+
+    @Test
+    void resolveCategories_keepsLiveUncategorizedCategoryWhenCachingIsDisabled() {
+        Account account = new Account("cat-acc-live", "user", "pass", "http://test", null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, "http://test/list.m3u8", false);
+        account.setCacheEnabled(false);
+        Category uncategorized = new Category("uncat", CategoryType.UNCATEGORIZED.displayName(), CategoryType.UNCATEGORIZED.identifier(), false, 0);
+        uncategorized.setDbId("live:cat-acc-live:uncat");
+
+        List<Category> resolved = new CategoryResolver().resolveCategories(account, List.of(uncategorized));
+
+        assertEquals(2, resolved.size());
+        assertEquals(CategoryType.ALL.displayName(), resolved.get(0).getTitle());
+        assertEquals(CategoryType.UNCATEGORIZED.displayName(), resolved.get(1).getTitle());
+    }
 }

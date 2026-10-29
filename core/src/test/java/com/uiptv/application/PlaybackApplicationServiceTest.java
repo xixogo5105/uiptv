@@ -2,13 +2,17 @@ package com.uiptv.application;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.ChannelService;
+import com.uiptv.service.DbBackedTest;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.util.AccountType;
@@ -18,7 +22,7 @@ import org.mockito.MockedStatic;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class PlaybackApplicationServiceTest {
+class PlaybackApplicationServiceTest extends DbBackedTest {
 
     @Test
     void buildPlaylist_decodesCommandRefreshesTokenAndRestoresOriginalCommand() throws Exception {
@@ -58,6 +62,48 @@ class PlaybackApplicationServiceTest {
             assertTrue(result.body().startsWith("#EXTM3U\n#EXTINF:-1"));
             assertTrue(result.body().contains("tvg-id=\"acc-1\""));
             assertTrue(result.body().contains("group-title=\"Demo Account\""));
+            assertTrue(result.body().contains("http://stream.test/live.m3u8"));
+        }
+    }
+
+    @Test
+    void buildPlaylistLoadsLiveChannelWhenCachingIsDisabled() throws Exception {
+        Account account = new Account("Live Account", "user", "pass", "http://demo", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, null, false);
+        account.setDbId("acc-live");
+        account.setCacheEnabled(false);
+
+        Channel channel = new Channel();
+        channel.setChannelId("ch-live");
+        channel.setName("Live Channel");
+        channel.setCmd("http%3A%2F%2Fprovider.test%2Flive.m3u8");
+
+        AccountService accountService = mock(AccountService.class);
+        ChannelDb channelDb = mock(ChannelDb.class);
+        ChannelService channelService = mock(ChannelService.class);
+        HandshakeService handshakeService = mock(HandshakeService.class);
+        PlayerService playerService = mock(PlayerService.class);
+
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<ChannelDb> channelDbStatic = mockStatic(ChannelDb.class);
+             MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class);
+             MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class);
+             MockedStatic<PlayerService> playerStatic = mockStatic(PlayerService.class)) {
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            channelDbStatic.when(ChannelDb::get).thenReturn(channelDb);
+            channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(handshakeService);
+            playerStatic.when(PlayerService::getInstance).thenReturn(playerService);
+            when(accountService.getById("acc-live")).thenReturn(account);
+            when(channelService.getLiveChannelByChannelId("provider-cat", "ch-live", account)).thenReturn(channel);
+            when(playerService.get(account, channel)).thenReturn(new PlayerResponse("http://stream.test/live.m3u8"));
+
+            PlaybackPlaylistResult result = PlaybackApplicationService.getInstance()
+                    .buildPlaylist(new PlaybackPlaylistRequest("acc-live", "provider-cat", "ch-live"));
+
+            verify(channelService).getLiveChannelByChannelId("provider-cat", "ch-live", account);
+            verify(channelDb, never()).getChannelById(anyString(), anyString());
+            verify(playerService).get(account, channel);
             assertTrue(result.body().contains("http://stream.test/live.m3u8"));
         }
     }

@@ -74,6 +74,45 @@ public class ConfigurationDb extends BaseDb {
         SQLConnection.vacuum();
     }
 
+    /** Removes provider catalogue rows without changing account connection settings. */
+    public void clearCatalogCache(Account account) {
+        if (account == null || account.getDbId() == null) {
+            return;
+        }
+
+        Connection conn = null;
+        try {
+            conn = connect();
+            clearCatalogCacheTransaction(conn, account.getDbId());
+        } catch (Exception e) {
+            AppLog.addErrorLog(ConfigurationDb.class,
+                    "Failed to clear catalogue cache for account " + account.getAccountName() + " (" + account.getDbId() + "): " + e);
+            throw new DatabaseAccessException("Unable to clear account catalogue cache", e);
+        } finally {
+            closeQuietly(conn);
+        }
+        SQLConnection.vacuum();
+    }
+
+    private void clearCatalogCacheTransaction(Connection conn, String accountId) throws SQLException {
+        boolean previousAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try {
+            deleteAccountLiveChannels(conn, accountId);
+            for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
+                if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) {
+                    deleteAccountCacheForTable(conn, table, accountId);
+                }
+            }
+            conn.commit();
+        } catch (Exception error) {
+            conn.rollback();
+            throw error;
+        } finally {
+            conn.setAutoCommit(previousAutoCommit);
+        }
+    }
+
     private void clearCacheTransaction(Connection conn, String accountId) throws SQLException {
         boolean previousAutoCommit = conn.getAutoCommit();
         conn.setAutoCommit(false);

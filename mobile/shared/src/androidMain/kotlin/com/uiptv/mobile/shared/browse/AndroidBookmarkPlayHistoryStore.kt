@@ -208,7 +208,11 @@ class AndroidBookmarkPlayHistoryStore(
         put("clearKeysJson", clearKeysJson)
         put("inputstreamaddon", inputstreamAddon)
         put("manifestType", manifestType)
-        put("categoryJson", JSONObject().put("dbId", categoryRowId.toString()).put("categoryId", categoryProviderId).toString())
+        put("categoryJson", JSONObject()
+            .put("dbId", categoryRowId.toString())
+            .put("categoryId", categoryProviderId)
+            .apply { catalogCacheEnabledAtSave?.let { put("catalogCacheEnabledAtSave", it) } }
+            .toString())
     }.toString()
 
     private fun readSnapshot(id: Long, key: BookmarkHistoryKey, value: String): MobileBookmark? = runCatching {
@@ -226,7 +230,9 @@ class AndroidBookmarkPlayHistoryStore(
             drmLicenseUrl = json.optString("drmLicenseUrl"), clearKeysJson = json.optString("clearKeysJson"),
             inputstreamAddon = json.optString("inputstreamaddon"), manifestType = json.optString("manifestType"),
             categoryProviderId = category?.optString("categoryId").orEmpty(),
-            categoryRowId = category?.optString("dbId")?.toLongOrNull() ?: 0L
+            categoryRowId = category?.optString("dbId")?.toLongOrNull() ?: 0L,
+            catalogCacheEnabledAtSave = category?.takeIf { it.has("catalogCacheEnabledAtSave") }
+                ?.optBoolean("catalogCacheEnabledAtSave")
         )
     }.getOrNull()
 

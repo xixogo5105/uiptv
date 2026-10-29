@@ -9,6 +9,7 @@ import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -21,6 +22,9 @@ class AndroidM3uCacheReloader(
     private val context: Context,
     private val databaseHelper: AndroidUiptvDatabaseHelper
 ) {
+    internal fun loadEntries(account: MobileAccount): List<M3uEntry> =
+        M3uPlaylistParser.parse(readPlaylist(account))
+
     suspend fun refreshAccount(accountId: Long): M3uRefreshResult = withContext(Dispatchers.IO) {
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
@@ -29,6 +33,9 @@ class AndroidM3uCacheReloader(
 
         if (account.type != MobileAccountType.M3U8_URL && account.type != MobileAccountType.M3U8_LOCAL) {
             return@withContext M3uRefreshResult.skipped("${account.type.displayName} refresh is not ported to Android yet.")
+        }
+        if (!account.cacheEnabled) {
+            return@withContext M3uRefreshResult.skipped(MobileMessages.text("reloadCacheDisabledSkipping"))
         }
 
         val playlist = runCatching { readPlaylist(account) }
@@ -164,10 +171,10 @@ class AndroidM3uCacheReloader(
         )
     }
 
-    private fun stableCategoryId(title: String): String =
+    internal fun stableCategoryId(title: String): String =
         "m3u-" + title.lowercase().hashCode().absoluteValue
 
-    private fun stableChannelId(url: String, index: Int): String =
+    internal fun stableChannelId(url: String, index: Int): String =
         "m3u-$index-" + url.hashCode().absoluteValue
 }
 

@@ -49,7 +49,7 @@ public class BookmarkResolver {
         }
         Account account = context.accountByName.get(bookmark.getAccountName());
         BookmarkRenderData renderData = context.renderDataByBookmarkId.getOrDefault(bookmarkKey(bookmark), BookmarkRenderData.fromBookmark(bookmark));
-        if (context.allowFallbackLookup && needsChannelFallback(renderData)) {
+        if (context.allowFallbackLookup && allowsCatalogFallback(bookmark) && needsChannelFallback(renderData)) {
             mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), context.channelByAccountAndChannel));
         }
 
@@ -164,7 +164,7 @@ public class BookmarkResolver {
     private boolean requiresFallbackLookup(Bookmark bookmark,
                                            Map<String, Account> accountByName,
                                            Map<String, BookmarkRenderData> renderDataByBookmarkId) {
-        if (bookmark == null) {
+        if (bookmark == null || !allowsCatalogFallback(bookmark)) {
             return false;
         }
         BookmarkRenderData renderData = renderDataByBookmarkId.get(bookmarkKey(bookmark));
@@ -172,7 +172,17 @@ public class BookmarkResolver {
             return false;
         }
         Account account = accountByName.get(bookmark.getAccountName());
-        return account != null && isNotBlank(account.getDbId()) && isNotBlank(bookmark.getChannelId());
+        return account != null && account.isCacheEnabled()
+                && isNotBlank(account.getDbId()) && isNotBlank(bookmark.getChannelId());
+    }
+
+    private boolean allowsCatalogFallback(Bookmark bookmark) {
+        try {
+            return new org.json.JSONObject(bookmark.getCategoryJson())
+                    .optBoolean("catalogCacheEnabledAtSave", true);
+        } catch (RuntimeException ignored) {
+            return true;
+        }
     }
 
     private void loadFallbackChannelsIntoCache(Map<String, List<String>> requestedChannelIdsByAccountId,
@@ -193,7 +203,7 @@ public class BookmarkResolver {
     }
 
     private Channel lookupFallbackChannel(Account account, String channelId, Map<String, Channel> channelByAccountAndChannel) {
-        if (account == null || isBlank(account.getDbId()) || isBlank(channelId)) {
+        if (account == null || !account.isCacheEnabled() || isBlank(account.getDbId()) || isBlank(channelId)) {
             return null;
         }
         String key = account.getDbId() + "|" + channelId;

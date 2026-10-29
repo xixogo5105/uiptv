@@ -35,6 +35,7 @@ class AccountCopyUtilTest {
         assertEquals(source.getDbId(), copy.getDbId());
         assertEquals(source.getToken(), copy.getToken());
         assertEquals(source.isPinToTop(), copy.isPinToTop());
+        assertEquals(source.isCacheEnabled(), copy.isCacheEnabled());
         assertEquals(source.isResolveChainAndDeepRedirects(), copy.isResolveChainAndDeepRedirects());
         assertEquals(source.getType(), copy.getType());
         assertEquals(source.getHttpMethod(), copy.getHttpMethod());
@@ -87,6 +88,7 @@ class AccountCopyUtilTest {
         source.setTimezone("Europe/Amsterdam");
         source.setResolveChainAndDeepRedirects(true);
         source.setParentalLock(false);
+        source.setCacheEnabled(false);
         source.setXtremeCredentialsJson("[{\"username\":\"u\",\"password\":\"p\"}]");
         source.setServerPortalUrl("http://example.com/stalker_portal/server/load.php");
         source.setDbId("account-db-id");
@@ -116,6 +118,7 @@ class AccountCopyUtilTest {
         source.setHttpMethod("POST");
         source.setTimezone("Europe/Amsterdam");
         source.setResolveChainAndDeepRedirects(true);
+        source.setCacheEnabled(false);
         source.setServerPortalUrl("http://example.com/stalker_portal/server/load.php");
         source.setDbId("account-db-id");
         source.setToken("session-token");
@@ -136,6 +139,7 @@ class AccountCopyUtilTest {
         assertEquals(source.getHttpMethod(), copy.getHttpMethod());
         assertEquals(source.getTimezone(), copy.getTimezone());
         assertEquals(source.getServerPortalUrl(), copy.getServerPortalUrl());
+        assertEquals(source.isCacheEnabled(), copy.isCacheEnabled());
         assertTrue(copy.isNotConnected());
         assertNull(copy.getDbId());
         assertNull(copy.getToken());

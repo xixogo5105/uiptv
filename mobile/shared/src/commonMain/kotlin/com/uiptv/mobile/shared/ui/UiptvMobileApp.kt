@@ -1337,11 +1337,13 @@ private fun CategoryListRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                "${category.itemCount} items",
-                color = DeepNightMutedText,
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (category.itemCount >= 0) {
+                Text(
+                    "${category.itemCount} items",
+                    color = DeepNightMutedText,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
         if (!selectionMode) Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DeepNightMutedText)
     }

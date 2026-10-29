@@ -169,6 +169,10 @@ CREATE TABLE IF NOT EXISTS Account
     parentalLock
     TEXT
     default
+       '1',
+    cacheEnabled
+    TEXT
+    default
        '1'
 );
 

@@ -25,6 +25,8 @@ class AndroidUiptvDatabaseHelper(context: Context) : SQLiteOpenHelper(
     fun databaseFile(): File =
         appContext.getDatabasePath(UiptvSchemaInfo.DATABASE_NAME)
 
+    fun applicationContext(): Context = appContext
+
     fun applyMigrations(db: SQLiteDatabase) {
         AndroidUiptvMigrationApplier(migrationSource).applyAll(db)
         File(appContext.filesDir, "epg").deleteRecursively()

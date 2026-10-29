@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
@@ -998,8 +997,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         // Check if channels are already loaded for this account
-        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(mode);
-
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
         }
@@ -1017,7 +1014,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         Thread loadingThread = new Thread(() -> {
             Thread worker = Thread.currentThread();
             try {
-                retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
+                retrieveChannels(item, isCancelled::get, mode);
             } finally {
                 if (currentLoadingThread.compareAndSet(worker, null)) {
                     Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(null));
@@ -1029,7 +1026,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         loadingThread.start();
     }
 
-    private void retrieveChannels(CategoryItem item, boolean noCachingNeeded, BooleanSupplier isCancelled, Account.AccountAction mode) {
+    private void retrieveChannels(CategoryItem item, BooleanSupplier isCancelled, Account.AccountAction mode) {
         if (item == null) {
             return;
         }
@@ -1060,7 +1057,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
             try {
                 channelListUI.startLoadingProgressIfNeeded();
-                loadChannelsIntoUi(new LoadChannelsParams(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems, mode, modeAccount));
+                loadChannelsIntoUi(new LoadChannelsParams(item, isCancelled, selectedCategoryKey, channelListUI, allItems, mode, modeAccount));
             } finally {
                 if (!isLoadingCancelled(isCancelled)) {
                     channelListUI.setLoadingComplete();
@@ -1089,7 +1086,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems,
                                            CountDownLatch latch, Account.AccountAction mode) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
-        ChannelListUI ui = new ChannelListUI(contextForMode(mode), title, selectedCategoryKey, mode, isAllCategory(item));
+        ChannelListUI ui = new ChannelListUI(contextForMode(mode), title, selectedCategoryKey, mode,
+                isAllCategory(item), state.categories);
         ui.setMediaDrawerMode(mediaDrawerMode);
         disposeChannelListState(state);
         channelListUIHolder[0] = ui;
@@ -1103,8 +1101,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void loadChannelsIntoUi(LoadChannelsParams params) throws IOException {
-        boolean cachingNeeded = !params.noCachingNeeded;
-        if (cachingNeeded && isAllCategory(params.item)) {
+        if (isAllCategory(params.item)) {
             loadAllCategoryChannels(params.item, params.isCancelled, params.channelListUI, params.allItems, params.mode, params.modeAccount);
             return;
         }
@@ -1119,7 +1116,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private record LoadChannelsParams(
             CategoryItem item,
-            boolean noCachingNeeded,
             BooleanSupplier isCancelled,
             String selectedCategoryKey,
             ChannelListUI channelListUI,
@@ -1131,10 +1127,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
                                          ChannelListUI channelListUI, List<CategoryItem> allItems,
                                          Account.AccountAction mode, Account modeAccount) throws IOException {
-        int existingChannelCount = ChannelService.getInstance().getChannelCountForAccount(accountDbId());
-        if (existingChannelCount == 0) {
-            return;
-        }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
             loadSingleAllCategory(item, isCancelled, channelListUI, mode, modeAccount);
             return;

@@ -136,7 +136,7 @@ val mobileMessageKeys = listOf(
     "autoFavoritesTitle", "autoFavoritesEmptyDetail", "autoRecentItemsEmptyDetail", "autoFavoriteRemoved",
     "autoUnableToUpdateFavorite", "autoUnableToRemoveFavorite", "autoUnableToOpenItem",
     "autoAddFavoriteDescription", "autoRemoveFavoriteDescription", "autoNoBookmarksFound", "autoRemoveBookmark",
-    "autoUnableToLoadBookmarks"
+    "autoUnableToLoadBookmarks", "reloadCacheDisabledSkipping"
 )
 
 val generateUiptvSchemaMirror = tasks.register("generateUiptvSchemaMirror") {

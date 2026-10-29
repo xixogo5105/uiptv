@@ -24,6 +24,7 @@ public record AccountView(
         String dbId,
         String token,
         boolean pinToTop,
+        boolean cacheEnabled,
         boolean resolveChainAndDeepRedirects,
         boolean webPlaybackProxy,
         AccountType type,
@@ -53,6 +54,7 @@ public record AccountView(
                 account.getDbId(),
                 account.getToken(),
                 account.isPinToTop(),
+                account.isCacheEnabled(),
                 account.isResolveChainAndDeepRedirects(),
                 account.isWebPlaybackProxy(),
                 account.getType(),
@@ -87,6 +89,7 @@ public record AccountView(
         mutable.setXtremeCredentialsJson(xtremeCredentialsJson);
         mutable.setDbId(dbId);
         mutable.setToken(token);
+        mutable.setCacheEnabled(cacheEnabled);
         mutable.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirects);
         mutable.setWebPlaybackProxy(webPlaybackProxy);
         mutable.setHttpMethod(httpMethod == null || httpMethod.isBlank() ? "GET" : httpMethod);
@@ -115,6 +118,7 @@ public record AccountView(
                 dbId,
                 token,
                 pinToTop,
+                cacheEnabled,
                 resolveChainAndDeepRedirects,
                 webPlaybackProxy,
                 type,

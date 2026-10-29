@@ -41,7 +41,8 @@ data class PlaybackTarget(
     val seriesTitle: String = "",
     val episodeId: String = "",
     val season: String = "",
-    val episodeNumber: String = ""
+    val episodeNumber: String = "",
+    val catalogCacheEnabledAtSave: Boolean? = null
 )
 
 /** The filtered list to browse while the embedded player is open. */
@@ -91,7 +92,8 @@ fun MobileBookmark.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
     drmLicenseUrl = drmLicenseUrl,
     clearKeysJson = clearKeysJson,
     inputstreamAddon = inputstreamAddon,
-    manifestType = manifestType
+    manifestType = manifestType,
+    catalogCacheEnabledAtSave = catalogCacheEnabledAtSave
 )
 
 fun MobileWatchingNowItem.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
@@ -175,5 +177,6 @@ fun PlaybackTarget.toRecentBookmark(): MobileBookmark = MobileBookmark(
     categoryTitle = "", channelId = channelId, channelName = title, command = url, mode = mode,
     logo = logo, drmType = drmType, drmLicenseUrl = drmLicenseUrl, clearKeysJson = clearKeysJson,
     inputstreamAddon = inputstreamAddon, manifestType = manifestType,
+    catalogCacheEnabledAtSave = catalogCacheEnabledAtSave,
     categoryProviderId = categoryProviderId, categoryRowId = categoryRowId
 )
