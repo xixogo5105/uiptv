@@ -546,11 +546,13 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun updateLiveIndicatorTheme() {
-        if (!::recordingDot.isInitialized || recordingDot.childCount == 0) return
+        if (!::recordingDot.isInitialized) return
+        val indicator = recordingDot as? ViewGroup ?: return
+        if (indicator.childCount == 0) return
         val color = if (
             (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         ) Color.WHITE else Color.BLACK
-        val ring = recordingDot.getChildAt(0) as? ViewGroup ?: return
+        val ring = indicator.getChildAt(0) as? ViewGroup ?: return
         (ring.background as? GradientDrawable)?.setStroke(dp(1), color)
         ring.getChildAt(0)?.background?.let { background ->
             (background as? GradientDrawable)?.setColor(color)
