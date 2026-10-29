@@ -28,6 +28,13 @@ public interface VideoPlayerInterface {
 
     void updateChannelInfo(com.uiptv.model.Channel channel, com.uiptv.model.Account account);
 
+    /**
+     * Enables or hides the in-player EPG guide control for the active host layout.
+     * Narrow embedded layouts render the guide below the player, so they should
+     * suppress the duplicate overlay button.
+     */
+    default void setGuideButtonVisible(boolean visible) { }
+
     void disposePlayer();
 
     void toggleFullscreen();

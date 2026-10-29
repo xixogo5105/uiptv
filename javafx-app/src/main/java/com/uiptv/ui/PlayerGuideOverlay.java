@@ -6,6 +6,7 @@ import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.geometry.Pos;
 import java.util.function.BooleanSupplier;
 
 /** Current-channel guide inside the JavaFX video surface, without another window. */
@@ -13,6 +14,7 @@ public final class PlayerGuideOverlay extends StackPane {
     private final StackPane player;
     private final Button button;
     private final BooleanSupplier liveContent;
+    private boolean layoutAvailable = true;
     private Thread worker;
     private int generation;
     private final javafx.beans.value.ChangeListener<MediaPlayerFactory.GuideContext> contextListener = (_, _, _) -> close();
@@ -20,6 +22,7 @@ public final class PlayerGuideOverlay extends StackPane {
     public PlayerGuideOverlay(StackPane player, Button button, BooleanSupplier liveContent) {
         this.player = player; this.button = button; this.liveContent = liveContent;
         getStyleClass().add("player-guide-overlay"); setFocusTraversable(true); setMinSize(0, 0);
+        setAlignment(Pos.CENTER);
         maxWidthProperty().bind(player.widthProperty().multiply(.92)); setMaxHeight(Region.USE_PREF_SIZE);
         setVisible(false); setManaged(false);
         button.setTooltip(new Tooltip(I18n.tr("epgOpenGuide"))); button.setAccessibleText(I18n.tr("epgOpenGuide"));
@@ -43,9 +46,18 @@ public final class PlayerGuideOverlay extends StackPane {
     }
 
     public void updateAvailability() {
-        boolean available = EpgModeUI.isFeatureEnabled() && liveContent.getAsBoolean();
+        boolean available = layoutAvailable && EpgModeUI.isFeatureEnabled() && liveContent.getAsBoolean();
         button.setVisible(available); button.setManaged(available);
         if (!available) close();
+    }
+
+    /**
+     * Lets the responsive embedded-player host suppress the overlay when the
+     * same guide is already rendered in the adjacent/narrow layout.
+     */
+    public void setLayoutAvailable(boolean available) {
+        layoutAvailable = available;
+        updateAvailability();
     }
 
     private void open() {
@@ -89,9 +101,16 @@ public final class PlayerGuideOverlay extends StackPane {
 
     /** Display a resolved schedule without creating a Stage or Popup. */
     public void show(LiveGuideApplicationService.Row row) {
-        var body = ChannelGuidePopup.content(row, Math.clamp(player.getWidth() * .92, 240, 960), this::close);
+        if (!layoutAvailable) {
+            close();
+            return;
+        }
+        double popupWidth = Math.clamp(player.getWidth() * .92, 240, 960);
+        var body = ChannelGuidePopup.content(row, popupWidth, this::close);
         ScrollPane viewport = new ScrollPane(body); viewport.setFitToWidth(true);
         viewport.getStyleClass().add("transparent-scroll-pane"); viewport.setMinSize(0, 0);
+        viewport.setPrefWidth(popupWidth); viewport.setMaxWidth(popupWidth);
+        StackPane.setAlignment(viewport, Pos.CENTER);
         viewport.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         viewport.setPrefViewportHeight(Math.clamp(player.getHeight() * .9, 80, 370));
         viewport.maxHeightProperty().bind(player.heightProperty().multiply(.9));

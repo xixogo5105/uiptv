@@ -223,6 +223,20 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected static final double MIN_WIDTH = 200;
     protected static final double MIN_HEIGHT = 150;
 
+    /**
+     * Allows the responsive embedded-player host to hide the duplicate guide
+     * control when guide details are already rendered below the player.
+     */
+    @Override
+    public void setGuideButtonVisible(boolean visible) {
+        if (guideOverlay != null) {
+            guideOverlay.setLayoutAvailable(visible);
+        } else if (btnGuide != null) {
+            btnGuide.setVisible(visible);
+            btnGuide.setManaged(visible);
+        }
+    }
+
     protected static class TrackOption {
         final int id;
         final String label;

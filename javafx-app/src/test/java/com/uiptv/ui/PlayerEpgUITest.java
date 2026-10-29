@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.application.*;
+import com.uiptv.model.Channel;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.util.AccountType;
 import javafx.scene.*;
@@ -119,6 +120,43 @@ class PlayerEpgUITest extends DbBackedUiTest {
                 ImageIO.write(image, "png", Path.of("target/epg-inline-details-" + (dark ? "dark" : "light") + "-preview.png").toFile());
                 assertFalse(inline.isManaged());
             }
+            return null;
+        });
+    }
+
+    @Test void guideOverlayIsCenteredAndHiddenWhenNarrowLayoutOwnsTheGuide() throws Exception {
+        runOnFxThread(() -> {
+            StackPane player = new StackPane();
+            Button guideButton = new Button("Guide");
+            PlayerGuideOverlay overlay = new PlayerGuideOverlay(player, guideButton, () -> true);
+            player.getChildren().add(overlay);
+            StackPane.setAlignment(overlay, javafx.geometry.Pos.CENTER);
+            Scene scene = new Scene(player, 1200, 800);
+            scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/application.css")).toExternalForm());
+            player.resize(1200, 800);
+            player.applyCss();
+            player.layout();
+
+            Channel channel = new Channel();
+            channel.setName("Sample channel");
+            long now = System.currentTimeMillis();
+            var row = new LiveGuideApplicationService.Row("account", "", "", channel,
+                    List.of(new EpgProgramme("Current", "Details", now - 1000, now + 60_000)));
+            overlay.show(row);
+            player.applyCss();
+            player.layout();
+
+            Node viewport = overlay.getChildren().getFirst();
+            var playerBounds = player.localToScene(player.getBoundsInLocal());
+            var viewportBounds = viewport.localToScene(viewport.getBoundsInLocal());
+            assertEquals(playerBounds.getCenterX(), viewportBounds.getCenterX(), 1.0);
+            assertEquals(playerBounds.getCenterY(), viewportBounds.getCenterY(), 1.0);
+
+            overlay.setLayoutAvailable(false);
+            assertFalse(guideButton.isVisible());
+            assertFalse(guideButton.isManaged());
+            assertFalse(overlay.isVisible());
+            assertFalse(overlay.isManaged());
             return null;
         });
     }

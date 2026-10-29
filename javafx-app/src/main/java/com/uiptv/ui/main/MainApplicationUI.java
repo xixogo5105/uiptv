@@ -189,20 +189,24 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
         setWideEmbeddedLayoutActive(widePlayerPreferred);
         if (!showEmbeddedPlayer) {
+            setPlayerGuideButtonVisible(false);
             restoreDockedTopControls();
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
             applyNavigationOnlyEmbeddedLayout();
         } else if (widePlayerPreferred) {
+            setPlayerGuideButtonVisible(true);
             restoreDockedTopControls();
             activeAccountListUI.setMediaDrawerMode(true);
             applyWideEmbeddedLayout();
         } else if (shouldUsePlayerAdjacentTopControlsLayout()) {
+            setPlayerGuideButtonVisible(true);
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
             restoreDockedTopControls();
             applyPlayerAdjacentTopControlsEmbeddedLayout();
         } else {
+            setPlayerGuideButtonVisible(false);
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
             restoreDockedTopControls();
@@ -691,6 +695,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
         playerAdjacentControls.setVisible(visible);
         playerAdjacentControls.setManaged(visible);
+    }
+
+    private void setPlayerGuideButtonVisible(boolean visible) {
+        MediaPlayerFactory.getPlayer().setGuideButtonVisible(visible);
     }
 
 
