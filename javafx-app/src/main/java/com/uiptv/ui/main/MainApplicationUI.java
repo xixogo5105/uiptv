@@ -188,26 +188,24 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         setEmbeddedPlayerContainerVisible(showEmbeddedPlayer);
         boolean fullscreen = MediaPlayerFactory.getPlayer().fullscreenProperty().get();
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
+        boolean showGuideButton = embeddedConfigured && configuration.isWideView() && (playerNodeActive || fullscreen);
+        setPlayerGuideButtonVisible(showGuideButton);
         setWideEmbeddedLayoutActive(widePlayerPreferred);
         if (!showEmbeddedPlayer) {
-            setPlayerGuideButtonVisible(false);
             restoreDockedTopControls();
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
             applyNavigationOnlyEmbeddedLayout();
         } else if (widePlayerPreferred) {
-            setPlayerGuideButtonVisible(!fullscreen);
             restoreDockedTopControls();
             activeAccountListUI.setMediaDrawerMode(true);
             applyWideEmbeddedLayout();
         } else if (shouldUsePlayerAdjacentTopControlsLayout()) {
-            setPlayerGuideButtonVisible(!fullscreen);
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
             restoreDockedTopControls();
             applyPlayerAdjacentTopControlsEmbeddedLayout();
         } else {
-            setPlayerGuideButtonVisible(false);
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
             restoreDockedTopControls();
