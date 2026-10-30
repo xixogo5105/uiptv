@@ -197,7 +197,7 @@ class AndroidSQLiteBrowseRepository(
                 categoryProviderId = category.providerId,
                 categoryTitle = category.title,
                 channelId = channelId,
-                epgId = extra?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty(),
+                epgId = extra?.firstEpgIdentity().orEmpty(),
                 name = entry.name.ifBlank { channelId },
                 number = entry.channelNumber,
                 command = entry.url,
@@ -235,7 +235,7 @@ class AndroidSQLiteBrowseRepository(
                 categoryProviderId = category.providerId,
                 categoryTitle = category.title,
                 channelId = channel.channelId,
-                epgId = extra?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty(),
+                epgId = extra?.firstEpgIdentity().orEmpty(),
                 name = channel.name.ifBlank { channel.channelId },
                 number = channel.number,
                 command = channel.command,
@@ -1939,7 +1939,7 @@ class AndroidSQLiteBrowseRepository(
             categoryProviderId = string("categoryId"),
             categoryTitle = string("categoryTitle"),
             channelId = string("channelId"),
-            epgId = extra?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty(),
+            epgId = extra?.firstEpgIdentity().orEmpty(),
             name = string("name").ifBlank { string("channelId") },
             number = string("number"),
             command = string("cmd"),
@@ -1956,7 +1956,8 @@ class AndroidSQLiteBrowseRepository(
             rating = extra?.firstCleanString("rating", "rating_imdb").orEmpty(),
             duration = extra?.firstCleanString("duration", "runtime", "time").orEmpty(),
             genre = extra?.firstCleanString("genre").orEmpty(),
-            imdbUrl = extra?.firstCleanString("imdbUrl").orEmpty()
+            imdbUrl = extra?.firstCleanString("imdbUrl").orEmpty(),
+            localChannelRowId = long("id")
         )
     }
 
@@ -2069,6 +2070,12 @@ class AndroidSQLiteBrowseRepository(
             }
         }
         return ""
+    }
+
+    private fun JSONObject.firstEpgIdentity(): String = firstCleanString(
+        "epg_channel_id", "xmltv_id", "epg_id", "tvg-id"
+    ).ifBlank {
+        optJSONObject("m3u")?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty()
     }
 
     private fun JSONObject.cleanString(key: String): String {

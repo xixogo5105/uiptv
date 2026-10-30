@@ -59,7 +59,10 @@ internal class LiveEpgDrawer(
         target = channel
         val generation = request
         job = scope.launch {
-            val loaded = try { repository.schedule(channel.accountId, channel.channelId, channel.title) }
+            val loaded = try { repository.schedule(
+                channel.accountId, channel.channelId, channel.title, channel.epgId,
+                channel.channelRowId, channel.categoryRowId, channel.bookmarkId
+            ) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { MobileEpgResult(MobileEpgStatus.UNAVAILABLE) }
             if (generation != request) return@launch

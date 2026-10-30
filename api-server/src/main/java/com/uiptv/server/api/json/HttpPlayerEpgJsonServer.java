@@ -17,7 +17,9 @@ public class HttpPlayerEpgJsonServer implements HttpHandler {
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         var service = new PlayerEpgApplicationService();
         var query = new PlayerEpgApplicationService.Query(
-                getParam(exchange, "accountId"), getParam(exchange, "channelId"), getParam(exchange, "categoryId"), getParam(exchange, "bookmarkId"));
+                getParam(exchange, "accountId"), getParam(exchange, "channelId"), getParam(exchange, "categoryId"),
+                getParam(exchange, "bookmarkId"), getParam(exchange, "providerChannelId"),
+                getParam(exchange, "channelName"), getParam(exchange, "epgId"));
         var guide = service.lookupGuide(query);
         var result = guide.summary();
         JSONObject json = new JSONObject().put("channelName", result.channelName());

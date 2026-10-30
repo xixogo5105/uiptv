@@ -15,7 +15,8 @@ object AndroidXmltvReader {
         requestedId: String? = null,
         requestedName: String = "",
         checkCancelled: () -> Unit = {},
-        onProgress: ((List<MobileEpgProgramme>) -> Unit)? = null
+        onProgress: ((List<MobileEpgProgramme>) -> Unit)? = null,
+        stopAfterCurrentProgramme: Boolean = false
     ): MobileXmltvGuide {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
@@ -38,7 +39,7 @@ object AndroidXmltvReader {
         var lastProgressKey: String? = null
         var progressiveChannelIds: Set<String>? = null
         var event = parser.eventType
-        while (event != XmlPullParser.END_DOCUMENT) {
+        parse@ while (event != XmlPullParser.END_DOCUMENT) {
             checkCancelled()
             if (Thread.currentThread().isInterrupted) throw InterruptedException()
             if (event == XmlPullParser.DOCDECL) {
@@ -106,6 +107,7 @@ object AndroidXmltvReader {
                             lastProgressKey = progressKey
                             onProgress(partial)
                         }
+                        if (stopAfterCurrentProgramme && current != null) break@parse
                     }
                 }
                 channel = ""

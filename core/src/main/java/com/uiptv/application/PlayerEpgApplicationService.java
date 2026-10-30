@@ -7,7 +7,12 @@ import java.util.List;
 
 /** Resolves player UI database ids before looking up provider guide identifiers. */
 public class PlayerEpgApplicationService {
-    public record Query(String accountId, String channelId, String categoryId, String bookmarkId) { }
+    public record Query(String accountId, String channelId, String categoryId, String bookmarkId,
+                        String providerChannelId, String channelName, String epgId) {
+        public Query(String accountId, String channelId, String categoryId, String bookmarkId) {
+            this(accountId, channelId, categoryId, bookmarkId, "", "", "");
+        }
+    }
     public record Result(String channelName, EpgProgramme now, EpgProgramme next, String guideStatus) {
         public Result(String channelName, EpgProgramme now, EpgProgramme next) {
             this(channelName, now, next, "");
@@ -46,6 +51,21 @@ public class PlayerEpgApplicationService {
 
     private Resolved resolveChannel(Query query) {
         Account account = AccountService.getInstance().getById(query.accountId());
+        if (account != null && query.providerChannelId() != null && !query.providerChannelId().isBlank()) {
+            Channel channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(
+                    query.providerChannelId(), account.getDbId(), false);
+            if (channel == null) {
+                channel = new Channel();
+                channel.setChannelId(query.providerChannelId());
+                channel.setName(query.channelName());
+                if (query.epgId() != null && !query.epgId().isBlank()) {
+                    String identityKey = account.getType() == com.uiptv.util.AccountType.XTREME_API
+                            ? "epg_channel_id" : "xmltv_id";
+                    channel.setExtraJson(new org.json.JSONObject().put(identityKey, query.epgId()).toString());
+                }
+            }
+            return new Resolved(account, channel);
+        }
         if (account == null || query.categoryId() == null || query.categoryId().isBlank()
                 || CategoryDb.get().getCategoryByDbId(query.categoryId(), account) == null) return null;
         return new Resolved(account, ChannelDb.get().getChannelById(query.channelId(), query.categoryId()));

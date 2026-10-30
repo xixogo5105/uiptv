@@ -84,16 +84,23 @@ class EpgApplicationServiceTest extends DbBackedTest {
         try (var requests = mockConstruction(NativeEpgApplicationService.class, (mock, context) -> {
             when(mock.schedule(any(), any())).thenAnswer(invocation -> {
                 Channel requested = invocation.getArgument(1);
-                assertEquals("provider-channel", requested.getChannelId());
-                assertNotEquals(requested.getDbId(), requested.getChannelId());
+                if ("uncached-provider-channel".equals(requested.getChannelId())) {
+                    assertEquals("Uncached channel", requested.getName());
+                    assertEquals("guide-identity", new org.json.JSONObject(requested.getExtraJson()).getString("epg_channel_id"));
+                } else {
+                    assertEquals("provider-channel", requested.getChannelId());
+                    assertNotEquals(requested.getDbId(), requested.getChannelId());
+                }
                 return List.of(new EpgProgramme("Live identity news", "", now-1000, now+60000));
             });
         })) {
             var service = new PlayerEpgApplicationService();
             assertEquals("Live identity news", service.lookup(new PlayerEpgApplicationService.Query(account.getDbId(), saved.getDbId(), category.getDbId(), "")).now().title());
+            assertEquals("Live identity news", service.lookup(new PlayerEpgApplicationService.Query(
+                    account.getDbId(), "", "", "", "uncached-provider-channel", "Uncached channel", "guide-identity")).now().title());
             assertNull(service.lookup(new PlayerEpgApplicationService.Query(account.getDbId(), saved.getChannelId(), category.getDbId(), "")).now());
             assertNull(service.lookup(new PlayerEpgApplicationService.Query("another-account", saved.getDbId(), category.getDbId(), "")).now());
-            assertEquals(1, requests.constructed().size());
+            assertEquals(2, requests.constructed().size());
         }
     }
     @Test void readerDoesNotGuessBetweenAmbiguousNames() throws Exception {

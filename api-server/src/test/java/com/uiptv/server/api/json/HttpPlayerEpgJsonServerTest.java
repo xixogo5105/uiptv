@@ -16,7 +16,7 @@ class HttpPlayerEpgJsonServerTest {
         try (var mocks = mockConstruction(PlayerEpgApplicationService.class, (service, context) -> {
             when(service.lookupGuide(any())).thenReturn(guide);
         })) {
-            var exchange = new TestHttpExchange("/playerEpg?bookmarkId=bookmark-one&details=1", "GET");
+            var exchange = new TestHttpExchange("/playerEpg?bookmarkId=bookmark-one&providerChannelId=provider-one&channelName=Test%20TV&epgId=xml-one&details=1", "GET");
             new HttpPlayerEpgJsonServer().handle(exchange);
             var json = new JSONObject(exchange.getResponseBodyText());
             assertEquals("Description", json.getJSONObject("now").getString("description"));
@@ -25,6 +25,9 @@ class HttpPlayerEpgJsonServerTest {
             var captured = org.mockito.ArgumentCaptor.forClass(PlayerEpgApplicationService.Query.class);
             verify(mocks.constructed().getFirst(), times(1)).lookupGuide(captured.capture());
             assertEquals("bookmark-one", captured.getValue().bookmarkId());
+            assertEquals("provider-one", captured.getValue().providerChannelId());
+            assertEquals("Test TV", captured.getValue().channelName());
+            assertEquals("xml-one", captured.getValue().epgId());
             verifyNoMoreInteractions(mocks.constructed().getFirst());
         }
     }

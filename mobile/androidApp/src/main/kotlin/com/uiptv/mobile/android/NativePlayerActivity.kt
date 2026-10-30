@@ -309,6 +309,9 @@ class NativePlayerActivity : Activity() {
             categoryProviderId = intent.getStringExtra(EXTRA_CATEGORY_PROVIDER_ID).orEmpty(),
             categoryRowId = intent.getLongExtra(EXTRA_CATEGORY_ROW_ID, 0L),
             channelId = intent.getStringExtra(EXTRA_CHANNEL_ID).orEmpty(),
+            epgId = intent.getStringExtra(EXTRA_EPG_ID).orEmpty(),
+            channelRowId = intent.getLongExtra(EXTRA_CHANNEL_ROW_ID, 0L),
+            bookmarkId = intent.getStringExtra(EXTRA_BOOKMARK_ID).orEmpty(),
             title = intent.getStringExtra(EXTRA_TITLE).orEmpty(),
             url = intent.getStringExtra(EXTRA_URL).orEmpty(),
             logo = intent.getStringExtra(EXTRA_LOGO).orEmpty(),
@@ -364,6 +367,9 @@ class NativePlayerActivity : Activity() {
         const val EXTRA_CATEGORY_PROVIDER_ID = "category_provider_id"
         const val EXTRA_CATEGORY_ROW_ID = "category_row_id"
         const val EXTRA_CHANNEL_ID = "channel_id"
+        const val EXTRA_EPG_ID = "epg_id"
+        const val EXTRA_CHANNEL_ROW_ID = "channel_row_id"
+        const val EXTRA_BOOKMARK_ID = "bookmark_id"
         const val EXTRA_LOGO = "logo"
         const val EXTRA_SERIES_ID = "series_id"
         const val EXTRA_SERIES_TITLE = "series_title"

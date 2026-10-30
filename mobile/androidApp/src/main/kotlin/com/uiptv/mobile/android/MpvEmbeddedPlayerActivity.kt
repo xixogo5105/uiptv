@@ -2312,11 +2312,18 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         epgLabel.visibility = View.VISIBLE
         epgJob = playbackScope.launch {
             val result = try {
-                epgRepository.scheduleProgressively(target.accountId, target.channelId, target.title) { update ->
-                    withContext(Dispatchers.Main) {
-                        if (target == currentTarget && !stoppingForLifecycle && !activityDestroyed) displayEpg(update)
-                    }
-                }
+                epgRepository.scheduleProgressively(
+                    target.accountId, target.channelId, target.title,
+                    onUpdate = { update ->
+                        withContext(Dispatchers.Main) {
+                            if (target == currentTarget && !stoppingForLifecycle && !activityDestroyed) displayEpg(update)
+                        }
+                    },
+                    epgIdentity = target.epgId,
+                    channelRowId = target.channelRowId,
+                    categoryRowId = target.categoryRowId,
+                    bookmarkId = target.bookmarkId
+                )
             }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) { com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.UNAVAILABLE) }
@@ -3149,6 +3156,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             categoryProviderId = intent.getStringExtra(NativePlayerActivity.EXTRA_CATEGORY_PROVIDER_ID).orEmpty(),
             categoryRowId = intent.getLongExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, 0L),
             channelId = intent.getStringExtra(NativePlayerActivity.EXTRA_CHANNEL_ID).orEmpty(),
+            epgId = intent.getStringExtra(NativePlayerActivity.EXTRA_EPG_ID).orEmpty(),
+            channelRowId = intent.getLongExtra(NativePlayerActivity.EXTRA_CHANNEL_ROW_ID, 0L),
+            bookmarkId = intent.getStringExtra(NativePlayerActivity.EXTRA_BOOKMARK_ID).orEmpty(),
             title = intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty(),
             url = intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty(),
             logo = intent.getStringExtra(NativePlayerActivity.EXTRA_LOGO).orEmpty(),

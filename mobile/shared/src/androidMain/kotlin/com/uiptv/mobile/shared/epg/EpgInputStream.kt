@@ -12,6 +12,9 @@ internal class EpgInputStream(
     private var remaining: Long = 200L * 1024 * 1024,
     private val deadline: Long = System.nanoTime() + 60_000_000_000L
 ) : FilterInputStream(input) {
+    var bytesRead: Long = 0
+        private set
+
     private fun checkRead() {
         checkCancelled()
         if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Guide loading cancelled")
@@ -22,6 +25,7 @@ internal class EpgInputStream(
         checkRead()
         if (count > 0) {
             remaining -= count
+            bytesRead += count
             if (remaining < 0) throw IOException("Guide exceeds size limit")
         }
     }

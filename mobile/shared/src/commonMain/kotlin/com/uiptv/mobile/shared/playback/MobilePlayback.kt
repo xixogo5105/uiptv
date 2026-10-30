@@ -42,7 +42,12 @@ data class PlaybackTarget(
     val episodeId: String = "",
     val season: String = "",
     val episodeNumber: String = "",
-    val catalogCacheEnabledAtSave: Boolean? = null
+    val catalogCacheEnabledAtSave: Boolean? = null,
+    val epgId: String = "",
+    /** Local channel row id for the paired desktop's direct guide lookup. */
+    val channelRowId: Long = 0,
+    /** Local bookmark row id for the paired desktop's saved-channel guide lookup. */
+    val bookmarkId: String = ""
 )
 
 /** The filtered list to browse while the embedded player is open. */
@@ -68,6 +73,8 @@ fun MobileBrowseItem.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
     categoryProviderId = categoryProviderId,
     categoryRowId = categoryRowId,
     channelId = channelId,
+    epgId = epgId,
+    channelRowId = localChannelRowId,
     title = name,
     url = command,
     logo = logo,
@@ -93,7 +100,8 @@ fun MobileBookmark.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(
     clearKeysJson = clearKeysJson,
     inputstreamAddon = inputstreamAddon,
     manifestType = manifestType,
-    catalogCacheEnabledAtSave = catalogCacheEnabledAtSave
+    catalogCacheEnabledAtSave = catalogCacheEnabledAtSave,
+    bookmarkId = rowId.toString()
 )
 
 fun MobileWatchingNowItem.toPlaybackTarget(): PlaybackTarget = PlaybackTarget(

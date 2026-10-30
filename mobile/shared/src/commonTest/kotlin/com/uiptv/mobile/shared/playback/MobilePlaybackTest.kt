@@ -52,6 +52,27 @@ class MobilePlaybackTest {
     }
 
     @Test
+    fun liveBrowseEpgIdentitySurvivesPlaybackTargetConversion() {
+        val item = MobileBrowseItem(
+            rowId = 3,
+            accountId = 7,
+            accountName = "Demo",
+            mode = BrowseMode.LIVE,
+            categoryRowId = 4,
+            categoryProviderId = "all",
+            categoryTitle = "All",
+            channelId = "provider-stream-42",
+            epgId = "xmltv-station-42",
+            localChannelRowId = 33,
+            name = "Example TV",
+            command = "https://stream.test/live.m3u8"
+        )
+
+        assertEquals("xmltv-station-42", item.toPlaybackTarget().epgId)
+        assertEquals(33L, item.toPlaybackTarget().channelRowId)
+    }
+
+    @Test
     fun playbackSurfQueuePreservesAllPlayableVisibleItemsAndCurrentPosition() {
         val visibleItems = (0..8).map { index ->
             surfItem(index, command = if (index == 4) "" else "https://stream.test/$index.m3u8")
@@ -172,6 +193,7 @@ class MobilePlaybackTest {
 
         assertEquals("https://images.test/news.png", target.logo)
         assertEquals(false, target.catalogCacheEnabledAtSave)
+        assertEquals("2", target.bookmarkId)
     }
 
     @Test

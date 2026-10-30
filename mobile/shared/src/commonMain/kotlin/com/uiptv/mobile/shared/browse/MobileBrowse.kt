@@ -46,7 +46,9 @@ data class MobileBrowseItem(
     val rating: String = "",
     val duration: String = "",
     val genre: String = "",
-    val imdbUrl: String = ""
+    val imdbUrl: String = "",
+    /** Non-zero only when rowId is an actual local Channel row, never for synthetic live entries. */
+    val localChannelRowId: Long = 0
 )
 
 data class MobileBrowseSnapshot(
