@@ -3045,6 +3045,14 @@
     -fx-opacity: 1;
 }
 
+.player-live-indicator .playing-card-recording-ring {
+    -fx-stroke: #ffffff;
+}
+
+.player-live-indicator .playing-card-recording-dot {
+    -fx-fill: #ffffff;
+}
+
 .uiptv-responsive-card:activated .playing-card-indicator,
 .bookmark-card:activated .playing-card-indicator {
     -fx-opacity: 1;

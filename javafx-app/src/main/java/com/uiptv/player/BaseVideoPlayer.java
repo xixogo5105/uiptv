@@ -2370,10 +2370,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             nowShowingFlow.getChildren().add(channelNameText);
             return;
         }
-        Text liveLabel = new Text("  " + I18n.tr("playerLive"));
-        liveLabel.getStyleClass().add("player-live-label");
-        applyFixedControlBarOrientation(channelNameText, liveLabel);
-        nowShowingFlow.getChildren().addAll(channelNameText, liveLabel);
+        com.uiptv.widget.PlayingCardIndicator liveDot = new com.uiptv.widget.PlayingCardIndicator();
+        liveDot.getStyleClass().add("player-live-indicator");
+        liveDot.setVisible(true);
+        liveDot.setManaged(true);
+        applyFixedControlBarOrientation(liveDot, channelNameText);
+        nowShowingFlow.getChildren().addAll(liveDot, channelNameText);
     }
 
     private void updateTimelineVisibility() {

@@ -123,6 +123,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private lateinit var epgPanelContent: LinearLayout
     private lateinit var epgGuideButton: TextView
     private lateinit var surfCarouselView: ComposeView
+    private lateinit var liveBroadcastIndicator: View
     private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
     private var epgPanelSide = Gravity.END
     private var epgLoadedKey: String? = null
@@ -1208,6 +1209,27 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            liveBroadcastIndicator = FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
+                contentDescription = "Live broadcast"
+                addView(FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
+                    contentDescription = "Live broadcast indicator"
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.TRANSPARENT)
+                        setStroke(dp(1), Color.WHITE)
+                    }
+                    addView(View(this@MpvEmbeddedPlayerActivity).apply {
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(Color.WHITE)
+                        }
+                    }, FrameLayout.LayoutParams(dp(3), dp(3), Gravity.CENTER))
+                }, FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER))
+                visibility = if (isLiveStream()) View.VISIBLE else View.GONE
+            }
+            addView(liveBroadcastIndicator, LinearLayout.LayoutParams(dp(RecordingDotSlotWidthDp), dp(ControlHeaderHeightDp)).apply {
+                rightMargin = dp(RecordingDotTitleGapDp)
+            })
             addView(titleAndCodecRow, LinearLayout.LayoutParams(0, dp(ControlHeaderHeightDp), 1f))
             addView(LinearLayout(this@MpvEmbeddedPlayerActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -2555,6 +2577,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             return
         }
         if (::titleLabel.isInitialized) {
+            if (::liveBroadcastIndicator.isInitialized) {
+                liveBroadcastIndicator.visibility = if (isLiveStream()) View.VISIBLE else View.GONE
+            }
             titleLabel.text = currentTarget?.title
                 ?.takeIf { it.isNotBlank() }
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
@@ -3187,6 +3212,8 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val CodecAreaMaximumFraction = 0.35f
         private const val ControlHeaderHeightDp = 48
         private const val ControlHeaderGapDp = 8
+        private const val RecordingDotSlotWidthDp = 32
+        private const val RecordingDotTitleGapDp = 4
         private const val MpvAudibleVolume = 100.0
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f
