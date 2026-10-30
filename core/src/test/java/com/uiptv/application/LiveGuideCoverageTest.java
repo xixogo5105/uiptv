@@ -7,6 +7,9 @@ import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.lang.reflect.Method;
+import com.uiptv.model.Bookmark;
+import com.uiptv.service.BookmarkResolver;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,5 +89,35 @@ class LiveGuideCoverageTest extends DbBackedTest {
             assertTrue(rows.getFirst().nativeProvider());
             assertFalse(constructions.constructed().isEmpty());
         }
+    }
+
+    @Test
+    void bookmarkAndProviderHelpersHandleFallbackSnapshotsAndProviderTypes() throws Exception {
+        LiveGuideApplicationService service = new LiveGuideApplicationService();
+        Bookmark bookmark = new Bookmark("Account", "Live", "provider-channel", "Fallback name", "cmd", "http://portal", "cat");
+        bookmark.setLogo("logo");
+        bookmark.setChannelJson("not-json");
+        Method bookmarkChannel = LiveGuideApplicationService.class.getDeclaredMethod("bookmarkChannel", Bookmark.class);
+        bookmarkChannel.setAccessible(true);
+        Channel channel = (Channel) bookmarkChannel.invoke(service, bookmark);
+        assertEquals("provider-channel", channel.getChannelId());
+        assertEquals("Fallback name", channel.getName());
+        assertEquals("logo", channel.getLogo());
+
+        Method nativeProvider = LiveGuideApplicationService.class.getDeclaredMethod("nativeProvider", Account.class);
+        nativeProvider.setAccessible(true);
+        Account account = new Account();
+        account.setType(com.uiptv.util.AccountType.STALKER_PORTAL);
+        assertTrue((Boolean) nativeProvider.invoke(service, account));
+        account.setType(com.uiptv.util.AccountType.M3U8_URL);
+        assertFalse((Boolean) nativeProvider.invoke(service, account));
+
+        BookmarkResolver.ResolvedBookmark resolved = mock(BookmarkResolver.ResolvedBookmark.class);
+        when(resolved.getBookmark()).thenReturn(bookmark);
+        when(resolved.getAccount()).thenReturn(null);
+        when(resolved.getAccountAction()).thenReturn(Account.AccountAction.vod);
+        Method rowMethod = LiveGuideApplicationService.class.getDeclaredMethod("bookmarkRow", BookmarkResolver.ResolvedBookmark.class, java.util.Set.class);
+        rowMethod.setAccessible(true);
+        assertNull(rowMethod.invoke(service, resolved, new java.util.HashSet<>()));
     }
 }
