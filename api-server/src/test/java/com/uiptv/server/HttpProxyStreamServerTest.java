@@ -542,6 +542,49 @@ class HttpProxyStreamServerTest {
                 new Class[]{HttpUtil.StreamResult.class}, hls));
     }
 
+    @Test
+    void routingAndHeaderHelpersCoverRedirectNumericAndPortalBranches() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(_ -> true);
+        HttpUtil.StreamResult redirect = mock(HttpUtil.StreamResult.class);
+        when(redirect.statusCode()).thenReturn(302);
+        when(redirect.responseHeaders()).thenReturn(Map.of("Location", List.of("/next")));
+        assertEquals("http://provider.test/next", invoke(handler, "retryUrl",
+                new Class[]{String.class, HttpUtil.StreamResult.class}, "http://provider.test/start", redirect));
+        HttpUtil.StreamResult ordinary = mock(HttpUtil.StreamResult.class);
+        when(ordinary.statusCode()).thenReturn(200);
+        assertEquals("", invoke(handler, "retryUrl", new Class[]{String.class, HttpUtil.StreamResult.class}, "http://provider.test/start", ordinary));
+        assertEquals("origin.test:8080", invoke(handler, "authorityOf", new Class[]{String.class}, "http://origin.test:8080/path"));
+        assertEquals("", invoke(handler, "authorityOf", new Class[]{String.class}, "bad uri"));
+        assertEquals("origin.test:8080", invoke(handler, "redirectHostHeader", new Class[]{String.class, String.class},
+                "origin.test:8080", "http://127.0.0.1/live"));
+        assertEquals("", invoke(handler, "redirectHostHeader", new Class[]{String.class, String.class}, "", "http://127.0.0.1/live"));
+        assertTrue((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, "127.0.0.1"));
+        assertTrue((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, "2001:db8::1"));
+        assertFalse((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, "300.1.1.1"));
+        assertFalse((Boolean) invoke(handler, "isValidIpv4Literal", new Class[]{String.class}, "1.2.3"));
+        assertFalse((Boolean) invoke(handler, "isValidIpv4Literal", new Class[]{String.class}, "1.2.3.999"));
+
+        Class<?> cookieType = Class.forName("com.uiptv.server.HttpProxyStreamServer$CookieJar");
+        var cookieConstructor = cookieType.getDeclaredConstructor();
+        cookieConstructor.setAccessible(true);
+        Object cookies = cookieConstructor.newInstance();
+        var valuesField = cookieType.getDeclaredField("values");
+        valuesField.setAccessible(true);
+        @SuppressWarnings("unchecked") List<String> values = (List<String>) valuesField.get(cookies);
+        Map<String, String> headers = invoke(handler, "buildUpstreamHeaders", new Class[]{String.class, cookieType, Map.class},
+                "http://portal.test/play/live.php?mac=AA%3ABB&play_token=x", cookies, Map.of("Accept", "video/*", "Origin", "http://localhost:8080"));
+        assertTrue(headers.get("Cookie").contains("mac=AA:BB"));
+        assertEquals("video/*", headers.get("Accept"));
+        assertFalse(values.isEmpty());
+        assertEquals("http://portal.test", invoke(handler, "resolveUpstreamOriginHeader", new Class[]{String.class, String.class},
+                "http://portal.test/play/live.php?mac=x", "http://localhost:8080"));
+        assertEquals("http://portal.test/", invoke(handler, "resolveUpstreamRefererHeader", new Class[]{String.class, String.class},
+                "http://portal.test/play/live.php?mac=x", "http://localhost:8080/player"));
+        assertEquals("AA:BB", invoke(handler, "queryParam", new Class[]{String.class, String.class},
+                "http://portal.test/live?mac=AA%3ABB&x=1", "mac"));
+        assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://portal.test/live?x=1", "mac"));
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T invoke(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterTypes);
