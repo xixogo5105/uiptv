@@ -39,7 +39,11 @@ class ReloadBudgetTest {
     @Test
     void expired_isTrueOnceTheDurationHasElapsed() {
         ReloadBudget budget = ReloadBudget.start(Duration.ofMillis(1));
-        LockSupport.parkNanos(Duration.ofMillis(20).toNanos());
+        long waitUntil = System.nanoTime() + Duration.ofMillis(20).toNanos();
+        while (!budget.expired() && System.nanoTime() < waitUntil) {
+            // parkNanos may return spuriously, so keep waiting until expiry or the timeout.
+            LockSupport.parkNanos(Duration.ofMillis(1).toNanos());
+        }
 
         assertTrue(budget.expired(), "The budget must expire after its duration elapses");
     }
