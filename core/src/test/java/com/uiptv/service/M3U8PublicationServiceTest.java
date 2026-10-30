@@ -13,10 +13,13 @@ import java.nio.file.Files;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.lang.reflect.Method;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class M3U8PublicationServiceTest extends DbBackedTest {
 
@@ -257,6 +260,65 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertEquals(1, playlist.categories().size());
         assertEquals("Movies", playlist.categories().getFirst().categoryName());
         assertEquals(2, playlist.categories().getFirst().channels().size());
+    }
+
+    @Test
+    void playlistHelperBranchesHandleRelativeMediaCategoriesAndSelections() throws Exception {
+        M3U8PublicationService service = M3U8PublicationService.getInstance();
+        @SuppressWarnings("unchecked")
+        List<String> rewritten = invoke(service, "rewriteMediaUrlsWithLocalProxy", List.class,
+                java.util.Arrays.asList("#EXTINF:-1,One", " http://example.test/live.m3u8 ", "/relative.ts", null,
+                        "http://127.0.0.1/proxy-stream?src=already"), "localhost:8080");
+        assertTrue(rewritten.get(1).contains("/proxy-stream?src="));
+        assertEquals("/relative.ts", rewritten.get(2));
+        assertNull(rewritten.get(3));
+
+        assertFalse((Boolean) invoke(service, "containsAdaptiveManifest", boolean.class, (Object) null));
+        assertTrue((Boolean) invoke(service, "containsAdaptiveManifest", boolean.class,
+                List.of("#KODIPROP:inputstream.adaptive.manifest_type=hls")));
+        assertTrue((Boolean) invoke(service, "containsAdaptiveManifest", boolean.class,
+                List.of("http://example/live.m3u8?token=x#frag")));
+        assertEquals(2, invoke(service, "firstMarker", int.class, 2, 5));
+        assertEquals(5, invoke(service, "firstMarker", int.class, -1, 5));
+        assertEquals(2, invoke(service, "firstMarker", int.class, 2, -1));
+
+        List<String> lines = List.of(
+                "#EXTINF:-1 group-title=\"News\",One",
+                "#EXTINF:-1 group-title=\"Sports\",Two",
+                "#EXTINF:-1,Three");
+        assertFalse((Boolean) invoke(service, "hasSingleEffectiveCategory", boolean.class, lines, "Fallback"));
+        assertEquals("Fallback", invoke(service, "normalizePublishedCategory", String.class, "", "Fallback"));
+        assertEquals("Uncategorized", invoke(service, "normalizePublishedCategory", String.class, "", ""));
+        assertTrue(invoke(service, "replaceOrAppendQuotedAttribute", String.class,
+                "#EXTINF:-1,One", "group-title", "News").contains("group-title=\"News\""));
+        assertTrue(invoke(service, "replaceOrAppendQuotedAttribute", String.class,
+                "#EXTINF:-1 group-title=\"Old\",One", "group-title", "New").contains("group-title=\"New\""));
+
+        var selections = new M3U8PublicationService.PublicationSelections(
+                Set.of("account"),
+                Map.of(new M3U8PublicationService.CategorySelectionKey("account", "News"), false),
+                Map.of(new M3U8PublicationService.ChannelSelectionKey("account", "News", "channel"), true));
+        assertTrue((Boolean) invoke(service, "isChannelSelected", boolean.class, "account", "News", "channel", selections));
+        assertFalse((Boolean) invoke(service, "isChannelSelected", boolean.class, "account", "News", "other", selections));
+        assertTrue((Boolean) invoke(service, "isChannelSelected", boolean.class, "other", "News", "other", new M3U8PublicationService.PublicationSelections(Set.of("other"), Map.of(), Map.of())));
+
+        assertTrue((Boolean) invoke(service, "isPlaylistMediaLine", boolean.class, "http://example/live.ts"));
+        assertTrue((Boolean) invoke(service, "isPlaylistMediaLine", boolean.class, "../live.m3u8"));
+        assertFalse((Boolean) invoke(service, "isPlaylistMediaLine", boolean.class, "#EXTINF:-1,One"));
+        assertEquals("", invoke(service, "parseEntryTitle", String.class, "#EXTINF:-1"));
+        assertEquals("One", invoke(service, "parseEntryTitle", String.class, "#EXTINF:-1, One"));
+        assertTrue(((List<?>) service.parsePlaylistEntries("#EXTM3U\n#EXTINF:-1,No URL\n#comment\n")).isEmpty());
+        assertEquals(Set.of(), new M3U8PublicationService.PublicationSelections(null, null, null).normalized().accountIds());
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T invoke(Object target, String name, Class<T> type, Object... args) throws Exception {
+        for (Method method : target.getClass().getDeclaredMethods()) {
+            if (!method.getName().equals(name) || method.getParameterCount() != args.length) continue;
+            method.setAccessible(true);
+            return (T) method.invoke(target, args);
+        }
+        throw new NoSuchMethodException(name);
     }
 
     @Test
