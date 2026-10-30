@@ -1,6 +1,7 @@
 package com.uiptv.application;
 
 import com.uiptv.model.Channel;
+import com.uiptv.model.Account;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.model.Category;
 import com.uiptv.shared.Episode;
@@ -175,6 +176,30 @@ class CatalogApplicationServiceCoverageTest extends DbBackedTest {
         assertEquals("", invoke("normalizeImageUrl", String.class, "", null));
         assertEquals("https://img.test/poster", invoke("normalizeImageUrl", String.class, "https://img.test/poster", null));
         assertEquals("", invoke("resolveSeriesCategoryId", String.class, null, ""));
+    }
+
+    @Test
+    void categoryAndPaginationResolutionCoversLiveAndCachedBranches() throws Exception {
+        Account live = new Account();
+        live.setDbId("acct");
+        live.setCacheEnabled(false);
+        live.setAction(com.uiptv.model.Account.AccountAction.itv);
+        assertEquals("provider", invoke("resolveSeriesCategoryId", String.class, live, "live:acct:provider"));
+        assertEquals("provider", invoke("normalizeSeriesCategoryId", String.class, live, "live:acct:provider"));
+        assertEquals("provider", invoke("resolveCategoryApiId", String.class, live, "live:acct:provider"));
+        org.junit.jupiter.api.Assertions.assertNull(invoke("resolveCategoryByDbId", Category.class, live, ""));
+        org.junit.jupiter.api.Assertions.assertNull(invoke("resolveCategoryByDbId", Category.class, live, "All"));
+        Category resolved = invoke("resolveCategoryByDbId", Category.class, live, "live:acct:provider");
+        assertEquals("provider", resolved.getCategoryId());
+        assertEquals("live:acct:provider", resolved.getDbId());
+
+        assertTrue((Boolean) invoke("estimateHasMore", boolean.class, new Pagination(20, 5), 1, 0, 5, 5));
+        assertFalse((Boolean) invoke("estimateHasMore", boolean.class, new Pagination(5, 5), 1, 0, 5, 5));
+        live.setType(com.uiptv.util.AccountType.STALKER_PORTAL);
+        live.setAction(com.uiptv.model.Account.AccountAction.series);
+        assertTrue((Boolean) invoke("shouldServeSeriesEpisodes", boolean.class, live, "cat", "movie"));
+        live.setAction(com.uiptv.model.Account.AccountAction.vod);
+        assertFalse((Boolean) invoke("shouldServeSeriesEpisodes", boolean.class, live, "cat", "movie"));
     }
 
     private static Channel channel(String id, String name, String cmd) {

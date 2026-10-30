@@ -1,13 +1,24 @@
 package com.uiptv.server.api.json;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import com.uiptv.model.Account;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.HttpUtil;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class PlaybackMediaInspectorTest {
     @Test
@@ -102,6 +113,40 @@ class PlaybackMediaInspectorTest {
         assertEquals("avc1.4d401f", codecs.videoCodec());
         assertEquals("aac.40.2", codecs.audioCodec());
         assertEquals("native", codecs.strategy());
+    }
+
+    @Test
+    void inspectUsesProbeResponseAndFallsBackForErrors() throws Exception {
+        Account account = new Account();
+        account.setType(AccountType.STALKER_PORTAL);
+        PlaybackMediaInspector.MediaInfo hinted = PlaybackMediaInspector.inspect("http://cdn/live.m3u8", account);
+        assertEquals("hls", hinted.strategy());
+
+        HttpUtil.StreamResult response = mock(HttpUtil.StreamResult.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.responseHeaders()).thenReturn(java.util.Map.of("Content-Type", java.util.List.of("video/mp4; codecs=avc1.4d401f,aac.40.2")));
+        when(response.bodyStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[]{0, 0, 0, 0, 'f', 't', 'y', 'p'}));
+        try (MockedStatic<HttpUtil> http = mockStatic(HttpUtil.class)) {
+            http.when(() -> HttpUtil.openStream(anyString(), anyMap(), eq("GET"), isNull(), any(HttpUtil.RequestOptions.class)))
+                    .thenReturn(response);
+            PlaybackMediaInspector.MediaInfo inspected = PlaybackMediaInspector.inspect("http://cdn/live", account);
+            assertEquals("native", inspected.strategy());
+            assertEquals("avc1.4d401f", inspected.videoCodec());
+            assertEquals("aac.40.2", inspected.audioCodec());
+        }
+        HttpUtil.StreamResult failed = mock(HttpUtil.StreamResult.class);
+        when(failed.statusCode()).thenReturn(500);
+        try (MockedStatic<HttpUtil> http = mockStatic(HttpUtil.class)) {
+            http.when(() -> HttpUtil.openStream(anyString(), anyMap(), eq("GET"), isNull(), any(HttpUtil.RequestOptions.class)))
+                    .thenReturn(failed);
+            assertEquals("mpegts", PlaybackMediaInspector.inspect(
+                    "http://portal.example/play/movie.php?mac=AA", account).strategy());
+        }
+        try (MockedStatic<HttpUtil> http = mockStatic(HttpUtil.class)) {
+            http.when(() -> HttpUtil.openStream(anyString(), anyMap(), eq("GET"), isNull(), any(HttpUtil.RequestOptions.class)))
+                    .thenThrow(new java.io.IOException("offline"));
+            assertEquals("unknown", PlaybackMediaInspector.inspect("http://cdn/live", null).strategy());
+        }
     }
 
 }

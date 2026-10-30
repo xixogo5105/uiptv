@@ -136,4 +136,54 @@ class EpgApplicationServiceTest extends DbBackedTest {
         local.setEpg("http://one, http://two");
         assertEquals(List.of("http://one", "http://two"), new EpgApplicationService().accountSources(local));
     }
+
+    @Test void liveXmltvReaderKeepsMatchingProgramsAndRejectsStaleEntries() throws Exception {
+        Instant now = Instant.parse("2026-10-30T12:00:00Z");
+        String xml = """
+                <tv>
+                  <channel id="one"><display-name>One HD</display-name></channel>
+                  <programme channel="one" start="20261030110000 +0000" stop="20261030130000 +0000"><title>News</title><desc>Details</desc></programme>
+                  <programme channel="one" start="20261030140000 +0000" stop="20261030150000 +0000"><title>Later</title></programme>
+                  <programme channel="one" start="20261029100000 +0000" stop="20261029110000 +0000"><title>Old</title></programme>
+                </tv>
+                """;
+        var bytes = xml.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(2, LiveXmltvReader.read(new java.io.ByteArrayInputStream(bytes), "one", "One HD", now).size());
+        assertTrue(LiveXmltvReader.read(new java.io.ByteArrayInputStream(bytes), "missing", "Other", now).isEmpty());
+        String ambiguous = "<tv><channel id=\"a\"><display-name>One HD</display-name></channel><channel id=\"b\"><display-name>One HD</display-name></channel></tv>";
+        assertTrue(LiveXmltvReader.read(new java.io.ByteArrayInputStream(ambiguous.getBytes(java.nio.charset.StandardCharsets.UTF_8)), "missing", "One HD", now).isEmpty());
+    }
+
+    @Test void liveXmltvReaderHandlesQualityFallbackMissingStopsAndInvalidWindows() throws Exception {
+        Instant now = Instant.parse("2026-10-30T12:00:00Z");
+        String xml = """
+                <tv>
+                  <channel id="quality"><display-name>News HD</display-name></channel>
+                  <programme channel="quality" start="20261030110000 +0000"><title><![CDATA[Current <show>]]></title><desc>Nested <b>description</b></desc></programme>
+                  <programme channel="quality" start="20261030130000 +0000" stop="20261030140000 +0000"><title>Next</title></programme>
+                  <programme channel="quality" start="20261029100000 +0000" stop="20261029110000 +0000"><title>Too old</title></programme>
+                  <programme channel="quality" start="20261108100000 +0000" stop="20261108110000 +0000"><title>Too far</title></programme>
+                  <programme channel="quality" start="20261030150000 +0000" stop="20261030140000 +0000"><title>Already ended</title></programme>
+                </tv>
+                """;
+        var programmes = LiveXmltvReader.read(new java.io.ByteArrayInputStream(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                "missing", "News 4K", now);
+        assertEquals(2, programmes.size());
+        assertEquals("Current <show>", programmes.getFirst().title());
+        assertEquals("Nested description", programmes.getFirst().description());
+        assertEquals(Instant.parse("2026-10-30T13:00:00Z").toEpochMilli(), programmes.getFirst().stop());
+    }
+
+    @Test void liveXmltvReaderHonoursInterruptAndDisablesExternalEntities() throws Exception {
+        Thread.currentThread().interrupt();
+        try {
+            assertThrows(InterruptedException.class, () -> LiveXmltvReader.read(
+                    new java.io.ByteArrayInputStream("<tv/>".getBytes(java.nio.charset.StandardCharsets.UTF_8)), "", "", Instant.now()));
+        } finally {
+            Thread.interrupted();
+        }
+        assertTrue(LiveXmltvReader.read(
+                new java.io.ByteArrayInputStream("<!DOCTYPE tv SYSTEM 'http://example.invalid/evil'><tv/>".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                "", "", Instant.now()).isEmpty());
+    }
 }
