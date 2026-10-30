@@ -8,7 +8,6 @@ import com.uiptv.mobile.shared.cache.*
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
-import com.uiptv.mobile.shared.sync.buildRemoteSyncBaseUrl
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.json.*
@@ -17,6 +16,7 @@ import java.net.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.zip.GZIPInputStream
+import java.util.zip.InflaterInputStream
 
 /** Live account-level requests; no guide data survives the requesting screen/player. */
 class AndroidEpgRepository(
@@ -44,13 +44,6 @@ class AndroidEpgRepository(
         if (!settings.epgEnabled) return@withContext MobileEpgResult()
         val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
             ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
-        desktopSchedule(settings.remoteEndpoint.host, settings.remoteEndpoint.port, accountId,
-            providerChannelId, name, epgIdentity, channelRowId, categoryRowId, bookmarkId, details = true)
-            ?.takeIf { it.programmes.isNotEmpty() }
-            ?.let { remote ->
-                AndroidAppLog.i(TAG, "EPG complete source=desktop programmes=${remote.programmes.size} elapsedMs=${elapsedMs(startedAt)}")
-                return@withContext remote
-            }
         val requestContext = currentCoroutineContext()
         val now = System.currentTimeMillis()
         ensureActive()
@@ -68,11 +61,10 @@ class AndroidEpgRepository(
         var failed = false
         for (configured in sources) {
             ensureActive()
-            val source = resolveDesktopSource(configured, settings.remoteEndpoint.host)
+            val source = SamsungTvPlusEpgSource.resolve(account, configured) ?: configured
+            if (source != configured) AndroidAppLog.i(TAG, "EPG XMLTV using direct Samsung TV Plus source host=${sourceHost(source)}")
             try {
-                val programmes = open(source).buffered().use { buffered ->
-                    buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
-                    val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
+                val programmes = openXml(open(source)).use { xml ->
                     AndroidXmltvReader.read(EpgInputStream(xml, { requestContext.ensureActive() }), now, source, id, name, checkCancelled = { requestContext.ensureActive() }).forChannel(id, name)
                 }
                 if (programmes.isNotEmpty()) {
@@ -133,26 +125,18 @@ class AndroidEpgRepository(
                 var failed = false
                 try {
                     val id = resolvedGuideId
-                    val desktop = desktopSchedule(settings.remoteEndpoint.host, settings.remoteEndpoint.port,
-                        accountId, providerChannelId, name, id, channelRowId, categoryRowId, bookmarkId, details = false)
-                    if (desktop?.now(now) != null) {
-                        result = desktop
-                        AndroidAppLog.i(TAG, "EPG desktop match programmes=${desktop.programmes.size} elapsedMs=${elapsedMs(startedAt)}")
-                        events.send(EpgEvent.Progress(desktop))
-                    }
-                    val sources = if (result == null) splitSources(account.epg).ifEmpty { discover(account) } else emptyList()
+                    val sources = splitSources(account.epg).ifEmpty { discover(account) }
                     AndroidAppLog.i(TAG, "EPG XMLTV sources=${sources.size} guideId=$id")
                     for (configured in sources.takeIf { result == null }.orEmpty()) {
                         ensureActive()
-                        val source = resolveDesktopSource(configured, settings.remoteEndpoint.host)
+                        val source = SamsungTvPlusEpgSource.resolve(account, configured) ?: configured
+                        if (source != configured) AndroidAppLog.i(TAG, "EPG XMLTV using direct Samsung TV Plus source host=${sourceHost(source)}")
                         val sourceStartedAt = System.nanoTime()
                         AndroidAppLog.i(TAG, "EPG XMLTV start host=${sourceHost(source)}")
                         try {
                             val opened = open(source)
                             AndroidAppLog.i(TAG, "EPG XMLTV opened host=${sourceHost(source)} elapsedMs=${elapsedMs(sourceStartedAt)}")
-                            val guide = opened.buffered().use { buffered ->
-                                buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
-                                val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
+                            val guide = openXml(opened).use { xml ->
                                 val epgInput = EpgInputStream(xml, { requestContext.ensureActive() })
                                 AndroidXmltvReader.read(epgInput, now, source, id, name, checkCancelled = { requestContext.ensureActive() }, onProgress = { partial ->
                                     val shifted = applyTvgShift(accountId, providerChannelId,
@@ -160,7 +144,7 @@ class AndroidEpgRepository(
                                     result = shifted
                                     AndroidAppLog.i(TAG, "EPG XMLTV partial programmes=${partial.size} bytes=${epgInput.bytesRead} elapsedMs=${elapsedMs(sourceStartedAt)}")
                                     events.trySend(EpgEvent.Progress(shifted))
-                                }, stopAfterCurrentProgramme = true)
+                                }, stopAfterUpcomingProgrammeCount = SWIPE_GUIDE_PROGRAMME_COUNT)
                             }
                             val programmes = guide.forChannel(id, name)
                             if (programmes.isNotEmpty()) {
@@ -194,9 +178,12 @@ class AndroidEpgRepository(
                     is EpgEvent.Progress -> if (event.result != lastUpdate) {
                         lastUpdate = event.result
                         onUpdate(event.result)
-                        // Finish once the current programme is available; a slower source
-                        // must not delay completion or replace it with a later failure.
-                        if (event.result.now(System.currentTimeMillis()) != null) {
+                        // Publish the current programme immediately (for the one-item player bar),
+                        // then keep reading until the swipe guide has a short schedule or both
+                        // sources finish. A slower source cannot replace an already-complete guide.
+                        if (AndroidXmltvReader.hasEnoughUpcomingProgrammes(
+                                event.result.programmes, System.currentTimeMillis(), SWIPE_GUIDE_PROGRAMME_COUNT
+                            )) {
                             return@coroutineScope event.result
                         }
                     }
@@ -239,79 +226,6 @@ class AndroidEpgRepository(
             ?: if (account.type == MobileAccountType.XTREME_API) "" else channelId
     }
 
-    /** Ask the paired desktop to read its local EPG source and return only this channel's schedule. */
-    private fun desktopSchedule(host: String, port: Int, accountId: Long, providerChannelId: String,
-                                channelName: String, epgId: String,
-                                channelRowId: Long, categoryRowId: Long, bookmarkId: String,
-                                details: Boolean): MobileEpgResult? {
-        if (host.isBlank()) return null
-        val base = runCatching { buildRemoteSyncBaseUrl(host, port) }.getOrNull() ?: return null
-        val parameters = mutableListOf("accountId" to accountId.toString())
-        when {
-            bookmarkId.isNotBlank() -> parameters += "bookmarkId" to bookmarkId
-            channelRowId > 0 && categoryRowId > 0 -> {
-                parameters += "channelId" to channelRowId.toString()
-                parameters += "categoryId" to categoryRowId.toString()
-            }
-            providerChannelId.isNotBlank() -> {
-                parameters += "providerChannelId" to providerChannelId
-                parameters += "channelName" to channelName
-                parameters += "epgId" to epgId
-            }
-            else -> return null
-        }
-        parameters += "details" to if (details) "1" else "0"
-        parameters += "limit" to "100"
-        val query = parameters.joinToString("&") { (key, value) -> "${key.urlEncoded()}=${value.urlEncoded()}" }
-        val startedAt = System.nanoTime()
-        var connection: HttpURLConnection? = null
-        return try {
-            connection = (URL("$base/playerEpg?$query").openConnection() as HttpURLConnection).apply {
-                connectTimeout = 4_000
-                readTimeout = 8_000
-                requestMethod = "GET"
-            }
-            val status = connection.responseCode
-            if (status !in 200..299) {
-                AndroidAppLog.w(TAG, "EPG desktop response status=$status elapsedMs=${elapsedMs(startedAt)}")
-                return null
-            }
-            val json = connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
-            val programmes = mutableListOf<MobileEpgProgramme>()
-            if (details) {
-                val array = json.optJSONArray("programmes") ?: JSONArray()
-                for (index in 0 until array.length()) json.optProgramme(array.optJSONObject(index))?.let(programmes::add)
-            } else {
-                json.optProgramme(json.optJSONObject("now"))?.let(programmes::add)
-                json.optProgramme(json.optJSONObject("next"))?.let(programmes::add)
-            }
-            val statusValue = when (json.optString("guideStatus")) {
-                "AVAILABLE" -> MobileEpgStatus.AVAILABLE
-                "UNAVAILABLE" -> MobileEpgStatus.UNAVAILABLE
-                "STALE" -> MobileEpgStatus.STALE
-                else -> MobileEpgStatus.NO_MATCH
-            }
-            AndroidAppLog.i(TAG, "EPG desktop response programmes=${programmes.size} elapsedMs=${elapsedMs(startedAt)}")
-            MobileEpgResult(statusValue, MobileEpgSchedules.normalize(programmes))
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            AndroidAppLog.w(TAG, "EPG desktop unavailable error=${failure.javaClass.simpleName} elapsedMs=${elapsedMs(startedAt)}")
-            null
-        } finally {
-            connection?.disconnect()
-        }
-    }
-
-    private fun JSONObject.optProgramme(json: JSONObject?): MobileEpgProgramme? {
-        if (json == null || json == JSONObject.NULL) return null
-        val title = json.optString("title").trim()
-        val start = json.optLong("start")
-        val stop = json.optLong("stop")
-        return if (title.isNotBlank() && stop > start) MobileEpgProgramme(title, json.optString("description"), start, stop) else null
-    }
-
-    private fun String.urlEncoded(): String = java.net.URLEncoder.encode(this, Charsets.UTF_8.name())
     private suspend fun discover(account: MobileAccount): List<String> {
         val requestContext = currentCoroutineContext()
         if (account.type != MobileAccountType.M3U8_LOCAL && account.type != MobileAccountType.M3U8_URL) return emptyList()
@@ -351,16 +265,51 @@ class AndroidEpgRepository(
         require(source.startsWith("http://", true) || source.startsWith("https://", true))
         val connection = (URL(source).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000; readTimeout = 20_000
-            setRequestProperty("Accept-Encoding", "gzip")
+            setRequestProperty("Accept-Encoding", "gzip, x-gzip, deflate")
         }
         try {
-            if (connection.responseCode !in 200..299) error("Source unavailable")
+            val status = connection.responseCode
+            val contentLength = connection.getHeaderFieldLong("Content-Length", -1L)
+            val contentEncoding = connection.getHeaderField("Content-Encoding").orEmpty().ifBlank { "identity" }
+            val acceptsRanges = connection.getHeaderField("Accept-Ranges").orEmpty().ifBlank { "unknown" }
+            val transferEncoding = connection.getHeaderField("Transfer-Encoding").orEmpty().ifBlank { "none" }
+            AndroidAppLog.i(TAG, "XMLTV HTTP endpoint=${sourceEndpoint(source)} status=$status contentLength=$contentLength encoding=$contentEncoding transfer=$transferEncoding ranges=$acceptsRanges")
+            if (status !in 200..299) error("Source unavailable")
             val input = connection.inputStream
-            return object : FilterInputStream(input) { override fun close() { try { super.close() } finally { connection.disconnect() } } }
+            val openedAt = System.nanoTime()
+            val meteredInput = object : FilterInputStream(input) {
+                private var wireBytes = 0L
+                override fun read(): Int = super.read().also { if (it >= 0) wireBytes++ }
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int = super.read(buffer, offset, length).also { if (it > 0) wireBytes += it }
+                override fun close() {
+                    try { super.close() } finally {
+                        AndroidAppLog.i(TAG, "XMLTV HTTP closed endpoint=${sourceEndpoint(source)} wireBytes=$wireBytes elapsedMs=${elapsedMs(openedAt)}")
+                        connection.disconnect()
+                    }
+                }
+            }
+            return contentEncoding.split(',').asReversed().fold(meteredInput as InputStream) { stream, rawEncoding ->
+                when (rawEncoding.trim().lowercase()) {
+                    "", "identity" -> stream
+                    "gzip", "x-gzip" -> GZIPInputStream(BufferedInputStream(stream, XMLTV_BUFFER_SIZE), XMLTV_BUFFER_SIZE)
+                    "deflate" -> InflaterInputStream(BufferedInputStream(stream, XMLTV_BUFFER_SIZE))
+                    else -> error("Unsupported XMLTV content encoding")
+                }
+            }
         } catch (failure: Exception) {
             connection.disconnect()
             throw failure
         }
+    }
+
+    /** Use large buffers for network XMLTV feeds, especially when decompression is required. */
+    private fun openXml(input: InputStream): InputStream {
+        val buffered = if (input is BufferedInputStream) input else BufferedInputStream(input, XMLTV_BUFFER_SIZE)
+        buffered.mark(2)
+        val first = buffered.read()
+        val second = buffered.read()
+        buffered.reset()
+        return if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered, XMLTV_BUFFER_SIZE) else buffered
     }
     private suspend fun nativeSchedule(account: MobileAccount, id: String, now: Long): List<MobileEpgProgramme> {
         val actions = when (account.type) {
@@ -416,27 +365,18 @@ class AndroidEpgRepository(
     }
     companion object {
         private const val TAG = "UIPTV-EPG"
+        private const val XMLTV_BUFFER_SIZE = 64 * 1024
+        private const val SWIPE_GUIDE_PROGRAMME_COUNT = 8
         private fun elapsedMs(startedAt: Long) = (System.nanoTime() - startedAt) / 1_000_000
         private fun sourceHost(source: String): String = runCatching {
             URI(source).let { it.host ?: it.scheme ?: "local" }
         }.getOrDefault("local")
-
-        fun resolveDesktopSource(source: String, desktopHost: String): String {
-            if (desktopHost.isBlank()) return source
-            return runCatching {
-                val uri = URI(source)
-                if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host?.lowercase() !in setOf("localhost", "127.0.0.1", "::1", "[::1]")) source
-                else {
-                    val authority = uri.rawAuthority
-                    val offset = authority.lastIndexOf('@') + 1
-                    val hostPart = authority.substring(offset)
-                    val length = if (hostPart.startsWith("[")) hostPart.indexOf(']') + 1 else hostPart.substringBefore(':').length
-                    val start = source.indexOf("://") + 3 + offset
-                    val replacement = desktopHost.trim().let { if (it.contains(':') && !it.startsWith("[")) "[$it]" else it }
-                    source.replaceRange(start, start + length, replacement)
-                }
-            }.getOrDefault(source)
-        }
+        private fun sourceEndpoint(source: String): String = runCatching {
+            URI(source).let { uri ->
+                val host = uri.host ?: uri.scheme ?: "local"
+                if (uri.port < 0) host else "$host:${uri.port}"
+            }
+        }.getOrDefault("local")
 
         const val MAX_NATIVE_PROGRAMMES = 2000
     }

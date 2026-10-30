@@ -16,7 +16,7 @@ object AndroidXmltvReader {
         requestedName: String = "",
         checkCancelled: () -> Unit = {},
         onProgress: ((List<MobileEpgProgramme>) -> Unit)? = null,
-        stopAfterCurrentProgramme: Boolean = false
+        stopAfterUpcomingProgrammeCount: Int = 0
     ): MobileXmltvGuide {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
@@ -28,6 +28,8 @@ object AndroidXmltvReader {
         val ambiguous = mutableSetOf<String>()
         val qualityNames = mutableMapOf<String, String>()
         val ambiguousQuality = mutableSetOf<String>()
+        val candidateChannelIds = mutableSetOf<String>()
+        val requestedQualityName = MobileXmltvGuide.normalizeQuality(requestedName)
         var id = ""
         var channel = ""
         var title = ""
@@ -52,12 +54,13 @@ object AndroidXmltvReader {
                 "display-name" -> {
                     val name = MobileXmltvGuide.normalize(boundedText(parser, 512, checkCancelled))
                     if (id.isNotBlank() && name.isNotBlank() && (requestedId == null || id == requestedId ||
-                        MobileXmltvGuide.normalizeQuality(name) == MobileXmltvGuide.normalizeQuality(requestedName))) {
+                        MobileXmltvGuide.normalizeQuality(name) == requestedQualityName)) {
                         val previous = names.put(name, id)
                         if (previous != null && previous != id) ambiguous += name
                         val key = MobileXmltvGuide.normalizeQuality(name)
                         val qualityPrevious = qualityNames.put(key, id)
                         if (qualityPrevious != null && qualityPrevious != id) ambiguousQuality += key
+                        if (requestedId != null && key == requestedQualityName) candidateChannelIds += id
                     }
                 }
                 "icon" -> if (requestedId == null && id.isNotBlank() && channel.isBlank()) {
@@ -79,9 +82,16 @@ object AndroidXmltvReader {
                         }
                     }
                     channel = parser.getAttributeValue(null, "channel").orEmpty()
-                    if (requestedId != null && channel != requestedId && channel !in names.values && channel !in qualityNames.values) channel = ""
-                    start = time(parser.getAttributeValue(null, "start"))
-                    stop = time(parser.getAttributeValue(null, "stop"))
+                    if (requestedId != null && channel != requestedId && channel !in candidateChannelIds) {
+                        // Date parsing is relatively costly on older Android devices. Ignore rows
+                        // that cannot possibly match this channel before parsing their timestamps.
+                        channel = ""
+                        start = 0L
+                        stop = 0L
+                    } else {
+                        start = time(parser.getAttributeValue(null, "start"))
+                        stop = time(parser.getAttributeValue(null, "stop"))
+                    }
                     title = ""; description = ""
                 }
                 "title" -> { if (channel.isNotBlank()) { val text = boundedText(parser, 512, checkCancelled).trim(); if (title.isEmpty()) title = text } }
@@ -107,12 +117,15 @@ object AndroidXmltvReader {
                             lastProgressKey = progressKey
                             onProgress(partial)
                         }
-                        if (stopAfterCurrentProgramme && current != null) break@parse
+                        // Keep enough of the matched channel's schedule for the swipe-in guide,
+                        // while still avoiding a full scan of a large XMLTV feed. Count the
+                        // current programme and upcoming programmes, not old schedule entries.
+                        if (hasEnoughUpcomingProgrammes(requestedProgrammes, now, stopAfterUpcomingProgrammeCount)) break@parse
                     }
                 }
                 channel = ""
             }
-            event = parser.nextToken()
+            event = parser.next()
         }
         ambiguous.forEach(names::remove)
         ambiguousQuality.forEach(qualityNames::remove)
@@ -130,6 +143,17 @@ object AndroidXmltvReader {
             if (end > p.start) p.copy(stop = end) else null
         })
     }
+
+    internal fun hasEnoughUpcomingProgrammes(
+        programmes: List<MobileEpgProgramme>,
+        now: Long,
+        minimumCount: Int
+    ): Boolean = minimumCount > 0 && programmes.asSequence()
+        .filter { it.stop > now }
+        .distinctBy { "${it.start}:${it.stop}:${it.title}" }
+        .take(minimumCount)
+        .count() >= minimumCount
+
     private fun boundedText(parser: XmlPullParser, maximum: Int, checkCancelled: () -> Unit): String {
         val value = StringBuilder()
         var depth = 1
@@ -149,17 +173,28 @@ object AndroidXmltvReader {
         return value.toString()
     }
 
-    fun time(value: String?): Long = runCatching {
-        val parts = value.orEmpty().trim().split(Regex("\\s+"))
-        var digits = parts[0]
-        require(digits.length >= 12)
-        if (digits.length == 12) digits += "00"
-        val offset = when (val raw = parts.getOrElse(1) { "UTC" }) {
-            "UTC", "GMT" -> ZoneOffset.UTC
-            "BST" -> ZoneOffset.ofHours(1)
-            else -> ZoneOffset.of(raw)
+    fun time(value: String?): Long {
+        if (value == null) return 0L
+        return try {
+            val raw = value.trim()
+            if (raw.isEmpty()) return 0L
+            val separator = raw.indexOfFirst(Char::isWhitespace)
+            var digits = if (separator < 0) raw else raw.substring(0, separator)
+            if (digits.length < 12) return 0L
+            if (digits.length == 12) digits += "00"
+            val zoneValue = if (separator < 0) "" else raw.substring(separator).trim()
+            val zoneEnd = zoneValue.indexOfFirst(Char::isWhitespace)
+            val zone = if (zoneEnd < 0) zoneValue else zoneValue.substring(0, zoneEnd)
+            val offset = when (zone) {
+                "UTC", "GMT", "" -> ZoneOffset.UTC
+                "BST" -> ZoneOffset.ofHours(1)
+                else -> ZoneOffset.of(zone)
+            }
+            LocalDateTime.parse(digits, XMLTV_TIME).toInstant(offset).toEpochMilli()
+        } catch (_: RuntimeException) {
+            0L
         }
-        LocalDateTime.parse(digits, DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(ResolverStyle.STRICT))
-            .toInstant(offset).toEpochMilli()
-    }.getOrDefault(0)
+    }
+
+    private val XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(ResolverStyle.STRICT)
 }

@@ -2562,7 +2562,13 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         text(currentTarget?.title.orEmpty(), 18f)
         val now = System.currentTimeMillis()
         val result = epgResult
-        val current = result?.now(now)
+        val schedule = result?.programmes.orEmpty()
+            .asSequence()
+            .filter { it.stop > now }
+            .distinctBy { "${it.start}:${it.stop}:${it.title}" }
+            .sortedBy { it.start }
+            .toList()
+        val current = schedule.lastOrNull { it.start <= now && now < it.stop }
         val format = java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault())
         if (current != null) {
             text("On air", 13f); text(current.title, 22f, "On-air programme title")
@@ -2572,10 +2578,14 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 contentDescription = "Programme progress"
             })
             text(current.description.ifBlank { "No programme description available" }, 16f, "On-air programme description")
-        } else text(result?.message?.takeIf { it.isNotBlank() } ?: com.uiptv.mobile.shared.i18n.MobileMessages.text(if (result == null && epgEnabled) "epgLoading" else "epgNoGuide"), 16f)
-        result?.next(now)?.let { next ->
-            text("Up next", 13f); text(next.title, 18f)
-            text("${format.format(java.util.Date(next.start))} – ${format.format(java.util.Date(next.stop))}", 14f)
+        } else if (schedule.isEmpty()) {
+            text(result?.message?.takeIf { it.isNotBlank() } ?: com.uiptv.mobile.shared.i18n.MobileMessages.text(if (result == null && epgEnabled) "epgLoading" else "epgNoGuide"), 16f)
+        }
+        schedule.filter { it.start > now }.forEachIndexed { index, programme ->
+            if (index == 0) text("Up next", 13f)
+            text(programme.title, 18f)
+            text("${format.format(java.util.Date(programme.start))} – ${format.format(java.util.Date(programme.stop))}", 14f)
+            if (programme.description.isNotBlank()) text(programme.description, 14f)
         }
     }
 
