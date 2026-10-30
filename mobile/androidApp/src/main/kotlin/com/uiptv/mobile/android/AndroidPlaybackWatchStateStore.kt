@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.toRecentBookmark
 
@@ -138,7 +139,7 @@ class AndroidPlaybackWatchStateStore(
                     com.uiptv.mobile.shared.browse.AndroidBookmarkPlayHistoryStore(helper.writableDatabase)
                         .record(target.toRecentBookmark())
                 } catch (failure: Exception) {
-                    android.util.Log.w("UIPTV-WatchHistory", "Unable to save recent playback", failure)
+                    AndroidAppLog.w("UIPTV-WatchHistory", "Unable to save recent playback", failure)
                 } finally {
                     helper.close()
                 }
@@ -153,7 +154,7 @@ class AndroidPlaybackWatchStateStore(
                 try {
                     AndroidPlaybackWatchStateStore(helper).markOpened(target)
                 } catch (failure: Exception) {
-                    android.util.Log.w("UIPTV-WatchHistory", "Unable to save playback history", failure)
+                    AndroidAppLog.w("UIPTV-WatchHistory", "Unable to save playback history", failure)
                 } finally {
                     helper.close()
                 }

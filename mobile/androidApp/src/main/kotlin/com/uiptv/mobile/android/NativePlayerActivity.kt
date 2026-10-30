@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
-import android.util.Log
 import android.view.Window
 import android.view.WindowManager
 import android.widget.TextView
@@ -26,8 +25,9 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.ui.PlayerView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
-import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
+import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.isDrmProtected
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import kotlinx.coroutines.CoroutineScope
@@ -255,7 +255,7 @@ class NativePlayerActivity : Activity() {
             return
         }
         if (playbackRetryAttempt >= MaxNativePlaybackRetries) {
-            Log.w(LogTag, "Android Media playback failed after $playbackRetryAttempt retries", error)
+            AndroidAppLog.w(LogTag, "Android Media playback failed after $playbackRetryAttempt retries", error)
             showPlaybackError(error)
             return
         }
@@ -264,7 +264,7 @@ class NativePlayerActivity : Activity() {
             NativePlaybackRetryMaxDelayMs,
             NativePlaybackRetryBaseDelayMs * playbackRetryAttempt
         )
-        Log.w(LogTag, "Android Media source error; retrying stream in ${delayMs}ms attempt=$playbackRetryAttempt", error)
+        AndroidAppLog.w(LogTag, "Android Media source error; retrying stream in ${delayMs}ms attempt=$playbackRetryAttempt", error)
         playerHandler.removeCallbacks(retryPlaybackRunnable)
         playerHandler.postDelayed(retryPlaybackRunnable, delayMs)
     }

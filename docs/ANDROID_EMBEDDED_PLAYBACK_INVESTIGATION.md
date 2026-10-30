@@ -68,21 +68,28 @@ play/pause icon, reads metadata on coalesced reconfiguration notifications, and
 reapplies the video transform only when track details change (or actual surface/
 zoom/output changes). Clock updates still clear the startup spinner while the
 controls are hidden. Opening controls immediately renders the latest clock.
-Native warning/error logs remain enabled; ordinary verbose output is reduced.
-Hardware decoding, audio output and buffer policy were held constant for this
-comparison. There are no new settings or user-facing labels.
+App and Media3 logs are disabled unless a debug build is explicitly opted in;
+WorkManager logs are suppressed in every build. The bundled MPV JNI wrapper is
+built without Android log output, and terminal/config-file output is disabled.
+The AAR build checks all four JNI binaries before stamping the quiet-logging
+marker; app builds reject older AARs. libmpv warning events remain
+available to the internal decoder-recovery callback and are not forwarded through
+the app logger in release; the explicit debug launch switch raises MPV verbosity
+and forwards its events through the gated app logger for local diagnostics. Hardware decoding, audio output and buffer policy were held constant
+for this comparison. There are no new settings or user-facing labels.
 
-Diagnostics are disabled by default. While explicitly enabled, one background
-sample every five seconds records clock, cache duration/speed, cache pause state,
-decoder/output drop counters, A/V sync, source/output fps and decoder/output modes.
-Samples exclude stream URLs and provider credentials. Native diagnostic reads
-share the lifecycle queue with release so a queued read does not run after
-native destruction.
+App log output is disabled in release builds and in debug builds unless the app
+is launched with the explicit `com.uiptv.mobile.extra.ENABLE_APP_LOGS` boolean
+extra. With that extra set on a debug build, one background playback sample every
+five seconds records clock, cache duration/speed, cache pause state, decoder/output
+drop counters, A/V sync, source/output fps and decoder/output modes. Samples
+exclude stream URLs and provider credentials. Native diagnostic reads share the
+lifecycle queue with release so a queued read does not run after native destruction.
 
 ```sh
-adb shell setprop log.tag.UIPTV-Playback DEBUG
-adb logcat -s UIPTV-Playback:D '*:S'
-adb shell setprop log.tag.UIPTV-Playback INFO
+adb shell am force-stop com.uiptv.mobile
+adb shell am start -n com.uiptv.mobile/.android.MainActivity --ez com.uiptv.mobile.extra.ENABLE_APP_LOGS true
+adb logcat -s UIPTV-Mpv:D UIPTV-MpvEmbedded:D UIPTV-Playback:D UIPTV-Native:D UIPTV-WatchHistory:W UIPTV-Recent:W UIPTVRemoteSync:V UiptvMigration:W UIPTV-Metadata:W
 ```
 
 EPG source inspection found one request per selected channel, with cancellation
@@ -144,3 +151,13 @@ comments are not an established upstream fix.
   remain separate from headless unit/build runs.
 - Manual same-stream playback on the attached device produced the metrics above.
 - No commit or push was performed for this investigation.
+
+
+## Failed-stream cleanup (2026-10-30)
+
+HLS proxy shutdown cancels registered calls and closes client sockets without
+interrupting OkHttp worker threads. Socket/call registration and the shutdown
+snapshot share a lock, so a request cannot miss cancellation during teardown.
+Each new playback load retires its predecessor's proxy; stopping the activity
+also retires the proxy, preventing old-stream downloads from lingering behind
+another playback session. Startup retries remain capped and generation guarded.

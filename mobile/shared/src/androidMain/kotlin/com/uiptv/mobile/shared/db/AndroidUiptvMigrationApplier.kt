@@ -2,7 +2,7 @@ package com.uiptv.mobile.shared.db
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
-import android.util.Log
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import java.security.MessageDigest
 
 class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
@@ -60,7 +60,7 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             // around the long-dropped darkTheme column, for example) are redundant here rather than fatal.
             // Rethrowing aborted the whole chain and left the database unusable.
             recordMigration(db, name, checksum, "failed", failure.message ?: failure::class.simpleName.orEmpty())
-            Log.w("UiptvMigration", "Migration $name failed and was rolled back (${failure::class.simpleName})")
+            AndroidAppLog.w("UiptvMigration", "Migration $name failed and was rolled back (${failure::class.simpleName})")
         }
     }
 

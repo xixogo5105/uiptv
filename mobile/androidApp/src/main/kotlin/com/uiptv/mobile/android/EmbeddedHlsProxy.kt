@@ -1,5 +1,6 @@
 package com.uiptv.mobile.android
 
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.ByteArrayOutputStream
@@ -24,6 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class EmbeddedHlsProxy : Closeable {
     private data class Resource(val url: String, val playlist: Boolean)
     private val closed = AtomicBoolean()
+    private val lifecycleLock = Any()
+    private val calls = HashSet<Call>()
     private val token = UUID.randomUUID().toString()
     private val server = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
     private val sockets = ConcurrentHashMap.newKeySet<Socket>()
@@ -44,7 +47,13 @@ internal class EmbeddedHlsProxy : Closeable {
         Thread({
             while (!closed.get()) {
                 val socket = try { server.accept() } catch (_: IOException) { break }
-                sockets.add(socket)
+                synchronized(lifecycleLock) {
+                    if (closed.get()) {
+                        socket.close()
+                        return@Thread
+                    }
+                    sockets.add(socket)
+                }
                 try {
                     workers.execute { serve(socket) }
                 } catch (_: RejectedExecutionException) {
@@ -80,6 +89,7 @@ internal class EmbeddedHlsProxy : Closeable {
 
     private fun serve(socket: Socket) {
         var started = false
+        var call: Call? = null
         try {
             socket.soTimeout = 10_000
             val input = socket.getInputStream().buffered()
@@ -111,8 +121,13 @@ internal class EmbeddedHlsProxy : Closeable {
             if (!resource.playlist) {
                 for (name in listOf("range", "if-range")) headers[name]?.let { upstream.header(name, it) }
             }
-            if (closed.get()) throw IOException("HLS proxy closed")
-            client.newCall(upstream.build()).execute().use { response ->
+            val upstreamCall = client.newCall(upstream.build())
+            synchronized(lifecycleLock) {
+                if (closed.get()) throw IOException("HLS proxy closed")
+                calls.add(upstreamCall)
+                call = upstreamCall
+            }
+            upstreamCall.execute().use { response ->
                 if (!response.isSuccessful) {
                     writeHeaders(socket.getOutputStream(), response.code, emptyMap())
                     return
@@ -144,6 +159,7 @@ internal class EmbeddedHlsProxy : Closeable {
         } catch (_: IllegalStateException) {
             if (!started && !closed.get()) runCatching { writeHeaders(socket.getOutputStream(), 502, emptyMap()) }
         } finally {
+            synchronized(lifecycleLock) { calls.remove(call) }
             sockets.remove(socket)
             runCatching { socket.close() }
         }
@@ -174,9 +190,14 @@ internal class EmbeddedHlsProxy : Closeable {
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         runCatching { server.close() }
-        sockets.forEach { runCatching { it.close() } }
-        client.dispatcher.cancelAll()
-        workers.shutdownNow()
+        val (activeSockets, activeCalls) = synchronized(lifecycleLock) {
+            sockets.toList() to calls.toList()
+        }
+        activeSockets.forEach { runCatching { it.close() } }
+        activeCalls.forEach(Call::cancel)
+        // Cancel OkHttp calls and close sockets above to unblock work without
+        // interrupting a worker inside OkHttp's TCP fallback connection race.
+        workers.shutdown()
         client.connectionPool.evictAll()
         client.dispatcher.executorService.shutdown()
         synchronized(resources) { resources.clear(); resourceIds.clear() }

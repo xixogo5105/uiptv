@@ -25,6 +25,7 @@ patch_files=(
   "buildscripts/scripts/lua.sh"
   "buildscripts/scripts/shaderc.sh"
   "libmpv/build.gradle.kts"
+  "libmpv/src/main/cpp/log.h"
 )
 
 reuse_existing_mobile_aar() {
@@ -37,6 +38,11 @@ reuse_existing_mobile_aar() {
       exit 1
     fi
     log "No cached API 24 libmpv AAR found at $mobile_aar; rebuilding."
+    return
+  fi
+
+  if ! unzip -p "$mobile_aar" META-INF/uiptv-quiet-jni-v1 2>/dev/null | grep -qx quiet-jni-v1; then
+    log "Cached AAR predates quiet native logging; rebuilding."
     return
   fi
 
@@ -117,6 +123,7 @@ link_existing_android_sdk() {
 
 patch_libmpv_for_api24() {
   log "Applying Android 7/API 24 libmpv build patch"
+  cp "$repo_root/scripts/libmpv-quiet-log.h" "$libmpv_dir/libmpv/src/main/cpp/log.h"
 
   perl -0pi -e 's/local apilvl=26/local apilvl=24/g' "$libmpv_dir/buildscripts/build.sh"
   if ! grep -q 'opt/homebrew' "$libmpv_dir/buildscripts/build.sh"; then
@@ -165,6 +172,18 @@ build_libmpv() {
 copy_aar() {
   mkdir -p "$(dirname "$mobile_aar")"
   cp "$libmpv_aar" "$mobile_aar"
+  python3 - "$mobile_aar" <<'PYMARKER'
+import sys
+import zipfile
+with zipfile.ZipFile(sys.argv[1], "a") as archive:
+    wrappers = [name for name in archive.namelist() if name.endswith("/libplayer.so")]
+    if len(wrappers) != 4:
+        raise SystemExit("Expected JNI wrappers for all four Android ABIs")
+    for name in wrappers:
+        if b"__android_log_" in archive.read(name):
+            raise SystemExit("Native logging is still linked in " + name)
+    archive.writestr("META-INF/uiptv-quiet-jni-v1", "quiet-jni-v1\n")
+PYMARKER
   log "Copied $libmpv_aar -> $mobile_aar"
 }
 

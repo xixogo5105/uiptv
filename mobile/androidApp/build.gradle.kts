@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose.compiler)
@@ -22,6 +24,11 @@ val verifyApi24LibmpvAar = tasks.register("verifyApi24LibmpvAar") {
     doLast {
         if (!api24LibmpvAar.asFile.isFile) {
             throw GradleException("Missing ${api24LibmpvAar.asFile}. Build or copy the Android 7/API 24 libmpv AAR before assembling the app.")
+        }
+        ZipFile(api24LibmpvAar.asFile).use { archive ->
+            if (archive.getEntry("META-INF/uiptv-quiet-jni-v1") == null) {
+                throw GradleException("libmpv AAR still enables native logging. Rebuild with scripts/build-mobile-with-libmpv.sh.")
+            }
         }
     }
 }
@@ -103,6 +110,7 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
     implementation(files(api24LibmpvAar))
     testImplementation(libs.junit)

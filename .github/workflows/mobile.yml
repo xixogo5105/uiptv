@@ -33,9 +33,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: mobile/androidApp/libs/libmpv-android-api24.aar
-          key: libmpv-api24-aar-${{ runner.os }}-v1-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'mobile/androidApp/build.gradle.kts') }}
+          key: libmpv-api24-aar-${{ runner.os }}-v2-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'scripts/libmpv-quiet-log.h', 'mobile/androidApp/build.gradle.kts') }}
           restore-keys: |
-            libmpv-api24-aar-${{ runner.os }}-v1-
+            libmpv-api24-aar-${{ runner.os }}-v2-
 
       - name: Package Android debug APK
         env:

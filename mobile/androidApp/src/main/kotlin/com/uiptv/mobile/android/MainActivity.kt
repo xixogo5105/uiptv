@@ -42,6 +42,7 @@ import com.uiptv.mobile.shared.db.AndroidDatabaseBackupManager
 import com.uiptv.mobile.shared.db.AndroidLocalDataResetter
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidSQLiteFilterSettingsRepository
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configureAppLogging(intent)
         requestNotificationPermissionIfNeeded()
         val preferences = AndroidDataStorePreferencesRepository(this)
         val databaseHelper = AndroidUiptvDatabaseHelper(this)
@@ -284,6 +286,26 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        configureAppLogging(intent)
+    }
+
+    private fun configureAppLogging(launchIntent: Intent) {
+        AndroidAppLog.configure(
+            debugBuild = BuildConfig.DEBUG,
+            explicitlyRequested = launchIntent.getBooleanExtra(AndroidAppLog.ENABLE_LOGS_EXTRA, false)
+        )
+        androidx.media3.common.util.Log.setLogLevel(
+            if (AndroidAppLog.isEnabled) {
+                androidx.media3.common.util.Log.LOG_LEVEL_WARNING
+            } else {
+                androidx.media3.common.util.Log.LOG_LEVEL_OFF
+            }
+        )
     }
 
     override fun onResume() {

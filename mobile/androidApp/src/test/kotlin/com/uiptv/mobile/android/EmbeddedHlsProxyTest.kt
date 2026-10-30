@@ -8,7 +8,9 @@ import org.junit.Test
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.URL
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -132,6 +134,7 @@ class EmbeddedHlsProxyTest {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
         server.createContext("/slow") { exchange ->
+            exchange.sendResponseHeaders(200, 0)
             started.countDown()
             release.await(5, TimeUnit.SECONDS)
             exchange.close()
@@ -145,11 +148,34 @@ class EmbeddedHlsProxyTest {
             assertTrue(started.await(3, TimeUnit.SECONDS))
             proxy.close()
             assertTrue(result.get(3, TimeUnit.SECONDS))
+            assertWorkersTerminate()
             try { URL(url).openConnection().apply { connectTimeout = 500 }.getInputStream(); fail("Proxy still accepts requests") } catch (_: IOException) { }
         } finally {
             release.countDown()
             executor.shutdownNow()
         }
+    }
+
+    @Test fun closeDrainsQueuedClientsWithoutInterruptingWorkers() {
+        val url = URL(proxy.playbackUrl("$base/unused"))
+        val clients = (1..20).map { Socket(url.host, url.port).apply { soTimeout = 3_000 } }
+        try {
+            // Incomplete HTTP requests occupy all workers and their pending queue.
+            clients.forEach { it.getOutputStream().write("GET /".toByteArray()) }
+            proxy.close()
+            proxy.close()
+            clients.forEach { socket ->
+                try { assertEquals(-1, socket.getInputStream().read()) } catch (_: IOException) { }
+            }
+            assertWorkersTerminate()
+            assertThrows(IllegalStateException::class.java) { proxy.playbackUrl("$base/unused") }
+        } finally { clients.forEach(Socket::close) }
+    }
+
+    private fun assertWorkersTerminate() {
+        val field = EmbeddedHlsProxy::class.java.getDeclaredField("workers").apply { isAccessible = true }
+        val workers = field.get(proxy) as ThreadPoolExecutor
+        assertTrue("Proxy workers survived shutdown", workers.awaitTermination(3, TimeUnit.SECONDS))
     }
 
     private fun text(path: String, body: String) = binary(path, body.toByteArray(), "application/vnd.apple.mpegurl")

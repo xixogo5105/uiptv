@@ -3,7 +3,7 @@ package com.uiptv.mobile.shared.sync
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import com.uiptv.mobile.shared.settings.MobileBackupArchive
-import android.util.Log
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -35,10 +35,10 @@ class AndroidRemoteSyncPullService(
         var step = RemoteSyncProgressStep.CONNECTING
         val trackedProgress: (RemoteSyncProgress) -> Unit = { progress ->
             step = progress.step
-            Log.i(LOG_TAG, "Remote sync progress: ${progress.step}${progress.message.takeIf(String::isNotBlank)?.let { " ($it)" }.orEmpty()}")
+            AndroidAppLog.i(LOG_TAG, "Remote sync progress: ${progress.step}${progress.message.takeIf(String::isNotBlank)?.let { " ($it)" }.orEmpty()}")
             onProgress(progress)
         }
-        Log.i(LOG_TAG, "Starting remote database sync from ${buildRemoteSyncBaseUrl(host, port)}")
+        AndroidAppLog.i(LOG_TAG, "Starting remote database sync from ${buildRemoteSyncBaseUrl(host, port)}")
         try {
             val result = if (client is AndroidRemoteSyncClient) {
                 pullFromDesktopStreaming(
@@ -55,10 +55,10 @@ class AndroidRemoteSyncPullService(
             }
             preferences.markRemoteSyncSucceeded(epochSeconds())
             preferences.setFirstRunCompleted(true)
-            Log.i(LOG_TAG, "Remote database sync completed successfully")
+            AndroidAppLog.i(LOG_TAG, "Remote database sync completed successfully")
             return result
         } catch (ex: Throwable) {
-            Log.e(LOG_TAG, "Remote database sync failed during $step: ${ex.message ?: ex::class.java.simpleName}", ex)
+            AndroidAppLog.e(LOG_TAG, "Remote database sync failed during $step: ${ex.message ?: ex::class.java.simpleName}", ex)
             throw ex
         }
     }
@@ -95,7 +95,7 @@ class AndroidRemoteSyncPullService(
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.DOWNLOADING, verificationCode))
             val transferBytes = streamingClient.downloadToFile(baseUrl, sessionId, transferFile)
-            Log.i(LOG_TAG, "Downloaded remote sync transfer: $transferBytes bytes")
+            AndroidAppLog.i(LOG_TAG, "Downloaded remote sync transfer: $transferBytes bytes")
             val transferOptions = readySession.options
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode, "Preparing backup"))
             val payloadForSync = withContext(Dispatchers.IO) {
@@ -106,7 +106,7 @@ class AndroidRemoteSyncPullService(
                 extractTransferSnapshot(payloadForSync, transferOptions)
             }
             snapshotFile = snapshotForSync
-            Log.i(LOG_TAG, "Prepared remote database snapshot: ${snapshotForSync.length()} bytes")
+            AndroidAppLog.i(LOG_TAG, "Prepared remote database snapshot: ${snapshotForSync.length()} bytes")
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode, "Applying"))
             val report = snapshotApplier.applyFile(snapshotForSync, consumeSnapshotFile = true)

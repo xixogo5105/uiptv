@@ -21,7 +21,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
 import android.os.Looper
-import android.util.Log
 import android.util.Rational
 import android.view.Gravity
 import android.view.KeyEvent
@@ -55,6 +54,7 @@ import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.playback.MobileResolutionDisplay
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerRenderProfile
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
@@ -264,6 +264,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
     private val mpvLogObserver = object : MPVLib.LogObserver {
         override fun logMessage(prefix: String, level: Int, text: String) {
+            if (AndroidAppLog.isEnabled) AndroidAppLog.d("UIPTV-Mpv", "[$prefix] ${text.trimEnd()}")
             // The bundled MPV reports hardware decoder failure before trying its
             // next decoder. Never call native code back from its event thread.
             if (prefix == "vd" &&
@@ -281,7 +282,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val player = mpv ?: return
         if (softwareVideoFallback || embeddedRenderProfile != EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC) return
         softwareVideoFallback = true
-        Log.w(LogTag, "Hardware video decoding failed; switching this player session to software decoding with GPU output")
+        AndroidAppLog.w(LogTag, "Hardware video decoding failed; switching this player session to software decoding with GPU output")
         runMpvOperation(player, streamScoped = false) {
             it.setPropertyString("vid", "no")
             it.setPropertyString("vo", "gpu")
@@ -371,7 +372,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                     mpvTasks.execute {
                         try {
                             runCatching { player?.detachSurface() }
-                                .onFailure { Log.w(LogTag, "Unable to detach mpv surface") }
+                                .onFailure { AndroidAppLog.w(LogTag, "Unable to detach mpv surface") }
                         } finally {
                             surface?.release()
                             surfaceTexture.release()
@@ -694,12 +695,17 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         if (::epgDetails.isInitialized) epgDetails.removeAllViews()
         if (::titleLabel.isInitialized) titleLabel.text = currentTarget?.title.orEmpty()
         hideEpgPanel()
-        stoppingForLifecycle = true
         streamLoadGeneration += 1
         cancelReconnect()
+        closeHlsProxyAsync()
         overlayHandler.removeCallbacks(updateProgressRunnable)
         stopMpvPlayback()
         super.onStop()
+    }
+
+    private fun closeHlsProxyAsync() {
+        val proxy = synchronized(hlsProxyLock) { hlsProxy.also { hlsProxy = null } }
+        proxy?.let { Thread({ it.close() }, "uiptv-hls-close").start() }
     }
 
     override fun onDestroy() {
@@ -707,8 +713,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         surfSwitchGeneration += 1
         surfSwitchJob?.cancel()
         streamLoadGeneration += 1
-        val proxy = synchronized(hlsProxyLock) { hlsProxy.also { hlsProxy = null } }
-        proxy?.let { Thread({ it.close() }, "uiptv-hls-close").start() }
+        closeHlsProxyAsync()
         MobilePlaybackIndicator.clear(currentTarget)
         if (playbackStarted || playbackTimeMs > 0L) {
             (currentTarget ?: targetFromIntent())?.let(::markOpened)
@@ -876,13 +881,17 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         scheduleAudioStateStartupSync(audioRequestVersion)
         playbackScope.launch {
             val playbackUrl = withContext(Dispatchers.IO) {
-                if (playbackTarget.manifestType.equals("hls", true) || Uri.parse(streamUrl).path.orEmpty().endsWith(".m3u8", true)) {
-                    synchronized(hlsProxyLock) {
-                        if (activityDestroyed) return@withContext streamUrl
-                        val proxy = hlsProxy ?: EmbeddedHlsProxy().also { hlsProxy = it }
-                        proxy.playbackUrl(streamUrl)
+                synchronized(hlsProxyLock) {
+                    if (activityDestroyed || stoppingForLifecycle || generation != streamLoadGeneration) {
+                        return@withContext streamUrl
                     }
-                } else streamUrl
+                    // A new load owns a fresh proxy; retire downloads from the old stream.
+                    hlsProxy?.close()
+                    hlsProxy = null
+                    if (playbackTarget.manifestType.equals("hls", true) || Uri.parse(streamUrl).path.orEmpty().endsWith(".m3u8", true)) {
+                        EmbeddedHlsProxy().also { hlsProxy = it }.playbackUrl(streamUrl)
+                    } else streamUrl
+                }
             }
             if (!activityDestroyed && generation == streamLoadGeneration) {
                 runMpvCommandAsync(player, "loadfile", playbackUrl, "replace")
@@ -1452,7 +1461,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 enterPictureInPictureMode()
             }
         }.onFailure {
-            Log.w(LogTag, "Unable to enter picture-in-picture", it)
+            AndroidAppLog.w(LogTag, "Unable to enter picture-in-picture", it)
             showFeedback("PiP unavailable")
         }
     }
@@ -1683,7 +1692,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                Log.w(LogTag, "Unable to load embedded player preferences; using defaults", error)
+                AndroidAppLog.w(LogTag, "Unable to load embedded player preferences; using defaults", error)
                 EmbeddedPlayerPreference()
             }
             repeatEnabled = preference.repeatReconnect
@@ -1723,7 +1732,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 configureMpvOptions(createdMpv, renderProfile)
                 createdMpv.init()
                 observeMpvProperties(createdMpv)
-            }.onFailure { Log.e(LogTag, "Unable to initialize mpv", it) }.isSuccess
+            }.onFailure { AndroidAppLog.e(LogTag, "Unable to initialize mpv", it) }.isSuccess
             if (!initialized && createdMpv != null) {
                 createdMpv.removeObserver(mpvObserver)
                 createdMpv.removeLogObserver(mpvLogObserver)
@@ -2759,8 +2768,12 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun configureMpvOptions(player: MPVLib, renderProfile: EmbeddedPlayerRenderProfile) {
         val stableMobileAudio = shouldUseStableMobileAudioProfile()
+        player.setMpvOption("config", "no")
+        player.setMpvOption("terminal", "no")
         player.setMpvOption("profile", "fast")
-        player.setMpvOption("msg-level", "all=warn")
+        // MPV warnings also drive the internal hardware-decoder recovery hook.
+        // Release keeps only those warnings; opted-in debug builds get detail.
+        player.setMpvOption("msg-level", if (AndroidAppLog.isEnabled) "all=debug" else "all=warn")
         when (renderProfile) {
             EmbeddedPlayerRenderProfile.DIRECT_MEDIACODEC -> {
                 // Pair direct Surface output with its matching MediaCodec decoder mode.
@@ -2894,7 +2907,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 if (activityDestroyed || mpv !== player || mpvRenderSurface !== surface || !surfaceReady) return@post
                 attached = success
                 if (success && pendingPlayback && !stoppingForLifecycle) startPlayback()
-                if (!success) Log.w(LogTag, "Unable to attach mpv surface")
+                if (!success) AndroidAppLog.w(LogTag, "Unable to attach mpv surface")
             }
         }
     }
@@ -2913,7 +2926,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         mpvTasks.execute {
             if (activityDestroyed || mpv !== player || (streamScoped && generation != streamLoadGeneration)) return@execute
             runCatching { action(player) }
-                .onFailure { Log.w(LogTag, "mpv operation failed", it) }
+                .onFailure { AndroidAppLog.w(LogTag, "mpv operation failed", it) }
         }
     }
 
@@ -2933,9 +2946,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
                 player.removeObserver(mpvObserver)
                 player.removeLogObserver(mpvLogObserver)
                 runCatching { player.command(arrayOf("stop")) }
-                    .onFailure { Log.w(LogTag, "Unable to stop mpv before destroy", it) }
+                    .onFailure { AndroidAppLog.w(LogTag, "Unable to stop mpv before destroy", it) }
                 runCatching { player.destroy() }
-                    .onFailure { Log.w(LogTag, "Unable to destroy mpv", it) }
+                    .onFailure { AndroidAppLog.w(LogTag, "Unable to destroy mpv", it) }
                 nativePlayer = null
             }
             surface?.release()
@@ -2943,9 +2956,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     }
 
     private fun samplePlaybackDiagnostics(now: Long) {
-        // Explicitly opt in with: adb shell setprop log.tag.UIPTV-Playback DEBUG
+        // App diagnostics are emitted only for an explicitly opted-in debug launch.
         // Native reads run on the lifecycle queue, never on the video/UI thread.
-        if (!Log.isLoggable(DiagnosticLogTag, Log.DEBUG) || now - lastDiagnosticMs < 5_000L) return
+        if (!AndroidAppLog.isEnabled || now - lastDiagnosticMs < 5_000L) return
         val player = mpv ?: return
         lastDiagnosticMs = now
         val tickDelay = maxProgressTickDelayMs
@@ -2960,7 +2973,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             val values = properties.joinToString(" ") { name ->
                 "$name=${runCatching { player.getPropertyString(name) }.getOrNull() ?: "unknown"}"
             }
-            Log.d(DiagnosticLogTag, "elapsedMs=$now uiDelayMs=$tickDelay $values")
+            AndroidAppLog.d(DiagnosticLogTag, "elapsedMs=$now uiDelayMs=$tickDelay $values")
         }
     }
 
@@ -3010,12 +3023,12 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun MPVLib.setMpvOption(name: String, value: String) {
         val result = runCatching { setOptionString(name, value) }.getOrDefault(-1)
-        if (result < 0) Log.w(LogTag, "mpv rejected option $name (error $result)")
+        if (result < 0) AndroidAppLog.w(LogTag, "mpv rejected option $name (error $result)")
     }
 
     private fun MPVLib.observe(property: String, format: Int) {
         runCatching { observeProperty(property, format) }
-            .onFailure { Log.w(LogTag, "Unable to observe mpv property $property", it) }
+            .onFailure { AndroidAppLog.w(LogTag, "Unable to observe mpv property $property", it) }
     }
 
     private fun MPVLib.runCatchingCommand(vararg args: String) {

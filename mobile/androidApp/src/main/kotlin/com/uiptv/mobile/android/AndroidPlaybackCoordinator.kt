@@ -26,6 +26,7 @@ import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.toPlaybackTarget
 import com.uiptv.mobile.shared.playback.toRecentBookmark
 import com.uiptv.mobile.shared.playback.PlayerChoice
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.playback.extractPlayableStreamUrl
 import com.uiptv.mobile.shared.playback.isDrmProtected
 import com.uiptv.mobile.shared.playback.shouldResolveStalkerPortalCommand
@@ -168,7 +169,7 @@ class AndroidPlaybackCoordinator(
 
     private fun recordRecent(target: PlaybackTarget, categoryTitle: String = "") {
         runCatching { AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).record(target.toRecentBookmark().copy(categoryTitle = categoryTitle)) }
-            .onFailure { android.util.Log.w("UIPTV-Recent", "Unable to save recent playback", it) }
+            .onFailure { AndroidAppLog.w("UIPTV-Recent", "Unable to save recent playback", it) }
     }
 
     suspend fun playWatchingNow(

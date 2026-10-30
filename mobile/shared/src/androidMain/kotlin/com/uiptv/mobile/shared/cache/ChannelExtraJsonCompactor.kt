@@ -1,5 +1,6 @@
 package com.uiptv.mobile.shared.cache
 
+import com.uiptv.mobile.shared.logging.AndroidAppLog
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicLong
 
@@ -12,7 +13,7 @@ object ChannelExtraJsonCompactor {
         return try { compact(JSONObject(source)) }
         catch (_: RuntimeException) {
             if (malformedInputs.incrementAndGet() == 1L) {
-                android.util.Log.w("UIPTV-Metadata", "Invalid channel metadata discarded during import")
+                AndroidAppLog.w("UIPTV-Metadata", "Invalid channel metadata discarded during import")
             }
             "{}"
         }
