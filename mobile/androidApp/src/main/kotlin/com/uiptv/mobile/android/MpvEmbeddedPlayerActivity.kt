@@ -123,7 +123,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private lateinit var epgPanelContent: LinearLayout
     private lateinit var epgGuideButton: TextView
     private lateinit var surfCarouselView: ComposeView
-    private lateinit var recordingDot: View
     private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
     private var epgPanelSide = Gravity.END
     private var epgLoadedKey: String? = null
@@ -131,6 +130,8 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
     private var panelTouchX = 0f
     private var panelTouchY = 0f
     private var epgJob: kotlinx.coroutines.Job? = null
+    private var epgEndJob: kotlinx.coroutines.Job? = null
+    private var epgEndScheduledStop: Long? = null
     private var epgPreferenceJob: kotlinx.coroutines.Job? = null
     @Volatile private var epgEnabled = false
     private val epgDatabaseDelegate = lazy { AndroidUiptvDatabaseHelper(applicationContext) }
@@ -546,22 +547,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
         playerPalette = resolvePlayerPalette()
         renderedPlayPauseState = null
-        updateLiveIndicatorTheme()
         if (::rootLayout.isInitialized) applyPlayerTheme()
-    }
-
-    private fun updateLiveIndicatorTheme() {
-        if (!::recordingDot.isInitialized) return
-        val indicator = recordingDot as? ViewGroup ?: return
-        if (indicator.childCount == 0) return
-        val color = if (
-            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        ) Color.WHITE else Color.BLACK
-        val ring = indicator.getChildAt(0) as? ViewGroup ?: return
-        (ring.background as? GradientDrawable)?.setStroke(dp(1), color)
-        ring.getChildAt(0)?.background?.let { background ->
-            (background as? GradientDrawable)?.setColor(color)
-        }
     }
 
     private fun resolvePlayerPalette(): PlayerPalette {
@@ -694,6 +680,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         epgPreferenceJob?.cancel()
         MobilePlaybackIndicator.clear(currentTarget)
         epgJob?.cancel()
+        epgEndJob?.cancel()
+        epgEndJob = null
+        epgEndScheduledStop = null
         epgResult = null
         epgLoadedKey = null
         if (::epgDetails.isInitialized) epgDetails.removeAllViews()
@@ -1219,30 +1208,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            val liveIndicatorColor = if (
-                (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-            ) Color.WHITE else Color.BLACK
-            recordingDot = FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
-                contentDescription = "Live broadcast"
-                addView(FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
-                    contentDescription = "Live broadcast indicator"
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(Color.TRANSPARENT)
-                        setStroke(dp(1), liveIndicatorColor)
-                    }
-                    addView(View(this@MpvEmbeddedPlayerActivity).apply {
-                        background = GradientDrawable().apply {
-                            shape = GradientDrawable.OVAL
-                            setColor(liveIndicatorColor)
-                        }
-                    }, FrameLayout.LayoutParams(dp(3), dp(3), Gravity.CENTER))
-                }, FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER))
-                visibility = if (isLiveStream()) View.VISIBLE else View.GONE
-            }
-            addView(recordingDot, LinearLayout.LayoutParams(dp(RecordingDotSlotWidthDp), dp(ControlHeaderHeightDp)).apply {
-                rightMargin = dp(RecordingDotTitleGapDp)
-            })
             addView(titleAndCodecRow, LinearLayout.LayoutParams(0, dp(ControlHeaderHeightDp), 1f))
             addView(LinearLayout(this@MpvEmbeddedPlayerActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -2306,6 +2271,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         if (!::epgLabel.isInitialized) return
         epgLoadedKey = epgTargetKey()
         epgJob?.cancel()
+        epgEndJob?.cancel()
+        epgEndJob = null
+        epgEndScheduledStop = null
         epgLabel.visibility = View.GONE
         epgResult = null
         if (::epgGuideButton.isInitialized) epgGuideButton.visibility = View.GONE
@@ -2399,12 +2367,11 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         epgResult = result
         val now = System.currentTimeMillis()
         val current = result.now(now)
-        val next = result.next(now)
         val channelTitle = currentTarget?.title.orEmpty()
         val timeFormat = SimpleDateFormat("H:mm", Locale.getDefault())
         val parts = mutableListOf<String>()
         if (current != null && current.title.isNotBlank()) parts.add(formatEpgProgramme(current, timeFormat))
-        if (next != null && next.title.isNotBlank()) parts.add(formatEpgProgramme(next, timeFormat))
+        scheduleEpgRefreshAtProgrammeEnd(current)
         if (::titleLabel.isInitialized) {
             titleLabel.text = channelTitle
             titleLabel.maxLines = 1
@@ -2422,6 +2389,22 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
 
     private fun formatEpgProgramme(programme: MobileEpgProgramme, timeFormat: SimpleDateFormat): String =
         "${timeFormat.format(Date(programme.start))}–${timeFormat.format(Date(programme.stop))} ${programme.title.trim()}"
+
+    private fun scheduleEpgRefreshAtProgrammeEnd(programme: MobileEpgProgramme?) {
+        val target = currentTarget ?: return
+        val stop = programme?.stop ?: return
+        if (stop <= System.currentTimeMillis() || epgEndScheduledStop == stop) return
+        epgEndJob?.cancel()
+        epgEndScheduledStop = stop
+        epgEndJob = playbackScope.launch {
+            kotlinx.coroutines.delay(stop - System.currentTimeMillis())
+            if (target == currentTarget && epgEndScheduledStop == stop && !stoppingForLifecycle && !activityDestroyed) {
+                epgEndJob = null
+                epgEndScheduledStop = null
+                refreshEpg()
+            }
+        }
+    }
 
     private fun renderSurfCarousel() {
         if (!::surfCarouselView.isInitialized) return
@@ -2572,9 +2555,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             return
         }
         if (::titleLabel.isInitialized) {
-            if (::recordingDot.isInitialized) {
-                recordingDot.visibility = if (isLiveStream()) View.VISIBLE else View.GONE
-            }
             titleLabel.text = currentTarget?.title
                 ?.takeIf { it.isNotBlank() }
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
@@ -3207,8 +3187,6 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         private const val CodecAreaMaximumFraction = 0.35f
         private const val ControlHeaderHeightDp = 48
         private const val ControlHeaderGapDp = 8
-        private const val RecordingDotSlotWidthDp = 32
-        private const val RecordingDotTitleGapDp = 4
         private const val MpvAudibleVolume = 100.0
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f

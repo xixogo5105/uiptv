@@ -39,6 +39,7 @@ public class PlayerEpgUI extends VBox {
     private PlayerEpgApplicationService.Result displayed;
     private Thread guideWorker;
     private final AtomicInteger generation = new AtomicInteger();
+    private javafx.animation.Timeline programmeEndTimer;
     private final ChangeListener<MediaPlayerFactory.GuideContext> listener = (_, _, context) -> refresh(context);
     private final javafx.animation.Timeline clock = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.minutes(1),
             _ -> updateProgress()));
@@ -81,6 +82,7 @@ public class PlayerEpgUI extends VBox {
                 MediaPlayerFactory.guideContextProperty().removeListener(listener);
                 generation.incrementAndGet();
                 if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; }
+                cancelProgrammeEndTimer();
                 clock.stop(); display(null);
             }
             if (newScene != null) {
@@ -93,6 +95,7 @@ public class PlayerEpgUI extends VBox {
 
     private void refresh(MediaPlayerFactory.GuideContext context) {
         int request = generation.incrementAndGet();
+        cancelProgrammeEndTimer();
         if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; }
         MediaPlayerFactory.publishGuideSummary(null); display(null);
         if (!EpgModeUI.isFeatureEnabled() || context == null || context.account() == null || context.channel() == null
@@ -106,8 +109,30 @@ public class PlayerEpgUI extends VBox {
                 if (request != generation.get()) return;
                 guideWorker = null;
                 MediaPlayerFactory.publishGuideSummary(loaded); display(loaded);
+                scheduleProgrammeEndRefresh(context, loaded);
             });
         });
+    }
+
+    private void scheduleProgrammeEndRefresh(MediaPlayerFactory.GuideContext context,
+                                             PlayerEpgApplicationService.Result result) {
+        EpgProgramme current = result == null ? null : result.now();
+        if (context == null || current == null || current.stop() <= System.currentTimeMillis()) return;
+        long delay = current.stop() - System.currentTimeMillis();
+        programmeEndTimer = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(Math.max(1, delay)), _ -> {
+                    programmeEndTimer = null;
+                    if (Objects.equals(context, MediaPlayerFactory.guideContextProperty().get())) refresh(context);
+                }));
+        programmeEndTimer.setCycleCount(1);
+        programmeEndTimer.play();
+    }
+
+    private void cancelProgrammeEndTimer() {
+        if (programmeEndTimer != null) {
+            programmeEndTimer.stop();
+            programmeEndTimer = null;
+        }
     }
 
     private void updateProgress() {

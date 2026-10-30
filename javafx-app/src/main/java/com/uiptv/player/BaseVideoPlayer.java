@@ -2348,7 +2348,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("H:mm", Locale.getDefault())
                 .withZone(ZoneId.systemDefault());
         addFormattedGuideProgramme(programmes, summary.now(), timeFormat);
-        addFormattedGuideProgramme(programmes, summary.next(), timeFormat);
         if (programmes.isEmpty()) return;
         Text programmeText = new Text(String.join(" · ", programmes));
         programmeText.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
@@ -2371,14 +2370,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             nowShowingFlow.getChildren().add(channelNameText);
             return;
         }
-        com.uiptv.widget.PlayingCardIndicator liveDot = new com.uiptv.widget.PlayingCardIndicator();
-        liveDot.getStyleClass().add("player-live-indicator");
-        liveDot.setVisible(true);
-        liveDot.setManaged(true);
         Text liveLabel = new Text("  " + I18n.tr("playerLive"));
         liveLabel.getStyleClass().add("player-live-label");
-        applyFixedControlBarOrientation(liveDot, liveLabel);
-        nowShowingFlow.getChildren().addAll(liveDot, channelNameText, liveLabel);
+        applyFixedControlBarOrientation(channelNameText, liveLabel);
+        nowShowingFlow.getChildren().addAll(channelNameText, liveLabel);
     }
 
     private void updateTimelineVisibility() {
