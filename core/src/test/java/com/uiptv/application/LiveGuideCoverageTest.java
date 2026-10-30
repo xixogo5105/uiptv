@@ -37,7 +37,7 @@ class LiveGuideCoverageTest extends DbBackedTest {
     }
 
     @Test
-    void hydrateSchedulesLiveAccountAndVisibleFiltersRows() throws Exception {
+    void hydrateSchedulesLiveAccountAndVisibleFiltersRows() {
         Account account = new Account();
         account.setDbId("account");
         account.setAccountName("Account");
