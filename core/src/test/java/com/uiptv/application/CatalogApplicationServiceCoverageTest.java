@@ -6,7 +6,11 @@ import com.uiptv.service.DbBackedTest;
 import com.uiptv.model.Category;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
+import com.uiptv.shared.EpisodeList;
 import com.uiptv.shared.Pagination;
+import com.uiptv.shared.SeasonInfo;
+import com.uiptv.util.AccountType;
+import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
@@ -23,6 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 
 class CatalogApplicationServiceCoverageTest extends DbBackedTest {
     private final CatalogApplicationService service = CatalogApplicationService.getInstance();
@@ -200,6 +206,47 @@ class CatalogApplicationServiceCoverageTest extends DbBackedTest {
         assertTrue((Boolean) invoke("shouldServeSeriesEpisodes", boolean.class, live, "cat", "movie"));
         live.setAction(com.uiptv.model.Account.AccountAction.vod);
         assertFalse((Boolean) invoke("shouldServeSeriesEpisodes", boolean.class, live, "cat", "movie"));
+    }
+
+    @Test
+    void providerAndEpisodeConversionHelpersCoverEmptyAndMetadataBranches() throws Exception {
+        Account xtreme = new Account();
+        xtreme.setType(AccountType.XTREME_API);
+        xtreme.setCacheEnabled(false);
+        xtreme.setDbId("acct");
+        assertTrue(((List<?>) invoke("loadProviderEpisodes", List.class, xtreme, "")).isEmpty());
+        assertEquals(0, ((JSONArray) invoke("toEpisodesJson", JSONArray.class, null, Map.of())).length());
+        assertTrue(((JSONArray) invoke("enrichEpisodes", JSONArray.class, null, new JSONArray())).isEmpty());
+        assertEquals(0, ((JSONArray) invoke("enrichEpisodes", JSONArray.class, new JSONArray(), null)).length());
+        invoke("mergeProviderSeasonInfo", void.class, new JSONObject(), null);
+
+        EpisodeInfo info = new EpisodeInfo();
+        info.setMovieImage("poster");
+        info.setPlot("plot");
+        Episode episode = new Episode();
+        episode.setId("episode");
+        episode.setTitle("Episode");
+        episode.setInfo(info);
+        EpisodeList list = new EpisodeList();
+        list.getEpisodes().add(null);
+        list.getEpisodes().add(episode);
+        assertEquals(1, ((JSONArray) invoke("toEpisodesJson", JSONArray.class, list, Map.of())).length());
+        assertEquals("poster", ((Channel) invoke("toEpisodeChannel", Channel.class, episode, Map.of())).getLogo());
+
+        Channel vod = channel("vod", "Movie", "cmd");
+        xtreme.setCacheEnabled(false);
+        try (var channels = mockStatic(com.uiptv.service.ChannelService.class)) {
+            var channelService = mock(com.uiptv.service.ChannelService.class);
+            channels.when(com.uiptv.service.ChannelService::getInstance).thenReturn(channelService);
+            when(channelService.get(anyString(), any(Account.class), anyString())).thenReturn(List.of(vod));
+            assertEquals("vod", ((Channel) invoke("resolveProviderVodChannel", Channel.class, xtreme, "category", "vod")).getChannelId());
+        }
+
+        SeasonInfo season = new SeasonInfo();
+        season.setName("Provider season");
+        JSONObject target = new JSONObject();
+        invoke("mergeProviderSeasonInfo", void.class, target, season);
+        assertEquals("Provider season", target.getString("name"));
     }
 
     private static Channel channel(String id, String name, String cmd) {
