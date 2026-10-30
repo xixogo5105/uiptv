@@ -243,7 +243,7 @@ class AccountCatalogCachingTest extends DbBackedTest {
                 && cacheRowCount("SeriesEpisode", accountId) == 0;
     }
 
-    private boolean await(BooleanSupplier condition, Duration timeout) throws InterruptedException {
+    private boolean await(BooleanSupplier condition, Duration timeout) {
         long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline) {
             if (condition.getAsBoolean()) return true;

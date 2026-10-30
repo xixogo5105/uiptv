@@ -216,7 +216,8 @@ public class ChannelService {
                     true, logger, progressCallback);
         }
         if (account.getType() == XTREME_API) {
-            return fetchXtremeLiveChannels(categoryId, account, callback, isCancelled, progressCallback);
+            return fetchXtremeLiveChannels(categoryId, account, callback,
+                    isCancelled == null ? null : isCancelled::get, progressCallback);
         }
         if (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) {
             List<Channel> fetched = new M3uCacheReloader().loadLiveChannels(account, categoryId, logger);
@@ -227,14 +228,14 @@ public class ChannelService {
     }
 
     private List<Channel> fetchXtremeLiveChannels(String categoryId, Account account,
-                                                   Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                   Consumer<List<Channel>> callback, BooleanSupplier isCancelled,
                                                    Consumer<PageProgress> progressCallback) {
         Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
             List<Channel> visible = maybeFilterChannels(batch, true, account);
             if (!visible.isEmpty()) callback.accept(visible);
         };
         List<Channel> fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback,
-                isCancelled == null ? null : isCancelled::get);
+                isCancelled);
         reportSinglePageProgress(fetched, progressCallback);
         return fetched;
     }
