@@ -2106,11 +2106,6 @@ public class ReloadCacheInline extends VBox {
     }
 
     private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues,
-                                             boolean acceptableZeroResult) {
-        return buildSummaryStatus(fetchedChannelCount, failed, issues, acceptableZeroResult, false);
-    }
-
-    private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues,
                                              boolean acceptableZeroResult, boolean skipped) {
         List<String> normalizedReasons = issues == null ? new ArrayList<>() : new ArrayList<>(issues);
         if (skipped) {

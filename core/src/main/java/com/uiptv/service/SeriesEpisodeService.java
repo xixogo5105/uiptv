@@ -223,7 +223,7 @@ public class SeriesEpisodeService {
         if (cachedChannels != null && !cachedChannels.isEmpty()) {
             return toEpisodeList(cachedChannels);
         }
-        if (account != null && account.getType() == XTREME_API) {
+        if (account.getType() == XTREME_API) {
             List<Channel> fallback = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, seriesId);
             if (fallback != null && !fallback.isEmpty()) {
                 return toEpisodeList(fallback);

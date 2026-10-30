@@ -15,37 +15,38 @@ public class CategoryResolver {
 
     public List<Category> resolveCategories(Account account, List<Category> categories) {
         List<Category> processed = new ArrayList<>(categories == null ? List.of() : categories);
-
-        if (account != null && (account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL)) {
-            processed = processed.stream()
-                    .filter(category -> {
-                        if (category == null) {
-                            return false;
-                        }
-                        if (!account.isCacheEnabled()) {
-                            return true;
-                        }
-                        if (isUncategorized(category)) {
-                            return ChannelService.getInstance().hasCachedLiveChannelsByDbCategoryId(category.getDbId());
-                        }
-                        return true;
-                    })
-                    .toList();
-        }
+        processed = filterM3uCategories(account, processed);
 
         boolean hasAllCategory = processed.stream().anyMatch(this::isAllCategory);
-        boolean shouldAddAll = true;
-        if (account != null && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API)) {
-            shouldAddAll = processed.size() >= 2;
-        }
-        if (!hasAllCategory && shouldAddAll) {
-            List<Category> withAll = new ArrayList<>();
-            withAll.add(buildAllCategory());
-            withAll.addAll(processed);
-            processed = withAll;
-        }
+        return addAllCategoryIfNeeded(account, processed, hasAllCategory);
+    }
 
-        return processed;
+    private List<Category> filterM3uCategories(Account account, List<Category> categories) {
+        if (account == null || (account.getType() != M3U8_LOCAL && account.getType() != M3U8_URL)) {
+            return categories;
+        }
+        return categories.stream()
+                .filter(category -> shouldKeepM3uCategory(account, category))
+                .toList();
+    }
+
+    private boolean shouldKeepM3uCategory(Account account, Category category) {
+        if (category == null || !account.isCacheEnabled() || !isUncategorized(category)) {
+            return category != null;
+        }
+        return ChannelService.getInstance().hasCachedLiveChannelsByDbCategoryId(category.getDbId());
+    }
+
+    private List<Category> addAllCategoryIfNeeded(Account account, List<Category> categories, boolean hasAllCategory) {
+        boolean providerNeedsMultipleCategories = account != null
+                && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
+        if (hasAllCategory || (providerNeedsMultipleCategories && categories.size() < 2)) {
+            return categories;
+        }
+        List<Category> withAll = new ArrayList<>(categories.size() + 1);
+        withAll.add(buildAllCategory());
+        withAll.addAll(categories);
+        return withAll;
     }
 
     private boolean isUncategorized(Category category) {

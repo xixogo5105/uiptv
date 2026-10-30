@@ -59,7 +59,7 @@ public class BookmarkService {
         org.json.JSONObject snapshot;
         try {
             snapshot = new org.json.JSONObject(bookmark.getCategoryJson());
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             snapshot = new org.json.JSONObject();
         }
         if (snapshot.has("catalogCacheEnabledAtSave")) return;

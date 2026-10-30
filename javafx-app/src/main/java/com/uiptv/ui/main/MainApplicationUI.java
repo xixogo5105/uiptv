@@ -186,7 +186,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         boolean playerNodeActive = isEmbeddedPlayerNodeActive();
         boolean showEmbeddedPlayer = embeddedConfigured && playerNodeActive;
         setEmbeddedPlayerContainerVisible(showEmbeddedPlayer);
-        boolean fullscreen = MediaPlayerFactory.getPlayer().fullscreenProperty().get();
+        var player = MediaPlayerFactory.getPlayer();
+        boolean fullscreen = player != null && player.fullscreenProperty().get();
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
         boolean showGuideButton = embeddedConfigured && configuration.isWideView() && (playerNodeActive || fullscreen);
         setPlayerGuideButtonVisible(showGuideButton);
@@ -697,7 +698,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void setPlayerGuideButtonVisible(boolean visible) {
-        MediaPlayerFactory.getPlayer().setGuideButtonVisible(visible);
+        var player = MediaPlayerFactory.getPlayer();
+        if (player != null) {
+            player.setGuideButtonVisible(visible);
+        }
     }
 
 

@@ -34,6 +34,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -70,7 +72,7 @@ class AccountCatalogCachingTest extends DbBackedTest {
         new CacheServiceImpl().reloadCacheWithPhases(account, (message, phase) -> messages.add(message));
 
         assertEquals(List.of(I18n.tr("reloadCacheDisabledSkipping")), messages);
-        assertTrue(cacheRowCount("Category", account.getDbId()) == 0);
+        assertEquals(0, cacheRowCount("Category", account.getDbId()));
     }
 
     @Test
@@ -245,7 +247,7 @@ class AccountCatalogCachingTest extends DbBackedTest {
         long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline) {
             if (condition.getAsBoolean()) return true;
-            Thread.sleep(10);
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         }
         return condition.getAsBoolean();
     }

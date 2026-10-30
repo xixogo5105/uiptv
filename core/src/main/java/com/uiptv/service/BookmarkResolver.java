@@ -180,7 +180,7 @@ public class BookmarkResolver {
         try {
             return new org.json.JSONObject(bookmark.getCategoryJson())
                     .optBoolean("catalogCacheEnabledAtSave", true);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException _) {
             return true;
         }
     }

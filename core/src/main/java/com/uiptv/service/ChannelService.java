@@ -175,20 +175,20 @@ public class ChannelService {
             return getCachedVodSeriesChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
         }
         if (account.getType() == XTREME_API) {
-            return fetchXtremeChannelsDirect(categoryId, account, callback, isCancelled, progressCallback);
+            return fetchXtremeChannelsDirect(categoryId, account, callback,
+                    isCancelled == null ? null : isCancelled::get, progressCallback);
         }
         return getVodOrSeries(categoryId, account, callback, isCancelled, logger, progressCallback);
     }
 
     private List<Channel> fetchXtremeChannelsDirect(String categoryId, Account account,
-                                                     Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                     Consumer<List<Channel>> callback, BooleanSupplier isCancelled,
                                                      Consumer<PageProgress> progressCallback) {
         Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
             List<Channel> visible = maybeFilterChannels(batch, true, account);
             if (!visible.isEmpty()) callback.accept(visible);
         };
-        List<Channel> fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback,
-                isCancelled == null ? null : isCancelled::get);
+        List<Channel> fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback, isCancelled);
         fetched.forEach(this::resolveLogoIfNeeded);
         List<Channel> visible = maybeFilterChannels(dedupeChannels(fetched), true, account);
         if (progressCallback != null) {
@@ -199,34 +199,50 @@ public class ChannelService {
 
     private List<Channel> getLiveChannelsWithoutCache(String categoryId, Account account, LoggerCallback logger,
                                                        Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
-                                                       Consumer<PageProgress> progressCallback) throws IOException {
-        List<Channel> fetched;
-        if (account.getType() == STALKER_PORTAL) {
-            ensureStalkerSession(account, logger);
-            fetched = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled,
-                    true, logger, progressCallback);
-        } else if (account.getType() == XTREME_API) {
-            Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
-                List<Channel> visible = maybeFilterChannels(batch, true, account);
-                if (!visible.isEmpty()) callback.accept(visible);
-            };
-            fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback,
-                    isCancelled == null ? null : isCancelled::get);
-            if (progressCallback != null) {
-                progressCallback.accept(new PageProgress(fetched.size(), fetched.size(), 1, 1));
-            }
-        } else if (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) {
-            fetched = new M3uCacheReloader().loadLiveChannels(account, categoryId, logger);
-            if (progressCallback != null) {
-                progressCallback.accept(new PageProgress(fetched.size(), fetched.size(), 1, 1));
-            }
-        } else {
-            fetched = List.of();
-        }
+                                                       Consumer<PageProgress> progressCallback) {
+        List<Channel> fetched = fetchLiveChannelsWithoutCache(categoryId, account, logger, callback, isCancelled, progressCallback);
         fetched.forEach(this::resolveLogoIfNeeded);
         List<Channel> visible = maybeFilterChannels(dedupeChannels(fetched), true, account);
         boolean providerAlreadyStreamed = callback != null && account.getType() == XTREME_API;
         return providerAlreadyStreamed ? visible : publishChannels(visible, callback);
+    }
+
+    private List<Channel> fetchLiveChannelsWithoutCache(String categoryId, Account account, LoggerCallback logger,
+                                                         Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                         Consumer<PageProgress> progressCallback) {
+        if (account.getType() == STALKER_PORTAL) {
+            ensureStalkerSession(account, logger);
+            return getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled,
+                    true, logger, progressCallback);
+        }
+        if (account.getType() == XTREME_API) {
+            return fetchXtremeLiveChannels(categoryId, account, callback, isCancelled, progressCallback);
+        }
+        if (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) {
+            List<Channel> fetched = new M3uCacheReloader().loadLiveChannels(account, categoryId, logger);
+            reportSinglePageProgress(fetched, progressCallback);
+            return fetched;
+        }
+        return List.of();
+    }
+
+    private List<Channel> fetchXtremeLiveChannels(String categoryId, Account account,
+                                                   Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                   Consumer<PageProgress> progressCallback) {
+        Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
+            List<Channel> visible = maybeFilterChannels(batch, true, account);
+            if (!visible.isEmpty()) callback.accept(visible);
+        };
+        List<Channel> fetched = XtremeApiParser.parseChannels(categoryId, account, visibleCallback,
+                isCancelled == null ? null : isCancelled::get);
+        reportSinglePageProgress(fetched, progressCallback);
+        return fetched;
+    }
+
+    private void reportSinglePageProgress(List<Channel> channels, Consumer<PageProgress> progressCallback) {
+        if (progressCallback != null) {
+            progressCallback.accept(new PageProgress(channels.size(), channels.size(), 1, 1));
+        }
     }
 
     private List<Channel> getCachedVodSeriesChannels(String categoryId, Account account, String dbId, LoggerCallback logger,

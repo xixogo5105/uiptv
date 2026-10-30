@@ -121,9 +121,8 @@ public class CatalogApplicationService {
         }
 
         String categoryId = resolveSeriesCategoryId(account, query.categoryId());
-        List<Channel> cachedEpisodes = List.of();
         if (account.isCacheEnabled()) {
-            cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, query.seriesId());
+            List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, query.seriesId());
             if (cachedEpisodes.isEmpty() && account.getType() == AccountType.XTREME_API) {
                 cachedEpisodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, query.seriesId());
             }

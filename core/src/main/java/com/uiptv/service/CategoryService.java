@@ -81,49 +81,54 @@ public class CategoryService {
         if (account == null) {
             return Collections.emptyList();
         }
-        if (account != null && !account.isParentalLock()) {
-            censor = false;
-        }
+        censor = censor && account.isParentalLock();
         if (!account.isCacheEnabled()) {
-            List<Category> liveCategories = account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL
-                    ? new M3uCacheReloader().loadLiveCategories(account, logger)
-                    : fetchCategoriesFromBackend(account, logger);
-            List<Category> visible = maybeFilterCategories(liveCategories, censor);
-            assignLiveCategoryIds(account, visible);
-            return visible;
+            return getUncachedCategories(account, censor, logger);
         }
         if (usesVodSeriesCategoryCache(account)) {
             return getVodSeriesCategories(account, censor, logger);
         }
-
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
-            if (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) {
-                List<Category> cachedCategories = CategoryDb.get().getCategories(account);
-                if (!cachedCategories.isEmpty()) {
-                    log(logger, "Loaded categories from local cache.");
-                    return maybeFilterCategories(cachedCategories, censor);
-                }
+            return getCachedNonLiveCategories(account, censor, logger);
+        }
+        return getCachedLiveCategories(account, censor, logger);
+    }
 
-                log(logger, "No cached categories found. Fetching from portal/provider...");
-                List<Category> fetchedCategories = fetchCategoriesFromBackend(account, logger);
-                if (!fetchedCategories.isEmpty()) {
-                    CategoryDb.get().saveAll(fetchedCategories, account);
-                    log(logger, "Saved " + fetchedCategories.size() + " categories to local cache.");
-                }
-                return maybeFilterCategories(fetchedCategories, censor);
+    private List<Category> getUncachedCategories(Account account, boolean censor, LoggerCallback logger) {
+        List<Category> categories = account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL
+                ? new M3uCacheReloader().loadLiveCategories(account, logger)
+                : fetchCategoriesFromBackend(account, logger);
+        List<Category> visible = maybeFilterCategories(categories, censor);
+        assignLiveCategoryIds(account, visible);
+        return visible;
+    }
+
+    private List<Category> getCachedNonLiveCategories(Account account, boolean censor, LoggerCallback logger) {
+        if (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API) {
+            List<Category> cached = CategoryDb.get().getCategories(account);
+            if (!cached.isEmpty()) {
+                log(logger, "Loaded categories from local cache.");
+                return maybeFilterCategories(cached, censor);
             }
-
-            hardReloadCategories(account, logger);
-            List<Category> cats = CategoryDb.get().getCategories(account);
-            return maybeFilterCategories(cats, censor);
+            log(logger, "No cached categories found. Fetching from portal/provider...");
+            List<Category> fetched = fetchCategoriesFromBackend(account, logger);
+            if (!fetched.isEmpty()) {
+                CategoryDb.get().saveAll(fetched, account);
+                log(logger, "Saved " + fetched.size() + " categories to local cache.");
+            }
+            return maybeFilterCategories(fetched, censor);
         }
+        hardReloadCategories(account, logger);
+        return maybeFilterCategories(CategoryDb.get().getCategories(account), censor);
+    }
 
-        List<Category> cachedCategories = CategoryDb.get().getCategories(account);
-        if (cachedCategories.isEmpty() || account.getAction() != itv) {
+    private List<Category> getCachedLiveCategories(Account account, boolean censor, LoggerCallback logger) {
+        List<Category> cached = CategoryDb.get().getCategories(account);
+        if (cached.isEmpty() || account.getAction() != itv) {
             hardReloadCategories(account, logger);
-            cachedCategories.addAll(CategoryDb.get().getCategories(account));
+            cached = CategoryDb.get().getCategories(account);
         }
-        return maybeFilterCategories(cachedCategories, censor);
+        return maybeFilterCategories(cached, censor);
     }
 
     private void assignLiveCategoryIds(Account account, List<Category> categories) {
@@ -131,25 +136,28 @@ public class CategoryService {
             return;
         }
         for (Category category : categories) {
-            if (category == null) {
-                continue;
-            }
-            category.setAccountId(account.getDbId());
-            category.setAccountType(account.getType() == null ? "" : account.getType().name());
-            if (CategoryType.isAll(category.getTitle())) {
-                category.setDbId(CategoryType.ALL.identifier());
-                continue;
-            }
-            // M3U catalogues are grouped by the playlist's group title. Its entry ID is
-            // usually a channel tvg-id, so it cannot be used to fetch a category's items.
-            String providerId = account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL
-                    ? category.getTitle()
-                    : category.getCategoryId();
-            if (providerId == null || providerId.isBlank()) {
-                providerId = category.getTitle() == null ? "" : category.getTitle();
-            }
-            category.setDbId(LIVE_CATEGORY_ID_PREFIX + (account.getDbId() == null ? "" : account.getDbId()) + ":" + providerId);
+            assignLiveCategoryId(account, category);
         }
+    }
+
+    private void assignLiveCategoryId(Account account, Category category) {
+        if (category == null) {
+            return;
+        }
+        category.setAccountId(account.getDbId());
+        category.setAccountType(account.getType() == null ? "" : account.getType().name());
+        if (CategoryType.isAll(category.getTitle())) {
+            category.setDbId(CategoryType.ALL.identifier());
+            return;
+        }
+        // M3U catalogues are grouped by the playlist's group title. Its entry ID is
+        // usually a channel tvg-id, so it cannot be used to fetch a category's items.
+        String providerId = account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL
+                ? category.getTitle() : category.getCategoryId();
+        if (providerId == null || providerId.isBlank()) {
+            providerId = category.getTitle() == null ? "" : category.getTitle();
+        }
+        category.setDbId(LIVE_CATEGORY_ID_PREFIX + (account.getDbId() == null ? "" : account.getDbId()) + ":" + providerId);
     }
 
     private boolean usesVodSeriesCategoryCache(Account account) {

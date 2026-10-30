@@ -64,11 +64,11 @@ public class BookmarkApplicationService {
     }
 
     public BookmarkSaveResult saveBookmark(BookmarkSaveRequest request) {
-        if (request == null) {
+        if (!isValidBookmarkRequest(request)) {
             return null;
         }
         Account account = AccountService.getInstance().getById(request.accountId());
-        if (account == null || isBlank(request.channelId()) || isBlank(request.channelName())) {
+        if (account == null) {
             return null;
         }
         account = accountWithMode(account, request.mode());
@@ -77,39 +77,73 @@ public class BookmarkApplicationService {
         }
 
         String bookmarkCategoryId = safe(request.bookmarkCategoryId());
-        if (isNotBlank(bookmarkCategoryId) && bookmarkService.getAllCategories().stream()
-                .noneMatch(category -> bookmarkCategoryId.equals(category.getId()))) {
+        if (!isKnownBookmarkCategory(bookmarkCategoryId)) {
             return null;
         }
 
-        String categoryTitle = "";
-        Category sourceCategory = null;
-        if (isNotBlank(request.categoryId())) {
-            Category category;
-            if (account.isCacheEnabled()) {
-                category = switch (account.getAction()) {
-                    case vod -> VodCategoryDb.get().getById(request.categoryId());
-                    case series -> SeriesCategoryDb.get().getById(request.categoryId());
-                    default -> CategoryDb.get().getCategoryByDbId(request.categoryId(), account);
-                };
-                if (category != null && account.getAction() != Account.AccountAction.itv
-                        && !account.getDbId().equals(category.getAccountId())) {
-                    category = null;
-                }
-            } else {
-                category = CategoryService.getInstance().get(account, false).stream()
-                        .filter(candidate -> candidate != null && (request.categoryId().equals(candidate.getDbId())
-                                || request.categoryId().equals(candidate.getCategoryId())
-                                || request.categoryId().equalsIgnoreCase(safe(candidate.getTitle()))))
-                        .findFirst()
-                        .orElse(null);
-            }
-            if (category != null) {
-                categoryTitle = category.getTitle();
-                sourceCategory = category;
-            }
+        Category sourceCategory = resolveSourceCategory(account, request.categoryId());
+        Bookmark bookmark = buildBookmark(account, request, bookmarkCategoryId, sourceCategory);
+        Channel channel = buildChannel(request);
+        bookmark.setFromChannel(channel);
+        bookmark.setChannelJson(channel.toJson());
+        bookmark.setAccountAction(account.getAction());
+
+        Bookmark existing = bookmarkService.getBookmark(bookmark);
+        if (existing != null) {
+            return new BookmarkSaveResult("exists", existing.getDbId());
         }
 
+        bookmarkService.save(bookmark);
+        Bookmark saved = bookmarkService.getBookmark(bookmark);
+        return new BookmarkSaveResult("saved", saved == null ? "" : saved.getDbId());
+    }
+
+    private boolean isValidBookmarkRequest(BookmarkSaveRequest request) {
+        return request != null && isNotBlank(request.channelId()) && isNotBlank(request.channelName());
+    }
+
+    private boolean isKnownBookmarkCategory(String bookmarkCategoryId) {
+        return isBlank(bookmarkCategoryId) || bookmarkService.getAllCategories().stream()
+                .anyMatch(category -> bookmarkCategoryId.equals(category.getId()));
+    }
+
+    private Category resolveSourceCategory(Account account, String categoryId) {
+        if (isBlank(categoryId)) {
+            return null;
+        }
+        if (!account.isCacheEnabled()) {
+            return CategoryService.getInstance().get(account, false).stream()
+                    .filter(candidate -> candidate != null && (categoryId.equals(candidate.getDbId())
+                            || categoryId.equals(candidate.getCategoryId())
+                            || categoryId.equalsIgnoreCase(safe(candidate.getTitle()))))
+                    .findFirst()
+                    .orElse(null);
+        }
+        Category category = switch (account.getAction()) {
+            case vod -> VodCategoryDb.get().getById(categoryId);
+            case series -> SeriesCategoryDb.get().getById(categoryId);
+            default -> CategoryDb.get().getCategoryByDbId(categoryId, account);
+        };
+        if (category != null && account.getAction() != Account.AccountAction.itv
+                && !account.getDbId().equals(category.getAccountId())) {
+            return null;
+        }
+        return category;
+    }
+
+    private Bookmark buildBookmark(Account account, BookmarkSaveRequest request, String bookmarkCategoryId,
+                                   Category sourceCategory) {
+        String categoryTitle = sourceCategory == null ? "" : sourceCategory.getTitle();
+        String portal = isBlank(account.getServerPortalUrl()) ? account.getUrl() : account.getServerPortalUrl();
+        Bookmark bookmark = new Bookmark(account.getAccountName(), categoryTitle, request.channelId(),
+                request.channelName(), request.cmd(), portal, isBlank(bookmarkCategoryId) ? null : bookmarkCategoryId);
+        if (sourceCategory != null) {
+            bookmark.setCategoryJson(sourceCategory.toJson());
+        }
+        return bookmark;
+    }
+
+    private Channel buildChannel(BookmarkSaveRequest request) {
         Channel channel = new Channel();
         channel.setChannelId(request.channelId());
         channel.setName(request.channelName());
@@ -120,30 +154,7 @@ public class BookmarkApplicationService {
         channel.setClearKeysJson(safe(request.clearKeysJson()));
         channel.setInputstreamaddon(safe(request.inputstreamaddon()));
         channel.setManifestType(safe(request.manifestType()));
-
-        String portal = isBlank(account.getServerPortalUrl()) ? account.getUrl() : account.getServerPortalUrl();
-        Bookmark bookmark = new Bookmark(
-                account.getAccountName(),
-                categoryTitle,
-                request.channelId(),
-                request.channelName(),
-                request.cmd(),
-                portal,
-                isBlank(bookmarkCategoryId) ? null : bookmarkCategoryId
-        );
-        if (sourceCategory != null) bookmark.setCategoryJson(sourceCategory.toJson());
-        bookmark.setAccountAction(account.getAction());
-        bookmark.setFromChannel(channel);
-        bookmark.setChannelJson(channel.toJson());
-
-        Bookmark existing = bookmarkService.getBookmark(bookmark);
-        if (existing != null) {
-            return new BookmarkSaveResult("exists", existing.getDbId());
-        }
-
-        bookmarkService.save(bookmark);
-        Bookmark saved = bookmarkService.getBookmark(bookmark);
-        return new BookmarkSaveResult("saved", saved == null ? "" : saved.getDbId());
+        return channel;
     }
 
     public void deleteBookmark(String bookmarkId) {

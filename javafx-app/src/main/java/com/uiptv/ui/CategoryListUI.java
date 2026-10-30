@@ -152,10 +152,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         return account == null ? null : account.type();
     }
 
-    private String accountDbId() {
-        return account == null || account.dbId() == null ? "" : account.dbId();
-    }
-
     public void setItems(List<Category> list) {
         categoryDataLoaded = true;
         List<Category> processedList = new CategoryResolver().resolveCategories(accountForMode(activeMode), list);
