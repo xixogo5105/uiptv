@@ -491,6 +491,25 @@ class HttpProxyStreamServerTest {
     }
 
     @Test
+    void addressValidationCoversReservedAndMappedNetworkRanges() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(_ -> true);
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://user@example.test/live"));
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://example.test:0/live"));
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://example.test/live#fragment"));
+        assertEquals("", invoke(handler, "hostOf", new Class[]{URI.class}, (URI) null));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("0.1.2.3")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("192.0.88.99")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("198.51.100.1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("203.0.113.1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("224.0.0.1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("fe80::1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("ff02::1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("2001:db8::1")));
+        assertFalse((Boolean) invoke(handler, "isAsciiDigits", new Class[]{String.class}, ""));
+        assertFalse((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, ""));
+    }
+
+    @Test
     void redirectAndFallbackHelpersValidateTargetsAndContentTypes() throws Exception {
         HttpProxyStreamServer handler = new HttpProxyStreamServer(_ -> true);
         HttpUtil.StreamResult redirect = mock(HttpUtil.StreamResult.class);

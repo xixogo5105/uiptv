@@ -50,10 +50,12 @@ class PlayerEpgCoverageTest extends DbBackedTest {
             assertEquals("Next", result.next().title());
             assertEquals("AVAILABLE", result.guideStatus());
             assertEquals(2, service.schedule(account, channel).size());
+            assertFalse(construction.constructed().isEmpty());
         }
         try (var construction = mockConstruction(EpgApplicationService.class,
                 (mock, context) -> when(mock.schedule(any(), any())).thenReturn(List.of()))) {
             assertEquals("NO_MATCH", new PlayerEpgApplicationService().current(account, channel).guideStatus());
+            assertFalse(construction.constructed().isEmpty());
         }
     }
 }

@@ -164,6 +164,7 @@ class EpgCoverageTest extends DbBackedTest {
             assertTrue(service.schedule(xtreme, channel).size() >= 1);
             assertTrue(service.schedule(null, channel).isEmpty());
             assertTrue(service.schedule(invalid, channel).isEmpty());
+            assertFalse(constructions.constructed().isEmpty());
         }
     }
 }
