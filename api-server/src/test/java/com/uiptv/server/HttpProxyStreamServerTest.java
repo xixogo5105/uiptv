@@ -585,6 +585,52 @@ class HttpProxyStreamServerTest {
         assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://portal.test/live?x=1", "mac"));
     }
 
+    @Test
+    void helperGuardsCoverMalformedHeadersOriginsAndPlaylistCandidates() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(_ -> true);
+        assertEquals("", invoke(handler, "hostOf", new Class[]{URI.class}, URI.create("http:///path")));
+        assertEquals("example.test", invoke(handler, "hostOf", new Class[]{URI.class}, URI.create("http://example.test/path")));
+        assertFalse((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, "example.test"));
+        assertFalse((Boolean) invoke(handler, "isValidIpv4Literal", new Class[]{String.class}, "1.2.3.a"));
+        assertFalse((Boolean) invoke(handler, "isValidIpv4Octet", new Class[]{String.class}, "999999999999"));
+        assertEquals("", invoke(handler, "redirectHostHeader", new Class[]{String.class, String.class}, "origin", "http://host/path"));
+        assertEquals("", invoke(handler, "redirectHostHeader", new Class[]{String.class, String.class}, "origin", "bad uri"));
+
+        assertEquals("", invoke(handler, "firstHeader", new Class[]{Map.class, String.class}, Map.of("X", List.of()), "X"));
+        assertEquals("", invoke(handler, "firstHeader", new Class[]{Map.class, String.class}, Map.of("X", List.of(" ")), "X"));
+        invoke(handler, "collectCookies", new Class[]{Map.class, Class.forName("com.uiptv.server.HttpProxyStreamServer$CookieJar")}, null, null);
+        assertEquals("", invoke(handler, "originOf", new Class[]{String.class}, "http:///missing-host"));
+        assertFalse((Boolean) invoke(handler, "sameOrigin", new Class[]{String.class, String.class}, "", "http://a"));
+        assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "bad uri"));
+        assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "bad uri", "x"));
+
+        Map<String, String> noForwarded = new LinkedHashMap<>();
+        Class<?> cookieType = Class.forName("com.uiptv.server.HttpProxyStreamServer$CookieJar");
+        var cookieConstructor = cookieType.getDeclaredConstructor();
+        cookieConstructor.setAccessible(true);
+        Object cookies = cookieConstructor.newInstance();
+        @SuppressWarnings("unchecked") Map<String, String> plainHeaders = invoke(handler, "buildUpstreamHeaders",
+                new Class[]{String.class, cookieType, Map.class}, "http://cdn.test/live/master.m3u8", cookies, noForwarded);
+        assertEquals("*/*", plainHeaders.get("Accept"));
+        assertEquals("no-cache", plainHeaders.get("Cache-Control"));
+        assertEquals("", invoke(handler, "resolveUpstreamOriginHeader", new Class[]{String.class, String.class}, "bad", "bad"));
+        assertEquals("", invoke(handler, "resolveUpstreamRefererHeader", new Class[]{String.class, String.class}, "bad", "bad"));
+
+        assertFalse((Boolean) invoke(handler, "shouldRewriteHlsPlaylist", new Class[]{HttpUtil.StreamResult.class}, (Object) null));
+        HttpUtil.StreamResult malformed = mock(HttpUtil.StreamResult.class);
+        when(malformed.statusCode()).thenReturn(200);
+        when(malformed.responseHeaders()).thenReturn(Map.of());
+        when(malformed.requestUri()).thenReturn("not a uri");
+        assertFalse((Boolean) invoke(handler, "shouldRewriteHlsPlaylist", new Class[]{HttpUtil.StreamResult.class}, malformed));
+        assertEquals("#EXTM3U\n", new String((byte[]) invoke(handler, "rewriteHlsPlaylist",
+                new Class[]{byte[].class, String.class}, "#EXTM3U\n".getBytes(StandardCharsets.UTF_8), "http://cdn.test/a.m3u8"), StandardCharsets.UTF_8));
+        assertEquals("URI=\"broken", invoke(handler, "rewriteHlsUriAttributes", new Class[]{String.class, String.class}, "URI=\"broken", "http://cdn.test/a.m3u8"));
+        assertEquals("data:text/plain,ok", invoke(handler, "buildProxiedHlsUri", new Class[]{String.class, String.class}, "data:text/plain,ok", "http://cdn.test/a.m3u8"));
+        assertEquals("", invoke(handler, "buildProxiedHlsUri", new Class[]{String.class, String.class}, "", "http://cdn.test/a.m3u8"));
+        assertEquals(Long.valueOf(0), invoke(handler, "resolveContentLength", new Class[]{String.class}, "-1"));
+        assertEquals("http://host/path", invoke(handler, "build406Fallback", new Class[]{String.class}, "http://host/path"));
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T invoke(Object target, String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterTypes);
