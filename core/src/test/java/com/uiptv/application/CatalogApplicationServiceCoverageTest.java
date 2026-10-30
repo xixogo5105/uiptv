@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class CatalogApplicationServiceCoverageTest extends DbBackedTest {
     private final CatalogApplicationService service = CatalogApplicationService.getInstance();
@@ -33,9 +35,9 @@ class CatalogApplicationServiceCoverageTest extends DbBackedTest {
         assertEquals("VOD", service.getVodDetails(null).name());
         assertTrue(service.getSeriesDetails(null).seasonInfo().isEmpty());
         try (var accounts = mockStatic(com.uiptv.service.AccountService.class)) {
-            var accountService = org.mockito.Mockito.mock(com.uiptv.service.AccountService.class);
+            var accountService = mock(com.uiptv.service.AccountService.class);
             accounts.when(com.uiptv.service.AccountService::getInstance).thenReturn(accountService);
-            org.mockito.Mockito.when(accountService.getById("missing")).thenReturn(null);
+            when(accountService.getById("missing")).thenReturn(null);
             assertTrue(service.listCategories("missing", CatalogMode.ITV).isEmpty());
             assertTrue(service.listChannels(new CatalogChannelsQuery("missing", CatalogMode.ITV, "", "")).isEmpty());
             assertTrue(service.listSeriesEpisodes(new CatalogSeriesEpisodesQuery("missing", "", "series")).isEmpty());
