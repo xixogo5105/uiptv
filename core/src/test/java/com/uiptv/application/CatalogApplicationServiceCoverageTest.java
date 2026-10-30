@@ -10,7 +10,6 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.SeasonInfo;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;

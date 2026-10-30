@@ -18,7 +18,6 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doThrow;
 
 class PlaybackMediaInspectorTest {
     @Test
@@ -116,7 +115,7 @@ class PlaybackMediaInspectorTest {
     }
 
     @Test
-    void inspectUsesProbeResponseAndFallsBackForErrors() throws Exception {
+    void inspectUsesProbeResponseAndFallsBackForErrors() {
         Account account = new Account();
         account.setType(AccountType.STALKER_PORTAL);
         PlaybackMediaInspector.MediaInfo hinted = PlaybackMediaInspector.inspect("http://cdn/live.m3u8", account);

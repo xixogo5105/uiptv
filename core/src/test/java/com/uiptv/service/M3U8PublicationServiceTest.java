@@ -313,6 +313,9 @@ class M3U8PublicationServiceTest extends DbBackedTest {
 
     @SuppressWarnings("unchecked")
     private <T> T invoke(Object target, String name, Class<T> type, Object... args) throws Exception {
+        if (type == null) {
+            throw new IllegalArgumentException("result type is required");
+        }
         for (Method method : target.getClass().getDeclaredMethods()) {
             if (!method.getName().equals(name) || method.getParameterCount() != args.length) continue;
             method.setAccessible(true);

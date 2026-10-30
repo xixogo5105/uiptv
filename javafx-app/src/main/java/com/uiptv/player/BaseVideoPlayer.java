@@ -57,10 +57,10 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -2345,7 +2345,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         var summary = MediaPlayerFactory.guideSummaryProperty().get();
         if (summary == null || (summary.now() == null && summary.next() == null)) return;
         List<String> programmes = new ArrayList<>(2);
-        SimpleDateFormat timeFormat = new SimpleDateFormat("H:mm", Locale.getDefault());
+        DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("H:mm", Locale.getDefault())
+                .withZone(ZoneId.systemDefault());
         addFormattedGuideProgramme(programmes, summary.now(), timeFormat);
         addFormattedGuideProgramme(programmes, summary.next(), timeFormat);
         if (programmes.isEmpty()) return;
@@ -2355,10 +2356,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void addFormattedGuideProgramme(List<String> programmes, EpgProgramme programme,
-                                            SimpleDateFormat timeFormat) {
+                                            DateTimeFormatter timeFormat) {
         if (programme == null || !isNotBlank(programme.title())) return;
-        programmes.add(timeFormat.format(new Date(programme.start())) + "–"
-                + timeFormat.format(new Date(programme.stop())) + " " + programme.title().trim());
+        programmes.add(timeFormat.format(java.time.Instant.ofEpochMilli(programme.start())) + "–"
+                + timeFormat.format(java.time.Instant.ofEpochMilli(programme.stop())) + " " + programme.title().trim());
     }
 
     private void refreshNowShowingTitle(String displayTitle, boolean live) {

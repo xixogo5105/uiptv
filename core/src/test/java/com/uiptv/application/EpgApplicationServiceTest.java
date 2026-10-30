@@ -177,8 +177,9 @@ class EpgApplicationServiceTest extends DbBackedTest {
     @Test void liveXmltvReaderHonoursInterruptAndDisablesExternalEntities() throws Exception {
         Thread.currentThread().interrupt();
         try {
-            assertThrows(InterruptedException.class, () -> LiveXmltvReader.read(
-                    new java.io.ByteArrayInputStream("<tv/>".getBytes(java.nio.charset.StandardCharsets.UTF_8)), "", "", Instant.now()));
+            try (var input = new java.io.ByteArrayInputStream("<tv/>".getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+                assertThrows(InterruptedException.class, () -> LiveXmltvReader.read(input, "", "", Instant.now()));
+            }
         } finally {
             Thread.interrupted();
         }

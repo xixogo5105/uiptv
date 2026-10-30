@@ -9,7 +9,9 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
 class RemoteSyncKeepAliveWebSocketTest {
     @Test
@@ -25,12 +27,12 @@ class RemoteSyncKeepAliveWebSocketTest {
         var pong = socketType.getMethod("onWebSocketPong", ByteBuffer.class);
         assertDoesNotThrow(() -> pong.invoke(socket, ByteBuffer.allocate(1)));
         try (var service = mockStatic(RemoteSyncApplicationService.class)) {
-            var mock = org.mockito.Mockito.mock(RemoteSyncApplicationService.class);
-            service.when(RemoteSyncApplicationService::getInstance).thenReturn(mock);
+            var applicationService = mock(RemoteSyncApplicationService.class);
+            service.when(RemoteSyncApplicationService::getInstance).thenReturn(applicationService);
             ByteBuffer payload = ByteBuffer.allocate(Long.BYTES);
             payload.putLong(7L).flip();
             assertDoesNotThrow(() -> pong.invoke(socket, payload));
-            org.mockito.Mockito.verify(mock).recordGuestHeartbeat("session");
+            verify(applicationService).recordGuestHeartbeat("session");
         }
     }
 }
