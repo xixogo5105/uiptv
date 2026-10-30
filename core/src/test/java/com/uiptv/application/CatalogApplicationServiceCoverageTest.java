@@ -169,6 +169,14 @@ class CatalogApplicationServiceCoverageTest extends DbBackedTest {
         assertTrue(seriesHints.contains("2024"));
     }
 
+    @Test
+    void privateCatalogGuardsCoverNullAndImageNormalizationBranches() throws Exception {
+        assertEquals(0, ((JSONArray) invoke("toJsonArray", JSONArray.class, (Object) null)).length());
+        assertEquals("", invoke("normalizeImageUrl", String.class, "", null));
+        assertEquals("https://img.test/poster", invoke("normalizeImageUrl", String.class, "https://img.test/poster", null));
+        assertEquals("", invoke("resolveSeriesCategoryId", String.class, null, ""));
+    }
+
     private static Channel channel(String id, String name, String cmd) {
         Channel channel = new Channel();
         channel.setChannelId(id);

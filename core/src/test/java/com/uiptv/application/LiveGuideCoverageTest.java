@@ -59,4 +59,32 @@ class LiveGuideCoverageTest extends DbBackedTest {
             assertFalse(constructions.constructed().isEmpty());
         }
     }
+
+    @Test
+    void listAccountMapsCatalogChannelsAndPublishesReadyRows() throws Exception {
+        Account account = new Account();
+        account.setDbId("account");
+        account.setAccountName("Account");
+        account.setType(com.uiptv.util.AccountType.XTREME_API);
+        Channel channel = new Channel();
+        channel.setChannelId("channel");
+        List<Channel> channels = List.of(channel);
+        try (var accounts = mockStatic(AccountService.class);
+             var catalog = mockStatic(CatalogApplicationService.class);
+             var constructions = mockConstruction(EpgApplicationService.class,
+                     (mock, context) -> when(mock.isEnabled()).thenReturn(true))) {
+            var accountService = mock(AccountService.class);
+            accounts.when(AccountService::getInstance).thenReturn(accountService);
+            when(accountService.getById("account")).thenReturn(account);
+            var catalogService = mock(CatalogApplicationService.class);
+            catalog.when(CatalogApplicationService::getInstance).thenReturn(catalogService);
+            when(catalogService.listChannels(any(CatalogChannelsQuery.class), eq(false))).thenReturn(channels);
+            var ready = new java.util.ArrayList<List<LiveGuideApplicationService.Row>>();
+            var rows = new LiveGuideApplicationService().list("account", ready::add);
+            assertEquals(1, rows.size());
+            assertEquals(1, ready.getFirst().size());
+            assertTrue(rows.getFirst().nativeProvider());
+            assertFalse(constructions.constructed().isEmpty());
+        }
+    }
 }

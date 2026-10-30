@@ -148,6 +148,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
     @Test
     void privateHelpers_restoreAndMergeEpisodeMetadata() throws Exception {
         SeriesEpisodeService service = SeriesEpisodeService.getInstance();
+        service.populateEpisodeNumbers(null);
         Channel channel = channel("ep-json", "Season 5 Episode 11", "cmd://json");
         channel.setLogo("logo.png");
         channel.setDescription("plot");
@@ -177,8 +178,13 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         Method extractEpisode = SeriesEpisodeService.class.getDeclaredMethod("extractEpisode", String.class);
         extractEpisode.setAccessible(true);
         assertEquals("08", extractSeason.invoke(service, "S08E03"));
+        assertEquals("4", extractSeason.invoke(service, "season 4"));
+        assertEquals("2", extractSeason.invoke(service, "2x03"));
+        assertEquals("1", extractSeason.invoke(service, ""));
         assertEquals("3", extractEpisode.invoke(service, "Season 8 Episode 3"));
         assertEquals("123", extractEpisode.invoke(service, "E123"));
+        assertEquals("3", extractEpisode.invoke(service, "2x03"));
+        assertEquals("", extractEpisode.invoke(service, ""));
         assertEquals("1", extractSeason.invoke(service, "Unknown Title"));
         assertEquals("", extractEpisode.invoke(service, "Unknown Title"));
     }
