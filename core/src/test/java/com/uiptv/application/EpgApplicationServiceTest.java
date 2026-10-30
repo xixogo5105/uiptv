@@ -100,4 +100,40 @@ class EpgApplicationServiceTest extends DbBackedTest {
         String xml = xml("One").replace("<display-name>Other</display-name>", "<display-name>One HD</display-name>");
         assertTrue(LiveXmltvReader.read(new java.io.ByteArrayInputStream(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)), "missing", "One HD", Instant.now()).isEmpty());
     }
+
+    @Test void sourceParsingGuideIdsAndShiftedProgramsCoverMetadataBranches() {
+        assertEquals(List.of("a", "b", "c", "d"), EpgApplicationService.parseSources("a, b\nc|d  c"));
+        assertTrue(EpgApplicationService.parseSources(null).isEmpty());
+        Account xtreme = account(""); xtreme.setType(AccountType.XTREME_API);
+        Channel channel = channel();
+        channel.setExtraJson("{\"epg_channel_id\":\"xtreme-id\"}");
+        assertEquals("xtreme-id", EpgApplicationService.guideId(xtreme, channel));
+        channel.setExtraJson("{\"xmltv_id\":\"xml-id\",\"epg_id\":\"fallback\"}");
+        assertEquals("xml-id", EpgApplicationService.guideId(account(""), channel));
+        channel.setExtraJson("bad-json");
+        assertEquals("provider-channel", EpgApplicationService.guideId(account(""), channel));
+        assertEquals("", EpgApplicationService.guideId(xtreme, channel));
+
+        long now = System.currentTimeMillis();
+        Channel shifted = channel();
+        shifted.setExtraJson("{\"m3u\":{\"tvg-shift\":\"1.5\"}}");
+        var service = new EpgApplicationService();
+        var shiftedPrograms = service.schedule(account(""), shifted);
+        assertTrue(shiftedPrograms.isEmpty());
+        assertTrue(EpgApplicationService.usable(List.of(new EpgProgramme("Specific", "", now - 1_000, now + 60_000))));
+        assertFalse(EpgApplicationService.usable(List.of(new EpgProgramme("Specific", "", now - 2_000, now - 1_000))));
+        assertFalse(EpgApplicationService.usable(List.of(new EpgProgramme("News", "", now, now + 1_000))));
+        assertFalse(EpgApplicationService.usable(List.of(new EpgProgramme("", "", now - 1_000, now + 1_000))));
+    }
+
+    @Test void playlistHeaderDiscoveryUsesRelativeAndAbsoluteGuideUrls() throws Exception {
+        Path playlist = tempDir.resolve("playlist.m3u");
+        Files.writeString(playlist, "#EXTM3U x-tvg-url=guide.xml\n#EXTINF:-1,One\nhttp://stream\n");
+        Account local = account(""); local.setType(AccountType.M3U8_LOCAL); local.setM3u8Path(playlist.toString());
+        List<String> sources = new EpgApplicationService().accountSources(local);
+        assertEquals(1, sources.size());
+        assertTrue(sources.getFirst().endsWith("/guide.xml"));
+        local.setEpg("http://one, http://two");
+        assertEquals(List.of("http://one", "http://two"), new EpgApplicationService().accountSources(local));
+    }
 }

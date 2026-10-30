@@ -6,6 +6,8 @@ import com.uiptv.util.AccountType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlaybackMediaInspectorTest {
     @Test
@@ -64,6 +66,42 @@ class PlaybackMediaInspectorTest {
         PlaybackMediaInspector.MediaInfo media = PlaybackMediaInspector.inferUrlFormatHint(
                 "http://portal.example/play/movie.php?cmd=ffmpeg%20http://cdn.example/title.mp4");
         assertEquals(null, media);
+    }
+
+    @Test
+    void coversAllExtensionHintsAndHeaderFallbacks() {
+        assertNull(PlaybackMediaInspector.inferUrlFormatHint(null));
+        assertNull(PlaybackMediaInspector.inferUrlFormatHint("  "));
+        assertEquals("hls", PlaybackMediaInspector.inferUrlFormatHint("http://p/live?extension=m3u8").strategy());
+        assertEquals("dash", PlaybackMediaInspector.inferUrlFormatHint("http://p/live?manifest_type=mpd").strategy());
+        assertEquals("mpegts", PlaybackMediaInspector.inferUrlFormatHint("http://p/live.m2ts").strategy());
+        assertEquals("mpegts", PlaybackMediaInspector.inferUrlFormatHint("http://p/live?extension=ts").strategy());
+        assertEquals("native", PlaybackMediaInspector.inferUrlFormatHint("http://p/movie.m4v").strategy());
+        assertEquals("mkv", PlaybackMediaInspector.inferUrlFormatHint("http://p/movie.mkv").strategy());
+        assertEquals("unsupported", PlaybackMediaInspector.inferUrlFormatHint("http://p/movie.wmv").strategy());
+
+        Account account = new Account();
+        account.setType(AccountType.STALKER_PORTAL);
+        account.setTimezone("");
+        var stalkerHeaders = PlaybackMediaInspector.buildProbeHeaders("http://portal.example/live/play/1?mac=abc", account);
+        assertTrue(stalkerHeaders.get("Cookie").contains("Europe/London"));
+        assertEquals("Mozilla/5.0", PlaybackMediaInspector.buildProbeHeaders("http://cdn.example/live", null).get("User-Agent"));
+        assertNull(PlaybackMediaInspector.inferStalkerOnDemandFormat("http://cdn.example/movie.mp4", null));
+        assertNull(PlaybackMediaInspector.inferStalkerOnDemandFormat("http://cdn.example/movie.mp4", account));
+    }
+
+    @Test
+    void classifiesSignaturesCodecListsAndUnknownInputs() {
+        assertEquals("hls", PlaybackMediaInspector.classifyResponse("text/plain", " #EXTM3U".getBytes()).strategy());
+        byte[] mp4 = new byte[8]; mp4[4] = 'f'; mp4[5] = 't'; mp4[6] = 'y'; mp4[7] = 'p';
+        assertEquals("native", PlaybackMediaInspector.classifyResponse("application/octet-stream", mp4).strategy());
+        byte[] mpeg = {0, 0, 1, (byte) 0xba};
+        assertEquals("unsupported", PlaybackMediaInspector.classifyResponse("application/octet-stream", mpeg).strategy());
+        assertEquals("unknown", PlaybackMediaInspector.classifyResponse(null, null).strategy());
+        var codecs = PlaybackMediaInspector.classifyResponse("video/mp4; codecs=avc1.4d401f,aac.40.2;profile=x", mp4);
+        assertEquals("avc1.4d401f", codecs.videoCodec());
+        assertEquals("aac.40.2", codecs.audioCodec());
+        assertEquals("native", codecs.strategy());
     }
 
 }
