@@ -1,5 +1,6 @@
 package com.uiptv.player;
 
+import com.uiptv.application.EpgProgramme;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -56,9 +57,12 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2341,16 +2345,20 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         var summary = MediaPlayerFactory.guideSummaryProperty().get();
         if (summary == null || (summary.now() == null && summary.next() == null)) return;
         List<String> programmes = new ArrayList<>(2);
-        if (summary.now() != null && isNotBlank(summary.now().title())) {
-            programmes.add(I18n.tr("epgNow") + ": " + summary.now().title());
-        }
-        if (summary.next() != null && isNotBlank(summary.next().title())) {
-            programmes.add(I18n.tr("epgNext") + ": " + summary.next().title());
-        }
+        SimpleDateFormat timeFormat = new SimpleDateFormat("H:mm", Locale.getDefault());
+        addFormattedGuideProgramme(programmes, summary.now(), timeFormat);
+        addFormattedGuideProgramme(programmes, summary.next(), timeFormat);
         if (programmes.isEmpty()) return;
         Text programmeText = new Text(String.join(" · ", programmes));
         programmeText.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
         guideInfoFlow.getChildren().add(programmeText);
+    }
+
+    private void addFormattedGuideProgramme(List<String> programmes, EpgProgramme programme,
+                                            SimpleDateFormat timeFormat) {
+        if (programme == null || !isNotBlank(programme.title())) return;
+        programmes.add(timeFormat.format(new Date(programme.start())) + "–"
+                + timeFormat.format(new Date(programme.stop())) + " " + programme.title().trim());
     }
 
     private void refreshNowShowingTitle(String displayTitle, boolean live) {

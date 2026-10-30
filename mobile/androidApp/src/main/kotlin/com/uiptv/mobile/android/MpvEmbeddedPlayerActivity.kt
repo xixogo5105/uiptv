@@ -47,9 +47,11 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.epg.MobileEpgProgramme
 import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.playback.MobileResolutionDisplay
 import com.uiptv.mobile.shared.playback.PlaybackTarget
@@ -65,7 +67,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.graphics.toArgb
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -1130,7 +1134,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         epgLabel = TextView(this).apply {
-            setTextColor(Color.WHITE); setTextSize(11f); maxLines = 2; visibility = View.GONE
+            setTextColor(Color.WHITE); setTextSize(11f)
+            setHorizontallyScrolling(false); maxLines = Int.MAX_VALUE; ellipsize = null
+            visibility = View.GONE
         }
         surfCarouselView = ComposeView(this).apply { visibility = View.GONE }
         epgGuideButton = controlButton("Guide") { showEpgPanel() }.apply {
@@ -2395,9 +2401,10 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         val current = result.now(now)
         val next = result.next(now)
         val channelTitle = currentTarget?.title.orEmpty()
+        val timeFormat = SimpleDateFormat("H:mm", Locale.getDefault())
         val parts = mutableListOf<String>()
-        if (current != null) parts.add("Now: ${current.title}")
-        if (next != null) parts.add("Next: ${next.title}")
+        if (current != null && current.title.isNotBlank()) parts.add(formatEpgProgramme(current, timeFormat))
+        if (next != null && next.title.isNotBlank()) parts.add(formatEpgProgramme(next, timeFormat))
         if (::titleLabel.isInitialized) {
             titleLabel.text = channelTitle
             titleLabel.maxLines = 1
@@ -2412,6 +2419,9 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         epgGuideButton.visibility = View.GONE
         if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
     }
+
+    private fun formatEpgProgramme(programme: MobileEpgProgramme, timeFormat: SimpleDateFormat): String =
+        "${timeFormat.format(Date(programme.start))}–${timeFormat.format(Date(programme.stop))} ${programme.title.trim()}"
 
     private fun renderSurfCarousel() {
         if (!::surfCarouselView.isInitialized) return
