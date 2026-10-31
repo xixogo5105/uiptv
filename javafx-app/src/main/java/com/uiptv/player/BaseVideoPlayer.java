@@ -2104,7 +2104,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
             if (applyColorAdjust) {
                 ColorAdjust colorAdjust = new ColorAdjust();
-                colorAdjust.setBrightness(0.8);
+                colorAdjust.setBrightness(1.0);
+                colorAdjust.setSaturation(-1.0);
                 imageView.setEffect(colorAdjust);
             } else if (iconName.equals("picture-in-picture-exit.png")) {
                 ColorAdjust whiteColorAdjust = new ColorAdjust();

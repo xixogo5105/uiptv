@@ -189,7 +189,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         var player = MediaPlayerFactory.getPlayer();
         boolean fullscreen = player != null && player.fullscreenProperty().get();
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
-        boolean showGuideButton = embeddedConfigured && configuration.isWideView() && (playerNodeActive || fullscreen);
+        boolean showGuideButton = fullscreen || (embeddedConfigured && configuration.isWideView() && playerNodeActive);
         setPlayerGuideButtonVisible(showGuideButton);
         setWideEmbeddedLayoutActive(widePlayerPreferred);
         if (!showEmbeddedPlayer) {

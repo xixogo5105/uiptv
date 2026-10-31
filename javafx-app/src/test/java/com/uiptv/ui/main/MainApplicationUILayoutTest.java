@@ -141,6 +141,62 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
     }
 
     @Test
+    void guideButtonFollowsNarrowWideAndFullscreenTransitions() throws Exception {
+        runOnFxThread(() -> {
+            Configuration configuration = new Configuration();
+            configuration.setEmbeddedPlayer(true);
+            ConfigurationService service = mock(ConfigurationService.class);
+            when(service.read()).thenReturn(configuration);
+            MainApplicationUI ui = new MainApplicationUI(null, null, service, null, 1100, 720, true);
+            TabPane tabs = new TabPane();
+            StackPane navigation = new StackPane(tabs);
+            HBox embedded = new HBox();
+            Label playerNode = new Label("Player");
+            VBox adjacent = new VBox();
+            GridPane content = new GridPane();
+            content.getChildren().addAll(navigation, embedded, adjacent);
+            setField(ui, "activeTabPane", tabs);
+            setField(ui, "activeAccountListUI", new AccountListUI(null, null));
+            setField(ui, "navigationShell", navigation);
+            setField(ui, "embeddedPlayer", embedded);
+            setField(ui, "embeddedPlayerNode", playerNode);
+            setField(ui, "playerAdjacentControls", adjacent);
+            setField(ui, "responsiveContent", content);
+            setField(ui, "mainContent", new HBox(content));
+            var player = mock(com.uiptv.player.api.VideoPlayerInterface.class);
+            var fullscreen = new javafx.beans.property.SimpleBooleanProperty(false);
+            when(player.fullscreenProperty()).thenReturn(fullscreen);
+            Method apply = MainApplicationUI.class.getDeclaredMethod("applyEmbeddedPlayerLayoutFromConfiguration");
+            apply.setAccessible(true);
+            try (var factory = org.mockito.Mockito.mockStatic(com.uiptv.player.MediaPlayerFactory.class)) {
+                factory.when(com.uiptv.player.MediaPlayerFactory::getPlayer).thenReturn(player);
+                // No guide context or programme details are supplied.
+                for (boolean wide : List.of(false, true)) {
+                    configuration.setWideView(wide);
+                    playerNode.setVisible(true);
+                    playerNode.setManaged(true);
+                    apply.invoke(ui);
+                    org.mockito.Mockito.verify(player).setGuideButtonVisible(wide);
+                    org.mockito.Mockito.clearInvocations(player);
+                    fullscreen.set(true);
+                    playerNode.setVisible(false);
+                    playerNode.setManaged(false);
+                    apply.invoke(ui);
+                    org.mockito.Mockito.verify(player).setGuideButtonVisible(true);
+                    org.mockito.Mockito.clearInvocations(player);
+                    fullscreen.set(false);
+                    playerNode.setVisible(true);
+                    playerNode.setManaged(true);
+                    apply.invoke(ui);
+                    org.mockito.Mockito.verify(player).setGuideButtonVisible(wide);
+                    org.mockito.Mockito.clearInvocations(player);
+                }
+            }
+            return null;
+        });
+    }
+
+    @Test
     void accountMediaDrawerModeActivatesOnlyWhenTopPlayerWidthCannotFitSplitBrowser() throws Exception {
         assertTrue(shouldUseAccountMediaDrawerMode(480));
         assertTrue(shouldUseAccountMediaDrawerMode(899));
