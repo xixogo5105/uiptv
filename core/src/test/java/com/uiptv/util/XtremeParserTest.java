@@ -430,6 +430,24 @@ class XtremeParserTest extends DbBackedTest {
         parser.parseAndSave(text, false, false);
 
         assertTrue(store.containsKey("example.test"));
-        assertTrue(store.containsKey("example.test (1)"));
+        assertTrue(store.containsKey("example.test(2)"));
+        assertFalse(store.containsKey("example.test(1)"));
+    }
+
+    @Test
+    void singleUngroupedAccountUsesBaseNameWithoutSuffix() {
+        String text = """
+                http://single.example.test:8080
+                User : userA
+                Pass : passA
+                """;
+
+        Map<String, Account> store = new LinkedHashMap<>();
+        XtremeParser parser = new XtremeParser(store::get, account -> store.put(account.getAccountName(), account));
+
+        List<Account> created = parser.parseAndSave(text, false, false);
+
+        assertEquals(1, created.size());
+        assertEquals("single.example.test", created.getFirst().getAccountName());
     }
 }

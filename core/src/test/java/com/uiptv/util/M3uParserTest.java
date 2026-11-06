@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -48,6 +50,64 @@ class M3uParserTest extends DbBackedTest {
 
         assertEquals(2, created.size());
         assertEquals(2, AccountService.getInstance().getAll().size());
+        assertEquals(List.of("provider.example", "provider.example(2)"),
+                created.stream().map(Account::getAccountName).toList());
+    }
+
+    @Test
+    void invalidFileUrlsAreSkippedBeforeNamingValidAccounts() throws Exception {
+        Path directory = Files.createTempDirectory("invalid-playlists-");
+        Path unsupported = Files.createFile(directory.resolve("playlist.txt"));
+        String missing = directory.resolve("missing.m3u8").toUri().toString();
+        try {
+            List<Account> created = new M3uParser().parseAndSave(
+                    missing + " " + unsupported.toUri() + "\nhttp://valid.example/playlist.m3u8",
+                    false, false);
+
+            assertEquals(1, created.size());
+            assertEquals("valid.example", created.getFirst().getAccountName());
+            assertEquals(AccountType.M3U8_URL, created.getFirst().getType());
+            assertEquals(1, AccountService.getInstance().getAll().size());
+        } finally {
+            Files.deleteIfExists(unsupported);
+            Files.deleteIfExists(directory);
+        }
+    }
+
+    @Test
+    void singleRemotePlaylistUsesBaseNameWithoutSuffix() {
+        List<Account> created = new M3uParser().parseAndSave(
+                "http://single-provider.example:8080/playlist.m3u8", false, false);
+
+        assertEquals(1, created.size());
+        assertEquals("single-provider.example", created.getFirst().getAccountName());
+        assertEquals(AccountType.M3U8_URL, created.getFirst().getType());
+    }
+
+    @Test
+    void localPlaylistPathImportsAsLocalAccountAndUsesItsFilename() throws Exception {
+        Path playlist = Files.createTempFile("local-playlist-", ".m3u8");
+        Files.writeString(playlist, "#EXTM3U\n");
+
+        List<Account> created = new M3uParser().parseAndSave(playlist.toString(), false, false);
+
+        assertEquals(1, created.size());
+        assertEquals(playlist.getFileName().toString(), created.getFirst().getAccountName());
+        assertEquals(AccountType.M3U8_LOCAL, created.getFirst().getType());
+        assertEquals(playlist.toAbsolutePath().normalize().toString(), created.getFirst().getM3u8Path());
+        assertEquals("", created.getFirst().getUrl());
+    }
+
+    @Test
+    void fileUrlImportsAsLocalPlaylist() throws Exception {
+        Path playlist = Files.createTempFile("local-file-url-", ".m3u");
+        Files.writeString(playlist, "#EXTM3U\n");
+
+        List<Account> created = new M3uParser().parseAndSave(playlist.toUri().toString(), false, false);
+
+        assertEquals(1, created.size());
+        assertEquals(AccountType.M3U8_LOCAL, created.getFirst().getType());
+        assertEquals(playlist.toAbsolutePath().normalize().toString(), created.getFirst().getM3u8Path());
     }
 
     /**

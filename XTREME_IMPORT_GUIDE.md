@@ -6,7 +6,7 @@ This guide explains how to bulk import Xtreme Codes accounts.
 
 - Xtreme bulk-import parsing now lives in the shared `core` module, so grouping and credential extraction behavior stays consistent across current runtimes.
 - Imported Xtreme accounts support Live TV, VOD, and Series flows in both desktop and web views.
-- If multiple accounts share the same host URL, UIPTV auto-suffixes account names (`name`, `name (2)`, `name (3)`, ...).
+- If multiple accounts share the same host URL, UIPTV auto-suffixes account names (`name`, `name(2)`, `name(3)`, ...).
 - Bulk import can also reuse one host account and append multiple username/password pairs when **Group Accounts by Username/Password** is enabled.
 - Account cache reload is available after import from the **Manage Account** screen.
 

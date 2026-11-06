@@ -17,6 +17,29 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StalkerPortalParserTest {
 
+    @ParameterizedTest
+    @ValueSource(strings = {"M3U8_URL", "XTREME_API"})
+    void groupedMacOnlyImportDoesNotReuseAnotherAccountType(String type) {
+        Map<String, Account> store = new LinkedHashMap<>();
+        Account existing = new Account();
+        existing.setAccountName("portal.example");
+        existing.setUrl("http://portal.example/playlist.m3u8");
+        existing.setType(AccountType.valueOf(type));
+        store.put(existing.getAccountName(), existing);
+        StalkerPortalParser parser = new StalkerPortalParser(store::get,
+                account -> store.put(account.getAccountName(), account));
+
+        List<Account> imported = parser.parseAndSave(
+                "http://portal.example/c\n00:11:22:33:44:55", true, false);
+
+        assertEquals(1, imported.size());
+        assertEquals("portal.example(2)", imported.getFirst().getAccountName());
+        assertEquals(AccountType.STALKER_PORTAL, imported.getFirst().getType());
+        assertNull(existing.getMacAddressList());
+        assertEquals(AccountType.valueOf(type), existing.getType());
+        assertEquals(2, store.size());
+    }
+
     @Test
     void testParseAndSave() {
         String text = String.join("\n",
@@ -346,7 +369,7 @@ class StalkerPortalParserTest {
                 .filter(account -> account.getSerialNumber() == null)
                 .findFirst()
                 .orElseThrow();
-        assertEquals("portal.example", plain.getAccountName());
+        assertEquals("portal.example(2)", plain.getAccountName());
         assertEquals("00:11:22:33:44:66,00:11:22:33:44:77", plain.getMacAddressList());
     }
 }

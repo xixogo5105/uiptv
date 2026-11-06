@@ -28,6 +28,7 @@ public class StalkerPortalParser implements AccountParser {
 
     private final Function<String, Account> accountProvider;
     private final Consumer<Account> accountSaver;
+    private final AccountNameAllocator accountNameAllocator;
 
     public StalkerPortalParser() {
         this(
@@ -39,6 +40,7 @@ public class StalkerPortalParser implements AccountParser {
     public StalkerPortalParser(Function<String, Account> accountProvider, Consumer<Account> accountSaver) {
         this.accountProvider = accountProvider;
         this.accountSaver = accountSaver;
+        this.accountNameAllocator = new AccountNameAllocator(accountProvider);
     }
 
     @Override
@@ -204,24 +206,25 @@ applyValueToAccount(account, value, type);
 
     private void saveGroupedAccount(Account currentAccount, Map<String, Account> groupedAccounts,
                                     List<Account> createdAccounts, Set<String> processedNames) {
-        String name = getNameFromUrl(currentAccount.getUrl().replace("_", ""));
-        currentAccount.setAccountName(name);
-        Account existing = groupedAccounts.get(name);
+        String groupKey = getNameFromUrl(currentAccount.getUrl().replace("_", ""));
+        Account existing = groupedAccounts.get(groupKey);
         if (existing != null) {
             appendMacAddress(existing, currentAccount.getMacAddress());
             mergeExtraParams(existing, currentAccount);
             return;
         }
-        Account existingInDb = accountProvider.apply(name);
+        Account existingInDb = findExistingMacOnlyAccount(currentAccount);
         if (existingInDb != null) {
             appendMacAddress(existingInDb, currentAccount.getMacAddress());
             mergeExtraParams(existingInDb, currentAccount);
-            groupedAccounts.put(name, existingInDb);
+            groupedAccounts.put(groupKey, existingInDb);
             processedNames.add(existingInDb.getAccountName());
             return;
         }
+        String name = nextUniqueAccountName(currentAccount.getUrl(), processedNames);
+        currentAccount.setAccountName(name);
         currentAccount.setMacAddressList(currentAccount.getMacAddress());
-        groupedAccounts.put(name, currentAccount);
+        groupedAccounts.put(groupKey, currentAccount);
         processedNames.add(name);
         createdAccounts.add(currentAccount);
     }
@@ -262,14 +265,7 @@ applyValueToAccount(account, value, type);
     }
 
     private String nextUniqueAccountName(String url, Set<String> processedNames) {
-        String baseName = getNameFromUrl(url);
-        int counter = 1;
-        String uniqueName = baseName + "(" + counter + ")";
-        while (accountProvider.apply(uniqueName) != null || processedNames.contains(uniqueName)) {
-            counter++;
-            uniqueName = baseName + "(" + counter + ")";
-        }
-        return uniqueName;
+        return accountNameAllocator.next(url, processedNames);
     }
 
     private void appendMacAddress(Account account, String macAddress) {
@@ -290,7 +286,16 @@ applyValueToAccount(account, value, type);
             return directMatch;
         }
 
-        for (int counter = 1; counter < 1000; counter++) {
+        // Check the legacy (1) spelling as well as the current suffix sequence so
+        // re-importing an older database still updates the matching account.
+        for (String candidateName : new String[]{baseName + "(1)", baseName + "(2)"}) {
+            Account candidate = accountProvider.apply(candidateName);
+            if (isSameExtraParamAccount(candidate, account)) {
+                return candidate;
+            }
+        }
+
+        for (int counter = 3; counter < 1000; counter++) {
             Account candidate = accountProvider.apply(baseName + "(" + counter + ")");
             if (candidate == null) {
                 return null;
@@ -301,6 +306,40 @@ applyValueToAccount(account, value, type);
         }
 
         return null;
+    }
+
+    private Account findExistingMacOnlyAccount(Account account) {
+        String baseName = getNameFromUrl(account.getUrl().replace("_", ""));
+        Account baseAccount = accountProvider.apply(baseName);
+        if (isSameMacOnlyAccount(baseAccount, account)) {
+            return baseAccount;
+        }
+
+        for (String candidateName : new String[]{baseName + "(1)", baseName + "(2)"}) {
+            Account candidate = accountProvider.apply(candidateName);
+            if (isSameMacOnlyAccount(candidate, account)) {
+                return candidate;
+            }
+        }
+
+        for (int counter = 3; counter < 1000; counter++) {
+            Account candidate = accountProvider.apply(baseName + "(" + counter + ")");
+            if (candidate == null) {
+                return null;
+            }
+            if (isSameMacOnlyAccount(candidate, account)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private boolean isSameMacOnlyAccount(Account candidate, Account account) {
+        return candidate != null
+                && candidate.getType() == AccountType.STALKER_PORTAL
+                && !hasExtraParams(candidate)
+                && normalizeIdentityValue(getNameFromUrl(candidate.getUrl().replace("_", "")))
+                .equals(normalizeIdentityValue(getNameFromUrl(account.getUrl().replace("_", ""))));
     }
 
     private boolean isSameExtraParamAccount(Account candidate, Account account) {

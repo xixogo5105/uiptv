@@ -89,6 +89,8 @@ class TextParserServiceIntegrationTest extends DbBackedTest {
                 .toList();
 
         assertEquals(3, stalkerAccounts.size());
+        assertEquals(List.of("portal.example", "portal.example(2)", "portal.example(3)"),
+                stalkerAccounts.stream().map(Account::getAccountName).toList());
 
         Account macOnly = stalkerAccounts.stream()
                 .filter(account -> account.getSerialNumber() == null)
@@ -120,6 +122,56 @@ class TextParserServiceIntegrationTest extends DbBackedTest {
         assertNotNull(macOnly.getAccountName());
         assertNotNull(extraA.getAccountName());
         assertNotNull(extraB.getAccountName());
+    }
+
+    @Test
+    void saveBulkAccounts_stalkerSingleValidAccountKeepsBaseName() {
+        String input = """
+                http://single.portal.example/c
+                00:11:22:33:44:55
+                serial: AABBCCDDEE
+                device id 1: AABBCCDDEEFF001122334455667788AA
+                signature: AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899
+                """;
+
+        List<Account> created = TextParserService.saveBulkAccounts(input, TextParserService.MODE_STALKER, true, false);
+
+        assertEquals(1, created.size());
+        assertEquals("single.portal.example", created.getFirst().getAccountName());
+    }
+
+    @Test
+    void saveBulkAccounts_stalkerMacOnlyGroupingSkipsDeviceBoundBaseName() {
+        String url = "http://mixed.portal.example/c";
+        String input = """
+                %s
+                00:11:22:33:44:10
+                serial: AABBCCDDEE
+                device id 1: AABBCCDDEEFF001122334455667788AA
+
+                %s
+                00:11:22:33:44:20
+                """.formatted(url, url);
+
+        List<Account> firstImport = TextParserService.saveBulkAccounts(input, TextParserService.MODE_STALKER, true, false);
+        assertEquals(2, firstImport.size());
+
+        Account deviceBound = AccountService.getInstance().getByName("mixed.portal.example");
+        Account macOnly = AccountService.getInstance().getByName("mixed.portal.example(2)");
+        assertNotNull(deviceBound);
+        assertNotNull(deviceBound.getSerialNumber());
+        assertNotNull(macOnly);
+        assertNull(macOnly.getSerialNumber());
+        assertEquals("00:11:22:33:44:20", macOnly.getMacAddressList());
+
+        TextParserService.saveBulkAccounts("""
+                %s
+                00:11:22:33:44:21
+                """.formatted(url), TextParserService.MODE_STALKER, true, false);
+
+        assertEquals("00:11:22:33:44:10", deviceBound.getMacAddressList());
+        Account reloadedMacOnly = AccountService.getInstance().getByName("mixed.portal.example(2)");
+        assertEquals("00:11:22:33:44:20,00:11:22:33:44:21", reloadedMacOnly.getMacAddressList());
     }
 
     private void assertMacListEquals(String actual, String... expected) {

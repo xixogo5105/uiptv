@@ -210,7 +210,7 @@ http://cdn.example.com/playlist.m3u8 (missing get.php)
 - URLs can be on separate lines or space-separated on the same line
 - The parser is case-insensitive for query parameter names
 - Account names are auto-generated from the hostname
-- If multiple accounts share the same hostname, they will be numbered (hostname, hostname (2), hostname (3), etc.)
+- If multiple accounts share the same hostname, they will be numbered (hostname, hostname(2), hostname(3), etc.)
 - Full URLs are preserved in account records for playback
 - Conversion is optional and controlled by the checkbox
 - The parser handles various parameter orders and combinations

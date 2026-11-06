@@ -31,6 +31,7 @@ public class XtremeParser implements AccountParser {
 
     private final Function<String, Account> accountProvider;
     private final Consumer<Account> accountSaver;
+    private final AccountNameAllocator accountNameAllocator;
 
     public XtremeParser() {
         this(AccountService.getInstance()::getByName, AccountService.getInstance()::save);
@@ -39,6 +40,7 @@ public class XtremeParser implements AccountParser {
     public XtremeParser(Function<String, Account> accountProvider, Consumer<Account> accountSaver) {
         this.accountProvider = accountProvider;
         this.accountSaver = accountSaver;
+        this.accountNameAllocator = new AccountNameAllocator(accountProvider);
     }
 
     @Override
@@ -197,17 +199,7 @@ public class XtremeParser implements AccountParser {
     }
 
     private String nextUniqueAccountName(String url, Set<String> processedNames) {
-        String baseName = accountNameFromUrl(url);
-        if (accountProvider.apply(baseName) == null && !processedNames.contains(baseName)) {
-            return baseName;
-        }
-        int counter = 1;
-        String candidate = baseName + " (" + counter + ")";
-        while (accountProvider.apply(candidate) != null || processedNames.contains(candidate)) {
-            counter++;
-            candidate = baseName + " (" + counter + ")";
-        }
-        return candidate;
+        return accountNameAllocator.next(url, processedNames);
     }
 
     private String accountNameFromUrl(String urlString) {

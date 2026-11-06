@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -48,24 +49,24 @@ public class UiptUtils {
     }
 
     public static String getUniqueNameFromUrl(String urlString) {
-        try {
-            URL url = new URL(urlString);
-            URI uri = url.toURI();
-            int i = 1;
-            String validName;
-            do {
-                validName = uri.getHost() + " (" + i++ + ")";
-            } while (AccountService.getInstance().getByName(validName) != null);
-            return validName;
-        } catch (Exception _) {
-            // Fall back to the raw URL when host extraction fails.
-        }
-        return urlString;
+        return new AccountNameAllocator(AccountService.getInstance()::getByName)
+                .next(urlString, Set.of());
     }
 
     public static String getNameFromUrl(String urlString) {
         try {
-            return new URL(urlString).toURI().getHost();
+            URI uri = new URL(urlString).toURI();
+            if (!isBlank(uri.getHost())) {
+                return uri.getHost();
+            }
+            String path = uri.getPath();
+            if (!isBlank(path)) {
+                int lastSlash = path.lastIndexOf('/');
+                String fileName = path.substring(lastSlash + 1);
+                if (!isBlank(fileName)) {
+                    return fileName;
+                }
+            }
         } catch (Exception _) {
             // Fall back to the raw URL when host extraction fails.
         }

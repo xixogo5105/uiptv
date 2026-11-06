@@ -40,6 +40,7 @@ class UiptUtilsTest {
     @Test
     void namesAndSanitizesText() {
         assertEquals("example.test", UiptUtils.getNameFromUrl("http://example.test/path"));
+        assertEquals("playlist.m3u8", UiptUtils.getNameFromUrl("file:///tmp/playlist.m3u8"));
         assertEquals("bad url", UiptUtils.getNameFromUrl("bad url"));
         assertEquals("A B", UiptUtils.replaceAllNonPrintableChars("A\u0000B"));
         assertEquals("", UiptUtils.sanitizeStalkerText(null));
@@ -72,12 +73,24 @@ class UiptUtilsTest {
         AccountService accountService = mock(AccountService.class);
         try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class)) {
             accountStatic.when(AccountService::getInstance).thenReturn(accountService);
-            when(accountService.getByName("example.test (1)")).thenReturn(new Account());
-            when(accountService.getByName("example.test (2)")).thenReturn(null);
+            when(accountService.getByName("example.test")).thenReturn(new Account());
+            when(accountService.getByName("example.test(2)")).thenReturn(new Account());
+            when(accountService.getByName("example.test(3)")).thenReturn(null);
 
-            assertEquals("example.test (2)", UiptUtils.getUniqueNameFromUrl("http://example.test/path"));
+            assertEquals("example.test(3)", UiptUtils.getUniqueNameFromUrl("http://example.test/path"));
         }
         assertEquals("bad url", UiptUtils.getUniqueNameFromUrl("bad url"));
+    }
+
+    @Test
+    void uniqueNameFromUrlUsesBaseNameForFirstAccount() {
+        AccountService accountService = mock(AccountService.class);
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class)) {
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            when(accountService.getByName("example.test")).thenReturn(null);
+
+            assertEquals("example.test", UiptUtils.getUniqueNameFromUrl("http://example.test/path"));
+        }
     }
 
     private String codepoints(int... values) {
