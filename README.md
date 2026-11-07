@@ -3,7 +3,7 @@
 > [!IMPORTANT]
 > **Attention!!!** Volunteers are needed for translations. [Click here](TRANSLATIONS.md).
 
-# UIPTV - The IPTV Ecosystem for Windows, Linux & macOS
+# UIPTV - The IPTV Ecosystem for Windows, Linux, macOS & Android
 [![GitHub release](https://img.shields.io/github/v/release/xixogo5105/uiptv)](https://github.com/xixogo5105/uiptv/releases)
 [![GitHub license](https://img.shields.io/github/license/xixogo5105/uiptv?branch=main)](https://github.com/xixogo5105/uiptv/blob/main/LICENSE)
 [![Main](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml)
@@ -33,12 +33,17 @@ This is how to use the ecosystem: make UIPTV your trusted library hub, then choo
 
 Release assets are currently published for Windows (x86_64), Linux (x86_64 and aarch64 where available), macOS (x86_64, aarch64), and Android as a universal APK. GitHub releases are published only from repository-root `release.sh`, which creates one combined desktop plus mobile release.
 
+The Android app works independently, but pairs best with UIPTV Desktop: maintain accounts and your library on desktop, then approve a one-way pull to Android. The Android guide explains setup, sync, playback, backups, and troubleshooting.
+
+**Current release:** [UIPTV 1.1.1](https://github.com/xixogo5105/uiptv/releases/tag/v1.1.1) · [Release notes](release_notes.md) · [Android user guide](mobile/USER_GUIDE.md)
+
 ## Documentation
 
 - User guide: [GUIDE.md](GUIDE.md)
-- Android user guide: [mobile/USER_GUIDE.md](mobile/USER_GUIDE.md)
+- Android quick start: [ANDROID.md](ANDROID.md)
+- Full Android user guide: [mobile/USER_GUIDE.md](mobile/USER_GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
-- Release notes: [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
+- Release notes: [release_notes.md](release_notes.md) · [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
 - Desktop memory audit: [docs/EPG_MEMORY_AUDIT.md](docs/EPG_MEMORY_AUDIT.md)
 
 ### EPG documentation

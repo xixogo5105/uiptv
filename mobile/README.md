@@ -148,7 +148,7 @@ The only supported GitHub Release path is the repository-root `release.sh` scrip
 
 ## User And Release Docs
 
-- [USER_GUIDE.md](USER_GUIDE.md): desktop pairing, sync, cache refresh, browsing, and player selection.
+- [USER_GUIDE.md](USER_GUIDE.md): independent setup, desktop pairing and one-way sync, cache refresh, browsing, playback, backups, and troubleshooting.
 - [RELEASE.md](RELEASE.md): verification commands, manual smoke test, signing variables, and artifact paths.
 
 Release signing is driven by environment variables so keystores and passwords stay outside the repository:

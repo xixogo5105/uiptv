@@ -1,56 +1,62 @@
 # UIPTV Android User Guide
 
-## Interface And Appearance
+UIPTV for Android is a standalone IPTV app for phones and tablets. It can manage provider accounts on its own. If you already use UIPTV Desktop, pairing the Android app with your desktop library is usually the quickest way to get started.
 
-The Android app uses Material Design 3 components and adapts its colors to the device's light or dark theme. Navigation is icon-only; on wide screens it can be hidden to give the current page more room. Search and add actions sit in the page header. Forms use outlined text fields and Material dropdowns; settings and account options use spaced Material switches. When adding or editing a Stalker account, the timezone field is a searchable dropdown containing the device's available timezone IDs. The embedded player keeps its dark controls and lock screen in either device theme.
+Get the universal APK from the [latest GitHub release](https://github.com/xixogo5105/uiptv/releases/latest). It supports Android 7.0 (API 24) and newer, with ARM 32-bit, ARM 64-bit, x86, and x86_64 native libraries.
 
-## Pair With Desktop
+## Recommended setup: pull your desktop library
 
-1. Open the desktop UIPTV app on the same network.
-2. In Android, open Settings → Desktop sync.
-3. Enter the desktop host and port. The default port is `8888`.
-4. Tap Test. If it connects, tap Pull.
-5. Confirm the four-digit code on desktop when prompted.
+The desktop app is the convenient place to maintain accounts and organise a shared library. Android initiates a one-way pull from desktop; it does not send Android changes back to desktop.
 
-Android imports accounts and bookmarks from desktop. It does not expose a sync server and it does not push local edits back to desktop in v1.
+1. Install and open UIPTV Desktop on the computer that already has your accounts and library.
+2. Start the desktop web server from its server settings. Keep desktop running while you pair and sync.
+3. Find that computer’s local IP address. Use its LAN address, such as `192.168.1.20`, rather than `localhost` or `127.0.0.1`.
+4. On Android, open **Settings → Desktop sync**. Enter the computer’s IP address and the desktop sync port (the default is `8888`). Enable HTTPS only if the desktop server is configured for HTTPS.
+5. Tap **Test connection**. If it connects, tap **Sync now**.
+6. Approve the request on the desktop when prompted. Android displays the verification code and sync progress while it waits.
+7. When sync completes, refresh the account catalogue on Android, then browse and play.
 
-## Refresh Cache
+Both devices need network access to each other. If the connection test fails, check the IP address, port, desktop server state, and firewall rules. Guest Wi-Fi or client isolation can prevent devices on the same Wi-Fi from communicating.
 
-Remote sync does not copy the full desktop channel cache in v1. After adding or syncing accounts:
+Sync is a one-way import into Android, with portable configuration fields selected for mobile use. The desktop remains the source of truth for maintaining the household library. Back up important data before syncing or restoring a database.
 
-1. Open Accounts.
-2. Use Refresh All, or refresh one account from its row.
-3. Keep the app open or let the refresh continue in the background.
-4. Open Channels after the job completes.
+## Use Android independently
 
-Failed refreshes preserve the existing local cache.
+You can also set up Android without a desktop installation:
 
-Account rows show cached category and content counts. An account with no cached catalogue is labeled **No catalogue cached** instead of showing misleading zero counts.
+1. Open **Accounts** and add a Stalker Portal, Xtreme Codes, or M3U account.
+2. Refresh the account to load its categories and catalogue.
+3. Browse Live, VOD, or Series; use search, filters, and bookmarks to organise playback.
+4. In **Settings → Playback**, select the embedded player or an installed external player. The embedded mpv player is included in the app; external players must be installed separately.
+5. Use **Settings → Backup and restore** to protect or restore the Android app’s local data.
 
-## Browse And Play
+## Browse and play
 
-- Accounts opens one catalogue stage at a time: content type, category, then channel or title list.
-- Bookmarks contains saved channels and VOD/Series entries.
-- Watching Now contains VOD and Series entries after playback has started and opens on Series by default.
-- Series details and episode lists scroll together so the poster and summary do not take up a fixed portion of the episode view.
-- On first playback, choose Native, a detected external player, or the system chooser.
-- Use Remember to make that player the default. Settings can clear it later.
+- **Accounts** opens the selected account’s Live, VOD, or Series catalogue. Refresh an account before browsing if it has no cached catalogue.
+- **Bookmarks** keeps saved channels, movies, and series close at hand.
+- **Watching Now** lists VOD and Series after playback has started. Recent playback is available from the history view.
+- Choose an available player when prompted. Use **Remember** to make it the default; change or clear the choice under **Settings → Playback**.
+- Embedded playback supports the formats and stream behavior provided by mpv and Android’s media stack. External players may handle particular provider streams differently.
+- On the embedded player, **Fit** preserves the full frame, **Crop** fills the display and trims edges, and **Stretch** fills the display without preserving proportions.
+- Live channels show a live progress indicator and cannot be seeked like on-demand video.
 
-When EPG is enabled, playing a live channel fetches its guide from that account. Long-press a live channel or bookmark and choose View Guide to fetch its schedule. Cards show no programme details. In the embedded player, swipe inward from either edge to open the guide, including when no data is available. No EPG data is cached or retained after the guide/player closes.
+## Programme guide
 
-Native playback uses Media3 and can handle HLS/DASH plus license-URL Widevine/ClearKey metadata. External players receive a normal Android `ACTION_VIEW` stream handoff.
+Enable the guide in **Settings → Programme guide** and configure an account guide source if needed. Android loads guide data for playback or when you explicitly open a channel’s guide. Guide data is not retained as a catalogue cache.
 
-The embedded mpv player uses compact Material-style controls on a dark surface, regardless of the Android light/dark theme. Its video scale menu offers:
+## Troubleshooting
 
-- **Fit** — preserve the picture's proportions and show the full frame.
-- **Crop** — preserve proportions while filling the display; the edges may be cropped.
-- **Stretch** — fill the display without preserving proportions.
+- **Desktop connection fails:** ensure the desktop server is running; use the desktop’s LAN IP and configured port; check firewall and Wi-Fi isolation; match the HTTPS setting to the server.
+- **No channels appear:** refresh the account on Android and wait for the refresh to finish. Syncing account details does not copy the desktop’s entire cached channel catalogue.
+- **A stream reconnects:** Android may retry startup when a provider endpoint is intermittent. The player shows a reconnecting status and clears it once playback starts. If retries fail, try another player or refresh the account.
+- **External player is missing:** install a compatible Android player, then choose it from the player picker or playback settings.
+- **Restore or sync problems:** keep a recent backup and check the displayed error before retrying.
 
-Live streams show a full, non-seekable progress track. On-demand video keeps its seekable timeline.
+## Current limits
 
-## Current Limits
+- Sync runs from desktop to Android; Android does not push account or bookmark edits back to desktop.
+- Android stores its own playback state and local data. It does not currently share true resume position with desktop.
+- EPG is fetched on demand and is not cached for catalogue cards.
+- Some provider-specific DRM or Kodi inputstream metadata may require an external player.
 
-- Android-to-desktop export is not part of v1.
-- True resume position is not stored yet because the shared desktop-compatible watch-state tables do not have position/duration columns.
-- Inline ClearKey JSON and Kodi inputstream metadata are detected but not opened by the native player yet.
-- Thumbnail caching on Android uses the app-managed cache directory automatically. No `uiptv.ini` configuration is required or used on mobile.
+For release details, see the [1.1.1 release notes](https://github.com/xixogo5105/uiptv/blob/v1.1.1/release_notes.md). For build and developer information, see [mobile/README.md](README.md).

@@ -1,6 +1,8 @@
 # UIPTV User Guide
 
-Welcome to the user guide for **UIPTV**, an open-source IPTV ecosystem for Windows, Linux, and macOS. UIPTV is not only a screen for playing a stream: it connects provider accounts and playlists, builds a local library, adds search/filtering/bookmarks/EPG and parental controls, and shares that library through desktop and browser experiences.
+Welcome to the user guide for **UIPTV**, an open-source IPTV ecosystem for Windows, Linux, macOS, Android, and browsers. UIPTV is not only a screen for playing a stream: it connects provider accounts and playlists, builds a local library, adds search/filtering/bookmarks/EPG and parental controls, and shares that library across desktop and mobile experiences.
+
+The Android app is usable on its own. For the simplest multi-device setup, keep accounts and the organised library on UIPTV Desktop, then approve a one-way library pull from Android. See the [Android user guide](mobile/USER_GUIDE.md) for installation, desktop pairing, sync, and playback.
 
 ## How the UIPTV ecosystem works
 
