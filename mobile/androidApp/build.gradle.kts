@@ -58,8 +58,8 @@ android {
         minSdk = libs.versions.android.min.sdk.get().toInt()
         targetSdk = libs.versions.android.target.sdk.get().toInt()
         val buildNumber = nextBuildNumber()
-        versionCode = 10000
-        versionName = "1.0.0"
+        versionCode = 10001
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
     }
