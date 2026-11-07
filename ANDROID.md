@@ -14,4 +14,4 @@ Android can be used independently by adding Stalker Portal, Xtreme Codes, or M3U
 
 Sync is a one-way pull from desktop to Android. Android does not push its changes back to desktop. Keep both devices reachable on the same network, and back up important data before sync or restore operations.
 
-See the [full Android user guide](mobile/USER_GUIDE.md) for standalone setup, playback controls, backups, guide settings, troubleshooting, and current limitations. Read the [1.1.1 release notes](https://github.com/xixogo5105/uiptv/blob/v1.1.1/release_notes.md) or get the [v1.1.1 release](https://github.com/xixogo5105/uiptv/releases/tag/v1.1.1).
+See the [full Android user guide](mobile/USER_GUIDE.md) for standalone setup, playback controls, backups, guide settings, troubleshooting, and current limitations. Read the [complete 1.1.1 release changes](release.md) or get the [v1.1.1 release](https://github.com/xixogo5105/uiptv/releases/tag/v1.1.1).

@@ -26,7 +26,9 @@ UIPTV 1.1.1 is the first combined desktop and Android release. The Android app i
 
 ## Android app
 
-Android is new in this release. Start with the [Android quick start](https://github.com/xixogo5105/uiptv/blob/main/ANDROID.md), then see the [full Android user guide](https://github.com/xixogo5105/uiptv/blob/main/mobile/USER_GUIDE.md) for setup, desktop pairing, playback, backups, known limitations, and troubleshooting. Download the universal APK from the [v1.1.1 release](https://github.com/xixogo5105/uiptv/releases/tag/v1.1.1).
+Android is new in this release. Start with the [Android quick start](https://github.com/xixogo5105/uiptv/blob/main/ANDROID.md), then see the [full Android user guide](https://github.com/xixogo5105/uiptv/blob/main/mobile/USER_GUIDE.md) for setup, desktop pairing, playback, backups, known limitations, and troubleshooting. [Download the universal APK](https://github.com/xixogo5105/uiptv/releases/download/v1.1.1/UIPTV-android-universal-apk-UIPTV-android-universal.apk).
+
+For the complete cross-platform summary of changes since the previous release, read <a href="https://github.com/xixogo5105/uiptv/blob/main/release.md" target="_blank" rel="noopener">release.md</a>.
 
 ## Upgrade notes
 

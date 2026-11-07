@@ -59,4 +59,4 @@ Enable the guide in **Settings → Programme guide** and configure an account gu
 - EPG is fetched on demand and is not cached for catalogue cards.
 - Some provider-specific DRM or Kodi inputstream metadata may require an external player.
 
-For release details, see the [1.1.1 release notes](https://github.com/xixogo5105/uiptv/blob/v1.1.1/release_notes.md). For build and developer information, see [mobile/README.md](README.md).
+For release details, see the [complete 1.1.1 release changes](../release.md). For build and developer information, see [mobile/README.md](README.md).

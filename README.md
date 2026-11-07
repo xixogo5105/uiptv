@@ -35,7 +35,7 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 
 The Android app works independently, but pairs best with UIPTV Desktop: maintain accounts and your library on desktop, then approve a one-way pull to Android. The Android guide explains setup, sync, playback, backups, and troubleshooting.
 
-**Current release:** [UIPTV 1.1.1](https://github.com/xixogo5105/uiptv/releases/tag/v1.1.1) · [Release notes](release_notes.md) · [Android user guide](mobile/USER_GUIDE.md)
+**Current release:** [UIPTV 1.1.1](https://github.com/xixogo5105/uiptv/releases/tag/v1.1.1) · [Release changes](release.md) · [Android user guide](mobile/USER_GUIDE.md)
 
 ## Documentation
 
@@ -43,7 +43,7 @@ The Android app works independently, but pairs best with UIPTV Desktop: maintain
 - Android quick start: [ANDROID.md](ANDROID.md)
 - Full Android user guide: [mobile/USER_GUIDE.md](mobile/USER_GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
-- Release notes: [release_notes.md](release_notes.md) · [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
+- Release changes: [release.md](release.md) · [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
 - Desktop memory audit: [docs/EPG_MEMORY_AUDIT.md](docs/EPG_MEMORY_AUDIT.md)
 
 ### EPG documentation
