@@ -67,7 +67,7 @@ EPG is fetched live by the shared Java services and Android Kotlin application f
 
 Build from the repository root. Maven resolves the module graph automatically.
 
-<img width="1920" height="1050" alt="UIPTV application showing the channel library and embedded player" src="https://github.com/user-attachments/assets/ae91fe9f-2089-4ff3-892b-0f342ef9c6cb" />
+<img width="1920" alt="UIPTV desktop showing the account browser, channel list, embedded player, and About window" src="website/uiptv-desktop.png" />
 
 ## What's New
 - **Parental lock**: Keyword filtering can now be password-protected, and Stalker censored categories/channels can require a local parental lock password before opening.
