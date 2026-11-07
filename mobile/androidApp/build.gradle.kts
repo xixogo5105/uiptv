@@ -10,6 +10,8 @@ val releaseKeystorePath = providers.environmentVariable("UIPTV_ANDROID_KEYSTORE"
 val releaseKeystorePassword = providers.environmentVariable("UIPTV_ANDROID_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("UIPTV_ANDROID_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("UIPTV_ANDROID_KEY_PASSWORD").orNull
+val pinnedLibmpvCommitFile = layout.projectDirectory.file("../../scripts/libmpv-android.ref")
+val pinnedLibmpvCommit = pinnedLibmpvCommitFile.asFile.readText().trim()
 val hasReleaseSigning = listOf(
     releaseKeystorePath,
     releaseKeystorePassword,
@@ -21,6 +23,8 @@ val verifyApi24LibmpvAar = tasks.register("verifyApi24LibmpvAar") {
     inputs.file(api24LibmpvAar)
         .withPropertyName("api24LibmpvAar")
         .optional()
+    inputs.file(pinnedLibmpvCommitFile)
+        .withPropertyName("pinnedLibmpvCommit")
     doLast {
         if (!api24LibmpvAar.asFile.isFile) {
             throw GradleException("Missing ${api24LibmpvAar.asFile}. Build or copy the Android 7/API 24 libmpv AAR before assembling the app.")
@@ -28,6 +32,12 @@ val verifyApi24LibmpvAar = tasks.register("verifyApi24LibmpvAar") {
         ZipFile(api24LibmpvAar.asFile).use { archive ->
             if (archive.getEntry("META-INF/uiptv-quiet-jni-v1") == null) {
                 throw GradleException("libmpv AAR still enables native logging. Rebuild with scripts/build-mobile-with-libmpv.sh.")
+            }
+            val commitEntry = archive.getEntry("META-INF/uiptv-libmpv-commit")
+                ?: throw GradleException("libmpv AAR does not record its upstream commit. Rebuild with scripts/build-mobile-with-libmpv.sh.")
+            val aarCommit = archive.getInputStream(commitEntry).bufferedReader().use { it.readText().trim() }
+            if (aarCommit != pinnedLibmpvCommit) {
+                throw GradleException("libmpv AAR commit $aarCommit does not match pinned commit $pinnedLibmpvCommit. Rebuild with scripts/build-mobile-with-libmpv.sh.")
             }
         }
     }

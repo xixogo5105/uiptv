@@ -85,8 +85,13 @@ mvn versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
 
 info "Updating Android app version to $VERSION ($VERSION_CODE)"
 VERSION="$VERSION" VERSION_CODE="$VERSION_CODE" perl -0pi -e '
-  s/versionCode = \d+/versionCode = $ENV{VERSION_CODE}/;
-  s/versionName = "[^"]+"/versionName = "$ENV{VERSION}"/;
+  my $version_code_count = s/^(\s*versionCode\s*=\s*)[^\r\n]+/${1}$ENV{VERSION_CODE}/m;
+  die "Expected exactly one versionCode assignment, found $version_code_count\n"
+    unless $version_code_count == 1;
+
+  my $version_name_count = s/^(\s*versionName\s*=\s*)"[^"]+"/${1}"$ENV{VERSION}"/m;
+  die "Expected exactly one versionName assignment, found $version_name_count\n"
+    unless $version_name_count == 1;
 ' mobile/androidApp/build.gradle.kts
 
 git add pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml coverage-aggregate/pom.xml mobile/androidApp/build.gradle.kts

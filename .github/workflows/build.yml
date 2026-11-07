@@ -120,6 +120,10 @@ jobs:
           grep -q "<version>$version</version>" pom.xml
           grep -q "versionName = \"$version\"" mobile/androidApp/build.gradle.kts
 
+          IFS='.' read -r version_major version_minor version_patch <<< "$version"
+          version_code=$((10#$version_major * 10000 + 10#$version_minor * 100 + 10#$version_patch))
+          grep -q "versionCode = $version_code" mobile/androidApp/build.gradle.kts
+
   build_windows:
     if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -276,6 +280,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v7
 
+      - name: Read pinned libmpv source
+        id: libmpv-source
+        shell: bash
+        run: echo "ref=$(cat scripts/libmpv-android.ref)" >> "$GITHUB_OUTPUT"
+
       - name: Set up JDK 21
         uses: actions/setup-java@v6
         with:
@@ -292,13 +301,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: mobile/androidApp/libs/libmpv-android-api24.aar
-          key: libmpv-api24-aar-${{ runner.os }}-v2-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'scripts/libmpv-quiet-log.h', 'mobile/androidApp/build.gradle.kts') }}
-          restore-keys: |
-            libmpv-api24-aar-${{ runner.os }}-v2-
+          key: libmpv-api24-aar-${{ runner.os }}-v3-${{ hashFiles('scripts/libmpv-android.ref', 'scripts/build-mobile-with-libmpv.sh', 'scripts/libmpv-quiet-log.h', 'mobile/androidApp/build.gradle.kts') }}
 
       - name: Build Android release APK
         env:
           UIPTV_LIBMPV_REUSE_AAR: "1"
+          UIPTV_LIBMPV_REF: ${{ steps.libmpv-source.outputs.ref }}
         run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
 
       - name: Stage Android release APK

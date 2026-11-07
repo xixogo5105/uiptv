@@ -28,6 +28,8 @@ No EPG database, file or response cache remains. Migration 0222 drops the old EP
 
 The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. CI restores the prebuilt AAR from the GitHub Actions cache; on a cache miss it rebuilds the AAR with `scripts/build-mobile-with-libmpv.sh`. Mobile CI must not create or consume UIPTV GitHub Releases for this dependency.
 
+The upstream source commit is pinned in [`scripts/libmpv-android.ref`](../scripts/libmpv-android.ref). The build embeds that commit in the AAR and checks it before reusing a cached AAR, so CI cannot silently package a library from an older upstream revision.
+
 ```bash
 ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 ```

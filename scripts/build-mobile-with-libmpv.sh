@@ -10,8 +10,18 @@ code_root="$(cd "$repo_root/.." && pwd)"
 mobile_dir="$repo_root/mobile"
 libmpv_dir="${UIPTV_LIBMPV_DIR:-$code_root/libmpv-android}"
 libmpv_url="${UIPTV_LIBMPV_URL:-https://github.com/jarnedemeulemeester/libmpv-android.git}"
+libmpv_ref="${UIPTV_LIBMPV_REF:-}"
+if [ -z "$libmpv_ref" ]; then
+  IFS= read -r libmpv_ref < "$repo_root/scripts/libmpv-android.ref"
+fi
 mobile_aar="$mobile_dir/androidApp/libs/libmpv-android-api24.aar"
 libmpv_aar="$libmpv_dir/libmpv/build/outputs/aar/libmpv-release.aar"
+libmpv_commit=""
+
+if ! [[ "$libmpv_ref" =~ ^[0-9a-f]{40}$ ]]; then
+  printf 'Expected a full 40-character libmpv-android commit SHA, got: %s\n' "$libmpv_ref" >&2
+  exit 1
+fi
 
 gradle_tasks=("$@")
 if [ "${#gradle_tasks[@]}" -eq 0 ]; then
@@ -46,7 +56,12 @@ reuse_existing_mobile_aar() {
     return
   fi
 
-  log "Reusing cached API 24 libmpv AAR at $mobile_aar"
+  if ! unzip -p "$mobile_aar" META-INF/uiptv-libmpv-commit 2>/dev/null | grep -qx "$libmpv_ref"; then
+    log "Cached AAR does not match libmpv-android commit $libmpv_ref; rebuilding."
+    return
+  fi
+
+  log "Reusing cached API 24 libmpv AAR for commit $libmpv_ref at $mobile_aar"
   build_mobile
   exit 0
 }
@@ -74,22 +89,29 @@ ensure_libmpv_checkout() {
   if [ ! -d "$libmpv_dir/.git" ]; then
     log "Cloning libmpv-android into $libmpv_dir"
     git clone "$libmpv_url" "$libmpv_dir"
-    return
+  else
+    # These files are owned by the API24 compatibility patch below. Reset them
+    # before fetching so the sibling checkout can be updated repeatedly.
+    (
+      cd "$libmpv_dir"
+      git checkout -- "${patch_files[@]}"
+    )
   fi
 
   if [ "${UIPTV_LIBMPV_SKIP_PULL:-0}" = "1" ]; then
-    log "Skipping libmpv git pull because UIPTV_LIBMPV_SKIP_PULL=1"
-    return
+    log "Skipping libmpv git fetch because UIPTV_LIBMPV_SKIP_PULL=1"
+  else
+    log "Fetching libmpv-android commit $libmpv_ref"
+    git -C "$libmpv_dir" fetch --no-tags origin
   fi
 
-  log "Updating libmpv-android checkout"
-  (
-    cd "$libmpv_dir"
-    # These files are owned by the API24 compatibility patch below. Reset them
-    # before pulling so the sibling checkout can be updated repeatedly.
-    git checkout -- "${patch_files[@]}"
-    git pull --ff-only
-  )
+  if ! git -C "$libmpv_dir" cat-file -e "$libmpv_ref^{commit}" 2>/dev/null; then
+    printf 'Pinned libmpv-android commit is unavailable locally: %s\n' "$libmpv_ref" >&2
+    exit 1
+  fi
+  git -C "$libmpv_dir" checkout --detach "$libmpv_ref"
+  libmpv_commit="$(git -C "$libmpv_dir" rev-parse HEAD)"
+  log "Using libmpv-android source commit $libmpv_commit"
 }
 
 link_existing_android_sdk() {
@@ -172,9 +194,11 @@ build_libmpv() {
 copy_aar() {
   mkdir -p "$(dirname "$mobile_aar")"
   cp "$libmpv_aar" "$mobile_aar"
-  python3 - "$mobile_aar" <<'PYMARKER'
+  UIPTV_LIBMPV_COMMIT="$libmpv_commit" python3 - "$mobile_aar" <<'PYMARKER'
+import os
 import sys
 import zipfile
+import re
 with zipfile.ZipFile(sys.argv[1], "a") as archive:
     wrappers = [name for name in archive.namelist() if name.endswith("/libplayer.so")]
     if len(wrappers) != 4:
@@ -182,7 +206,11 @@ with zipfile.ZipFile(sys.argv[1], "a") as archive:
     for name in wrappers:
         if b"__android_log_" in archive.read(name):
             raise SystemExit("Native logging is still linked in " + name)
+    commit = os.environ["UIPTV_LIBMPV_COMMIT"]
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise SystemExit("Missing pinned libmpv-android commit SHA")
     archive.writestr("META-INF/uiptv-quiet-jni-v1", "quiet-jni-v1\n")
+    archive.writestr("META-INF/uiptv-libmpv-commit", commit + "\n")
 PYMARKER
   log "Copied $libmpv_aar -> $mobile_aar"
 }
