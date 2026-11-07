@@ -126,7 +126,7 @@ jobs:
           grep -q "versionCode = $version_code" mobile/androidApp/build.gradle.kts
 
   build_windows:
-    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
     runs-on: windows-latest
@@ -157,7 +157,7 @@ jobs:
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_mac:
-    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
     runs-on: ${{ matrix.runner }}
@@ -192,7 +192,7 @@ jobs:
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_linux:
-    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -358,8 +358,8 @@ jobs:
           path: target/mobile-release/UIPTV-android-universal.apk
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
-  build_linux_arm64_appimage:
-    if: startsWith(github.ref, 'refs/tags/v')
+  build_linux_arm64:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
     runs-on: ubuntu-24.04-arm
@@ -373,6 +373,35 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+
+      - name: Build DEB package (aarch64)
+        run: mvn -B clean package -DskipTests -P linux-aarch64,pkg-deb
+
+      - name: Upload DEB artifact (aarch64)
+        uses: actions/upload-artifact@v7
+        with:
+          name: UIPTV-linux-aarch64-deb
+          path: javafx-app/target/dist/*.deb
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+      - name: Clean dist directory
+        run: rm -rf javafx-app/target/dist/*
+
+      - name: Install RPM tools
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Build RPM package (aarch64)
+        run: mvn -B clean package -DskipTests -P linux-aarch64,pkg-rpm
+
+      - name: Upload RPM artifact (aarch64)
+        uses: actions/upload-artifact@v7
+        with:
+          name: UIPTV-linux-aarch64-rpm
+          path: javafx-app/target/dist/*.rpm
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+      - name: Clean dist directory
+        run: rm -rf javafx-app/target/dist/*
 
       - name: Build AppImage package (aarch64)
         run: mvn -B clean package -DskipTests -P linux-aarch64,pkg-app-image
@@ -398,6 +427,7 @@ jobs:
       - build_windows
       - build_mac
       - build_linux
+      - build_linux_arm64
       - build_mobile_release
     permissions:
       contents: write
@@ -417,9 +447,8 @@ jobs:
         run: |
           mkdir -p release-assets
           find downloaded-artifacts -type f -print0 | while IFS= read -r -d '' file; do
-            artifact="$(basename "$(dirname "$file")")"
             base="$(basename "$file")"
-            cp "$file" "release-assets/${artifact}-${base}"
+            cp "$file" "release-assets/${base}"
           done
           find release-assets -maxdepth 1 -type f -print | sort
 
