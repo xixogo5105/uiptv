@@ -94,7 +94,7 @@ VERSION="$VERSION" VERSION_CODE="$VERSION_CODE" perl -0pi -e '
     unless $version_name_count == 1;
 ' mobile/androidApp/build.gradle.kts
 
-git add pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml coverage-aggregate/pom.xml mobile/androidApp/build.gradle.kts
+git add pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml lightweight-ui/pom.xml coverage-aggregate/pom.xml mobile/androidApp/build.gradle.kts
 
 # ===============================
 # Create release commit
