@@ -322,7 +322,12 @@ jobs:
           done
 
           keystore_path="$RUNNER_TEMP/uiptv-android-release.jks"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          encoded_keystore="$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]')"
+          if [[ ! "$encoded_keystore" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || (( ${#encoded_keystore} % 4 != 0 )); then
+            echo "::error::UIPTV_ANDROID_KEYSTORE_BASE64 is malformed or truncated. Recreate it from the .jks file and replace that secret."
+            exit 1
+          fi
+          printf '%s' "$encoded_keystore" | base64 --decode > "$keystore_path"
           if [[ ! -s "$keystore_path" ]]; then
             echo "::error::Decoded Android release keystore is empty. Check UIPTV_ANDROID_KEYSTORE_BASE64."
             exit 1
