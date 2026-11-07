@@ -119,7 +119,7 @@ val mobileMessageKeys = listOf(
     "mobileCountEpisodeSingular", "mobileCountEpisodePlural", "epgMobileNoGuide",
     "epgMobileSourceUnavailable",
     "autoWatching", "autoCouldNotPlayVideoUnsupportedFormatOrNetworkError",
-    "autoFailedToReconnectAfter5Attempts", "commonSearch", "autoManageMACAddresses",
+    "autoRetryingStream", "autoFailedToReconnectAfter5Attempts", "commonSearch", "autoManageMACAddresses",
     "configEnableEpg", "epgEnablePlaybackOnly", "epgMobilePlaybackOnlyNeedsEpg",
     "configGlobalEpgSource", "configEpgRefreshInterval", "configEpgRefreshIntervalHelp",
     "epgOpenGuide", "configSelectStreamingPlayer", "epgMobileSourcesSyncHelp", "epgMobileSourcesLoadFailed",

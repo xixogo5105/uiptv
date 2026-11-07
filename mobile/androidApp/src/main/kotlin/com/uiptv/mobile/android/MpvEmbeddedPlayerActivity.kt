@@ -1962,7 +1962,7 @@ class MpvEmbeddedPlayerActivity : ComponentActivity() {
         reconnectScheduled = true
         beginStreamLoading()
         if (retryingStartup) {
-            showMessage(com.uiptv.mobile.shared.i18n.MobileMessages.text("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"))
+            showMessage(com.uiptv.mobile.shared.i18n.MobileMessages.text("autoRetryingStream"))
         } else {
             showMessage(
                 if (delayMs == 0L) {

@@ -10,6 +10,7 @@ class MobileMessagesTest {
         val originalLocale = Locale.getDefault()
         val keys = listOf(
             "autoCouldNotPlayVideoUnsupportedFormatOrNetworkError",
+            "autoRetryingStream",
             "autoFailedToReconnectAfter5Attempts"
         )
         try {
