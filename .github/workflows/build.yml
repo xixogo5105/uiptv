@@ -11,6 +11,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   test:
@@ -273,7 +274,7 @@ jobs:
       # jpackage app-image launchers are native and not cross-compiled.
 
   build_mobile_release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -304,10 +305,39 @@ jobs:
           path: mobile/androidApp/libs/libmpv-android-api24.aar
           key: libmpv-api24-aar-${{ runner.os }}-v3-${{ hashFiles('scripts/libmpv-android.ref', 'scripts/build-mobile-with-libmpv.sh', 'scripts/libmpv-quiet-log.h', 'mobile/androidApp/build.gradle.kts') }}
 
+      - name: Prepare Android release signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.UIPTV_ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.UIPTV_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required GitHub Actions secret for Android release signing: ${name/ANDROID_/UIPTV_ANDROID_}"
+              exit 1
+            fi
+          done
+
+          keystore_path="$RUNNER_TEMP/uiptv-android-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          if [[ ! -s "$keystore_path" ]]; then
+            echo "::error::Decoded Android release keystore is empty. Check UIPTV_ANDROID_KEYSTORE_BASE64."
+            exit 1
+          fi
+          keytool -list -keystore "$keystore_path" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS"
+          chmod 600 "$keystore_path"
+          echo "UIPTV_ANDROID_KEYSTORE=$keystore_path" >> "$GITHUB_ENV"
+
       - name: Build Android release APK
         env:
           UIPTV_LIBMPV_REUSE_AAR: "1"
           UIPTV_LIBMPV_REF: ${{ steps.libmpv-source.outputs.ref }}
+          UIPTV_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEYSTORE_PASSWORD }}
+          UIPTV_ANDROID_KEY_ALIAS: ${{ secrets.UIPTV_ANDROID_KEY_ALIAS }}
+          UIPTV_ANDROID_KEY_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEY_PASSWORD }}
         run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
 
       - name: Stage Android release APK

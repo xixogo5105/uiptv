@@ -161,4 +161,4 @@ export UIPTV_ANDROID_KEY_PASSWORD=...
 ../scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
 ```
 
-Without those variables, release builds use debug signing. This keeps CI buildable while making real release signing explicit.
+Without those variables, local release builds use debug signing. Public GitHub releases require the persistent keystore secrets documented in [RELEASE.md](RELEASE.md); the release workflow fails if they are missing so it cannot publish an APK signed with a temporary CI debug key.
