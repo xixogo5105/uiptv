@@ -255,13 +255,14 @@ jobs:
       - name: Archive app-image artifact (x86_64)
         shell: bash
         run: |
-          tar -C javafx-app/target/dist -czf target/UIPTV-linux-x86_64-app-image.tar.gz .
+          mkdir -p target
+          (cd javafx-app/target/dist && zip -qr "$GITHUB_WORKSPACE/target/UIPTV-linux-x86_64-app-image.zip" .)
 
       - name: Upload AppImage artifact (x86_64)
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-x86_64-app-image
-          path: target/UIPTV-linux-x86_64-app-image.tar.gz
+          path: target/UIPTV-linux-x86_64-app-image.zip
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
       - name: Clean dist directory
@@ -323,10 +324,10 @@ jobs:
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   build_linux_arm64_appimage:
-    if: github.event_name == 'workflow_dispatch' && vars.ENABLE_ARM64_RUNNER == 'true'
+    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
@@ -344,13 +345,14 @@ jobs:
       - name: Archive app-image artifact (aarch64)
         shell: bash
         run: |
-          tar -C javafx-app/target/dist -czf target/UIPTV-linux-aarch64-app-image.tar.gz .
+          mkdir -p target
+          (cd javafx-app/target/dist && zip -qr "$GITHUB_WORKSPACE/target/UIPTV-linux-aarch64-app-image.zip" .)
 
       - name: Upload AppImage artifact (aarch64)
         uses: actions/upload-artifact@v7
         with:
           name: UIPTV-linux-aarch64-app-image
-          path: target/UIPTV-linux-aarch64-app-image.tar.gz
+          path: target/UIPTV-linux-aarch64-app-image.zip
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   publish_release:
