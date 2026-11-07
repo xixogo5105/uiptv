@@ -14,6 +14,7 @@ UIPTV 1.1.1 is the first combined desktop and Android release. The Android app i
 - **Better catalogue and playback controls:** improved channel surfing, favourites, bookmarks, Watching Now and series navigation, player controls, and responsive web playback.
 - **Safer sync and data handling:** hardened database sync validation, transfer limits, snapshot handling, and clearer progress and completion feedback.
 - **Linux AppImages:** x86_64 and ARM64 AppImages are distributed as ZIP archives. Debian and RPM packages remain available for x86_64.
+- **Windows on ARM:** the Windows x86_64 release is expected to run on Windows 11 ARM64 through Windows x64 emulation. It is not a native ARM64 build, so performance may differ. [Microsoft documents x64 app emulation on Windows 11 Arm](https://learn.microsoft.com/en-us/windows/arm/apps-on-arm-x86-emulation).
 
 ## Desktop changes
 
