@@ -53,6 +53,7 @@ public class AppHeaderActions extends HBox {
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
     private final Runnable parentalPauseChangedHandler;
+    private final Runnable cacheReloadCompletedHandler;
     private final IconActionButton gearButton = new IconActionButton(I18n.tr(I18N_AUTO_SETTINGS), ICON_GEAR, this::showGearMenu);
     private final ConfigurationChangeListener configurationChangeListener =
             _ -> Platform.runLater(() -> {
@@ -63,10 +64,16 @@ public class AppHeaderActions extends HBox {
     private boolean configurationListenerRegistered;
 
     public AppHeaderActions(HostServices hostServices, Runnable themeToggleHandler, Runnable parentalPauseChangedHandler) {
+        this(hostServices, themeToggleHandler, parentalPauseChangedHandler, null);
+    }
+
+    public AppHeaderActions(HostServices hostServices, Runnable themeToggleHandler, Runnable parentalPauseChangedHandler,
+                           Runnable cacheReloadCompletedHandler) {
         super(6);
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
         this.parentalPauseChangedHandler = parentalPauseChangedHandler;
+        this.cacheReloadCompletedHandler = cacheReloadCompletedHandler;
         getStyleClass().add("bookmarks-quick-actions");
         UiRenderQuality.optimizeLayout(this);
         setAlignment(Pos.CENTER_RIGHT);
@@ -111,7 +118,8 @@ public class AppHeaderActions extends HBox {
         return new ContextMenu(
                 createNavigationMenuItem(I18n.tr(I18N_AUTO_SETTINGS), AppNavigationPane.ICON_SETTINGS, AppNavigationController.Target.SETTINGS),
                 createNavigationMenuItem(I18n.tr("autoImportBulkAccounts"), AppNavigationPane.ICON_IMPORT, AppNavigationController.Target.IMPORT),
-                createMenuItem(I18n.tr("autoReloadAccountsCache"), ICON_RELOAD, () -> ReloadCachePopup.showPopup(ownerStage())),
+                createMenuItem(I18n.tr("autoReloadAccountsCache"), ICON_RELOAD,
+                        () -> ReloadCachePopup.showPopup(ownerStage(), null, null, cacheReloadCompletedHandler)),
                 createNavigationMenuItem(I18n.tr("autoLogs"), AppNavigationPane.ICON_LOGS, AppNavigationController.Target.LOGS),
                 new SeparatorMenuItem(),
                 createMenuItem(parentalLockMenuText(), parentalLockIcon(), this::toggleParentalPause),

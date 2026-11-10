@@ -11,12 +11,42 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ReloadCacheFailureUITest extends DbBackedUiTest {
     @BeforeAll static void initialize() throws Exception { FxTestSupport.initJavaFx(); }
+
+    @Test void reloadCompletionNotifiesCallerAfterUiSummaryIsUpdated() throws Exception {
+        var callbackCount = new AtomicInteger();
+        var callbackFinished = new CountDownLatch(1);
+        var ui = runOnFxThread(() -> new ReloadCacheInline(null, null, () -> {
+            callbackCount.incrementAndGet();
+            callbackFinished.countDown();
+        }));
+
+        try {
+            runOnFxThread(() -> {
+                Method finish = ReloadCacheInline.class.getDeclaredMethod("finishReloadRun",
+                        List.class, Map.class, Map.class, int.class);
+                finish.setAccessible(true);
+                finish.invoke(ui, List.of(), Map.of(), Map.of(), 0);
+                return null;
+            });
+
+            assertTrue(callbackFinished.await(5, TimeUnit.SECONDS), "Reload completion callback should run");
+            assertEquals(1, callbackCount.get());
+        } finally {
+            runOnFxThread(() -> {
+                var dispose = ReloadCacheInline.class.getDeclaredMethod("disposeInline");
+                dispose.setAccessible(true); dispose.invoke(ui); return null;
+            });
+        }
+    }
 
     @Test void categoryFallbackDoesNotMarkAccountBadBeforeFallbackRuns() throws Exception {
         var ui = runOnFxThread(ReloadCacheInline::new);

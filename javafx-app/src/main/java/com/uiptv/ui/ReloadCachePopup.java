@@ -24,8 +24,13 @@ public final class ReloadCachePopup {
     }
 
     public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
+        showPopup(owner, preselectedAccounts, onAccountsDeleted, null);
+    }
+
+    public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted,
+                                 Runnable onReloadCompleted) {
         Stage popupStage = createStage(owner);
-        ReloadCacheInline popupContent = new ReloadCacheInline(preselectedAccounts, onAccountsDeleted);
+        ReloadCacheInline popupContent = new ReloadCacheInline(preselectedAccounts, onAccountsDeleted, onReloadCompleted);
         popupContent.setExternalCloseHandler(popupStage::close);
 
         Scene scene = new Scene(popupContent, SCENE_WIDTH, SCENE_HEIGHT);

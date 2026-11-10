@@ -529,7 +529,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private AppPageHeader createPageHeader() {
-        HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
+        HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null, this::refresh));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
         return new AppPageHeader(
                 I18n.tr("autoAccount"),
@@ -1632,7 +1632,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
         }
-        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
+        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh, this::refresh);
     }
 
     private Stage resolveOwnerStage() {

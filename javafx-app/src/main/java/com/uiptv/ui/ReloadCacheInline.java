@@ -162,6 +162,7 @@ public class ReloadCacheInline extends VBox {
     private volatile boolean disposed = false;
     private volatile GlobalFailureDecision automaticGlobalFailureDecision;
     private final Runnable onAccountsDeleted;
+    private final Runnable onReloadCompleted;
     private GridPane mainContent;
     private VBox accountColumn;
     private VBox logColumn;
@@ -193,9 +194,15 @@ public class ReloadCacheInline extends VBox {
     }
 
     public ReloadCacheInline(List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
+        this(preselectedAccounts, onAccountsDeleted, null);
+    }
+
+    public ReloadCacheInline(List<Account> preselectedAccounts, Runnable onAccountsDeleted,
+                             Runnable onReloadCompleted) {
         this(
                 preselectedAccounts,
                 onAccountsDeleted,
+                onReloadCompleted,
                 shouldShowFailureHandlingCard(preselectedAccounts),
                 shouldPromptFailureHandlingBeforeAutoStart(preselectedAccounts)
         );
@@ -203,9 +210,11 @@ public class ReloadCacheInline extends VBox {
 
     private ReloadCacheInline(List<Account> preselectedAccounts,
                               Runnable onAccountsDeleted,
+                              Runnable onReloadCompleted,
                               boolean showFailureHandlingCard,
                               boolean promptFailureHandlingBeforeAutoStart) {
         this.onAccountsDeleted = onAccountsDeleted;
+        this.onReloadCompleted = onReloadCompleted;
         this.showFailureHandlingCard = showFailureHandlingCard;
         this.promptFailureHandlingBeforeAutoStart = promptFailureHandlingBeforeAutoStart;
         initializeLayout();
@@ -1162,6 +1171,9 @@ public class ReloadCacheInline extends VBox {
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
+            if (onReloadCompleted != null) {
+                onReloadCompleted.run();
+            }
             Map<String, SummaryStatus> problematicAccounts = collectProblematicAccounts(processedAccounts, summaryStatusByAccountId);
             if (!problematicAccounts.isEmpty()) {
                 showDeleteProblemAccountsPopup(processedAccounts, problematicAccounts);

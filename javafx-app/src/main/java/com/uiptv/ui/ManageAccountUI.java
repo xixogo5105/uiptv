@@ -687,8 +687,16 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert(I18n.tr("autoPleaseSaveTheAccountBeforeReloadingTheCache"));
                 return;
             }
-            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged);
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged,
+                    this::refreshAfterCacheReload);
         });
+    }
+
+    private void refreshAfterCacheReload() {
+        if (isNotBlank(accountId)) {
+            accountInfoPane.apply(accountInfoService.getByAccountId(accountId));
+        }
+        notifyAccountsChanged();
     }
 
     private void notifyAccountsChanged() {
