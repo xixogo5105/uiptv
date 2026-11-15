@@ -1909,14 +1909,26 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (bookmark == null) {
             return false;
         }
+        Account.AccountAction bookmarkAction = bookmark.getAccountAction();
+        if (bookmarkAction != null && bookmarkAction != listAction) {
+            return false;
+        }
         String bookmarkCategoryId = resolveBookmarkSourceCategoryId(bookmark);
         String bookmarkCategoryTitle = resolveBookmarkSourceCategoryTitle(bookmark);
+        String bookmarkId = normalizeExact(bookmark.getChannelId());
+        // Cached/live catalogue transitions can change a channel's source-category metadata.
+        // The channel ID is provider identity within this account and action, so preserve a
+        // saved favourite when that metadata changes across reloads.
+        if (!isBlank(channelIdentity.channelId)
+                && !isBlank(bookmarkId)
+                && channelIdentity.channelId.equals(bookmarkId)) {
+            return true;
+        }
         if (!allView && !sameBookmarkCategory(channelIdentity, bookmarkCategoryId, bookmarkCategoryTitle)) {
             return false;
         }
-        String bookmarkId = normalizeExact(bookmark.getChannelId());
         String bookmarkCmd = normalizeExact(bookmark.getCmd());
-        if (matchesStrongIdentity(channelIdentity, bookmarkId, bookmarkCmd)) {
+        if (matchesStrongIdentity(channelIdentity, "", bookmarkCmd)) {
             return true;
         }
         return matchesNameOnly(channelIdentity, bookmarkId, bookmarkCmd, normalizeLower(bookmark.getChannelName()));
