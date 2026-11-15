@@ -9,6 +9,7 @@ import com.uiptv.widget.UiRenderQuality;
 import javafx.animation.PauseTransition;
 import javafx.application.HostServices;
 import javafx.application.Platform;
+import javafx.geometry.Pos;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.HBox;
@@ -108,11 +109,16 @@ public class WatchingNowUI extends VBox {
 
         searchTextField.setPromptText(I18n.tr("commonSearch"));
         SearchFieldBehavior.installMouseClear(searchTextField);
-        searchRow.getChildren().setAll(searchTextField);
+        searchRow.getChildren().setAll(modePillBar, searchTextField);
         searchRow.getStyleClass().add("search-row");
+        searchRow.setAlignment(Pos.CENTER_LEFT);
         searchRow.setMinWidth(0);
         searchRow.setMaxWidth(Double.MAX_VALUE);
+        modePillBar.setMaxWidth(240);
+        HBox.setHgrow(modePillBar, Priority.NEVER);
         HBox.setHgrow(searchTextField, Priority.ALWAYS);
+        modePillBar.prefHeightProperty().addListener((_, _, _) -> syncModeAndSearchHeights());
+        syncModeAndSearchHeights();
 
         if (!getStyleClass().contains("watching-now-page")) {
             getStyleClass().add("watching-now-page");
@@ -120,7 +126,7 @@ public class WatchingNowUI extends VBox {
         setSpacing(10);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
-        getChildren().setAll(header, modePillBar, searchRow, contentPane);
+        getChildren().setAll(header, searchRow, contentPane);
         VBox.setVgrow(contentPane, Priority.ALWAYS);
         modePillBar.setSelectedItem(SERIES_TAB);
         showSelectedMode(SERIES_TAB);
@@ -131,6 +137,19 @@ public class WatchingNowUI extends VBox {
             return I18n.tr("autoSeries");
         }
         return I18n.tr("autoVod");
+    }
+
+    private void syncModeAndSearchHeights() {
+        if (modePillBar == null || searchTextField == null) {
+            return;
+        }
+        double height = modePillBar.getPrefHeight();
+        if (!Double.isFinite(height) || height <= 0) {
+            return;
+        }
+        searchTextField.setMinHeight(height);
+        searchTextField.setPrefHeight(height);
+        searchTextField.setMaxHeight(height);
     }
 
     private void scheduleSearchQuery(String query) {

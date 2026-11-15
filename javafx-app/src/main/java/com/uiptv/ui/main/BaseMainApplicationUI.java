@@ -104,7 +104,10 @@ public abstract class BaseMainApplicationUI {
             if (newTab == watchingNowTab) {
                 WatchingNowUI watchingNowUI = watchingNowRef.get();
                 if (watchingNowUI != null) {
-                    watchingNowUI.refreshIfNeeded();
+                    // Playback can advance the saved episode while this tab is hidden. Reload
+                    // the local Watching Now rows whenever the user returns so its cards show
+                    // the latest Series/VOD state, even if no change event reached the view.
+                    watchingNowUI.forceReload();
                 }
             }
         });

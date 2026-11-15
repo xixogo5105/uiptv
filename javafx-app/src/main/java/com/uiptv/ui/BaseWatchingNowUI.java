@@ -617,7 +617,15 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return "";
         }
         return rows.stream()
-                .map(this::seriesPaneKey)
+                .map(data -> {
+                    SeriesWatchState state = data == null ? null : data.state;
+                    String identity = data == null ? "" : seriesPaneKey(data);
+                    if (state == null) {
+                        return identity;
+                    }
+                    return identity + "|" + normalizeNumber(state.getSeason())
+                            + "|" + state.getEpisodeNum() + "|" + state.getUpdatedAt();
+                })
                 .sorted()
                 .collect(java.util.stream.Collectors.joining("|"));
     }
@@ -788,6 +796,19 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         });
     }
 
+    private void returnToSeriesList() {
+        selectedSeriesKey = "";
+        if (isDisplayable()) {
+            // Clear the old cards so refreshIfNeeded() can show its loading state while it reads
+            // the latest watch pointer from SQLite. The previous list's row objects are stale.
+            contentBox.getChildren().clear();
+            forceReload();
+            return;
+        }
+        dirty = true;
+        renderCurrentView();
+    }
+
     private void removeSeriesFromWatchingNow(SeriesPanelData data) {
         if (data == null || data.account == null || data.state == null || isBlank(data.account.getDbId()) || isBlank(data.state.getSeriesId())) {
             return;
@@ -832,10 +853,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         String initialTitle = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         Button back = new Button(I18n.tr("autoBack"));
         back.getStyleClass().add("watching-now-back-button");
-        back.setOnAction(event -> {
-            selectedSeriesKey = "";
-            renderCurrentView();
-        });
+        back.setOnAction(event -> returnToSeriesList());
 
         Button reload = new Button(I18n.tr("autoReloadFromServer"));
         reload.getStyleClass().add("watching-now-detail-reload-button");
@@ -2733,6 +2751,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (target == null || source == null) {
             return;
         }
+        target.state = source.state;
         target.watchingLabels.clear();
         target.episodes.clear();
         target.episodes.addAll(source.episodes);
@@ -3253,7 +3272,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private static final class SeriesPanelData {
         private final Account account;
-        private final SeriesWatchState state;
+        private SeriesWatchState state;
         private final String seriesTitle;
         private final JSONObject seasonInfo;
         private final List<WatchingEpisode> episodes;

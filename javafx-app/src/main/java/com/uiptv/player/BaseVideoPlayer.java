@@ -79,6 +79,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
     private static final String STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON = "player-layout-mode-button";
     private static final String STYLE_CLASS_PLAYER_HIDDENBAR_CLOSE_BUTTON = "player-hiddenbar-close-button";
+    private static final double NARROW_PLAYER_CONTROLS_WIDTH = 900;
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
     public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
     private static final String WIDE_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z";
@@ -387,6 +388,26 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
         applyFixedControlBarOrientation(controlsContainer, guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
+
+        Runnable updateSeekButtonPlacement = () -> {
+            boolean moveBesideProgress = playerContainer.getWidth() < NARROW_PLAYER_CONTROLS_WIDTH;
+            boolean alreadyBesideProgress = btnRewind.getParent() == timeRow;
+            if (moveBesideProgress == alreadyBesideProgress) {
+                return;
+            }
+            if (moveBesideProgress) {
+                buttonRow.getChildren().removeAll(btnRewind, btnFastForward);
+                timeRow.getChildren().add(0, btnRewind);
+                timeRow.getChildren().add(1, btnFastForward);
+            } else {
+                timeRow.getChildren().removeAll(btnRewind, btnFastForward);
+                int repeatIndex = buttonRow.getChildren().indexOf(btnRepeat);
+                buttonRow.getChildren().add(repeatIndex, btnRewind);
+                buttonRow.getChildren().add(repeatIndex + 1, btnFastForward);
+            }
+        };
+        playerContainer.widthProperty().addListener((_, _, _) -> updateSeekButtonPlacement.run());
+        updateSeekButtonPlacement.run();
 
         playerContainer.getStyleClass().add("player-container");
         playerContainer.setFocusTraversable(true);
