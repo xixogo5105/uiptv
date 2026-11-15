@@ -1,0 +1,84 @@
+name: Recover Android signing credentials
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  recover-signing-material:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install age
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends age >/dev/null
+
+      - name: Encrypt existing signing materials
+        shell: bash
+        env:
+          UIPTV_ANDROID_KEYSTORE_BASE64: ${{ secrets.UIPTV_ANDROID_KEYSTORE_BASE64 }}
+          UIPTV_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEYSTORE_PASSWORD }}
+          UIPTV_ANDROID_KEY_ALIAS: ${{ secrets.UIPTV_ANDROID_KEY_ALIAS }}
+          UIPTV_ANDROID_KEY_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEY_PASSWORD }}
+          AGE_RECIPIENT: ${{ vars.UIPTV_RECOVERY_AGE_RECIPIENT }}
+        run: |
+          set +x
+          set -euo pipefail
+          umask 077
+
+          work_dir="$RUNNER_TEMP/uiptv-signing-recovery"
+          encrypted_archive="$GITHUB_WORKSPACE/uiptv-signing-recovery.tar.gz.age"
+          mkdir -p "$work_dir"
+          trap 'rm -rf "$work_dir"' EXIT
+
+          for name in \
+            UIPTV_ANDROID_KEYSTORE_BASE64 \
+            UIPTV_ANDROID_KEYSTORE_PASSWORD \
+            UIPTV_ANDROID_KEY_ALIAS \
+            UIPTV_ANDROID_KEY_PASSWORD \
+            AGE_RECIPIENT; do
+            if [[ -z "${!name:-}" ]]; then
+              echo '::error::A required recovery input is unavailable.'
+              exit 1
+            fi
+          done
+
+          printf '%s' "$UIPTV_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$work_dir/uiptv-release.jks"
+          if [[ ! -s "$work_dir/uiptv-release.jks" ]]; then
+            echo '::error::The decoded keystore is empty.'
+            exit 1
+          fi
+
+          printf '%s' "$UIPTV_ANDROID_KEYSTORE_PASSWORD" > "$work_dir/keystore-password.txt"
+          printf '%s' "$UIPTV_ANDROID_KEY_PASSWORD" > "$work_dir/key-password.txt"
+          printf '%s' "$UIPTV_ANDROID_KEY_ALIAS" > "$work_dir/key-alias.txt"
+          sha256sum "$work_dir/uiptv-release.jks" | awk '{print $1}' > "$work_dir/keystore-file-sha256.txt"
+          chmod 600 "$work_dir"/*
+
+          tar -C "$work_dir" -czf "$work_dir/recovery.tar.gz" \
+            uiptv-release.jks \
+            keystore-password.txt \
+            key-password.txt \
+            key-alias.txt \
+            keystore-file-sha256.txt
+          age --recipient "$AGE_RECIPIENT" --output "$encrypted_archive" "$work_dir/recovery.tar.gz"
+          chmod 600 "$encrypted_archive"
+
+      - name: Upload encrypted recovery archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: uiptv-signing-recovery
+          path: uiptv-signing-recovery.tar.gz.age
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Remove encrypted staging file
+        if: always()
+        shell: bash
+        run: rm -f "$GITHUB_WORKSPACE/uiptv-signing-recovery.tar.gz.age"
