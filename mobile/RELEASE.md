@@ -58,7 +58,7 @@ To verify the GitHub secrets without publishing a release, use **Actions -> Buil
 
 Local release builds still fall back to debug signing when the signing variables are absent; do not distribute those locally signed APKs as updates.
 
-The existing 1.1.1 APK was built before this persistent signing setup. Its temporary CI debug key cannot be recovered from the repository, so users who installed that APK may need to uninstall it once when moving to the first APK signed with the permanent key. That uninstall removes local app data.
+The existing 1.1.1 APK was built before this persistent signing setup. Its temporary CI debug key cannot be recovered from the repository, so users who installed that APK may need to uninstall it once when moving to the first APK signed with the permanent key. That uninstall removes local app data. The local `/Volumes/backup/build-and-install-android-release.sh` installer uses `/Volumes/backup/uiptv-secrets/uiptv-release.jks` by default, prompts for missing signing credentials without echoing passwords, and asks before uninstalling an incompatible installation.
 
 ## Artifacts
 

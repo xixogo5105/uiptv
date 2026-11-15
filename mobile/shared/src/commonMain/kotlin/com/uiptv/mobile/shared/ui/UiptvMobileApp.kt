@@ -1359,20 +1359,12 @@ internal fun BrowseItemRow(
     onChoosePlayer: () -> Unit,
     onToggleBookmark: () -> Unit
 ) {
-    var guideOpen by remember { mutableStateOf(false) }
-    var channelMenuOpen by remember { mutableStateOf(false) }
-    val guideEnabled = LocalEpgState.current.enabled && item.mode == BrowseMode.LIVE
-
     val canPlay = item.mode == BrowseMode.SERIES || item.command.isNotBlank()
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .combinedClickable(
-                enabled = canPlay || guideEnabled,
-                onClick = { if (canPlay) onPlay() },
-                onLongClick = { if (guideEnabled) channelMenuOpen = true else onChoosePlayer() }
-            ),
+            .combinedClickable(onClick = { if (canPlay) onPlay() }, onLongClick = onChoosePlayer),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
     ) {
@@ -1419,14 +1411,7 @@ internal fun BrowseItemRow(
                 Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         )
-
     }
-    if (channelMenuOpen) MobileLiveChannelMenu(item.name,
-        onGuide = { channelMenuOpen = false; guideOpen = true },
-        onChoosePlayer = { channelMenuOpen = false; onChoosePlayer() },
-        onDismiss = { channelMenuOpen = false })
-    if (guideOpen) MobileChannelGuideDialog(item.accountId, item.channelId, item.name) { guideOpen = false }
-
 }
 
 @Composable
@@ -1715,18 +1700,13 @@ internal fun BookmarkRow(
     onRemove: () -> Unit,
     onChangeCategory: (() -> Unit)?
 ) {
-    var guideOpen by remember { mutableStateOf(false) }
-    var channelMenuOpen by remember { mutableStateOf(false) }
-    val guideEnabled = LocalEpgState.current.enabled && bookmark.mode == BrowseMode.LIVE
-
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
             .combinedClickable(
-                enabled = bookmark.command.isNotBlank() || guideEnabled,
                 onClick = { if (bookmark.command.isNotBlank()) onPlay() },
-                onLongClick = { if (guideEnabled) channelMenuOpen = true else onChoosePlayer() }
+                onLongClick = onChoosePlayer
             ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
@@ -1782,14 +1762,7 @@ internal fun BookmarkRow(
                 Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         )
-
     }
-    if (channelMenuOpen) MobileLiveChannelMenu(bookmark.channelName,
-        onGuide = { channelMenuOpen = false; guideOpen = true },
-        onChoosePlayer = { channelMenuOpen = false; onChoosePlayer() },
-        onDismiss = { channelMenuOpen = false })
-    if (guideOpen) MobileChannelGuideDialog(bookmark.accountId, bookmark.channelId, bookmark.channelName) { guideOpen = false }
-
 }
 
 @Composable

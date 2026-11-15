@@ -13,7 +13,7 @@ The shared mobile interface uses Material 3 Compose controls. Account forms use 
 
 ## EPG behavior
 
-EPG has one enable/disable setting. Playback and an explicit channel/bookmark **View Guide** action make live requests using the account's native provider or XMLTV source. Long-press a live card to open its guide. Cards do not fetch or show programme summaries. The embedded player's edge-swipe guide opens even when no programmes are available.
+EPG has one enable/disable setting. Playback makes live requests using the account's native provider or XMLTV source. Long-press a channel or bookmark to open the player picker. Cards do not fetch or show programme summaries. The embedded player's edge-swipe guide opens even when no programmes are available.
 
 No EPG database, file or response cache remains. Migration 0222 drops the old EPG tables and reclaims their database space; old downloaded XMLTV files are removed too. See [EPG behavior](../EPG.md).
 
