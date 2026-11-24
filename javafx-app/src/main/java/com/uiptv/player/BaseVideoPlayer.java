@@ -137,8 +137,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private PauseTransition liveRecoveryTimer;
     protected Label errorLabel;
     protected TextFlow guideInfoFlow;
-    protected HBox nowShowingFlow;
-    protected TextFlow headerDetailsFlow;
+    protected TextFlow nowShowingFlow;
     protected Text streamInfoText;
     protected HBox timeRow;
     protected StackPane playerContainer = new StackPane();
@@ -288,14 +287,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void buildUI() {
         guideInfoFlow = new TextFlow();
         guideInfoFlow.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
-        nowShowingFlow = new HBox(5);
-        nowShowingFlow.setAlignment(Pos.CENTER_LEFT);
+        nowShowingFlow = new TextFlow();
+        nowShowingFlow.setTextAlignment(javafx.scene.text.TextAlignment.LEFT);
+        nowShowingFlow.setMaxWidth(Double.MAX_VALUE);
         nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
         streamInfoText = new Text();
         streamInfoText.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
-        headerDetailsFlow = new TextFlow();
-        headerDetailsFlow.getStyleClass().add("player-header-details");
-        applyFixedControlBarOrientation(nowShowingFlow, headerDetailsFlow, streamInfoText);
+        applyFixedControlBarOrientation(nowShowingFlow, streamInfoText);
 
         btnPlayPause = createIconButton(pauseIcon);
         btnStop = createIconButton(stopIcon);
@@ -383,11 +381,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer = new VBox(4);
         controlsContainer.setPadding(new Insets(7));
         controlsContainer.getStyleClass().add("player-controls-container");
-        controlsContainer.getChildren().addAll(guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow);
+        controlsContainer.getChildren().addAll(guideInfoFlow, nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(640);
         controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
-        applyFixedControlBarOrientation(controlsContainer, guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
+        applyFixedControlBarOrientation(controlsContainer, guideInfoFlow, nowShowingFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
 
         Runnable updateSeekButtonPlacement = () -> {
             boolean moveBesideProgress = playerContainer.getWidth() < NARROW_PLAYER_CONTROLS_WIDTH;
@@ -2340,12 +2338,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     protected void refreshNowShowingHeader() {
-        if (guideInfoFlow == null || nowShowingFlow == null || headerDetailsFlow == null || streamInfoText == null) {
+        if (guideInfoFlow == null || nowShowingFlow == null || streamInfoText == null) {
             return;
         }
         guideInfoFlow.getChildren().clear();
         nowShowingFlow.getChildren().clear();
-        headerDetailsFlow.getChildren().clear();
         String displayTitle = buildDisplayTitle();
         boolean live = isLiveGuideContent();
         refreshGuideSummary(live);
@@ -2353,13 +2350,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         guideInfoFlow.setManaged(!guideInfoFlow.getChildren().isEmpty());
         refreshNowShowingTitle(displayTitle, live);
         if (isNotBlank(streamInfoText.getText())) {
-            headerDetailsFlow.getChildren().add(streamInfoText);
+            nowShowingFlow.getChildren().addAll(new Text("  "), streamInfoText);
         }
-        headerDetailsFlow.setVisible(!headerDetailsFlow.getChildren().isEmpty());
-        headerDetailsFlow.setManaged(!headerDetailsFlow.getChildren().isEmpty());
+        nowShowingFlow.setVisible(!nowShowingFlow.getChildren().isEmpty());
+        nowShowingFlow.setManaged(!nowShowingFlow.getChildren().isEmpty());
         updateTimelineVisibility();
-        nowShowingFlow.setVisible(true);
-        nowShowingFlow.setManaged(true);
     }
 
     private void refreshGuideSummary(boolean live) {

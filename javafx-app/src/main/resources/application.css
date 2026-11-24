@@ -4759,7 +4759,7 @@
 }
 
 .player-controls-container {
-    -fx-background-color: rgba(26, 26, 26, 0.84);
+    -fx-background-color: rgba(26, 26, 26, 0.75);
     -fx-background-radius: 10;
     -fx-font-size: 0.9em;
 }
@@ -4909,7 +4909,7 @@
 .player-channel-title {
     -fx-font-size: 0.923em;
     -fx-font-weight: bold;
-    -fx-fill: #e4c86a;
+    -fx-fill: white;
 }
 
 .watching-now-view-link {
@@ -5175,7 +5175,8 @@
 }
 
 .player-stream-info-text {
-    -fx-fill: white;
+    -fx-font-size: 0.6em;
+    -fx-fill: #cbd1d7;
 }
 
 .player-live-label {

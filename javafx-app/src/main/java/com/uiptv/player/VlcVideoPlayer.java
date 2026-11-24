@@ -12,6 +12,7 @@ import javafx.scene.image.ImageView;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
+import uk.co.caprica.vlcj.media.AudioTrackInfo;
 import uk.co.caprica.vlcj.media.MediaRef;
 import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
@@ -23,6 +24,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurface;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.apache.hc.core5.net.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
+    private static final int[] NATIVE_METADATA_REFRESH_DELAYS_MS = {250, 750, 1500};
     /** libVLC's process-wide plugin-path setup and unload must not overlap across sessions. */
     private static final Object NATIVE_FACTORY_LIFECYCLE_LOCK = new Object();
 
@@ -68,6 +71,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private List<TrackOption> audioTracks = List.of();
     private int selectedAudioTrack = Integer.MIN_VALUE;
     private String videoCodec = "";
+    private String audioCodec = "";
     private final AtomicBoolean timeUpdateQueued = new AtomicBoolean();
     private ImageView videoImageView;
     private int videoSourceWidth;
@@ -368,17 +372,114 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     .map(track -> new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")))
                     .toList();
             int selected = player.audio().track();
-            List<VideoTrackInfo> video = player.media().info() == null ? List.of() : player.media().info().videoTracks();
-            String codec = video == null || video.isEmpty() ? "" : video.getFirst().codecName();
+            var mediaInfo = player.media().info();
+            List<VideoTrackInfo> video = mediaInfo == null ? List.of() : mediaInfo.videoTracks();
+            VideoTrackInfo videoTrack = video == null || video.isEmpty() ? null : video.getFirst();
+            String resolvedVideoCodec = videoTrack == null ? "" : normalizeCodecLabel(videoTrack.codecName());
+            int resolvedWidth = videoTrack == null ? 0 : videoTrack.width();
+            int resolvedHeight = videoTrack == null ? 0 : videoTrack.height();
+            List<AudioTrackInfo> audio = mediaInfo == null ? List.of() : mediaInfo.audioTracks();
+            AudioTrackInfo audioTrack = selectAudioTrack(audio, selected);
+            String resolvedAudioCodec = audioTrack == null ? "" : normalizeCodecLabel(audioTrack.codecName());
             Platform.runLater(() -> {
                 if (!isCurrentPlayer(mp)) return;
                 audioTracks = List.copyOf(tracks);
                 selectedAudioTrack = selected;
-                videoCodec = codec;
+                videoCodec = resolvedVideoCodec;
+                audioCodec = resolvedAudioCodec;
+                if (videoSourceWidth <= 0 || videoSourceHeight <= 0) {
+                    videoSourceWidth = resolvedWidth;
+                    videoSourceHeight = resolvedHeight;
+                }
                 refreshTrackMenus();
-                refreshRenderedImageStreamInfo();
+                if (!refreshRenderedImageStreamInfo()) {
+                    updateStreamInfo(videoSourceWidth, videoSourceHeight);
+                }
             });
         });
+    }
+
+    private static AudioTrackInfo selectAudioTrack(List<AudioTrackInfo> tracks, int selectedTrackId) {
+        if (tracks == null || tracks.isEmpty()) {
+            return null;
+        }
+        for (AudioTrackInfo track : tracks) {
+            if (track != null && track.id() == selectedTrackId) {
+                return track;
+            }
+        }
+        return tracks.getFirst();
+    }
+
+    static String normalizeCodecLabel(String codec) {
+        if (codec == null || codec.isBlank()) {
+            return "";
+        }
+        String normalized = codec.trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.contains("h.264") || lower.contains("h264") || lower.contains("avc")) {
+            return "H.264/AVC";
+        }
+        if (lower.contains("h.265") || lower.contains("h265") || lower.contains("hevc")) {
+            return "H.265/HEVC";
+        }
+        if (lower.contains("mpeg2") || lower.contains("mpeg-2")) {
+            return "MPEG-2";
+        }
+        if (lower.contains("mpeg4") || lower.contains("mpeg-4") || lower.equals("mp4v")) {
+            return "MPEG-4";
+        }
+        if (lower.contains("av1") || lower.contains("av01")) {
+            return "AV1";
+        }
+        if (lower.contains("aac")) {
+            return "AAC";
+        }
+        if (lower.contains("eac3") || lower.contains("e-ac-3")) {
+            return "E-AC-3";
+        }
+        if (lower.contains("ac3") || lower.contains("ac-3")) {
+            return "AC-3";
+        }
+        if (lower.contains("opus")) {
+            return "Opus";
+        }
+        if (lower.contains("flac")) {
+            return "FLAC";
+        }
+        if (lower.contains("mp3")) {
+            return "MP3";
+        }
+        if (lower.contains("truehd")) {
+            return "TrueHD";
+        }
+        return normalized.toUpperCase(Locale.ROOT);
+    }
+
+    static String buildStreamInfoLabel(int width, int height, String videoCodec, String audioCodec) {
+        List<String> details = new ArrayList<>(3);
+        if (width > 0 && height > 0) {
+            details.add(ResolutionDisplayUtil.normalize(width, height).shortText());
+        }
+        if (videoCodec != null && !videoCodec.isBlank()) {
+            details.add(normalizeCodecLabel(videoCodec));
+        }
+        if (audioCodec != null && !audioCodec.isBlank()) {
+            details.add(normalizeCodecLabel(audioCodec));
+        }
+        return String.join(" · ", details);
+    }
+
+    private void scheduleNativeMetadataStartupRefresh(MediaPlayer mp) {
+        for (int delayMs : NATIVE_METADATA_REFRESH_DELAYS_MS) {
+            PauseTransition refresh = new PauseTransition(Duration.millis(delayMs));
+            refresh.setOnFinished(_ -> {
+                if (isCurrentPlayer(mp)) {
+                    refreshNativeMetadata(mp);
+                }
+            });
+            refresh.play();
+        }
     }
 
     private void handlePlaying(MediaPlayer mp) {
@@ -404,6 +505,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
             updateVideoSize();
+            scheduleNativeMetadataStartupRefresh(mp);
             refreshTrackMenus();
         });
     }
@@ -482,6 +584,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             loadingSpinner.setVisible(false);
             videoSourceWidth = 0;
             videoSourceHeight = 0;
+            videoCodec = "";
+            audioCodec = "";
             lastStreamInfoLabel = "";
         });
     }
@@ -507,7 +611,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handleElementaryStreamEvent(MediaPlayer mp, TrackType type) {
-        if (type != TrackType.AUDIO || !isCurrentPlayer(mp)) {
+        if ((type != TrackType.AUDIO && type != TrackType.VIDEO) || !isCurrentPlayer(mp)) {
             return;
         }
         long requestVersion = audioStateRequestVersion.get();
@@ -520,8 +624,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 return;
             }
             refreshNativeMetadata(mp);
-            applyDesiredAudioState();
-            scheduleAudioStateRetry(requestVersion, 250);
+            if (type == TrackType.AUDIO) {
+                applyDesiredAudioState();
+                scheduleAudioStateRetry(requestVersion, 250);
+            }
         });
     }
 
@@ -576,6 +682,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void resetPlaybackMetadata() {
         videoSourceWidth = 0;
         videoSourceHeight = 0;
+        videoCodec = "";
+        audioCodec = "";
         lastStreamInfoLabel = "";
     }
 
@@ -731,6 +839,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         clearVideoImage();
         videoSourceWidth = 0;
         videoSourceHeight = 0;
+        videoCodec = "";
+        audioCodec = "";
         lastStreamInfoLabel = "";
     }
 
@@ -936,17 +1046,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     protected void updateStreamInfo(int width, int height) {
-        ResolutionDisplayUtil.ResolutionDisplay resolution = ResolutionDisplayUtil.normalize(width, height);
-        String newLabel = String.format("%s%s (vlc)", resolution.shortText(), formatCodecSuffix(videoCodec));
+        String newLabel = buildStreamInfoLabel(width, height, videoCodec, audioCodec);
         if (!newLabel.equals(lastStreamInfoLabel) || !newLabel.equals(streamInfoText.getText())) {
             lastStreamInfoLabel = newLabel;
             streamInfoText.setText(newLabel);
             refreshNowShowingHeader();
         }
-    }
-
-    private String formatCodecSuffix(String codec) {
-        return codec == null || codec.isBlank() ? "" : " " + codec;
     }
 
     private boolean refreshRenderedImageStreamInfo() {

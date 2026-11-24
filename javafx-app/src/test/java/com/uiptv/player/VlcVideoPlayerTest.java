@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,5 +71,18 @@ class VlcVideoPlayerTest {
         assertFalse(args.contains("--vout=macosx"));
         assertFalse(args.contains("--avcodec-hw=d3d11va"));
         assertFalse(args.contains("--avcodec-hw=videotoolbox"));
+    }
+
+    @Test
+    void streamInfoMatchesMobileResolutionAndCodecLabels() {
+        assertEquals("1080p · H.264/AVC · AAC",
+                VlcVideoPlayer.buildStreamInfoLabel(1920, 1080, "h264", "aac"));
+    }
+
+    @Test
+    void streamInfoOmitsUnavailableValues() {
+        assertEquals("4K UHD · H.265/HEVC",
+                VlcVideoPlayer.buildStreamInfoLabel(3840, 2160, "hevc", ""));
+        assertEquals("", VlcVideoPlayer.buildStreamInfoLabel(0, 0, "", ""));
     }
 }
