@@ -72,8 +72,6 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final String STYLE_CLASS_PLAYER_STREAM_INFO_TEXT = "player-stream-info-text";
-    private static final String STYLE_CLASS_PLAYER_CODEC_INFO_TEXT = "player-codec-info-text";
-    private static final String STYLE_CLASS_LIVE_SLIDER = "live-slider";
     private static final String I18N_PLAYER_PREVIOUS_ITEM = "playerPreviousItem";
     private static final String I18N_PLAYER_NEXT_ITEM = "playerNextItem";
     private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
@@ -290,16 +288,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void buildUI() {
         guideInfoFlow = new TextFlow();
         guideInfoFlow.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
-        nowShowingFlow = new HBox(6);
+        nowShowingFlow = new HBox(5);
         nowShowingFlow.setAlignment(Pos.CENTER_LEFT);
-        nowShowingFlow.setPadding(new Insets(0, 0, 2, 0));
+        nowShowingFlow.setPadding(new Insets(0, 0, 5, 0));
         streamInfoText = new Text();
-        streamInfoText.getStyleClass().addAll(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT, STYLE_CLASS_PLAYER_CODEC_INFO_TEXT);
+        streamInfoText.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
         headerDetailsFlow = new TextFlow();
         headerDetailsFlow.getStyleClass().add("player-header-details");
-        headerDetailsFlow.setMinWidth(0);
-        headerDetailsFlow.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(headerDetailsFlow, Priority.ALWAYS);
         applyFixedControlBarOrientation(nowShowingFlow, headerDetailsFlow, streamInfoText);
 
         btnPlayPause = createIconButton(pauseIcon);
@@ -376,31 +371,22 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");
-        timeSlider.setMinWidth(0);
-        timeSlider.setMaxWidth(580);
         HBox.setHgrow(timeSlider, Priority.ALWAYS);
-        timeLabel = new Label(I18n.tr("playerLive"));
+        timeLabel = new Label(I18n.tr("auto00000000"));
         timeLabel.getStyleClass().add("player-time-label");
-        timeLabel.setMinWidth(Region.USE_PREF_SIZE);
 
-        timeRow = new HBox(8);
+        timeRow = new HBox(2.5);
         timeRow.setAlignment(Pos.CENTER_LEFT);
         timeRow.getChildren().addAll(timeSlider, timeLabel);
         applyFixedControlBarOrientation(buttonRow, timeRow, volumeSlider, timeSlider);
 
         controlsContainer = new VBox(4);
-        controlsContainer.setPadding(new Insets(8, 10, 8, 10));
+        controlsContainer.setPadding(new Insets(7));
         controlsContainer.getStyleClass().add("player-controls-container");
-        controlsContainer.getChildren().addAll(guideInfoFlow, nowShowingFlow, buttonRow, timeRow);
+        controlsContainer.getChildren().addAll(guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(640);
         controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
-        Rectangle controlsClip = new Rectangle();
-        controlsClip.setArcWidth(28);
-        controlsClip.setArcHeight(28);
-        controlsClip.widthProperty().bind(controlsContainer.widthProperty());
-        controlsClip.heightProperty().bind(controlsContainer.heightProperty());
-        controlsContainer.setClip(controlsClip);
         applyFixedControlBarOrientation(controlsContainer, guideInfoFlow, nowShowingFlow, headerDetailsFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
 
         Runnable updateSeekButtonPlacement = () -> {
@@ -1531,7 +1517,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         if (!isLiveLike) {
             long safeTotal = Math.max(0, totalTimeMs);
-            timeSlider.getStyleClass().remove(STYLE_CLASS_LIVE_SLIDER);
             timeLabel.setText(hasKnownTotal
                     ? formatTime(safeCurrent) + " / " + formatTime(safeTotal)
                     : formatTime(safeCurrent) + " / --:--");
@@ -1542,9 +1527,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
 
-        if (!timeSlider.getStyleClass().contains(STYLE_CLASS_LIVE_SLIDER)) {
-            timeSlider.getStyleClass().add(STYLE_CLASS_LIVE_SLIDER);
-        }
         timeLabel.setText(I18n.tr("playerLive"));
         timeSlider.setDisable(true);
         if (!isUserSeeking) {
@@ -2371,24 +2353,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         guideInfoFlow.setManaged(!guideInfoFlow.getChildren().isEmpty());
         refreshNowShowingTitle(displayTitle, live);
         if (isNotBlank(streamInfoText.getText())) {
-            if (!headerDetailsFlow.getChildren().isEmpty()) {
-                Text separator = new Text("  ");
-                separator.getStyleClass().add(STYLE_CLASS_PLAYER_CODEC_INFO_TEXT);
-                applyFixedControlBarOrientation(separator);
-                headerDetailsFlow.getChildren().add(separator);
-            }
             headerDetailsFlow.getChildren().add(streamInfoText);
         }
-        boolean hasHeaderDetails = !headerDetailsFlow.getChildren().isEmpty();
-        headerDetailsFlow.setVisible(hasHeaderDetails);
-        headerDetailsFlow.setManaged(hasHeaderDetails);
-        if (hasHeaderDetails) {
-            nowShowingFlow.getChildren().add(headerDetailsFlow);
-        }
+        headerDetailsFlow.setVisible(!headerDetailsFlow.getChildren().isEmpty());
+        headerDetailsFlow.setManaged(!headerDetailsFlow.getChildren().isEmpty());
         updateTimelineVisibility();
-        boolean hasNowShowing = !nowShowingFlow.getChildren().isEmpty();
-        nowShowingFlow.setVisible(hasNowShowing);
-        nowShowingFlow.setManaged(hasNowShowing);
+        nowShowingFlow.setVisible(true);
+        nowShowingFlow.setManaged(true);
     }
 
     private void refreshGuideSummary(boolean live) {
@@ -2413,39 +2384,27 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void refreshNowShowingTitle(String displayTitle, boolean live) {
-        if (live) {
-            com.uiptv.widget.PlayingCardIndicator liveDot = new com.uiptv.widget.PlayingCardIndicator();
-            liveDot.getStyleClass().add("player-live-indicator");
-            liveDot.setVisible(true);
-            liveDot.setManaged(true);
-            applyFixedControlBarOrientation(liveDot);
-            nowShowingFlow.getChildren().add(liveDot);
-        }
         if (!isNotBlank(displayTitle)) return;
         Text channelNameText = new Text(displayTitle);
         channelNameText.getStyleClass().add("player-channel-title");
         applyFixedControlBarOrientation(channelNameText);
-        headerDetailsFlow.getChildren().add(channelNameText);
+        if (!live) {
+            nowShowingFlow.getChildren().add(channelNameText);
+            return;
+        }
+        com.uiptv.widget.PlayingCardIndicator liveDot = new com.uiptv.widget.PlayingCardIndicator();
+        liveDot.getStyleClass().add("player-live-indicator");
+        liveDot.setVisible(true);
+        liveDot.setManaged(true);
+        applyFixedControlBarOrientation(liveDot, channelNameText);
+        nowShowingFlow.getChildren().addAll(liveDot, channelNameText);
     }
 
     private void updateTimelineVisibility() {
-        if (timeRow == null || timeSlider == null || timeLabel == null) return;
-        boolean live = !isOnDemandContent();
-        timeRow.setVisible(true);
-        timeRow.setManaged(true);
-        if (live) {
-            if (!timeSlider.getStyleClass().contains(STYLE_CLASS_LIVE_SLIDER)) {
-                timeSlider.getStyleClass().add(STYLE_CLASS_LIVE_SLIDER);
-            }
-            timeSlider.setDisable(true);
-            if (!isUserSeeking) {
-                timeSlider.setValue(1.0);
-            }
-            timeLabel.setText(I18n.tr("playerLive"));
-        } else {
-            timeSlider.getStyleClass().remove(STYLE_CLASS_LIVE_SLIDER);
-            timeSlider.setDisable(false);
-        }
+        if (timeRow == null) return;
+        boolean visible = isOnDemandContent();
+        timeRow.setVisible(visible);
+        timeRow.setManaged(visible);
     }
 
     private BingeWatchService.PlaylistItem getCurrentPlaylistItem() {

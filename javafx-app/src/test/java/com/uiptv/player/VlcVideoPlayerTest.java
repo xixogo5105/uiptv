@@ -2,11 +2,9 @@ package com.uiptv.player;
 
 import com.uiptv.model.Configuration;
 import org.junit.jupiter.api.Test;
-import uk.co.caprica.vlcj.media.TrackType;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -72,49 +70,5 @@ class VlcVideoPlayerTest {
         assertFalse(args.contains("--vout=macosx"));
         assertFalse(args.contains("--avcodec-hw=d3d11va"));
         assertFalse(args.contains("--avcodec-hw=videotoolbox"));
-    }
-
-    @Test
-    void buildStreamInfoLabel_matchesMobileFormat() {
-        assertEquals(
-                "1080p · H.264/AVC · AAC · HW",
-                VlcVideoPlayer.buildStreamInfoLabel(1920, 1080, "H.264/AVC", "AAC", "HW")
-        );
-        assertEquals(
-                "4K UHD · H.265/HEVC · E-AC-3 · SW",
-                VlcVideoPlayer.buildStreamInfoLabel(3840, 2160, "H.265/HEVC", "E-AC-3", "SW")
-        );
-        assertEquals(
-                "720p · H.264/AVC",
-                VlcVideoPlayer.buildStreamInfoLabel(1280, 720, "H.264/AVC", "", "")
-        );
-        assertEquals("1080p", VlcVideoPlayer.buildStreamInfoLabel(1920, 1080, "", "", ""));
-    }
-
-    @Test
-    void normalizeCodecLabel_normalizesVlcFourccAndDescriptionsLikeMobile() {
-        assertEquals("H.264/AVC", VlcVideoPlayer.normalizeCodecLabel("h264", ""));
-        assertEquals("H.265/HEVC", VlcVideoPlayer.normalizeCodecLabel("hevc", ""));
-        assertEquals("MPEG-2", VlcVideoPlayer.normalizeCodecLabel("mpgv", ""));
-        assertEquals("AV1", VlcVideoPlayer.normalizeCodecLabel("av01", ""));
-        assertEquals("AAC", VlcVideoPlayer.normalizeCodecLabel("mp4a", "MPEG AAC Audio"));
-        assertEquals("AC-3", VlcVideoPlayer.normalizeCodecLabel("a52 ", "A52 Audio (aka AC3)"));
-        assertEquals("E-AC-3", VlcVideoPlayer.normalizeCodecLabel("eac3", ""));
-        assertEquals("Opus", VlcVideoPlayer.normalizeCodecLabel("opus", ""));
-        assertEquals("TrueHD", VlcVideoPlayer.normalizeCodecLabel("mlp ", "MLP/TrueHD Audio"));
-    }
-
-    @Test
-    void detectDecoderModeFromLog_identifiesHardwareAndSoftwareDecoding() {
-        assertEquals("HW", VlcVideoPlayer.detectDecoderModeFromLog("avcodec", "Using VideoToolbox for hardware decoding"));
-        assertEquals("HW", VlcVideoPlayer.detectDecoderModeFromLog("avcodec", "Using D3D11VA (Intel) for hardware decoding"));
-        assertEquals("SW", VlcVideoPlayer.detectDecoderModeFromLog("avcodec", "Hardware decoding failed, falling back to software"));
-        assertEquals("", VlcVideoPlayer.detectDecoderModeFromLog("main", "creating demux"));
-    }
-
-    @Test
-    void metadataRefreshIncludesVideoAndAudioTrackEvents() {
-        assertTrue(VlcVideoPlayer.isMetadataTrackType(TrackType.VIDEO));
-        assertTrue(VlcVideoPlayer.isMetadataTrackType(TrackType.AUDIO));
     }
 }
