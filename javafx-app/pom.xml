@@ -287,6 +287,7 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option>
                                 <option>-Xdock:name=UIPTV</option>
+                                <option>--enable-native-access=com.sun.jna</option>
                             </javaOptions>
                         </configuration>
                     </plugin>
@@ -354,6 +355,7 @@
                             <javaOptions>
                                 <option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option>
                                 <option>-Xdock:name=UIPTV</option>
+                                <option>--enable-native-access=com.sun.jna</option>
                             </javaOptions>
                         </configuration>
                     </plugin>

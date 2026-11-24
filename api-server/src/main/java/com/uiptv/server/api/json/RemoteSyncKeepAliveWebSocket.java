@@ -3,11 +3,11 @@ package com.uiptv.server.api.json;
 import com.uiptv.application.RemoteSyncApplicationService;
 import com.uiptv.service.remotesync.RemoteSyncStatus;
 import com.uiptv.util.AppLog;
-import org.eclipse.jetty.websocket.api.Session;
-import org.eclipse.jetty.websocket.api.WebSocketAdapter;
-import org.eclipse.jetty.websocket.api.WebSocketPingPongListener;
-import org.eclipse.jetty.websocket.server.JettyWebSocketServlet;
-import org.eclipse.jetty.websocket.server.JettyWebSocketServletFactory;
+import org.eclipse.jetty.ee9.websocket.api.Session;
+import org.eclipse.jetty.ee9.websocket.api.WebSocketAdapter;
+import org.eclipse.jetty.ee9.websocket.api.WebSocketPingPongListener;
+import org.eclipse.jetty.ee9.websocket.server.JettyWebSocketServlet;
+import org.eclipse.jetty.ee9.websocket.server.JettyWebSocketServletFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

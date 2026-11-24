@@ -286,7 +286,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     // --- UI Construction ---
     private void buildUI() {
         guideInfoFlow = new TextFlow();
-        guideInfoFlow.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
         nowShowingFlow = new TextFlow();
         nowShowingFlow.setTextAlignment(javafx.scene.text.TextAlignment.LEFT);
         nowShowingFlow.setMaxWidth(Double.MAX_VALUE);
@@ -1750,16 +1749,21 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     protected Stage createPipStage() {
         Stage stage = new Stage(StageStyle.UNDECORATED);
-        configureVideoOverlayStage(stage);
+        stage.setTitle("UIPTV-PiP-" + Integer.toHexString(System.identityHashCode(stage)));
+        configureVideoOverlayStage(stage, !MacOsPipWindowSupport.isMacOs());
         return stage;
     }
 
     protected void configureVideoOverlayStage(Stage stage) {
+        configureVideoOverlayStage(stage, true);
+    }
+
+    private void configureVideoOverlayStage(Stage stage, boolean owned) {
         if (stage == null) {
             return;
         }
         Stage primaryStage = RootApplication.getPrimaryStage();
-        if (primaryStage != null && primaryStage != stage && !stage.isShowing()) {
+        if (owned && primaryStage != null && primaryStage != stage && !stage.isShowing()) {
             stage.initOwner(primaryStage);
         }
         stage.setAlwaysOnTop(true);
@@ -1796,6 +1800,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         stage.show();
         stage.setAlwaysOnTop(true);
         stage.toFront();
+        if (stage == pipStage) {
+            MacOsPipWindowSupport.configureForFullscreenSpaces(stage);
+        }
         if (requestFocus) {
             stage.requestFocus();
         }
@@ -2072,6 +2079,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         isResizing = false;
         resizeDirection = 0;
         pipStage.getScene().setCursor(null);
+        MacOsPipWindowSupport.configureForFullscreenSpaces(pipStage);
     }
 
     private void loadIcons() {
@@ -2367,7 +2375,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         addFormattedGuideProgramme(programmes, summary.now(), timeFormat);
         if (programmes.isEmpty()) return;
         Text programmeText = new Text(String.join(" · ", programmes));
-        programmeText.getStyleClass().add(STYLE_CLASS_PLAYER_STREAM_INFO_TEXT);
+        programmeText.getStyleClass().add("player-guide-summary-text");
         guideInfoFlow.getChildren().add(programmeText);
     }
 

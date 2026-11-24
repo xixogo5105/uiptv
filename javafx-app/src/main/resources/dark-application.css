@@ -5238,6 +5238,12 @@
 .player-stream-info-text {
     -fx-font-size: 0.6em;
     -fx-fill: #cbd1d7;
+    -fx-translate-y: -2px;
+}
+
+.player-guide-summary-text {
+    -fx-font-size: 0.923em;
+    -fx-fill: #cbd1d7;
 }
 
 .player-live-label {

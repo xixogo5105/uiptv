@@ -85,4 +85,14 @@ class VlcVideoPlayerTest {
                 VlcVideoPlayer.buildStreamInfoLabel(3840, 2160, "hevc", ""));
         assertEquals("", VlcVideoPlayer.buildStreamInfoLabel(0, 0, "", ""));
     }
+
+    @Test
+    void macPipFullscreenBehaviorPreservesExistingWindowBehavior() {
+        assertEquals(0x121L, MacOsPipWindowSupport.addFullscreenSpaceBehaviors(0x20L));
+    }
+
+    @Test
+    void macPipUsesFloatingWindowLevel() {
+        assertEquals(3L, MacOsPipWindowSupport.floatingWindowLevel());
+    }
 }

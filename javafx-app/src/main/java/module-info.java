@@ -4,6 +4,7 @@ module com.uiptv.gui {
     requires org.controlsfx.controls;
     requires org.kordamp.bootstrapfx.core;
     requires javafx.graphics;
+    requires com.sun.jna;
     requires java.sql;
     requires org.json;
     requires org.apache.httpcomponents.client5.httpclient5;
