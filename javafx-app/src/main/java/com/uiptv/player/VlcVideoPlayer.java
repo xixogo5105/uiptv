@@ -73,6 +73,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private String videoCodec = "";
     private String audioCodec = "";
     private final AtomicBoolean timeUpdateQueued = new AtomicBoolean();
+    private final AtomicBoolean renderedImageUpdateQueued = new AtomicBoolean();
     private ImageView videoImageView;
     private int videoSourceWidth;
     private int videoSourceHeight;
@@ -91,7 +92,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (videoImageView == null) {
             videoImageView = new ImageView();
             videoImageView.setPreserveRatio(true);
-            videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> onRenderedImageChanged(newImage));
+            videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> queueRenderedImageUpdate());
         }
         // Native discovery and initialization run off JavaFX, when playbackReady is requested.
     }
@@ -636,7 +637,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (videoImageView == null) {
             videoImageView = new ImageView();
             videoImageView.setPreserveRatio(true);
-            videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> onRenderedImageChanged(newImage));
+            videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> queueRenderedImageUpdate());
         }
         return videoImageView;
     }
@@ -1060,6 +1061,15 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
         updateStreamInfo(videoSourceWidth, videoSourceHeight);
         return true;
+    }
+
+    private void queueRenderedImageUpdate() {
+        if (renderedImageUpdateQueued.compareAndSet(false, true)) {
+            Platform.runLater(() -> {
+                renderedImageUpdateQueued.set(false);
+                onRenderedImageChanged(videoImageView.getImage());
+            });
+        }
     }
 
     private void onRenderedImageChanged(Image image) {
