@@ -750,6 +750,24 @@
     -fx-base: white;
 }
 
+.video-player-slider.live-slider,
+.video-player-slider.live-slider:disabled {
+    -fx-opacity: 1.0;
+}
+
+.video-player-slider.live-slider .track {
+    -fx-background-color: #4fd8eb;
+    -fx-background-radius: 999;
+    -fx-pref-height: 4;
+}
+
+.video-player-slider.live-slider .thumb {
+    -fx-opacity: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+
 .tab-pane > .tab-content-area {
     -fx-border-color: transparent;
     -fx-border-width: 0;
@@ -4759,15 +4777,19 @@
 }
 
 .player-controls-container {
-    -fx-background-color: rgba(26, 26, 26, 0.84);
-    -fx-background-radius: 10;
+    -fx-background-color: rgba(28, 27, 31, 0.72);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(255, 255, 255, 0.22);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
     -fx-font-size: 0.9em;
 }
 
 .player-time-label {
-    -fx-font-family: monospace;
-    -fx-font-weight: bold;
-    -fx-text-fill: white;
+    -fx-font-family: "Roboto";
+    -fx-font-size: 10px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #cac5d0;
 }
 
 .player-error-label {
@@ -4907,9 +4929,10 @@
 }
 
 .player-channel-title {
-    -fx-font-size: 0.923em;
+    -fx-font-family: "Roboto";
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
-    -fx-fill: #e4c86a;
+    -fx-fill: white;
 }
 
 .watching-now-view-link {
@@ -5176,6 +5199,13 @@
 
 .player-stream-info-text {
     -fx-fill: white;
+}
+
+.player-codec-info-text {
+    -fx-font-family: "Roboto";
+    -fx-font-size: 9px;
+    -fx-font-weight: normal;
+    -fx-fill: #cac5d0;
 }
 
 .player-live-label {

@@ -9,27 +9,24 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.PixelFormat;
-import javafx.scene.image.WritableImage;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
+import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
+import uk.co.caprica.vlcj.log.LogLevel;
+import uk.co.caprica.vlcj.log.NativeLog;
+import uk.co.caprica.vlcj.media.AudioTrackInfo;
 import uk.co.caprica.vlcj.media.MediaRef;
 import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
-import uk.co.caprica.vlcj.player.embedded.videosurface.CallbackVideoSurface;
-import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurfaceAdapters;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
+import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurface;
 
 import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.apache.hc.core5.net.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
+    private static final int[] NATIVE_METADATA_REFRESH_DELAYS_MS = {250, 750, 1500};
     /** libVLC's process-wide plugin-path setup and unload must not overlap across sessions. */
     private static final Object NATIVE_FACTORY_LIFECYCLE_LOCK = new Object();
 
@@ -54,9 +52,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return thread;
         });
         MediaPlayerFactory factory;
+        NativeLog nativeLog;
         final AtomicReference<EmbeddedMediaPlayer> player = new AtomicReference<>();
         MediaPlayerEventAdapter events;
-        VlcImageViewVideoSurface surface;
+        VideoSurface surface;
         boolean admitted;
         Throwable initializationFailure;
         final AtomicBoolean playbackRequested = new AtomicBoolean();
@@ -75,6 +74,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private List<TrackOption> audioTracks = List.of();
     private int selectedAudioTrack = Integer.MIN_VALUE;
     private String videoCodec = "";
+    private String audioCodec = "";
+    private volatile String decoderMode = "";
+    private volatile boolean nativeLogAttached;
     private final AtomicBoolean timeUpdateQueued = new AtomicBoolean();
     private ImageView videoImageView;
     private int videoSourceWidth;
@@ -138,11 +140,47 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             target.factory = nativeFactory == null
                     ? new MediaPlayerFactory(factoryArgs.toArray(new String[0])) : suppliedFactory;
             target.player.set(target.factory.mediaPlayers().newEmbeddedMediaPlayer());
-            target.surface = new VlcImageViewVideoSurface(videoImageView);
+            target.surface = new ImageViewVideoSurface(videoImageView);
             target.player.get().videoSurface().set(target.surface);
             target.player.get().controls().setRepeat(false);
             target.events = createMediaPlayerEvents();
             target.player.get().events().addMediaPlayerEventListener(target.events);
+            attachNativeLog(target);
+        }
+    }
+
+    private void attachNativeLog(NativeSession target) {
+        if (target.factory == null) {
+            return;
+        }
+        try {
+            var applicationApi = target.factory.application();
+            if (applicationApi == null) {
+                return;
+            }
+            NativeLog log = applicationApi.newLog();
+            if (log == null) {
+                return;
+            }
+            log.setLevel(LogLevel.NOTICE);
+            log.addLogListener((_, module, _, _, _, _, _, message) -> {
+                if (session.get() != target || isDisposed.get()) {
+                    return;
+                }
+                String detected = detectDecoderModeFromLog(module, message);
+                if (!detected.isEmpty() && !detected.equals(decoderMode)) {
+                    decoderMode = detected;
+                    Platform.runLater(() -> {
+                        if (session.get() == target && !isDisposed.get()) {
+                            refreshRenderedImageStreamInfo();
+                        }
+                    });
+                }
+            });
+            target.nativeLog = log;
+            nativeLogAttached = true;
+        } catch (Exception _) {
+            // Best-effort: mocked or restricted factories may not expose native logs.
         }
     }
 
@@ -150,8 +188,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         synchronized (playerLock) {
             if (session.get() == target && !isDisposed.get()) {
                 mediaPlayer.set(target.player.get());
-            } else {
-                target.surface.disable();
             }
         }
     }
@@ -298,6 +334,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         scheduleAudioStateRetry(requestVersion, 1000);
     }
 
+    private void scheduleNativeMetadataStartupRefresh(MediaPlayer mp) {
+        for (int delayMs : NATIVE_METADATA_REFRESH_DELAYS_MS) {
+            PauseTransition refresh = new PauseTransition(Duration.millis(delayMs));
+            refresh.setOnFinished(_ -> {
+                if (isCurrentPlayer(mp)) {
+                    refreshNativeMetadata(mp);
+                }
+            });
+            refresh.play();
+        }
+    }
+
     private boolean isCurrentPlayer(MediaPlayer player) {
         return !isDisposed.get() && player != null && mediaPlayer.get() == player;
     }
@@ -377,17 +425,47 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     .map(track -> new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")))
                     .toList();
             int selected = player.audio().track();
-            List<VideoTrackInfo> video = player.media().info() == null ? List.of() : player.media().info().videoTracks();
-            String codec = video == null || video.isEmpty() ? "" : video.getFirst().codecName();
+            var mediaInfo = player.media().info();
+            List<VideoTrackInfo> video = mediaInfo == null ? List.of() : mediaInfo.videoTracks();
+            String resolvedVideoCodec = video == null || video.isEmpty()
+                    ? ""
+                    : normalizeCodecLabel(video.getFirst().codecName(), video.getFirst().codecDescription());
+            int resolvedVideoWidth = video == null || video.isEmpty() ? 0 : video.getFirst().width();
+            int resolvedVideoHeight = video == null || video.isEmpty() ? 0 : video.getFirst().height();
+            List<AudioTrackInfo> audio = mediaInfo == null ? List.of() : mediaInfo.audioTracks();
+            AudioTrackInfo activeAudio = selectActiveAudioTrack(audio, selected);
+            String resolvedAudioCodec = activeAudio == null
+                    ? ""
+                    : normalizeCodecLabel(activeAudio.codecName(), activeAudio.codecDescription());
             Platform.runLater(() -> {
                 if (!isCurrentPlayer(mp)) return;
                 audioTracks = List.copyOf(tracks);
                 selectedAudioTrack = selected;
-                videoCodec = codec;
+                videoCodec = resolvedVideoCodec;
+                audioCodec = resolvedAudioCodec;
+                if ((videoSourceWidth <= 0 || videoSourceHeight <= 0)
+                        && resolvedVideoWidth > 0 && resolvedVideoHeight > 0) {
+                    videoSourceWidth = resolvedVideoWidth;
+                    videoSourceHeight = resolvedVideoHeight;
+                }
                 refreshTrackMenus();
-                refreshRenderedImageStreamInfo();
+                if (!refreshRenderedImageStreamInfo() && videoSourceWidth > 0 && videoSourceHeight > 0) {
+                    updateStreamInfo(videoSourceWidth, videoSourceHeight);
+                }
             });
         });
+    }
+
+    private static AudioTrackInfo selectActiveAudioTrack(List<AudioTrackInfo> tracks, int selectedTrackId) {
+        if (tracks == null || tracks.isEmpty()) {
+            return null;
+        }
+        for (AudioTrackInfo track : tracks) {
+            if (track != null && track.id() == selectedTrackId) {
+                return track;
+            }
+        }
+        return tracks.getFirst();
     }
 
     private void handlePlaying(MediaPlayer mp) {
@@ -413,6 +491,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
             updateVideoSize();
+            scheduleNativeMetadataStartupRefresh(mp);
             refreshTrackMenus();
         });
     }
@@ -485,12 +564,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             }
             playing = false;
             btnPlayPause.setGraphic(playIcon);
-            timeSlider.setValue(0);
-            timeSlider.setDisable(false);
-            timeLabel.setText(I18n.tr("auto00000000"));
+            updatePlaybackTimeUi(0, 0);
             loadingSpinner.setVisible(false);
             videoSourceWidth = 0;
             videoSourceHeight = 0;
+            videoCodec = "";
+            audioCodec = "";
+            decoderMode = "";
             lastStreamInfoLabel = "";
         });
     }
@@ -516,7 +596,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handleElementaryStreamEvent(MediaPlayer mp, TrackType type) {
-        if (type != TrackType.AUDIO || !isCurrentPlayer(mp)) {
+        if (!isMetadataTrackType(type) || !isCurrentPlayer(mp)) {
             return;
         }
         long requestVersion = audioStateRequestVersion.get();
@@ -529,9 +609,15 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 return;
             }
             refreshNativeMetadata(mp);
-            applyDesiredAudioState();
-            scheduleAudioStateRetry(requestVersion, 250);
+            if (type == TrackType.AUDIO) {
+                applyDesiredAudioState();
+                scheduleAudioStateRetry(requestVersion, 250);
+            }
         });
+    }
+
+    static boolean isMetadataTrackType(TrackType type) {
+        return type == TrackType.AUDIO || type == TrackType.VIDEO;
     }
 
     @Override
@@ -585,6 +671,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void resetPlaybackMetadata() {
         videoSourceWidth = 0;
         videoSourceHeight = 0;
+        videoCodec = "";
+        audioCodec = "";
+        decoderMode = "";
         lastStreamInfoLabel = "";
     }
 
@@ -719,10 +808,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         audioTracks = List.of();
         selectedAudioTrack = Integer.MIN_VALUE;
         videoCodec = "";
+        audioCodec = "";
+        decoderMode = "";
+        nativeLogAttached = false;
         NativeSession retired;
         synchronized (playerLock) {
             retired = session.getAndSet(new NativeSession());
-            if (retired.surface != null) retired.surface.disable();
+            // Official ImageViewVideoSurface handles lifecycle via PixelBuffer; no explicit disable needed.
             mediaPlayer.set(null);
         }
         // Signal stop independently of a blocked start, but join it OFF JavaFX before release.
@@ -762,166 +854,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    /**
-     * JavaFX surface with an explicit stop gate, one reusable image and one
-     * pending pulse at most.
-     *
-     * Do not expose vlcj's native callback buffer through a PixelBuffer. A
-     * PixelBuffer retains that direct buffer and its JavaFX texture after libVLC
-     * has replaced or freed the native buffer. Instead, copy only the latest
-     * frame into one bounded byte array and upload it into one reusable image.
-     */
-    private static final class VlcImageViewVideoSurface extends CallbackVideoSurface {
-        private final RenderGate gate;
-
-        private VlcImageViewVideoSurface(ImageView imageView) {
-            this(imageView, new RenderGate());
-        }
-
-        private VlcImageViewVideoSurface(ImageView imageView, RenderGate gate) {
-            super(new BufferFormatCallback() {
-                @Override public BufferFormat getBufferFormat(int width, int height) {
-                    gate.sourceWidth = width;
-                    gate.sourceHeight = height;
-                    return new RV32BufferFormat(width, height);
-                }
-                @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) {
-                    // Frame dimensions are read from getBufferFormat; no separate resize action is needed.
-                }
-                @Override public void allocatedBuffers(ByteBuffer[] buffers) {
-                    if (!gate.enabled.get() || buffers == null || buffers.length == 0) return;
-                    WritableImage next;
-                    try {
-                        next = gate.allocateFrame(gate.sourceWidth, gate.sourceHeight);
-                    } catch (IllegalArgumentException | ArithmeticException _) {
-                        gate.disable();
-                        return;
-                    }
-                    Platform.runLater(() -> {
-                        if (gate.enabled.get() && gate.image.get() == next) {
-                            imageView.setImage(next);
-                        }
-                    });
-                }
-            }, new RenderCallback() {
-                @Override public void lock(MediaPlayer mediaPlayer) {
-                    // Frame copying is guarded by RenderGate rather than an external surface lock.
-                }
-                @Override public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers,
-                                              BufferFormat bufferFormat, int displayWidth, int displayHeight) {
-                    if (!gate.enabled.get()) {
-                        return;
-                    }
-                    if (!gate.copyFrame(nativeBuffers, bufferFormat)
-                            || !gate.updateQueued.compareAndSet(false, true)) {
-                        return;
-                    }
-                    Platform.runLater(() -> {
-                        try {
-                            gate.publishLatestFrame();
-                        } finally {
-                            gate.updateQueued.set(false);
-                        }
-                    });
-                }
-                @Override public void unlock(MediaPlayer mediaPlayer) {
-                    // Frame copying is guarded by RenderGate rather than an external surface lock.
-                }
-            }, true, VideoSurfaceAdapters.getVideoSurfaceAdapter());
-            this.gate = gate;
-        }
-
-        private void disable() {
-            gate.disable();
-        }
-
-        private static final class RenderGate {
-            private final AtomicBoolean enabled = new AtomicBoolean(true);
-            private final AtomicBoolean updateQueued = new AtomicBoolean();
-            private final Object frameLock = new Object();
-            private final AtomicReference<byte[]> latestFrame = new AtomicReference<>();
-            private final AtomicReference<WritableImage> image = new AtomicReference<>();
-            private volatile int sourceWidth;
-            private volatile int sourceHeight;
-
-            private WritableImage allocateFrame(int width, int height) {
-                if (width <= 0 || height <= 0) {
-                    throw new IllegalArgumentException("Invalid VLC frame dimensions");
-                }
-                int frameBytes = Math.multiplyExact(Math.multiplyExact(width, height), 4);
-                WritableImage next = new WritableImage(width, height);
-                synchronized (frameLock) {
-                    latestFrame.set(new byte[frameBytes]);
-                    image.set(next);
-                    sourceWidth = width;
-                    sourceHeight = height;
-                }
-                return next;
-            }
-
-            private boolean copyFrame(ByteBuffer[] nativeBuffers, BufferFormat bufferFormat) {
-                if (!enabled.get() || nativeBuffers == null || nativeBuffers.length == 0
-                        || nativeBuffers[0] == null || bufferFormat == null) {
-                    return false;
-                }
-                int width = sourceWidth;
-                int height = sourceHeight;
-                int rowBytes = width * 4;
-                byte[] target = latestFrame.get();
-                int[] pitches = bufferFormat.getPitches();
-                if (target == null || width <= 0 || height <= 0 || pitches == null || pitches.length == 0
-                        || target.length < rowBytes * height || pitches[0] < rowBytes) {
-                    return false;
-                }
-                ByteBuffer source = nativeBuffers[0].duplicate();
-                source.clear();
-                int pitch = pitches[0];
-                synchronized (frameLock) {
-                    if (!enabled.get() || target != latestFrame.get()) {
-                        return false;
-                    }
-                    for (int row = 0; row < height; row++) {
-                        int targetOffset = row * rowBytes;
-                        if (source.remaining() < pitch) {
-                            return false;
-                        }
-                        source.get(target, targetOffset, rowBytes);
-                        if (pitch > rowBytes) {
-                            source.position(source.position() + pitch - rowBytes);
-                        }
-                    }
-                }
-                return true;
-            }
-
-            private void publishLatestFrame() {
-                if (!enabled.get()) {
-                    return;
-                }
-                WritableImage currentImage = image.get();
-                byte[] frame = latestFrame.get();
-                if (currentImage == null || frame == null) {
-                    return;
-                }
-                synchronized (frameLock) {
-                    if (enabled.get() && currentImage == image.get() && frame == latestFrame.get()) {
-                        currentImage.getPixelWriter().setPixels(0, 0, sourceWidth, sourceHeight,
-                                PixelFormat.getByteBgraPreInstance(), frame, 0, sourceWidth * 4);
-                    }
-                }
-            }
-
-            private void disable() {
-                enabled.set(false);
-                synchronized (frameLock) {
-                    latestFrame.set(null);
-                    image.set(null);
-                }
-                updateQueued.set(false);
-            }
-        }
-    }
-
     private void stopNativePlayback(EmbeddedMediaPlayer player) {
         if (player == null) {
             return;
@@ -940,7 +872,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void releaseSession(NativeSession target) {
-        if (target.surface != null) target.surface.disable();
+        if (target.nativeLog != null) {
+            try {
+                target.nativeLog.release();
+            } catch (Exception _) {
+                // Best-effort: native log cleanup should not block teardown.
+            }
+            target.nativeLog = null;
+        }
         releaseNativePlayer(target.player.get(), target.factory);
         target.player.set(null);
         target.factory = null;
@@ -1106,8 +1045,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     protected void updateStreamInfo(int width, int height) {
-        ResolutionDisplayUtil.ResolutionDisplay resolution = ResolutionDisplayUtil.normalize(width, height);
-        String newLabel = String.format("%s%s (vlc)", resolution.shortText(), formatCodecSuffix(videoCodec));
+        String newLabel = buildStreamInfoLabel(width, height, videoCodec, audioCodec, effectiveDecoderMode());
         if (!newLabel.equals(lastStreamInfoLabel) || !newLabel.equals(streamInfoText.getText())) {
             lastStreamInfoLabel = newLabel;
             streamInfoText.setText(newLabel);
@@ -1115,8 +1053,100 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    private String formatCodecSuffix(String codec) {
-        return codec == null || codec.isBlank() ? "" : " " + codec;
+    private String effectiveDecoderMode() {
+        if (decoderMode != null && !decoderMode.isBlank()) {
+            return decoderMode;
+        }
+        if (nativeLogAttached && playing && videoSourceWidth > 0 && videoSourceHeight > 0) {
+            return "SW";
+        }
+        return "";
+    }
+
+    static String buildStreamInfoLabel(int width, int height, String videoCodec, String audioCodec, String decoderMode) {
+        List<String> parts = new ArrayList<>(4);
+        if (width > 0 && height > 0) {
+            ResolutionDisplayUtil.ResolutionDisplay resolution = ResolutionDisplayUtil.normalize(width, height);
+            addUniqueNonBlank(parts, resolution.shortText());
+        }
+        addUniqueNonBlank(parts, videoCodec);
+        addUniqueNonBlank(parts, audioCodec);
+        addUniqueNonBlank(parts, decoderMode);
+        return String.join(" · ", parts);
+    }
+
+    private static void addUniqueNonBlank(List<String> target, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (!target.contains(trimmed)) {
+            target.add(trimmed);
+        }
+    }
+
+    static String normalizeCodecLabel(String codecName, String codecDescription) {
+        String knownFromName = matchKnownCodec(codecName);
+        if (!knownFromName.isEmpty()) {
+            return knownFromName;
+        }
+        String knownFromDescription = matchKnownCodec(codecDescription);
+        if (!knownFromDescription.isEmpty()) {
+            return knownFromDescription;
+        }
+        if (codecName != null && !codecName.isBlank()) {
+            return codecName.trim().toUpperCase(Locale.ROOT);
+        }
+        if (codecDescription != null && !codecDescription.isBlank()) {
+            return codecDescription.trim().toUpperCase(Locale.ROOT);
+        }
+        return "";
+    }
+
+    private static String matchKnownCodec(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String codec = raw.trim().toLowerCase(Locale.ROOT);
+        if (codec.contains("h.264") || codec.contains("h264") || codec.contains("avc")) return "H.264/AVC";
+        if (codec.contains("h.265") || codec.contains("h265") || codec.contains("hevc")
+                || codec.equals("hvc1") || codec.equals("hev1")) return "H.265/HEVC";
+        if (codec.contains("mpeg2") || codec.contains("mpeg-2")
+                || codec.equals("mpgv") || codec.equals("mp2v")) return "MPEG-2";
+        if (codec.contains("mpeg4") || codec.contains("mpeg-4") || codec.equals("mp4v")) return "MPEG-4";
+        if (codec.contains("av1") || codec.contains("av01")) return "AV1";
+        if (codec.contains("aac") || codec.equals("mp4a")) return "AAC";
+        if (codec.contains("eac3") || codec.contains("e-ac-3") || codec.equals("ec-3")) return "E-AC-3";
+        if (codec.contains("ac3") || codec.contains("ac-3") || codec.equals("a52")) return "AC-3";
+        if (codec.contains("opus")) return "Opus";
+        if (codec.contains("flac")) return "FLAC";
+        if (codec.contains("mp3") || codec.equals("mpga")) return "MP3";
+        if (codec.contains("truehd") || codec.equals("mlp") || codec.equals("trhd")) return "TrueHD";
+        return "";
+    }
+
+    static String detectDecoderModeFromLog(String module, String message) {
+        if (message == null || message.isBlank()) {
+            return "";
+        }
+        String lowerMsg = message.toLowerCase(Locale.ROOT);
+        if (lowerMsg.contains("for hardware decoding")) {
+            return "HW";
+        }
+        if (lowerMsg.contains("hardware decoding")
+                && (lowerMsg.contains("fail")
+                || lowerMsg.contains("disable")
+                || lowerMsg.contains("fallback")
+                || lowerMsg.contains("software")
+                || lowerMsg.contains("cannot")
+                || lowerMsg.contains("error"))) {
+            return "SW";
+        }
+        if (module != null && module.equalsIgnoreCase("avcodec")
+                && lowerMsg.contains("using ffmpeg") && lowerMsg.contains("software")) {
+            return "SW";
+        }
+        return "";
     }
 
     private boolean refreshRenderedImageStreamInfo() {

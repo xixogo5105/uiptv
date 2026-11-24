@@ -20,7 +20,9 @@ import com.uiptv.util.HttpUtil;
 import com.uiptv.util.I18n;
 import javafx.event.Event;
 import javafx.event.EventType;
+import javafx.geometry.Bounds;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
@@ -282,16 +284,77 @@ class BaseVideoPlayerHlsResolutionTest {
             player.updateChannelInfo(new Channel(), account);
             player.updatePlaybackTimeUi(250_000, 260_000);
 
+            assertTrue(player.timeRow.isVisible());
+            assertTrue(player.timeRow.isManaged());
             assertEquals(I18n.tr("playerLive"), player.timeLabel.getText());
             assertTrue(player.timeSlider.isDisabled());
+            assertTrue(player.timeSlider.getStyleClass().contains("live-slider"));
             assertEquals(1.0, player.timeSlider.getValue());
 
             account.setAction(Account.AccountAction.vod);
             player.updateChannelInfo(new Channel(), account);
             player.updatePlaybackTimeUi(125_000, 250_000);
+            assertTrue(player.timeRow.isVisible());
+            assertTrue(player.timeRow.isManaged());
             assertFalse(player.timeSlider.isDisabled());
+            assertFalse(player.timeSlider.getStyleClass().contains("live-slider"));
             assertEquals(0.5, player.timeSlider.getValue());
             assertEquals("02:05 / 04:10", player.timeLabel.getText());
+            return null;
+        });
+    }
+
+    @Test
+    void liveProgressSliderStaysInsideCenteredControlBar() throws Exception {
+        runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            player.playerContainer.setPrefSize(1360, 800);
+            Scene scene = new Scene(player.playerContainer, 1360, 800);
+            scene.getStylesheets().add(BaseVideoPlayerHlsResolutionTest.class
+                    .getResource("/application.css").toExternalForm());
+            player.playerContainer.applyCss();
+            player.playerContainer.layout();
+            player.controlsContainer.applyCss();
+            player.controlsContainer.layout();
+            player.timeRow.layout();
+
+            Bounds controlBarBounds = player.controlsContainer.localToScene(player.controlsContainer.getBoundsInLocal());
+            Bounds progressSliderBounds = player.timeSlider.localToScene(player.timeSlider.getBoundsInLocal());
+
+            assertTrue(player.playerContainer.getWidth() > 0);
+            assertTrue(controlBarBounds.getWidth() > 0);
+            assertTrue(progressSliderBounds.getWidth() > 0);
+            assertTrue(player.timeSlider.getWidth() <= 580.0);
+            assertTrue(player.controlsContainer.getClip() != null);
+            assertTrue(controlBarBounds.contains(progressSliderBounds),
+                    "The live progress track must remain within the control bar");
+            assertTrue(controlBarBounds.getWidth() < scene.getWidth(),
+                    "The control bar should remain centered and narrower than the player");
+            return null;
+        });
+    }
+
+    @Test
+    void titleAndCodecInfoShareSameWrappingHeaderLine() throws Exception {
+        runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            Account account = new Account();
+            account.setAction(Account.AccountAction.itv);
+            Channel channel = new Channel();
+            channel.setName("BBC One HD");
+
+            player.updateChannelInfo(channel, account);
+            player.streamInfoText.setText("1080p · H.264/AVC · AAC · HW");
+            player.refreshNowShowingHeader();
+
+            assertFalse(player.controlsContainer.getChildren().contains(player.headerDetailsFlow));
+            assertTrue(player.nowShowingFlow.getChildren().contains(player.headerDetailsFlow));
+            assertTrue(player.headerDetailsFlow.getChildren().contains(player.streamInfoText));
+            assertTrue(player.streamInfoText.getStyleClass().contains("player-codec-info-text"));
+            assertTrue(player.headerDetailsFlow.getChildren().stream()
+                    .anyMatch(node -> node instanceof javafx.scene.text.Text text
+                            && "BBC One HD".equals(text.getText())
+                            && text.getStyleClass().contains("player-channel-title")));
             return null;
         });
     }
