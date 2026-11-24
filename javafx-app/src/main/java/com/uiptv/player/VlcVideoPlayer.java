@@ -9,25 +9,18 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.PixelFormat;
-import javafx.scene.image.WritableImage;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
+import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.media.MediaRef;
 import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
-import uk.co.caprica.vlcj.player.embedded.videosurface.CallbackVideoSurface;
-import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurfaceAdapters;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
-import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
+import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurface;
 
 import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hc.core5.net.URIBuilder;
@@ -56,7 +49,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         MediaPlayerFactory factory;
         final AtomicReference<EmbeddedMediaPlayer> player = new AtomicReference<>();
         MediaPlayerEventAdapter events;
-        VlcImageViewVideoSurface surface;
+        VideoSurface surface;
         boolean admitted;
         Throwable initializationFailure;
         final AtomicBoolean playbackRequested = new AtomicBoolean();
@@ -138,7 +131,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             target.factory = nativeFactory == null
                     ? new MediaPlayerFactory(factoryArgs.toArray(new String[0])) : suppliedFactory;
             target.player.set(target.factory.mediaPlayers().newEmbeddedMediaPlayer());
-            target.surface = new VlcImageViewVideoSurface(videoImageView);
+            target.surface = new ImageViewVideoSurface(videoImageView);
             target.player.get().videoSurface().set(target.surface);
             target.player.get().controls().setRepeat(false);
             target.events = createMediaPlayerEvents();
@@ -150,8 +143,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         synchronized (playerLock) {
             if (session.get() == target && !isDisposed.get()) {
                 mediaPlayer.set(target.player.get());
-            } else {
-                target.surface.disable();
             }
         }
     }
@@ -722,7 +713,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         NativeSession retired;
         synchronized (playerLock) {
             retired = session.getAndSet(new NativeSession());
-            if (retired.surface != null) retired.surface.disable();
             mediaPlayer.set(null);
         }
         // Signal stop independently of a blocked start, but join it OFF JavaFX before release.
@@ -762,166 +752,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    /**
-     * JavaFX surface with an explicit stop gate, one reusable image and one
-     * pending pulse at most.
-     *
-     * Do not expose vlcj's native callback buffer through a PixelBuffer. A
-     * PixelBuffer retains that direct buffer and its JavaFX texture after libVLC
-     * has replaced or freed the native buffer. Instead, copy only the latest
-     * frame into one bounded byte array and upload it into one reusable image.
-     */
-    private static final class VlcImageViewVideoSurface extends CallbackVideoSurface {
-        private final RenderGate gate;
-
-        private VlcImageViewVideoSurface(ImageView imageView) {
-            this(imageView, new RenderGate());
-        }
-
-        private VlcImageViewVideoSurface(ImageView imageView, RenderGate gate) {
-            super(new BufferFormatCallback() {
-                @Override public BufferFormat getBufferFormat(int width, int height) {
-                    gate.sourceWidth = width;
-                    gate.sourceHeight = height;
-                    return new RV32BufferFormat(width, height);
-                }
-                @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) {
-                    // Frame dimensions are read from getBufferFormat; no separate resize action is needed.
-                }
-                @Override public void allocatedBuffers(ByteBuffer[] buffers) {
-                    if (!gate.enabled.get() || buffers == null || buffers.length == 0) return;
-                    WritableImage next;
-                    try {
-                        next = gate.allocateFrame(gate.sourceWidth, gate.sourceHeight);
-                    } catch (IllegalArgumentException | ArithmeticException _) {
-                        gate.disable();
-                        return;
-                    }
-                    Platform.runLater(() -> {
-                        if (gate.enabled.get() && gate.image.get() == next) {
-                            imageView.setImage(next);
-                        }
-                    });
-                }
-            }, new RenderCallback() {
-                @Override public void lock(MediaPlayer mediaPlayer) {
-                    // Frame copying is guarded by RenderGate rather than an external surface lock.
-                }
-                @Override public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers,
-                                              BufferFormat bufferFormat, int displayWidth, int displayHeight) {
-                    if (!gate.enabled.get()) {
-                        return;
-                    }
-                    if (!gate.copyFrame(nativeBuffers, bufferFormat)
-                            || !gate.updateQueued.compareAndSet(false, true)) {
-                        return;
-                    }
-                    Platform.runLater(() -> {
-                        try {
-                            gate.publishLatestFrame();
-                        } finally {
-                            gate.updateQueued.set(false);
-                        }
-                    });
-                }
-                @Override public void unlock(MediaPlayer mediaPlayer) {
-                    // Frame copying is guarded by RenderGate rather than an external surface lock.
-                }
-            }, true, VideoSurfaceAdapters.getVideoSurfaceAdapter());
-            this.gate = gate;
-        }
-
-        private void disable() {
-            gate.disable();
-        }
-
-        private static final class RenderGate {
-            private final AtomicBoolean enabled = new AtomicBoolean(true);
-            private final AtomicBoolean updateQueued = new AtomicBoolean();
-            private final Object frameLock = new Object();
-            private final AtomicReference<byte[]> latestFrame = new AtomicReference<>();
-            private final AtomicReference<WritableImage> image = new AtomicReference<>();
-            private volatile int sourceWidth;
-            private volatile int sourceHeight;
-
-            private WritableImage allocateFrame(int width, int height) {
-                if (width <= 0 || height <= 0) {
-                    throw new IllegalArgumentException("Invalid VLC frame dimensions");
-                }
-                int frameBytes = Math.multiplyExact(Math.multiplyExact(width, height), 4);
-                WritableImage next = new WritableImage(width, height);
-                synchronized (frameLock) {
-                    latestFrame.set(new byte[frameBytes]);
-                    image.set(next);
-                    sourceWidth = width;
-                    sourceHeight = height;
-                }
-                return next;
-            }
-
-            private boolean copyFrame(ByteBuffer[] nativeBuffers, BufferFormat bufferFormat) {
-                if (!enabled.get() || nativeBuffers == null || nativeBuffers.length == 0
-                        || nativeBuffers[0] == null || bufferFormat == null) {
-                    return false;
-                }
-                int width = sourceWidth;
-                int height = sourceHeight;
-                int rowBytes = width * 4;
-                byte[] target = latestFrame.get();
-                int[] pitches = bufferFormat.getPitches();
-                if (target == null || width <= 0 || height <= 0 || pitches == null || pitches.length == 0
-                        || target.length < rowBytes * height || pitches[0] < rowBytes) {
-                    return false;
-                }
-                ByteBuffer source = nativeBuffers[0].duplicate();
-                source.clear();
-                int pitch = pitches[0];
-                synchronized (frameLock) {
-                    if (!enabled.get() || target != latestFrame.get()) {
-                        return false;
-                    }
-                    for (int row = 0; row < height; row++) {
-                        int targetOffset = row * rowBytes;
-                        if (source.remaining() < pitch) {
-                            return false;
-                        }
-                        source.get(target, targetOffset, rowBytes);
-                        if (pitch > rowBytes) {
-                            source.position(source.position() + pitch - rowBytes);
-                        }
-                    }
-                }
-                return true;
-            }
-
-            private void publishLatestFrame() {
-                if (!enabled.get()) {
-                    return;
-                }
-                WritableImage currentImage = image.get();
-                byte[] frame = latestFrame.get();
-                if (currentImage == null || frame == null) {
-                    return;
-                }
-                synchronized (frameLock) {
-                    if (enabled.get() && currentImage == image.get() && frame == latestFrame.get()) {
-                        currentImage.getPixelWriter().setPixels(0, 0, sourceWidth, sourceHeight,
-                                PixelFormat.getByteBgraPreInstance(), frame, 0, sourceWidth * 4);
-                    }
-                }
-            }
-
-            private void disable() {
-                enabled.set(false);
-                synchronized (frameLock) {
-                    latestFrame.set(null);
-                    image.set(null);
-                }
-                updateQueued.set(false);
-            }
-        }
-    }
-
     private void stopNativePlayback(EmbeddedMediaPlayer player) {
         if (player == null) {
             return;
@@ -940,9 +770,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void releaseSession(NativeSession target) {
-        if (target.surface != null) target.surface.disable();
         releaseNativePlayer(target.player.get(), target.factory);
         target.player.set(null);
+        target.surface = null;
         target.factory = null;
         if (target.admitted) {
             target.admitted = false;
