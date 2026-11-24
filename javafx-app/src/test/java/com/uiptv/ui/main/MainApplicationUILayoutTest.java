@@ -1,6 +1,7 @@
 package com.uiptv.ui.main;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
@@ -176,19 +177,19 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
                     playerNode.setVisible(true);
                     playerNode.setManaged(true);
                     apply.invoke(ui);
-                    org.mockito.Mockito.verify(player).setGuideButtonVisible(wide);
+                    verify(player).setGuideButtonVisible(wide);
                     org.mockito.Mockito.clearInvocations(player);
                     fullscreen.set(true);
                     playerNode.setVisible(false);
                     playerNode.setManaged(false);
                     apply.invoke(ui);
-                    org.mockito.Mockito.verify(player).setGuideButtonVisible(true);
+                    verify(player).setGuideButtonVisible(true);
                     org.mockito.Mockito.clearInvocations(player);
                     fullscreen.set(false);
                     playerNode.setVisible(true);
                     playerNode.setManaged(true);
                     apply.invoke(ui);
-                    org.mockito.Mockito.verify(player).setGuideButtonVisible(wide);
+                    verify(player).setGuideButtonVisible(wide);
                     org.mockito.Mockito.clearInvocations(player);
                 }
             }

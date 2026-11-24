@@ -24,7 +24,8 @@ import static com.uiptv.util.StringUtils.isNotBlank;
  * Handles parsing of M3U playlist links.
  */
 public class M3uParser implements AccountParser {
-    private final Function<String, Account> accountProvider;
+    private static final String FILE_SCHEME = "file:";
+
     private final Supplier<Collection<Account>> allAccountsProvider;
     private final Consumer<Account> accountSaver;
     private final AccountNameAllocator accountNameAllocator;
@@ -40,7 +41,6 @@ public class M3uParser implements AccountParser {
     public M3uParser(Function<String, Account> accountProvider,
                      Supplier<Collection<Account>> allAccountsProvider,
                      Consumer<Account> accountSaver) {
-        this.accountProvider = accountProvider;
         this.allAccountsProvider = allAccountsProvider;
         this.accountSaver = accountSaver;
         this.accountNameAllocator = new AccountNameAllocator(accountProvider);
@@ -57,9 +57,10 @@ public class M3uParser implements AccountParser {
                 continue;
             }
             for (final String potentialUrl : replaceAllNonPrintableChars(line).split(SPACER)) {
-                if (potentialUrl.regionMatches(true, 0, "file:", 0, "file:".length())) continue;
-                if (!isValidURL(potentialUrl)) continue;
-                parsedUrls.add(parseUrl(potentialUrl, convertM3uToXtreme));
+                if (!potentialUrl.regionMatches(true, 0, FILE_SCHEME, 0, FILE_SCHEME.length())
+                        && isValidURL(potentialUrl)) {
+                    parsedUrls.add(parseUrl(potentialUrl, convertM3uToXtreme));
+                }
             }
         }
         return saveParsedUrls(parsedUrls, groupConvertedXtremeAccounts);
@@ -115,7 +116,7 @@ public class M3uParser implements AccountParser {
         }
         try {
             Path path;
-            if (input.regionMatches(true, 0, "file:", 0, "file:".length())) {
+            if (input.regionMatches(true, 0, FILE_SCHEME, 0, FILE_SCHEME.length())) {
                 path = Path.of(URI.create(input));
             } else {
                 String lower = input.toLowerCase(java.util.Locale.ROOT);

@@ -18,6 +18,7 @@ final class MacOsPipWindowSupport {
     private static final long CAN_JOIN_ALL_SPACES = 1L;
     private static final long FULL_SCREEN_AUXILIARY = 1L << 8;
     private static final long FLOATING_WINDOW_LEVEL = 3L;
+    private static final String OBJC_MSG_SEND = "objc_msgSend";
 
     private MacOsPipWindowSupport() {
     }
@@ -27,32 +28,37 @@ final class MacOsPipWindowSupport {
             return;
         }
 
-        Runnable configure = () -> {
-            if (!stage.isShowing()) {
-                return;
-            }
-            if (!NativeLibrary.class.getModule().isNativeAccessEnabled()) {
-                showNativeAccessNotice();
-                return;
-            }
-            try {
-                Platform.runLater(() -> {
-                    if (stage.isShowing()) {
-                        try {
-                            applyFullscreenSpacesBehavior(stage);
-                        } catch (LinkageError | RuntimeException exception) {
-                            LOGGER.log(Level.WARNING, "Could not enable PiP above macOS fullscreen Spaces", exception);
-                        }
-                    }
-                });
-            } catch (LinkageError | RuntimeException exception) {
-                LOGGER.log(Level.WARNING, "Could not enable PiP above macOS fullscreen Spaces", exception);
-            }
-        };
+        Runnable configure = () -> configureOnFxThread(stage);
         if (Platform.isFxApplicationThread()) {
             configure.run();
         } else {
             Platform.runLater(configure);
+        }
+    }
+
+    private static void configureOnFxThread(Stage stage) {
+        if (!stage.isShowing()) {
+            return;
+        }
+        if (!NativeLibrary.class.getModule().isNativeAccessEnabled()) {
+            showNativeAccessNotice();
+            return;
+        }
+        try {
+            Platform.runLater(() -> applyBehaviorIfShowing(stage));
+        } catch (LinkageError | RuntimeException exception) {
+            LOGGER.log(Level.WARNING, "Could not enable PiP above macOS fullscreen Spaces", exception);
+        }
+    }
+
+    private static void applyBehaviorIfShowing(Stage stage) {
+        if (!stage.isShowing()) {
+            return;
+        }
+        try {
+            applyFullscreenSpacesBehavior(stage);
+        } catch (LinkageError | RuntimeException exception) {
+            LOGGER.log(Level.WARNING, "Could not enable PiP above macOS fullscreen Spaces", exception);
         }
     }
 
@@ -107,17 +113,17 @@ final class MacOsPipWindowSupport {
 
     private static Pointer sendPointer(Pointer receiver, String selector, Object... arguments) {
         Object[] nativeArguments = nativeArguments(receiver, selector, arguments);
-        return objcLibrary().getFunction("objc_msgSend").invokePointer(nativeArguments);
+        return objcLibrary().getFunction(OBJC_MSG_SEND).invokePointer(nativeArguments);
     }
 
     private static long sendLong(Pointer receiver, String selector, Object... arguments) {
         Object[] nativeArguments = nativeArguments(receiver, selector, arguments);
-        return objcLibrary().getFunction("objc_msgSend").invokeLong(nativeArguments);
+        return objcLibrary().getFunction(OBJC_MSG_SEND).invokeLong(nativeArguments);
     }
 
     private static void sendVoid(Pointer receiver, String selector, Object... arguments) {
         Object[] nativeArguments = nativeArguments(receiver, selector, arguments);
-        objcLibrary().getFunction("objc_msgSend").invokeVoid(nativeArguments);
+        objcLibrary().getFunction(OBJC_MSG_SEND).invokeVoid(nativeArguments);
     }
 
     private static Object[] nativeArguments(Pointer receiver, String selector, Object[] arguments) {

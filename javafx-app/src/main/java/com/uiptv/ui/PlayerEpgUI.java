@@ -120,7 +120,7 @@ public class PlayerEpgUI extends VBox {
         if (context == null || current == null || current.stop() <= System.currentTimeMillis()) return;
         long delay = current.stop() - System.currentTimeMillis();
         programmeEndTimer = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
-                javafx.util.Duration.millis(Math.max(1, delay)), _ -> {
+                javafx.util.Duration.millis((double) Math.max(1, delay)), _ -> {
                     programmeEndTimer = null;
                     if (Objects.equals(context, MediaPlayerFactory.guideContextProperty().get())) refresh(context);
                 }));

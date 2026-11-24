@@ -39,6 +39,30 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private static final int[] NATIVE_METADATA_REFRESH_DELAYS_MS = {250, 750, 1500};
     /** libVLC's process-wide plugin-path setup and unload must not overlap across sessions. */
     private static final Object NATIVE_FACTORY_LIFECYCLE_LOCK = new Object();
+    private static final List<CodecLabel> CODEC_LABELS = List.of(
+            new CodecLabel("H.264/AVC", List.of("h.264", "h264", "avc"), List.of()),
+            new CodecLabel("H.265/HEVC", List.of("h.265", "h265", "hevc"), List.of()),
+            new CodecLabel("MPEG-2", List.of("mpeg2", "mpeg-2"), List.of()),
+            new CodecLabel("MPEG-4", List.of("mpeg4", "mpeg-4"), List.of("mp4v")),
+            new CodecLabel("AV1", List.of("av1", "av01"), List.of()),
+            new CodecLabel("AAC", List.of("aac"), List.of()),
+            new CodecLabel("E-AC-3", List.of("eac3", "e-ac-3"), List.of()),
+            new CodecLabel("AC-3", List.of("ac3", "ac-3"), List.of()),
+            new CodecLabel("Opus", List.of("opus"), List.of()),
+            new CodecLabel("FLAC", List.of("flac"), List.of()),
+            new CodecLabel("MP3", List.of("mp3"), List.of()),
+            new CodecLabel("TrueHD", List.of("truehd"), List.of())
+    );
+
+    private record CodecLabel(String label, List<String> fragments, List<String> exactMatches) {
+        private boolean matches(String codec) {
+            return exactMatches.contains(codec) || fragments.stream().anyMatch(codec::contains);
+        }
+    }
+
+    private record NativeMetadata(List<TrackOption> audioTracks, int selectedAudioTrack,
+                                  String videoCodec, String audioCodec, int videoWidth, int videoHeight) {
+    }
 
     private final Object playerLock = new Object();
     private final ExecutorService playExecutor = Executors.newVirtualThreadPerTaskExecutor();
@@ -369,35 +393,42 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     private void refreshNativeMetadata(MediaPlayer mp) {
         withCurrentPlayer(player -> {
-            List<TrackOption> tracks = player.audio().trackDescriptions().stream()
-                    .map(track -> new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")))
-                    .toList();
-            int selected = player.audio().track();
-            var mediaInfo = player.media().info();
-            List<VideoTrackInfo> video = mediaInfo == null ? List.of() : mediaInfo.videoTracks();
-            VideoTrackInfo videoTrack = video == null || video.isEmpty() ? null : video.getFirst();
-            String resolvedVideoCodec = videoTrack == null ? "" : normalizeCodecLabel(videoTrack.codecName());
-            int resolvedWidth = videoTrack == null ? 0 : videoTrack.width();
-            int resolvedHeight = videoTrack == null ? 0 : videoTrack.height();
-            List<AudioTrackInfo> audio = mediaInfo == null ? List.of() : mediaInfo.audioTracks();
-            AudioTrackInfo audioTrack = selectAudioTrack(audio, selected);
-            String resolvedAudioCodec = audioTrack == null ? "" : normalizeCodecLabel(audioTrack.codecName());
-            Platform.runLater(() -> {
-                if (!isCurrentPlayer(mp)) return;
-                audioTracks = List.copyOf(tracks);
-                selectedAudioTrack = selected;
-                videoCodec = resolvedVideoCodec;
-                audioCodec = resolvedAudioCodec;
-                if (videoSourceWidth <= 0 || videoSourceHeight <= 0) {
-                    videoSourceWidth = resolvedWidth;
-                    videoSourceHeight = resolvedHeight;
-                }
-                refreshTrackMenus();
-                if (!refreshRenderedImageStreamInfo()) {
-                    updateStreamInfo(videoSourceWidth, videoSourceHeight);
-                }
-            });
+            NativeMetadata metadata = readNativeMetadata(player);
+            Platform.runLater(() -> applyNativeMetadata(mp, metadata));
         });
+    }
+
+    private NativeMetadata readNativeMetadata(EmbeddedMediaPlayer player) {
+        List<TrackOption> tracks = player.audio().trackDescriptions().stream()
+                .map(track -> new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")))
+                .toList();
+        int selected = player.audio().track();
+        var mediaInfo = player.media().info();
+        List<VideoTrackInfo> video = mediaInfo == null ? List.of() : mediaInfo.videoTracks();
+        VideoTrackInfo videoTrack = video == null || video.isEmpty() ? null : video.getFirst();
+        String resolvedVideoCodec = videoTrack == null ? "" : normalizeCodecLabel(videoTrack.codecName());
+        int resolvedWidth = videoTrack == null ? 0 : videoTrack.width();
+        int resolvedHeight = videoTrack == null ? 0 : videoTrack.height();
+        List<AudioTrackInfo> audio = mediaInfo == null ? List.of() : mediaInfo.audioTracks();
+        AudioTrackInfo audioTrack = selectAudioTrack(audio, selected);
+        String resolvedAudioCodec = audioTrack == null ? "" : normalizeCodecLabel(audioTrack.codecName());
+        return new NativeMetadata(tracks, selected, resolvedVideoCodec, resolvedAudioCodec, resolvedWidth, resolvedHeight);
+    }
+
+    private void applyNativeMetadata(MediaPlayer mp, NativeMetadata metadata) {
+        if (!isCurrentPlayer(mp)) return;
+        audioTracks = List.copyOf(metadata.audioTracks());
+        selectedAudioTrack = metadata.selectedAudioTrack();
+        videoCodec = metadata.videoCodec();
+        audioCodec = metadata.audioCodec();
+        if (videoSourceWidth <= 0 || videoSourceHeight <= 0) {
+            videoSourceWidth = metadata.videoWidth();
+            videoSourceHeight = metadata.videoHeight();
+        }
+        refreshTrackMenus();
+        if (!refreshRenderedImageStreamInfo()) {
+            updateStreamInfo(videoSourceWidth, videoSourceHeight);
+        }
     }
 
     private static AudioTrackInfo selectAudioTrack(List<AudioTrackInfo> tracks, int selectedTrackId) {
@@ -418,41 +449,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
         String normalized = codec.trim();
         String lower = normalized.toLowerCase(Locale.ROOT);
-        if (lower.contains("h.264") || lower.contains("h264") || lower.contains("avc")) {
-            return "H.264/AVC";
-        }
-        if (lower.contains("h.265") || lower.contains("h265") || lower.contains("hevc")) {
-            return "H.265/HEVC";
-        }
-        if (lower.contains("mpeg2") || lower.contains("mpeg-2")) {
-            return "MPEG-2";
-        }
-        if (lower.contains("mpeg4") || lower.contains("mpeg-4") || lower.equals("mp4v")) {
-            return "MPEG-4";
-        }
-        if (lower.contains("av1") || lower.contains("av01")) {
-            return "AV1";
-        }
-        if (lower.contains("aac")) {
-            return "AAC";
-        }
-        if (lower.contains("eac3") || lower.contains("e-ac-3")) {
-            return "E-AC-3";
-        }
-        if (lower.contains("ac3") || lower.contains("ac-3")) {
-            return "AC-3";
-        }
-        if (lower.contains("opus")) {
-            return "Opus";
-        }
-        if (lower.contains("flac")) {
-            return "FLAC";
-        }
-        if (lower.contains("mp3")) {
-            return "MP3";
-        }
-        if (lower.contains("truehd")) {
-            return "TrueHD";
+        for (CodecLabel codecLabel : CODEC_LABELS) {
+            if (codecLabel.matches(lower)) {
+                return codecLabel.label();
+            }
         }
         return normalized.toUpperCase(Locale.ROOT);
     }

@@ -140,7 +140,7 @@ public class WatchingNowUI extends VBox {
     }
 
     private void syncModeAndSearchHeights() {
-        if (modePillBar == null || searchTextField == null) {
+        if (modePillBar == null) {
             return;
         }
         double height = modePillBar.getPrefHeight();

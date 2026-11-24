@@ -87,6 +87,14 @@ class VlcVideoPlayerTest {
     }
 
     @Test
+    void codecAliasesPreserveSpecificLabels() {
+        assertEquals("MPEG-4", VlcVideoPlayer.normalizeCodecLabel("mp4v"));
+        assertEquals("AV1", VlcVideoPlayer.normalizeCodecLabel("av01"));
+        assertEquals("E-AC-3", VlcVideoPlayer.normalizeCodecLabel("eac3"));
+        assertEquals("AC-3", VlcVideoPlayer.normalizeCodecLabel("ac3"));
+    }
+
+    @Test
     void macPipFullscreenBehaviorPreservesExistingWindowBehavior() {
         assertEquals(0x121L, MacOsPipWindowSupport.addFullscreenSpaceBehaviors(0x20L));
     }
