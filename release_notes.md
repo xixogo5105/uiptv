@@ -1,8 +1,8 @@
-# UIPTV 1.1.4
+# UIPTV 1.1.5
 
 Release date: 26 November 2026
 
-UIPTV 1.1.4 brings Android playback and usability, desktop player, catalogue, and cross-platform build improvements.
+UIPTV 1.1.5 carries forward Android playback and usability, desktop player, catalogue, and cross-platform build improvements, with a follow-up fix to GitHub Pages deployment.
 
 ## Highlights
 
@@ -11,6 +11,7 @@ UIPTV 1.1.4 brings Android playback and usability, desktop player, catalogue, an
 - **Desktop player:** Improved macOS picture-in-picture support, VLC video surface handling, stream metadata, and player controls.
 - **Catalogue and account handling:** Improved M3U parsing, account refresh behavior, bookmark matching, and Watching Now cards.
 - **Build and dependency updates:** Updated Android Gradle and Maven/JavaFX dependencies and expanded ARM64 Linux package builds.
+- **GitHub Pages deployment:** Added the Actions permission required to discover and deploy the uploaded Pages artifact.
 
 ## Android app
 
