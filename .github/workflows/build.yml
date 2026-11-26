@@ -343,7 +343,7 @@ jobs:
           UIPTV_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEYSTORE_PASSWORD }}
           UIPTV_ANDROID_KEY_ALIAS: ${{ secrets.UIPTV_ANDROID_KEY_ALIAS }}
           UIPTV_ANDROID_KEY_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEY_PASSWORD }}
-        run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
+        run: ./scripts/build-mobile-with-libmpv.sh -Puiptv.useTestAds=false :androidApp:assembleRelease
 
       - name: Stage Android release APK
         shell: bash
@@ -418,6 +418,38 @@ jobs:
           name: UIPTV-linux-aarch64-app-image
           path: target/UIPTV-linux-aarch64-app-image.zip
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+  publish_draft_mobile:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build_mobile_release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android APK artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: UIPTV-android-universal-apk
+          path: draft-assets
+
+      - name: Publish draft APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          apk="draft-assets/UIPTV-android-universal.apk"
+          if [[ ! -f "$apk" ]]; then
+            echo "Android APK artifact was not found: $apk" >&2
+            exit 1
+          fi
+
+          tag="mobile-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" "$apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "UIPTV Android test build ${GITHUB_RUN_NUMBER}" \
+            --notes "Draft Android APK from workflow run ${GITHUB_RUN_ID}. This draft is visible to repository maintainers and is not published to users." \
+            --draft
 
   publish_release:
     if: startsWith(github.ref, 'refs/tags/v')

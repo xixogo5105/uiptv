@@ -24,6 +24,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import com.uiptv.mobile.shared.db.AndroidLocalDataResetter
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.logging.AndroidAppLog
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidSQLiteFilterSettingsRepository
@@ -58,12 +60,15 @@ import com.uiptv.mobile.shared.ui.FilterUiActions
 import com.uiptv.mobile.shared.ui.LocalAppVersion
 import com.uiptv.mobile.shared.ui.PanelVisibilityUiActions
 import com.uiptv.mobile.shared.ui.PlaybackUiActions
+import com.uiptv.mobile.shared.ui.ProBillingUiActions
 import com.uiptv.mobile.shared.ui.RemoteSyncUiActions
 import com.uiptv.mobile.shared.ui.UiptvMobileApp
 
 class MainActivity : ComponentActivity() {
     private var appForeground by mutableStateOf(true)
     private var appResumeSignal by mutableIntStateOf(0)
+    private var proBillingManager: AndroidProBillingManager? = null
+    private var adMobManager: AndroidAdMobManager? = null
 
     override fun onStart() {
         super.onStart()
@@ -88,6 +93,17 @@ class MainActivity : ComponentActivity() {
         val cacheScheduler = AndroidCacheRefreshScheduler(this)
         val localDataResetter = AndroidLocalDataResetter(databaseHelper)
         val playbackCoordinator = AndroidPlaybackCoordinator(this, preferences, databaseHelper)
+        val adMobManager = AndroidAdMobManager(this, preferences).also { this.adMobManager = it }
+        val billingManager = AndroidProBillingManager(this, preferences) { isPro ->
+            if (isPro) {
+                adMobManager.clearLoadedAds()
+            } else {
+                adMobManager.requestConsentAndInitialize(this@MainActivity, false)
+            }
+        }.also {
+            proBillingManager = it
+            it.start()
+        }
         val syncService = AndroidRemoteSyncPullService(
             client = AndroidRemoteSyncClient(),
             snapshotApplier = AndroidSQLiteSnapshotSyncApplier(
@@ -210,11 +226,31 @@ class MainActivity : ComponentActivity() {
                     playbackActions = PlaybackUiActions(
                         loadPlayerPreference = playbackCoordinator::loadPlayerPreference,
                         playerChoices = playbackCoordinator::playerChoices,
-                        playBrowseItem = playbackCoordinator::playBrowseItem,
-                        playBookmark = playbackCoordinator::playBookmark,
-                        playWatchingNow = playbackCoordinator::playWatchingNow,
-                        playWatchingNowEpisode = playbackCoordinator::playWatchingNowEpisode,
-                        playBingeWatchSeason = playbackCoordinator::playBingeWatchSeason,
+                        playBrowseItem = { item, player, remember, surfQueue ->
+                            adMobManager.runWithPreRollAd(this@MainActivity) {
+                                playbackCoordinator.playBrowseItem(item, player, remember, surfQueue)
+                            }
+                        },
+                        playBookmark = { bookmark, player, remember, surfQueue ->
+                            adMobManager.runWithPreRollAd(this@MainActivity) {
+                                playbackCoordinator.playBookmark(bookmark, player, remember, surfQueue)
+                            }
+                        },
+                        playWatchingNow = { item, player, remember, surfQueue ->
+                            adMobManager.runWithPreRollAd(this@MainActivity) {
+                                playbackCoordinator.playWatchingNow(item, player, remember, surfQueue)
+                            }
+                        },
+                        playWatchingNowEpisode = { episode, player, remember, surfQueue ->
+                            adMobManager.runWithPreRollAd(this@MainActivity) {
+                                playbackCoordinator.playWatchingNowEpisode(episode, player, remember, surfQueue)
+                            }
+                        },
+                        playBingeWatchSeason = { series, episodes, season, player, remember ->
+                            adMobManager.runWithPreRollAd(this@MainActivity) {
+                                playbackCoordinator.playBingeWatchSeason(series, episodes, season, player, remember)
+                            }
+                        },
                         openPlayerInstall = playbackCoordinator::openPlayerInstall,
                         savePlayerPreference = playbackCoordinator::savePlayerPreference,
                         saveEmbeddedRenderProfile = { profile ->
@@ -245,6 +281,25 @@ class MainActivity : ComponentActivity() {
                                 .also { notifyLocalDatabaseChanged() }
                         }
                     ),
+                    proActions = run {
+                        val billingState by billingManager.state.collectAsState()
+                        val privacyOptionsRequired by adMobManager.privacyOptionsRequired.collectAsState()
+                        ProBillingUiActions(
+                            isPro = billingState.isPro,
+                            priceLabel = billingState.priceLabel,
+                            billingAvailable = billingState.billingAvailable,
+                            privacyOptionsRequired = privacyOptionsRequired,
+                            purchasePro = { billingManager.purchasePro(this@MainActivity) },
+                            restorePurchases = billingManager::restorePurchases,
+                            showPrivacyOptions = {
+                                if (adMobManager.showPrivacyOptions(this@MainActivity)) {
+                                    MobileMessages.text("mobilePrivacyOptionsUpdated")
+                                } else {
+                                    MobileMessages.text("mobilePrivacyOptionsFailed")
+                                }
+                            }
+                        )
+                    },
                     logoRenderer = { logoUrl, description, modifier ->
                         RemoteLogoImage(logoUrl, description, modifier,
                             fallbackLogoUrl = com.uiptv.mobile.shared.ui.LocalThumbnailFallback.current,
@@ -311,6 +366,15 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         appResumeSignal += 1
+        val isPro = proBillingManager?.state?.value?.isPro == true
+        adMobManager?.requestConsentAndInitialize(this, isPro)
+    }
+
+    override fun onDestroy() {
+        proBillingManager?.destroy()
+        proBillingManager = null
+        adMobManager = null
+        super.onDestroy()
     }
 
     private fun requestNotificationPermissionIfNeeded() {
