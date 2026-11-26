@@ -1,8 +1,8 @@
-# UIPTV 1.1.2
+# UIPTV 1.1.3
 
 Release date: 26 November 2026
 
-UIPTV 1.1.2 adds advertising to the Android app, alongside Android playback, desktop player, catalogue, and release workflow improvements since 1.1.1.
+UIPTV 1.1.3 adds advertising to the Android app, alongside Android playback, desktop player, catalogue, and release workflow improvements since 1.1.1.
 
 ## Highlights
 

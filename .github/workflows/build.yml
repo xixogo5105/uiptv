@@ -477,11 +477,26 @@ jobs:
       - name: Stage release assets
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p release-assets
-          find downloaded-artifacts -type f -print0 | while IFS= read -r -d '' file; do
-            base="$(basename "$file")"
-            cp "$file" "release-assets/${base}"
-          done
+          while IFS= read -r -d '' file; do
+            relative_path="${file#downloaded-artifacts/}"
+            artifact_name="${relative_path%%/*}"
+            extension="${file##*.}"
+
+            if [[ "$artifact_name" == "UIPTV-android-universal-apk" ]]; then
+              asset_name="UIPTV-android-universal.apk"
+            else
+              asset_name="${artifact_name}.${extension}"
+            fi
+
+            destination="release-assets/${asset_name}"
+            if [[ -e "$destination" ]]; then
+              echo "Duplicate release asset name: ${asset_name}" >&2
+              exit 1
+            fi
+            cp "$file" "$destination"
+          done < <(find downloaded-artifacts -type f -print0)
           find release-assets -maxdepth 1 -type f -print | sort
 
       - name: Publish GitHub release
