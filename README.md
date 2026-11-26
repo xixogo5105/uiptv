@@ -239,7 +239,7 @@ open -a Kodi --args "$STREAM_URL"
 ```
 
 ## Disclaimer
-This is a personal project developed for fun. Optional EPG supports native Stalker/Xtream schedules and XMLTV fallbacks on desktop, web and Android; see [EPG.md](EPG.md) for setup and provider limitations.
+This is a personal fun & experimental project. Optional EPG supports native Stalker/Xtream schedules and XMLTV fallbacks on desktop, web and Android; see [EPG.md](EPG.md) for setup and provider limitations.
 
 Merge requests for bug fixes or new features are always welcome.
 
