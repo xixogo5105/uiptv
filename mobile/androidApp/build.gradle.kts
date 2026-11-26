@@ -152,6 +152,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
     implementation(libs.play.services.ads)
+    implementation(libs.play.services.ump)
     implementation(libs.billing.ktx)
     implementation(files(api24LibmpvAar))
     testImplementation(libs.junit)

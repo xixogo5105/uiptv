@@ -10,6 +10,9 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.ump.ConsentInformation
+import com.google.android.ump.ConsentRequestParameters
+import com.google.android.ump.UserMessagingPlatform
 import com.uiptv.mobile.shared.ads.AdCooldownPolicy
 import com.uiptv.mobile.shared.logging.AndroidAppLog
 import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
@@ -19,6 +22,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -37,12 +43,76 @@ class AndroidAdMobManager(
     private var isLoadingAd = false
     private var retryJob: Job? = null
     private var retryAttempt = 0
+    private var consentUpdateStarted = false
+    @Volatile private var adsAllowedByConsent = false
+    @Volatile private var isProAccount = false
+    private var consentInformation: ConsentInformation? = null
+    private val _privacyOptionsRequired = MutableStateFlow(false)
+    val privacyOptionsRequired: StateFlow<Boolean> = _privacyOptionsRequired.asStateFlow()
 
-    fun initializeAndPreload(isPro: Boolean) {
+    fun requestConsentAndInitialize(activity: Activity, isPro: Boolean) {
+        isProAccount = isPro
         if (isPro) {
+            adsAllowedByConsent = false
             clearLoadedAds()
             return
         }
+        val information = UserMessagingPlatform.getConsentInformation(activity)
+        consentInformation = information
+        if (consentUpdateStarted) {
+            applyConsentDecision(information)
+            return
+        }
+        consentUpdateStarted = true
+        information.requestConsentInfoUpdate(
+            activity,
+            ConsentRequestParameters.Builder().build(),
+            {
+                UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
+                    if (formError != null) {
+                        AndroidAppLog.w("AdMob", "Consent form error: ${formError.message}")
+                    }
+                    applyConsentDecision(information)
+                }
+            },
+            { requestError ->
+                AndroidAppLog.w("AdMob", "Consent info update error: ${requestError.message}")
+                applyConsentDecision(information)
+            }
+        )
+        // Previously saved consent can allow requests while this session's update runs.
+        applyConsentDecision(information)
+    }
+
+    suspend fun showPrivacyOptions(activity: Activity): Boolean =
+        suspendCancellableCoroutine { continuation ->
+            adsAllowedByConsent = false
+            clearLoadedAds()
+            UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
+                consentInformation?.let(::applyConsentDecision)
+                if (continuation.isActive) continuation.resume(formError == null)
+            }
+        }
+
+    private fun applyConsentDecision(information: ConsentInformation) {
+        updatePrivacyOptionsRequirement(information)
+        adsAllowedByConsent = information.canRequestAds() && !isProAccount
+        if (adsAllowedByConsent) initializeAndPreload(false) else clearLoadedAds()
+    }
+
+    private fun updatePrivacyOptionsRequirement(information: ConsentInformation) {
+        _privacyOptionsRequired.value = information.privacyOptionsRequirementStatus ==
+            ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
+    }
+
+    fun initializeAndPreload(isPro: Boolean) {
+        if (isPro) {
+            isProAccount = true
+            adsAllowedByConsent = false
+            clearLoadedAds()
+            return
+        }
+        if (!adsAllowedByConsent) return
         if (sdkInitialized.compareAndSet(false, true)) {
             val testDeviceIds = BuildConfig.ADMOB_TEST_DEVICE_IDS
                 .split(',')
@@ -74,7 +144,7 @@ class AndroidAdMobManager(
     }
 
     private fun preloadInterstitial() {
-        if (interstitialAd != null || isLoadingAd) return
+        if (!adsAllowedByConsent || isProAccount || interstitialAd != null || isLoadingAd) return
         val adUnitId = BuildConfig.ADMOB_INTERSTITIAL_AD_UNIT_ID
         if (adUnitId.isBlank()) return
         isLoadingAd = true
@@ -85,6 +155,7 @@ class AndroidAdMobManager(
             object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: InterstitialAd) {
                     isLoadingAd = false
+                    if (!adsAllowedByConsent || isProAccount) return
                     retryAttempt = 0
                     retryJob?.cancel()
                     retryJob = null

@@ -3055,23 +3055,37 @@ private fun RemoteSyncScreen(
     var confirmRestore by remember { mutableStateOf(false) }
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
     var settingsQuery by rememberSaveable { mutableStateOf("") }
-    val settingsDestinations = remember {
-        listOf(
-            MobileSettingsDestination("sync", "Desktop sync", "Connect to UIPTV Desktop and sync your library", Icons.Outlined.CloudSync),
-            MobileSettingsDestination("backup", "Backup and restore", "Protect or restore your mobile data", Icons.Outlined.Backup),
-            MobileSettingsDestination("appearance", "Appearance and browsing", "Artwork and catalogue presentation", Icons.Outlined.Palette),
-            MobileSettingsDestination("playback", "Playback", "Choose the player used for streams", Icons.Outlined.PlayCircle),
-            MobileSettingsDestination("guide", "Programme guide", "EPG sources and guide loading", Icons.Outlined.LiveTv),
-            MobileSettingsDestination("history", "Playback history", "Manage recently played channels", Icons.Outlined.History),
-            MobileSettingsDestination("filters", "Content filters", "Hide categories and channels by rule", Icons.Outlined.FilterAlt),
-            MobileSettingsDestination(
-                "pro",
-                MobileMessages.text("mobileSettingsProTitle"),
-                MobileMessages.text("mobileSettingsProDescription"),
-                Icons.Outlined.Info
-            ),
-            MobileSettingsDestination("about", "About and data", "App information and local data", Icons.Outlined.Info)
-        )
+    val settingsDestinations = remember(proActions.privacyOptionsRequired) {
+        buildList {
+            addAll(
+                listOf(
+                    MobileSettingsDestination("sync", "Desktop sync", "Connect to UIPTV Desktop and sync your library", Icons.Outlined.CloudSync),
+                    MobileSettingsDestination("backup", "Backup and restore", "Protect or restore your mobile data", Icons.Outlined.Backup),
+                    MobileSettingsDestination("appearance", "Appearance and browsing", "Artwork and catalogue presentation", Icons.Outlined.Palette),
+                    MobileSettingsDestination("playback", "Playback", "Choose the player used for streams", Icons.Outlined.PlayCircle),
+                    MobileSettingsDestination("guide", "Programme guide", "EPG sources and guide loading", Icons.Outlined.LiveTv),
+                    MobileSettingsDestination("history", "Playback history", "Manage recently played channels", Icons.Outlined.History),
+                    MobileSettingsDestination("filters", "Content filters", "Hide categories and channels by rule", Icons.Outlined.FilterAlt),
+                    MobileSettingsDestination(
+                        "pro",
+                        MobileMessages.text("mobileSettingsProTitle"),
+                        MobileMessages.text("mobileSettingsProDescription"),
+                        Icons.Outlined.Info
+                    ),
+                    MobileSettingsDestination("about", "About and data", "App information and local data", Icons.Outlined.Info)
+                )
+            )
+            if (proActions.privacyOptionsRequired) {
+                add(
+                    MobileSettingsDestination(
+                        "privacy-options",
+                        MobileMessages.text("mobilePrivacyOptionsTitle"),
+                        MobileMessages.text("mobilePrivacyOptionsDescription"),
+                        Icons.Outlined.Info
+                    )
+                )
+            }
+        }
     }
     val activeSettingsDestination = settingsDestinations.firstOrNull { it.id == settingsPage }
 
@@ -3606,6 +3620,37 @@ private fun RemoteSyncScreen(
                 Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
             }
         }
+        }
+        if (settingsPage == "privacy-options") {
+            SettingsPanel {
+                Text(
+                    MobileMessages.text("mobilePrivacyOptionsTitle"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    MobileMessages.text("mobilePrivacyOptionsDescription"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !running,
+                    onClick = {
+                        scope.launch {
+                            running = true
+                            statusText = runCatching { proActions.showPrivacyOptions() }
+                                .getOrElse { MobileMessages.text("mobilePrivacyOptionsFailed") }
+                            running = false
+                        }
+                    }
+                ) {
+                    Text(MobileMessages.text("mobilePrivacyOptionsButton"))
+                }
+                if (statusText.isNotBlank()) {
+                    Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
         if (settingsPage == "about") {
             Button(
@@ -5709,8 +5754,10 @@ data class ProBillingUiActions(
     val isPro: Boolean = false,
     val priceLabel: String = "",
     val billingAvailable: Boolean = true,
+    val privacyOptionsRequired: Boolean = false,
     val purchasePro: suspend () -> String = { "Google Play Billing is unavailable in preview." },
-    val restorePurchases: suspend () -> String = { "No Pro purchase found." }
+    val restorePurchases: suspend () -> String = { "No Pro purchase found." },
+    val showPrivacyOptions: suspend () -> String = { "Privacy options are unavailable in preview." }
 ) {
     companion object {
         fun preview(): ProBillingUiActions = ProBillingUiActions()

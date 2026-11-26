@@ -44,6 +44,7 @@ import com.uiptv.mobile.shared.db.AndroidLocalDataResetter
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.logging.AndroidAppLog
+import com.uiptv.mobile.shared.i18n.MobileMessages
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidSQLiteFilterSettingsRepository
@@ -97,7 +98,7 @@ class MainActivity : ComponentActivity() {
             if (isPro) {
                 adMobManager.clearLoadedAds()
             } else {
-                adMobManager.initializeAndPreload(false)
+                adMobManager.requestConsentAndInitialize(this@MainActivity, false)
             }
         }.also {
             proBillingManager = it
@@ -282,12 +283,21 @@ class MainActivity : ComponentActivity() {
                     ),
                     proActions = run {
                         val billingState by billingManager.state.collectAsState()
+                        val privacyOptionsRequired by adMobManager.privacyOptionsRequired.collectAsState()
                         ProBillingUiActions(
                             isPro = billingState.isPro,
                             priceLabel = billingState.priceLabel,
                             billingAvailable = billingState.billingAvailable,
+                            privacyOptionsRequired = privacyOptionsRequired,
                             purchasePro = { billingManager.purchasePro(this@MainActivity) },
-                            restorePurchases = billingManager::restorePurchases
+                            restorePurchases = billingManager::restorePurchases,
+                            showPrivacyOptions = {
+                                if (adMobManager.showPrivacyOptions(this@MainActivity)) {
+                                    MobileMessages.text("mobilePrivacyOptionsUpdated")
+                                } else {
+                                    MobileMessages.text("mobilePrivacyOptionsFailed")
+                                }
+                            }
                         )
                     },
                     logoRenderer = { logoUrl, description, modifier ->
@@ -357,7 +367,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         appResumeSignal += 1
         val isPro = proBillingManager?.state?.value?.isPro == true
-        adMobManager?.initializeAndPreload(isPro)
+        adMobManager?.requestConsentAndInitialize(this, isPro)
     }
 
     override fun onDestroy() {
