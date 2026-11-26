@@ -88,7 +88,7 @@ android {
             // Google's official test App ID and Interstitial Ad Unit ID prevent invalid-traffic bans during testing.
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("String", "ADMOB_INTERSTITIAL_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
-            buildConfigField("int", "AD_COOLDOWN_MINUTES", "30")
+            buildConfigField("int", "AD_COOLDOWN_MINUTES", "60")
         }
         getByName("release") {
             val useTestAds = providers.gradleProperty("uiptv.useTestAds")
@@ -104,7 +104,7 @@ android {
                 "ADMOB_INTERSTITIAL_AD_UNIT_ID",
                 if (useTestAds) "\"ca-app-pub-3940256099942544/1033173712\"" else "\"ca-app-pub-8756147848785001/7876930408\""
             )
-            buildConfigField("int", "AD_COOLDOWN_MINUTES", "30")
+            buildConfigField("int", "AD_COOLDOWN_MINUTES", "60")
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {

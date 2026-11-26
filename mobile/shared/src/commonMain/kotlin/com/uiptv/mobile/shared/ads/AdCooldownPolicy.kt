@@ -5,8 +5,8 @@ package com.uiptv.mobile.shared.ads
  * Uses persisted UTC epoch milliseconds so app restarts do not reset the cooldown timer.
  */
 object AdCooldownPolicy {
-    const val DEFAULT_TEST_COOLDOWN_MINUTES = 30
-    const val DEFAULT_PRODUCTION_COOLDOWN_MINUTES = 30
+    const val DEFAULT_TEST_COOLDOWN_MINUTES = 60
+    const val DEFAULT_PRODUCTION_COOLDOWN_MINUTES = 60
 
     fun shouldShowAd(
         isPro: Boolean,
