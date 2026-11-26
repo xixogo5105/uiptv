@@ -62,6 +62,7 @@ android {
         versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
+        buildConfigField("String", "PRO_PRODUCT_ID", "\"uiptv_pro_lifetime\"")
     }
 
     sourceSets.getByName("androidTest").assets.directories.add(
@@ -84,8 +85,36 @@ android {
             if (providers.gradleProperty("uiptv.isolatedTestApp").orNull == "true") {
                 applicationIdSuffix = ".epgtest"
             }
+            // Google's official test App ID and Interstitial Ad Unit ID prevent invalid-traffic bans during testing.
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("String", "ADMOB_INTERSTITIAL_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+            buildConfigField("int", "AD_COOLDOWN_MINUTES", "15")
+            buildConfigField("String", "ADMOB_TEST_DEVICE_IDS", "\"56E41FE65FFE85D0203676A7F7BAFD41\"")
         }
         getByName("release") {
+            val useTestAds = providers.gradleProperty("uiptv.useTestAds")
+                .orNull
+                ?.toBooleanStrictOrNull() == true
+            val releaseAdCooldownMinutes = providers.gradleProperty("uiptv.adCooldownMinutes")
+                .orNull
+                ?.toIntOrNull()
+                ?: if (useTestAds) 15 else 60
+            manifestPlaceholders["admobAppId"] = if (useTestAds) {
+                "ca-app-pub-3940256099942544~3347511713"
+            } else {
+                "ca-app-pub-8756147848785001~7816014408"
+            }
+            buildConfigField(
+                "String",
+                "ADMOB_INTERSTITIAL_AD_UNIT_ID",
+                if (useTestAds) "\"ca-app-pub-3940256099942544/1033173712\"" else "\"ca-app-pub-8756147848785001/7876930408\""
+            )
+            buildConfigField("int", "AD_COOLDOWN_MINUTES", "$releaseAdCooldownMinutes")
+            buildConfigField(
+                "String",
+                "ADMOB_TEST_DEVICE_IDS",
+                if (useTestAds) "\"56E41FE65FFE85D0203676A7F7BAFD41\"" else "\"\""
+            )
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
@@ -122,6 +151,8 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
+    implementation(libs.play.services.ads)
+    implementation(libs.billing.ktx)
     implementation(files(api24LibmpvAar))
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)

@@ -326,6 +326,7 @@ fun UiptvMobileApp(
     filterActions: FilterUiActions = FilterUiActions.preview(),
     panelVisibilityActions: PanelVisibilityUiActions = PanelVisibilityUiActions.preview(),
     backupRestoreActions: BackupRestoreUiActions = BackupRestoreUiActions.preview(),
+    proActions: ProBillingUiActions = ProBillingUiActions.preview(),
     localPlaylistPicker: LocalPlaylistPicker? = null,
     backupFileCreator: BackupFileCreator? = null,
     restoreFilePicker: RestoreFilePicker? = null,
@@ -434,6 +435,7 @@ fun UiptvMobileApp(
                                 playbackActions = playbackActions,
                                 filterActions = filterActions,
                                 backupRestoreActions = backupRestoreActions,
+                                proActions = proActions,
                                 localPlaylistPicker = localPlaylistPicker,
                                 backupFileCreator = backupFileCreator,
                                 restoreFilePicker = restoreFilePicker,
@@ -473,6 +475,7 @@ fun UiptvMobileApp(
                                 playbackActions = playbackActions,
                                 filterActions = filterActions,
                                 backupRestoreActions = backupRestoreActions,
+                                proActions = proActions,
                                 localPlaylistPicker = localPlaylistPicker,
                                 backupFileCreator = backupFileCreator,
                                 restoreFilePicker = restoreFilePicker,
@@ -514,6 +517,7 @@ private fun CurrentTab(
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
     backupRestoreActions: BackupRestoreUiActions,
+    proActions: ProBillingUiActions,
     localPlaylistPicker: LocalPlaylistPicker?,
     backupFileCreator: BackupFileCreator?,
     restoreFilePicker: RestoreFilePicker?,
@@ -611,6 +615,7 @@ private fun CurrentTab(
                     playbackActions,
                     filterActions,
                     backupRestoreActions,
+                    proActions,
                     backupFileCreator,
                     restoreFilePicker,
                     onThumbnailSettingChanged,
@@ -3021,6 +3026,7 @@ private fun RemoteSyncScreen(
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
     backupRestoreActions: BackupRestoreUiActions,
+    proActions: ProBillingUiActions,
     backupFileCreator: BackupFileCreator?,
     restoreFilePicker: RestoreFilePicker?,
     onThumbnailSettingChanged: (Boolean) -> Unit,
@@ -3058,6 +3064,12 @@ private fun RemoteSyncScreen(
             MobileSettingsDestination("guide", "Programme guide", "EPG sources and guide loading", Icons.Outlined.LiveTv),
             MobileSettingsDestination("history", "Playback history", "Manage recently played channels", Icons.Outlined.History),
             MobileSettingsDestination("filters", "Content filters", "Hide categories and channels by rule", Icons.Outlined.FilterAlt),
+            MobileSettingsDestination(
+                "pro",
+                MobileMessages.text("mobileSettingsProTitle"),
+                MobileMessages.text("mobileSettingsProDescription"),
+                Icons.Outlined.Info
+            ),
             MobileSettingsDestination("about", "About and data", "App information and local data", Icons.Outlined.Info)
         )
     }
@@ -3531,6 +3543,68 @@ private fun RemoteSyncScreen(
                 Text("Save Filters")
             }
         }
+        }
+        }
+        if (settingsPage == "pro") {
+        SettingsPanel {
+            Text(
+                MobileMessages.text(if (proActions.isPro) "mobileProActiveTitle" else "mobileProUpgradeTitle"),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                if (proActions.isPro) {
+                    MobileMessages.text("mobileProActiveBody")
+                } else {
+                    MobileMessages.text("mobileProUpgradeBody")
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (!proActions.isPro) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        modifier = Modifier.weight(1f).semantics {
+                            contentDescription = MobileMessages.text("mobileProUpgradeTitle")
+                        },
+                        enabled = !running,
+                        onClick = {
+                            scope.launch {
+                                running = true
+                                statusText = runCatching { proActions.purchasePro() }
+                                    .getOrElse { MobileMessages.text("mobileProPurchaseFailed") }
+                                running = false
+                            }
+                        }
+                    ) {
+                        val label = if (proActions.priceLabel.isNotBlank()) {
+                            MobileMessages.text("mobileProUpgradePrice", proActions.priceLabel)
+                        } else {
+                            MobileMessages.text("mobileProUpgradeButton")
+                        }
+                        Text(label)
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f).semantics {
+                            contentDescription = MobileMessages.text("mobileProRestoreAccessibility")
+                        },
+                        enabled = !running,
+                        onClick = {
+                            scope.launch {
+                                running = true
+                                statusText = runCatching { proActions.restorePurchases() }
+                                    .getOrElse { MobileMessages.text("mobileProPurchaseFailed") }
+                                running = false
+                            }
+                        }
+                    ) {
+                        Text(MobileMessages.text("mobileProRestoreButton"))
+                    }
+                }
+            }
+            if (statusText.isNotBlank()) {
+                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+            }
         }
         }
         if (settingsPage == "about") {
@@ -5628,6 +5702,18 @@ data class BrowseUiActions(
                 removeWatchingNow = {}
             )
         }
+    }
+}
+
+data class ProBillingUiActions(
+    val isPro: Boolean = false,
+    val priceLabel: String = "",
+    val billingAvailable: Boolean = true,
+    val purchasePro: suspend () -> String = { "Google Play Billing is unavailable in preview." },
+    val restorePurchases: suspend () -> String = { "No Pro purchase found." }
+) {
+    companion object {
+        fun preview(): ProBillingUiActions = ProBillingUiActions()
     }
 }
 

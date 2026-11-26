@@ -40,6 +40,9 @@ class AndroidPreferencesTest {
         assertEquals(PanelVisibilityPreference(), snapshot.panelVisibilityPreference)
         assertFalse(snapshot.firstRunCompleted)
         assertFalse(snapshot.epgEnabled)
+        assertFalse(snapshot.proUnlocked)
+        assertEquals(0L, snapshot.lastAdShownUtcMillis)
+        assertNull(snapshot.adCooldownMinutes)
     }
 
     @Test
@@ -62,7 +65,10 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE,
             AndroidOnlyPreferenceKeys.EPG_ENABLED,
-            AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED
+            AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED,
+            AndroidOnlyPreferenceKeys.PRO_UNLOCKED,
+            AndroidOnlyPreferenceKeys.LAST_AD_SHOWN_UTC_MILLIS,
+            AndroidOnlyPreferenceKeys.AD_COOLDOWN_MINUTES
         )
 
         assertEquals(expected, AndroidOnlyPreferenceKeys.all)
