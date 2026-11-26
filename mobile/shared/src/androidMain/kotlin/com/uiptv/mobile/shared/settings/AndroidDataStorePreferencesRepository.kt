@@ -56,9 +56,7 @@ class AndroidDataStorePreferencesRepository(
             ),
             epgEnabled = values[EPG_ENABLED] ?: false,
             firstRunCompleted = values[FIRST_RUN_COMPLETED] ?: false,
-            proUnlocked = values[PRO_UNLOCKED] ?: false,
-            lastAdShownUtcMillis = values[LAST_AD_SHOWN_UTC_MILLIS] ?: 0L,
-            adCooldownMinutes = values[AD_COOLDOWN_MINUTES]?.takeIf { it >= 0 }
+            proUnlocked = values[PRO_UNLOCKED] ?: false
         )
     }
 
@@ -110,8 +108,6 @@ class AndroidDataStorePreferencesRepository(
         dataStore.edit { it[EPG_ENABLED] = enabled }
     }
 
-
-
     override suspend fun setFirstRunCompleted(completed: Boolean) {
         dataStore.edit { values ->
             values[FIRST_RUN_COMPLETED] = completed
@@ -121,22 +117,6 @@ class AndroidDataStorePreferencesRepository(
     override suspend fun saveProUnlocked(unlocked: Boolean) {
         dataStore.edit { values ->
             values[PRO_UNLOCKED] = unlocked
-        }
-    }
-
-    override suspend fun saveLastAdShownUtcMillis(utcMillis: Long) {
-        dataStore.edit { values ->
-            values[LAST_AD_SHOWN_UTC_MILLIS] = utcMillis
-        }
-    }
-
-    override suspend fun saveAdCooldownMinutes(minutes: Int?) {
-        dataStore.edit { values ->
-            if (minutes == null) {
-                values.remove(AD_COOLDOWN_MINUTES)
-            } else {
-                values[AD_COOLDOWN_MINUTES] = minutes.coerceAtLeast(0)
-            }
         }
     }
 
@@ -160,7 +140,5 @@ class AndroidDataStorePreferencesRepository(
         val EPG_ENABLED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EPG_ENABLED)
         val FIRST_RUN_COMPLETED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED)
         val PRO_UNLOCKED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PRO_UNLOCKED)
-        val LAST_AD_SHOWN_UTC_MILLIS = longPreferencesKey(AndroidOnlyPreferenceKeys.LAST_AD_SHOWN_UTC_MILLIS)
-        val AD_COOLDOWN_MINUTES = intPreferencesKey(AndroidOnlyPreferenceKeys.AD_COOLDOWN_MINUTES)
     }
 }

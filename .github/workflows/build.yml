@@ -343,7 +343,7 @@ jobs:
           UIPTV_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEYSTORE_PASSWORD }}
           UIPTV_ANDROID_KEY_ALIAS: ${{ secrets.UIPTV_ANDROID_KEY_ALIAS }}
           UIPTV_ANDROID_KEY_PASSWORD: ${{ secrets.UIPTV_ANDROID_KEY_PASSWORD }}
-        run: ./scripts/build-mobile-with-libmpv.sh -Puiptv.useTestAds=false :androidApp:assembleRelease
+        run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
 
       - name: Stage Android release APK
         shell: bash

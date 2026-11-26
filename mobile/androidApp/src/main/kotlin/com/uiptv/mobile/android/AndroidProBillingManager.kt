@@ -38,8 +38,7 @@ data class ProBillingState(
 
 class AndroidProBillingManager(
     context: Context,
-    private val preferences: AndroidPreferencesRepository,
-    private val onProStatusChanged: (Boolean) -> Unit = {}
+    private val preferences: AndroidPreferencesRepository
 ) : PurchasesUpdatedListener {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -60,7 +59,6 @@ class AndroidProBillingManager(
         scope.launch {
             val savedPro = preferences.load().proUnlocked
             _state.value = _state.value.copy(isPro = savedPro)
-            onProStatusChanged(savedPro)
             if (ensureConnected()) {
                 queryProductDetailsInternal()
                 syncPurchasesInternal()
@@ -185,7 +183,6 @@ class AndroidProBillingManager(
         val unlocked = proPurchase != null
         preferences.saveProUnlocked(unlocked)
         _state.value = _state.value.copy(isPro = unlocked)
-        onProStatusChanged(unlocked)
         return unlocked
     }
 }

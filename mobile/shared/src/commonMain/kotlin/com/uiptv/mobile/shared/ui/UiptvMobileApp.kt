@@ -3055,7 +3055,7 @@ private fun RemoteSyncScreen(
     var confirmRestore by remember { mutableStateOf(false) }
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
     var settingsQuery by rememberSaveable { mutableStateOf("") }
-    val settingsDestinations = remember(proActions.privacyOptionsRequired) {
+    val settingsDestinations = remember {
         buildList {
             addAll(
                 listOf(
@@ -3075,16 +3075,6 @@ private fun RemoteSyncScreen(
                     MobileSettingsDestination("about", "About and data", "App information and local data", Icons.Outlined.Info)
                 )
             )
-            if (proActions.privacyOptionsRequired) {
-                add(
-                    MobileSettingsDestination(
-                        "privacy-options",
-                        MobileMessages.text("mobilePrivacyOptionsTitle"),
-                        MobileMessages.text("mobilePrivacyOptionsDescription"),
-                        Icons.Outlined.Info
-                    )
-                )
-            }
         }
     }
     val activeSettingsDestination = settingsDestinations.firstOrNull { it.id == settingsPage }
@@ -3620,37 +3610,6 @@ private fun RemoteSyncScreen(
                 Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
             }
         }
-        }
-        if (settingsPage == "privacy-options") {
-            SettingsPanel {
-                Text(
-                    MobileMessages.text("mobilePrivacyOptionsTitle"),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    MobileMessages.text("mobilePrivacyOptionsDescription"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !running,
-                    onClick = {
-                        scope.launch {
-                            running = true
-                            statusText = runCatching { proActions.showPrivacyOptions() }
-                                .getOrElse { MobileMessages.text("mobilePrivacyOptionsFailed") }
-                            running = false
-                        }
-                    }
-                ) {
-                    Text(MobileMessages.text("mobilePrivacyOptionsButton"))
-                }
-                if (statusText.isNotBlank()) {
-                    Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-                }
-            }
         }
         if (settingsPage == "about") {
             Button(
@@ -5754,10 +5713,8 @@ data class ProBillingUiActions(
     val isPro: Boolean = false,
     val priceLabel: String = "",
     val billingAvailable: Boolean = true,
-    val privacyOptionsRequired: Boolean = false,
     val purchasePro: suspend () -> String = { "Google Play Billing is unavailable in preview." },
-    val restorePurchases: suspend () -> String = { "No Pro purchase found." },
-    val showPrivacyOptions: suspend () -> String = { "Privacy options are unavailable in preview." }
+    val restorePurchases: suspend () -> String = { "No Pro purchase found." }
 ) {
     companion object {
         fun preview(): ProBillingUiActions = ProBillingUiActions()

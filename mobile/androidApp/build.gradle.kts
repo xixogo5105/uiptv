@@ -58,8 +58,8 @@ android {
         minSdk = libs.versions.android.min.sdk.get().toInt()
         targetSdk = libs.versions.android.target.sdk.get().toInt()
         val buildNumber = nextBuildNumber()
-        versionCode = 10103
-        versionName = "1.1.3"
+        versionCode = 10104
+        versionName = "1.1.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
         buildConfigField("String", "PRO_PRODUCT_ID", "\"uiptv_pro_lifetime\"")
@@ -85,26 +85,8 @@ android {
             if (providers.gradleProperty("uiptv.isolatedTestApp").orNull == "true") {
                 applicationIdSuffix = ".epgtest"
             }
-            // Google's official test App ID and Interstitial Ad Unit ID prevent invalid-traffic bans during testing.
-            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
-            buildConfigField("String", "ADMOB_INTERSTITIAL_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
-            buildConfigField("int", "AD_COOLDOWN_MINUTES", "60")
         }
         getByName("release") {
-            val useTestAds = providers.gradleProperty("uiptv.useTestAds")
-                .orNull
-                ?.toBooleanStrictOrNull() == true
-            manifestPlaceholders["admobAppId"] = if (useTestAds) {
-                "ca-app-pub-3940256099942544~3347511713"
-            } else {
-                "ca-app-pub-8756147848785001~7816014408"
-            }
-            buildConfigField(
-                "String",
-                "ADMOB_INTERSTITIAL_AD_UNIT_ID",
-                if (useTestAds) "\"ca-app-pub-3940256099942544/1033173712\"" else "\"ca-app-pub-8756147848785001/7876930408\""
-            )
-            buildConfigField("int", "AD_COOLDOWN_MINUTES", "60")
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
@@ -141,8 +123,6 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.okhttp)
-    implementation(libs.play.services.ads)
-    implementation(libs.play.services.ump)
     implementation(libs.billing.ktx)
     implementation(files(api24LibmpvAar))
     testImplementation(libs.junit)

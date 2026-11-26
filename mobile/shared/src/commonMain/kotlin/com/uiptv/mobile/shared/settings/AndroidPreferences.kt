@@ -56,9 +56,7 @@ data class AndroidPreferenceSnapshot(
     val panelVisibilityPreference: PanelVisibilityPreference = PanelVisibilityPreference(),
     val epgEnabled: Boolean = false,
     val firstRunCompleted: Boolean = false,
-    val proUnlocked: Boolean = false,
-    val lastAdShownUtcMillis: Long = 0L,
-    val adCooldownMinutes: Int? = null
+    val proUnlocked: Boolean = false
 )
 
 interface AndroidPreferencesRepository {
@@ -76,14 +74,9 @@ interface AndroidPreferencesRepository {
 
     suspend fun saveEpgEnabled(enabled: Boolean)
 
-
     suspend fun setFirstRunCompleted(completed: Boolean)
 
     suspend fun saveProUnlocked(unlocked: Boolean)
-
-    suspend fun saveLastAdShownUtcMillis(utcMillis: Long)
-
-    suspend fun saveAdCooldownMinutes(minutes: Int?)
 }
 
 object AndroidOnlyPreferenceKeys {
@@ -106,8 +99,6 @@ object AndroidOnlyPreferenceKeys {
     const val EPG_ENABLED = "epg_enabled"
     const val FIRST_RUN_COMPLETED = "first_run_completed"
     const val PRO_UNLOCKED = "pro_unlocked"
-    const val LAST_AD_SHOWN_UTC_MILLIS = "last_ad_shown_utc_millis"
-    const val AD_COOLDOWN_MINUTES = "ad_cooldown_minutes"
 
     val all: Set<String> = setOf(
         REMOTE_HOST,
@@ -128,8 +119,6 @@ object AndroidOnlyPreferenceKeys {
         PANEL_ACCOUNTS_ACTIONS_VISIBLE,
         EPG_ENABLED,
         FIRST_RUN_COMPLETED,
-        PRO_UNLOCKED,
-        LAST_AD_SHOWN_UTC_MILLIS,
-        AD_COOLDOWN_MINUTES
+        PRO_UNLOCKED
     )
 }

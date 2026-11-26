@@ -141,9 +141,7 @@ val mobileMessageKeys = listOf(
     "mobileSettingsProDescription", "mobileProActiveTitle", "mobileProUpgradeTitle", "mobileProActiveBody",
     "mobileProUpgradeBody", "mobileProUpgradePrice", "mobileProUpgradeButton", "mobileProRestoreButton",
     "mobileProRestoreAccessibility", "mobileProBillingUnavailable", "mobileProNotAvailable",
-    "mobileProOpeningPurchase", "mobileProPurchaseFailed", "mobileProRestored", "mobileProNotFound",
-    "mobilePrivacyOptionsTitle", "mobilePrivacyOptionsDescription", "mobilePrivacyOptionsButton",
-    "mobilePrivacyOptionsUpdated", "mobilePrivacyOptionsFailed"
+    "mobileProOpeningPurchase", "mobileProPurchaseFailed", "mobileProRestored", "mobileProNotFound"
 )
 
 val generateUiptvSchemaMirror = tasks.register("generateUiptvSchemaMirror") {
