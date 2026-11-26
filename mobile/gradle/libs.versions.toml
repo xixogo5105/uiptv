@@ -16,6 +16,8 @@ kotlinx-coroutines = "1.11.0"
 kover = "0.9.11"
 media3 = "1.11.1"
 okhttp = "5.5.1"
+play-services-ads = "23.6.0"
+play-services-ump = "4.0.0"
 billing = "7.1.1"
 
 [libraries]
@@ -37,6 +39,8 @@ androidx-media3-exoplayer-dash = { module = "androidx.media3:media3-exoplayer-da
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "play-services-ads" }
+play-services-ump = { module = "com.google.android.ump:user-messaging-platform", version.ref = "play-services-ump" }
 billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "billing" }
 
 [plugins]
