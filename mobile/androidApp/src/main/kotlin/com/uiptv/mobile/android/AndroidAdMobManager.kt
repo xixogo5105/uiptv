@@ -7,7 +7,6 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.ump.ConsentInformation
@@ -114,17 +113,6 @@ class AndroidAdMobManager(
         }
         if (!adsAllowedByConsent) return
         if (sdkInitialized.compareAndSet(false, true)) {
-            val testDeviceIds = BuildConfig.ADMOB_TEST_DEVICE_IDS
-                .split(',')
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-            if (testDeviceIds.isNotEmpty()) {
-                MobileAds.setRequestConfiguration(
-                    RequestConfiguration.Builder()
-                        .setTestDeviceIds(testDeviceIds)
-                        .build()
-                )
-            }
             MobileAds.initialize(appContext) {
                 scope.launch { preloadInterstitial() }
             }

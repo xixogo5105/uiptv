@@ -89,7 +89,6 @@ android {
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("String", "ADMOB_INTERSTITIAL_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
             buildConfigField("int", "AD_COOLDOWN_MINUTES", "30")
-            buildConfigField("String", "ADMOB_TEST_DEVICE_IDS", "\"56E41FE65FFE85D0203676A7F7BAFD41\"")
         }
         getByName("release") {
             val useTestAds = providers.gradleProperty("uiptv.useTestAds")
@@ -106,11 +105,6 @@ android {
                 if (useTestAds) "\"ca-app-pub-3940256099942544/1033173712\"" else "\"ca-app-pub-8756147848785001/7876930408\""
             )
             buildConfigField("int", "AD_COOLDOWN_MINUTES", "30")
-            buildConfigField(
-                "String",
-                "ADMOB_TEST_DEVICE_IDS",
-                if (useTestAds) "\"56E41FE65FFE85D0203676A7F7BAFD41\"" else "\"\""
-            )
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
