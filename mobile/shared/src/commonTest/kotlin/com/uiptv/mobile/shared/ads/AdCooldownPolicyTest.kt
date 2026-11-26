@@ -13,7 +13,7 @@ class AdCooldownPolicyTest {
                 isPro = true,
                 lastAdShownUtcMillis = 0L,
                 nowUtcMillis = 1_700_000_000_000L,
-                cooldownMinutes = 15
+                cooldownMinutes = 30
             )
         )
     }
@@ -25,7 +25,7 @@ class AdCooldownPolicyTest {
                 isPro = false,
                 lastAdShownUtcMillis = 0L,
                 nowUtcMillis = 1_700_000_000_000L,
-                cooldownMinutes = 15
+                cooldownMinutes = 30
             )
         )
     }
@@ -33,59 +33,36 @@ class AdCooldownPolicyTest {
     @Test
     fun blocksAdWithinCooldownWindowAcrossRestarts() {
         val shownAt = 1_700_000_000_000L
-        val fourteenMinutesLater = shownAt + (14L * 60_000L)
+        val twentyNineMinutesLater = shownAt + (29L * 60_000L)
         assertFalse(
             AdCooldownPolicy.shouldShowAd(
                 isPro = false,
                 lastAdShownUtcMillis = shownAt,
-                nowUtcMillis = fourteenMinutesLater,
-                cooldownMinutes = 15
+                nowUtcMillis = twentyNineMinutesLater,
+                cooldownMinutes = 30
             )
         )
         assertEquals(
             60_000L,
-            AdCooldownPolicy.remainingCooldownMillis(shownAt, fourteenMinutesLater, 15)
+            AdCooldownPolicy.remainingCooldownMillis(shownAt, twentyNineMinutesLater, 30)
         )
     }
 
     @Test
-    fun allowsAdOnceCooldownWindowElapses() {
-        val shownAt = 1_700_000_000_000L
-        val fifteenMinutesLater = shownAt + (15L * 60_000L)
-        assertTrue(
-            AdCooldownPolicy.shouldShowAd(
-                isPro = false,
-                lastAdShownUtcMillis = shownAt,
-                nowUtcMillis = fifteenMinutesLater,
-                cooldownMinutes = 15
-            )
-        )
-        assertEquals(
-            0L,
-            AdCooldownPolicy.remainingCooldownMillis(shownAt, fifteenMinutesLater, 15)
-        )
-    }
-
-    @Test
-    fun respectsConfigurableProductionCooldown() {
+    fun allowsAdAtThirtyMinuteBoundary() {
         val shownAt = 1_700_000_000_000L
         val thirtyMinutesLater = shownAt + (30L * 60_000L)
-        val sixtyMinutesLater = shownAt + (60L * 60_000L)
-        assertFalse(
+        assertTrue(
             AdCooldownPolicy.shouldShowAd(
                 isPro = false,
                 lastAdShownUtcMillis = shownAt,
                 nowUtcMillis = thirtyMinutesLater,
-                cooldownMinutes = 60
+                cooldownMinutes = 30
             )
         )
-        assertTrue(
-            AdCooldownPolicy.shouldShowAd(
-                isPro = false,
-                lastAdShownUtcMillis = shownAt,
-                nowUtcMillis = sixtyMinutesLater,
-                cooldownMinutes = 60
-            )
+        assertEquals(
+            0L,
+            AdCooldownPolicy.remainingCooldownMillis(shownAt, thirtyMinutesLater, 30)
         )
     }
 }

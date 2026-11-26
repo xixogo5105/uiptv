@@ -88,17 +88,13 @@ android {
             // Google's official test App ID and Interstitial Ad Unit ID prevent invalid-traffic bans during testing.
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("String", "ADMOB_INTERSTITIAL_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
-            buildConfigField("int", "AD_COOLDOWN_MINUTES", "15")
+            buildConfigField("int", "AD_COOLDOWN_MINUTES", "30")
             buildConfigField("String", "ADMOB_TEST_DEVICE_IDS", "\"56E41FE65FFE85D0203676A7F7BAFD41\"")
         }
         getByName("release") {
             val useTestAds = providers.gradleProperty("uiptv.useTestAds")
                 .orNull
                 ?.toBooleanStrictOrNull() == true
-            val releaseAdCooldownMinutes = providers.gradleProperty("uiptv.adCooldownMinutes")
-                .orNull
-                ?.toIntOrNull()
-                ?: if (useTestAds) 15 else 60
             manifestPlaceholders["admobAppId"] = if (useTestAds) {
                 "ca-app-pub-3940256099942544~3347511713"
             } else {
@@ -109,7 +105,7 @@ android {
                 "ADMOB_INTERSTITIAL_AD_UNIT_ID",
                 if (useTestAds) "\"ca-app-pub-3940256099942544/1033173712\"" else "\"ca-app-pub-8756147848785001/7876930408\""
             )
-            buildConfigField("int", "AD_COOLDOWN_MINUTES", "$releaseAdCooldownMinutes")
+            buildConfigField("int", "AD_COOLDOWN_MINUTES", "30")
             buildConfigField(
                 "String",
                 "ADMOB_TEST_DEVICE_IDS",

@@ -190,7 +190,8 @@ class AndroidAdMobManager(
         onProceed: suspend () -> PlaybackLaunchResult
     ): PlaybackLaunchResult {
         val snapshot = preferences.load()
-        val cooldownMinutes = snapshot.adCooldownMinutes ?: BuildConfig.AD_COOLDOWN_MINUTES
+        // Keep the ad frequency cap identical in debug, test-ads, and production builds.
+        val cooldownMinutes = BuildConfig.AD_COOLDOWN_MINUTES
         val nowUtcMillis = clockMillis()
         if (!AdCooldownPolicy.shouldShowAd(
                 isPro = snapshot.proUnlocked,
