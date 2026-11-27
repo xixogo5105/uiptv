@@ -25,14 +25,14 @@ public final class HttpDesktopSettingsJsonServer implements HttpHandler {
     private static final Set<String> BOOLEAN_FIELDS = Set.of(
             "embeddedPlayer", "wideView", "autoRunServerOnStartup", "httpsServerEnabled",
             "enableThumbnails", "resolveChainAndDeepRedirects", "webPlaybackProxyEnabled",
-            "showBookmarkAndAccountCounts", "epgEnabled");
+            "showBookmarkAndAccountCounts", "epgEnabled", "lightweightModeEnabled");
     private static final Set<String> SUPPORTED_FIELDS = Set.of(
             "playerPath1", "playerPath2", "playerPath3", "defaultPlayerPath",
             "serverPort", "httpsServerPort", "cacheExpiryDays", "uiZoomPercent",
             "languageLocale", "themeMode", "tmdbReadAccessToken", "embeddedPlayer",
             "wideView", "autoRunServerOnStartup", "httpsServerEnabled", "enableThumbnails",
             "resolveChainAndDeepRedirects", "webPlaybackProxyEnabled",
-            "showBookmarkAndAccountCounts", "epgEnabled");
+            "showBookmarkAndAccountCounts", "epgEnabled", "lightweightModeEnabled");
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
@@ -129,6 +129,7 @@ public final class HttpDesktopSettingsJsonServer implements HttpHandler {
         setBoolean(request, "webPlaybackProxyEnabled", configuration::setWebPlaybackProxyEnabled);
         setBoolean(request, "showBookmarkAndAccountCounts", configuration::setShowBookmarkAndAccountCounts);
         setBoolean(request, "epgEnabled", configuration::setEpgEnabled);
+        setBoolean(request, "lightweightModeEnabled", configuration::setLightweightModeEnabled);
     }
 
     private JSONObject buildResponse(Configuration configuration, boolean restartRequired) {
@@ -151,7 +152,9 @@ public final class HttpDesktopSettingsJsonServer implements HttpHandler {
                 .put("resolveChainAndDeepRedirects", configuration.isResolveChainAndDeepRedirects())
                 .put("enableThumbnails", configuration.isEnableThumbnails())
                 .put("showBookmarkAndAccountCounts", configuration.isShowBookmarkAndAccountCounts())
+                .put("pauseFiltering", configuration.isPauseFiltering())
                 .put("epgEnabled", configuration.isEpgEnabled())
+                .put("lightweightModeEnabled", configuration.isLightweightModeEnabled())
                 .put("themeMode", configuration.resolveThemeMode().persistedValue())
                 .put("languageLocale", safe(configuration.getLanguageLocale()))
                 .put("languageOptions", languages)

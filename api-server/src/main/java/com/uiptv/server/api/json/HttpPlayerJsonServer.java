@@ -260,6 +260,10 @@ public class HttpPlayerJsonServer implements HttpHandler {
         PlayerResponse response = resolved.response();
         JSONObject json = new JSONObject();
         json.put("url", response == null ? "" : response.getUrl());
+        if (response != null && response.getAccount() != null
+                && response.getAccount().getAction() != null) {
+            json.put("mode", response.getAccount().getAction().name());
+        }
         putIfNotBlank(json, JSON_KEY_STRATEGY_HINT, determineStrategyHint(response));
         appendChannelJson(json, response);
         appendDrmJson(json, response);

@@ -39,6 +39,47 @@ void main() {
     expect(find.text('Video Players'), findsWidgets);
     expect(find.text('Backup & Restore'), findsWidgets);
     expect(find.text('Internal Web Server'), findsWidgets);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-nav-players')), findsOneWidget);
+  });
+
+  testWidgets('settings sidebar switches to the selected settings section', (
+    tester,
+  ) async {
+    await _pumpScreen(tester, DesktopSettingsScreen(api: _api()));
+
+    await tester.tap(find.byKey(const ValueKey('settings-nav-backup')));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.upload_file), findsOneWidget);
+    expect(find.byType(RadioListTile<String>), findsNothing);
+  });
+
+  testWidgets('settings search filters sections from the all view', (
+    tester,
+  ) async {
+    await _pumpScreen(tester, DesktopSettingsScreen(api: _api()));
+
+    await tester.enterText(find.byType(TextField).first, 'Backup');
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.upload_file), findsOneWidget);
+    expect(find.byType(RadioListTile<String>), findsNothing);
+  });
+
+  testWidgets('settings navigation adapts to a narrow window', (tester) async {
+    tester.view.physicalSize = const Size(640, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpScreen(tester, DesktopSettingsScreen(api: _api()));
+
+    expect(
+      find.byKey(const ValueKey('settings-section-selector')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('logs screen renders app log actions', (tester) async {
@@ -55,6 +96,27 @@ void main() {
     expect(find.text('DESKTOP APP'), findsOneWidget);
     expect(find.text('UIPTV 1.1.5'), findsOneWidget);
     expect(find.text('25 (OpenJDK)'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/icons/uiptv-app.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('about dialog fits a narrow desktop window', (tester) async {
+    tester.view.physicalSize = const Size(640, 480);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pumpScreen(tester, DesktopAboutDialog(api: _api()));
+
+    expect(find.text('DESKTOP APP'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 
@@ -78,6 +140,7 @@ UiptvApiClient _api() {
             request.url.queryParameters['keys']?.split(',') ?? const [];
         final labels = {for (final key in keys) key: key};
         labels.addAll({
+          'autoSettings': 'Settings',
           'autoReloadAccountsCache': 'Reload Accounts Cache',
           'reloadStalkerPortalAccounts': 'Stalker Portal Accounts',
           'autoUiptvLogs': 'UIPTV Logs',

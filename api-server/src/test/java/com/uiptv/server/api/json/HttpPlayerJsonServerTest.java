@@ -78,6 +78,27 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
     }
 
     @Test
+    void playerResponseIncludesSafeAccountActionForPlaybackControls() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        Class<?> resolvedType = Class.forName(
+                "com.uiptv.server.api.json.HttpPlayerJsonServer$ResolvedWebPlayback");
+        var constructor = resolvedType.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        Account account = new Account("vod", "provider-user", "provider-password", "http://provider.test",
+                null, null, null, null, null, null, AccountType.STALKER_PORTAL, null, "", false);
+        account.setAction(Account.AccountAction.vod);
+        PlayerResponse response = new PlayerResponse("http://provider.test/private-stream");
+        response.setAccount(account);
+        Object resolved = constructor.newInstance(response, "", "", List.of());
+
+        String json = invoke(handler, "buildJsonResponse",
+                new Class[]{resolvedType, PlaybackMediaInspector.MediaInfo.class}, resolved, null);
+
+        assertTrue(json.contains("\"mode\":\"vod\""));
+        assertFalse(json.contains("provider-password"));
+    }
+
+    @Test
     void mediaInspectionOnlyRunsForResolvedVodAndSeriesEntries() throws Exception {
         HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
         PlayerResponse response = new PlayerResponse("http://provider/play/movie.php?id=1");

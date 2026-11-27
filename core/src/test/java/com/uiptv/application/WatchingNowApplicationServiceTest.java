@@ -132,6 +132,8 @@ class WatchingNowApplicationServiceTest extends DbBackedTest {
                 account.getDbId(), "cat-9", "series-9", "ep-9", "Episode 9",
                 "2", "9", "cat-db-9", "Series Nine", "poster", List.of(episode)
         ), account);
+        SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                account, "another-category", "series-9", "ep-9", "Episode 9", "2", "9");
 
         SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), "cat-9", "series-9");
         assertNotNull(state);
@@ -140,6 +142,8 @@ class WatchingNowApplicationServiceTest extends DbBackedTest {
 
         service.removeSeries(account.getDbId(), "cat-9", "series-9");
         assertNull(SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), "cat-9", "series-9"));
+        assertNull(SeriesWatchStateService.getInstance().getSeriesLastWatched(
+                account.getDbId(), "another-category", "series-9"));
     }
 
     @Test

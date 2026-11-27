@@ -8,10 +8,18 @@ import 'package:flutter/material.dart';
 import '../api/uiptv_api_client.dart';
 
 class DesktopSettingsScreen extends StatefulWidget {
-  const DesktopSettingsScreen({super.key, required this.api, this.onRestored});
+  const DesktopSettingsScreen({
+    super.key,
+    required this.api,
+    this.onRestored,
+    this.onSettingsSaved,
+    this.initialTab = 'all',
+  });
 
   final UiptvApiClient api;
   final VoidCallback? onRestored;
+  final ValueChanged<Map<String, dynamic>>? onSettingsSaved;
+  final String initialTab;
 
   @override
   State<DesktopSettingsScreen> createState() => _DesktopSettingsScreenState();
@@ -19,6 +27,7 @@ class DesktopSettingsScreen extends StatefulWidget {
 
 class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   static const _translationKeys = [
+    'autoSettings',
     'commonAll',
     'commonSave',
     'commonSearch',
@@ -153,6 +162,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTab = widget.initialTab;
     _initialSettings = _loadSettings();
     _serverStatus = widget.api.internalServerStatus();
     _filterLockStatus = widget.api.filterLockStatus();
@@ -235,117 +245,253 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
 
   Widget _buildSettings(BuildContext context) {
     final sections = <({String id, String title, Widget child})>[];
-    if (_selectedTab == 'all' || _selectedTab == 'players') {
-      sections.add((
+    sections.addAll([
+      (
         id: 'players',
         title: _text('configVideoPlayers', 'Video Players'),
         child: _videoPlayersCard(),
-      ));
-    }
-    if (_selectedTab == 'all' || _selectedTab == 'filters') {
-      sections.add((
+      ),
+      (
         id: 'filters',
         title: _text('configFilters', 'Parental Lock'),
         child: _parentalLockCard(),
-      ));
-    }
-    if (_selectedTab == 'all' || _selectedTab == 'theme') {
-      sections.add((
+      ),
+      (
         id: 'theme',
         title: _text('configDarkTheme', 'Theme'),
         child: _themeCard(),
-      ));
-    }
-    if (_selectedTab == 'all' || _selectedTab == 'backup') {
-      sections.add((
+      ),
+      (
         id: 'backup',
         title: _text('configDatabaseSyncTitle', 'Backup & Restore'),
         child: _backupCard(),
-      ));
-    }
-    if (_selectedTab == 'all' || _selectedTab == 'server') {
-      sections.add((
+      ),
+      (
         id: 'server',
         title: _text('configWebServer', 'Internal Web Server'),
         child: _serverCard(),
-      ));
-    }
-    if (_selectedTab == 'all' || _selectedTab == 'tmdb') {
-      sections.add((
+      ),
+      (
         id: 'tmdb',
         title: _text('configTmdbMetadata', 'TMDB Metadata'),
         child: _tmdbCard(),
-      ));
-    }
-    final query = _searchController.text.trim().toLowerCase();
-    final visible = sections
-        .where((section) => section.title.toLowerCase().contains(query))
-        .toList(growable: false);
+      ),
+    ]);
+    final visibleTabs = _visibleSettingsTabs();
+    final activeTab = _activeSettingsTab(visibleTabs);
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 54,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            scrollDirection: Axis.horizontal,
-            itemCount: _settingsTabs.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 6),
-            itemBuilder: (context, index) {
-              final (id, labelKey) = _settingsTabs[index];
-              final fallback = switch (id) {
-                'all' => 'All',
-                'players' => 'Video Players',
-                'filters' => 'Parental Lock',
-                'theme' => 'Theme',
-                'backup' => 'Backup & Restore',
-                'server' => 'Internal Web Server',
-                'tmdb' => 'TMDB Metadata',
-                _ => labelKey,
-              };
-              return ChoiceChip(
-                label: Text(_text(labelKey, fallback)),
-                selected: _selectedTab == id,
-                onSelected: (_) => setState(() => _selectedTab = id),
-              );
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: _text('commonSearch', 'Search'),
-              prefixIcon: const Icon(Icons.search),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return Column(
+            children: [
+              _compactSettingsNavigation(visibleTabs, activeTab),
+              Expanded(child: _settingsContent(sections, activeTab)),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            SizedBox(
+              width: 210,
+              child: _settingsSidebar(visibleTabs, activeTab),
             ),
-          ),
-        ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (visible.isEmpty) return const SizedBox.shrink();
-              final width = constraints.maxWidth < 480
-                  ? constraints.maxWidth - 24
-                  : 440.0;
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
-                child: Wrap(
-                  spacing: 14,
-                  runSpacing: 14,
-                  children: [
-                    for (final section in visible)
-                      SizedBox(width: width, child: section.child),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+            const VerticalDivider(width: 1, thickness: 1),
+            Expanded(child: _settingsContent(sections, activeTab)),
+          ],
+        );
+      },
     );
   }
+
+  List<({String id, String label})> _visibleSettingsTabs() {
+    final query = _searchController.text.trim().toLowerCase();
+    return _settingsTabs
+        .map((tab) => (id: tab.$1, label: _settingsTabLabel(tab.$1, tab.$2)))
+        .where(
+          (tab) => tab.id == 'all' || tab.label.toLowerCase().contains(query),
+        )
+        .toList(growable: false);
+  }
+
+  String _activeSettingsTab(List<({String id, String label})> visibleTabs) {
+    if (visibleTabs.any((tab) => tab.id == _selectedTab)) return _selectedTab;
+    final firstMatchingTab = visibleTabs.where((tab) => tab.id != 'all');
+    return firstMatchingTab.isEmpty ? 'all' : firstMatchingTab.first.id;
+  }
+
+  String _settingsTabLabel(String id, String labelKey) {
+    final fallback = switch (id) {
+      'all' => 'All',
+      'players' => 'Video Players',
+      'filters' => 'Parental Lock',
+      'theme' => 'Theme',
+      'backup' => 'Backup & Restore',
+      'server' => 'Internal Web Server',
+      'tmdb' => 'TMDB Metadata',
+      _ => labelKey,
+    };
+    return _text(labelKey, fallback);
+  }
+
+  Widget _settingsSidebar(
+    List<({String id, String label})> visibleTabs,
+    String activeTab,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: colors.surfaceContainerLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 14, 12),
+            child: Text(
+              _text('autoSettings', 'Settings'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: _settingsSearchField(),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              children: [
+                for (final tab in visibleTabs)
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      key: ValueKey('settings-nav-${tab.id}'),
+                      dense: true,
+                      minTileHeight: 40,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
+                      selected: activeTab == tab.id,
+                      selectedTileColor: colors.primaryContainer,
+                      selectedColor: colors.onPrimaryContainer,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      leading: Icon(_settingsTabIcon(tab.id), size: 18),
+                      title: Text(
+                        tab.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      onTap: () => setState(() => _selectedTab = tab.id),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _compactSettingsNavigation(
+    List<({String id, String label})> visibleTabs,
+    String activeTab,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _text('autoSettings', 'Settings'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            key: const ValueKey('settings-section-selector'),
+            initialValue: activeTab,
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            items: [
+              for (final tab in visibleTabs)
+                DropdownMenuItem(value: tab.id, child: Text(tab.label)),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedTab = value);
+            },
+          ),
+          const SizedBox(height: 8),
+          _settingsSearchField(),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingsSearchField() {
+    return TextField(
+      controller: _searchController,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: _text('commonSearch', 'Search'),
+        prefixIcon: const Icon(Icons.search),
+      ),
+    );
+  }
+
+  Widget _settingsContent(
+    List<({String id, String title, Widget child})> sections,
+    String activeTab,
+  ) {
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleSections = sections
+        .where((section) {
+          if (activeTab != 'all') return section.id == activeTab;
+          return query.isEmpty || section.title.toLowerCase().contains(query);
+        })
+        .toList(growable: false);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (activeTab == 'all') {
+          final width = (constraints.maxWidth - 36).clamp(1.0, 460.0);
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(18),
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: [
+                for (final section in visibleSections)
+                  SizedBox(width: width, child: section.child),
+              ],
+            ),
+          );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: (constraints.maxWidth - 40).clamp(1.0, 960.0),
+              child: visibleSections.isEmpty
+                  ? const SizedBox.shrink()
+                  : visibleSections.first.child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _settingsTabIcon(String id) => switch (id) {
+    'all' => Icons.tune,
+    'players' => Icons.play_circle_outline,
+    'filters' => Icons.lock_outline,
+    'theme' => Icons.palette_outlined,
+    'backup' => Icons.backup_outlined,
+    'server' => Icons.dns_outlined,
+    'tmdb' => Icons.movie_outlined,
+    _ => Icons.settings_outlined,
+  };
 
   Widget _videoPlayersCard() {
     return _card('configVideoPlayers', 'Video Players', [
@@ -1330,6 +1476,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
         _cacheExpiryController.text = '${saved['cacheExpiryDays'] ?? 30}';
         _serverStatus = widget.api.internalServerStatus();
       });
+      widget.onSettingsSaved?.call(saved);
       if (showFeedback) _showMessage(_text('commonSave', 'Saved'));
       return saved;
     } catch (error) {
@@ -1353,6 +1500,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
         _filterSettings = widget.api.filterLockFilters();
         _filterSettingsInitialized = false;
       });
+      widget.onSettingsSaved?.call(settings);
     } catch (error) {
       if (mounted) _showMessage(error.toString());
     }

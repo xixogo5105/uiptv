@@ -14,11 +14,14 @@ import com.uiptv.application.WatchingNowSeriesRow;
 import com.uiptv.application.WatchingNowVodRow;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
+import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.AccountResolver;
+import com.uiptv.service.CategoryCacheRemovalService;
 import com.uiptv.util.I18n;
+import com.uiptv.util.AccountType;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -31,6 +34,11 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.ServerUtils.writeJsonResponse;
 
 public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
+    private static final Set<String> ACCOUNT_EDIT_FIELDS = Set.of(
+            "accountName", "type", "username", "password", "url", "macAddress", "macAddressList",
+            "serialNumber", "deviceId1", "deviceId2", "signature", "epg", "m3u8Path", "httpMethod",
+            "timezone", "pinToTop", "cacheEnabled", "resolveChainAndDeepRedirects", "webPlaybackProxy",
+            "parentalLock");
     private static final Set<String> DESKTOP_TRANSLATION_KEYS = Set.of(
             "bookmarkRecent", "autoFavoritesEmptyDetail", "autoRecentItemsEmptyDetail",
             "autoManageCategories", "autoCategoryName", "autoAdd", "autoRemove", "autoManage",
@@ -41,17 +49,44 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             "autoGroupAccountsByUsernamePassword", "autoGroupConvertedM3UAccountsByUrl",
             "autoWherePossibleConvertM3UToXtreme", "autoStartVerificationAfterParsing", "parseAndSave",
             "parseMultipleAccountsInputHint", "autoInputCannotBeEmpty", "autoErrorParsingOrSavingAccounts",
+            "autoAnErrorOccurredDuringPlayback",
             "autoSeasonNumber",
             "autoAccountsParsedAndSaved", "autoUiptvLogs", "autoCopy", "autoWebLogs", "autoDetach",
+            "autoAccount", "autoNewAccount", "autoEditManageAccount", "autoDeleteAccount",
+            "autoTvChannels", "autoChannels", "autoVod", "autoSeries", "autoBack", "autoCategories",
+            "autoNothingFoundFor", "manageAccountNameMustBeUniquePrompt",
+            "autoManageMACAddresses", "autoAddMACAddressEsCommaSeparated",
+            "autoSortDefault", "autoSortDefaultCompact", "autoSortNameAscending",
+            "autoSortNameAscendingCompact", "autoSortNameDescending", "autoSortNameDescendingCompact",
+            "manageUserNamePrompt", "managePasswordPrompt", "manageUrlPrompt", "manageEpgPrompt",
+            "managePrimaryMacAddressHint", "manageMacAddressListPrompt", "manageSerialNumberPrompt",
+            "manageDeviceId1Prompt", "manageDeviceId2Prompt", "manageSignaturePrompt",
+            "manageM3u8FilePathUrlPrompt", "manageHttpMethodPrompt", "manageTimezonePrompt",
+            "manageAccountDisableCaching", "manageResolveChainAndDeepRedirects", "manageWebPlaybackProxy",
             "autoAttach", "autoLogsDetachedInASeparateWindow", "autoAboutUIPTV", "autoAboutUiptvTitle",
             "autoAboutUiptvTagline", "autoAboutUiptvOverview", "autoAboutUiptvWebSync",
             "autoAboutUiptvReleaseNotes", "autoAuthorXixogo5105", "autoAboutUiptvRuntime",
             "autoAboutUiptvPlatform", "autoAboutUiptvPoweredBy", "autoCopyright2024Xixogo5105",
             "autoHttpsGithubComXixogo5105Uiptv", "autoHelp", "autoClose", "autoCheckForUpdates",
+            "autoYouAreCurrentlyOnTheLatestVersion", "autoUpdateCheckFailed",
+            "autoUpdateAvailablePrompt", "autoUiptvVersion", "autoOk",
+            "autoEpisodeNumber", "autoEpisodes", "autoViewEpisodes", "autoReloadFromServer",
+            "autoRatingPrefix", "autoGenrePrefix", "autoReleasePrefix", "autoWatchingNow",
+            "autoRemoveFromWatchingNowConfirm",
+            "autoSettings", "autoLogs", "autoAbout", "autoCheckForUpdates2", "autoStayOnTop",
+            "autoEnablePlainTextMode", "autoDisablePlainTextMode", "autoEnableDarkTheme",
+            "autoDisableDarkTheme", "autoUseSystemTheme", "epgEnableMode", "epgDisableMode",
+            "autoParentalLockAccessEnabled", "autoParentalLockAccessDisabled",
+            "configLightweightModeSwitchTitle", "configLightweightModeSwitchConfirm",
+            "filterLockUnlockTitle",
             "configVideoPlayers", "configFilters", "configDarkTheme", "configDatabaseSyncTitle",
             "configWebServer", "configTmdbMetadata", "configAddPlayerPathsHint", "configWideView",
             "configResolveChainAndDeepRedirects", "configEnableThumbnails",
             "configShowBookmarkAndAccountCounts", "configLanguage", "configCacheExpiresInDays",
+            "configDatabaseRestoreSummary", "configDatabaseSyncInProgress",
+            "configExportDatabaseFailed", "configExportDatabaseSuccess",
+            "configImportDatabaseFailed", "configImportDatabaseSuccess",
+            "configRestoreBackupConfirm",
             "configServerPortPrompt", "configHttpsServerPortPrompt", "configAutoRunServerOnStartup",
             "configEnableHttpsServer", "configWebPlaybackProxyEnabled", "configTmdbReadAccessToken",
             "configStartServer", "configStopServer", "configTmdbApiGuideLink", "configTmdbApiKeyPageLink",
@@ -61,6 +96,14 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             "configTmdbReadAccessTokenPrompt", "configDatabaseSyncDescription", "configExportDatabase",
             "configImportDatabase", "filterLockStateToggleLabel", "filterLockStateLocked",
             "filterLockStateUnlocked", "filterLockStateNotSet", "configFiltersHelpText",
+            "filterLockSetPasswordAction", "filterLockSetPasswordTitle",
+            "filterLockStatusLocked", "filterLockStatusNotSet", "filterLockStatusUnlocked",
+            "filterLockUnlockAction",
+            "autoFit", "playerScaleCrop", "playerScaleStretch", "commonError", "autoAudioTracksSection",
+            "autoNoAudioTracks", "autoNoOptions", "commonDisabled", "autoPlay",
+            "epgNow", "epgNext", "epgNoGuide", "epgOpenGuide",
+            "playerPreviousItem", "playerNextItem",
+            "autoHideThisBar", "autoReloadCache", "autoPinAccountOnTop",
             "configDefaultWebBrowserPlayer", "filterLockChangePasswordAction",
             "filterLockLockNowAction", "filterLockDisablePasswordAction",
             "filterLockDisablePasswordPrompt", "filterLockNewPasswordPrompt",
@@ -109,6 +152,7 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             case "/api/v1/accounts/import" -> handleBulkAccountImport(exchange);
             case "/api/v1/about" -> handleAbout(exchange);
             case "/api/v1/logs" -> handleLogs(exchange);
+            case "/api/v1/categories/remove" -> handleRemoveCachedCategories(exchange);
             case "/api/v1/categories" -> handleCategories(exchange);
             case "/api/v1/channels" -> handleChannels(exchange);
             case "/api/v1/series/episodes" -> seriesEpisodes.handle(exchange);
@@ -116,6 +160,7 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             case "/api/v1/vod/details" -> vodDetails.handle(exchange);
             case "/api/v1/watching-now" -> handleWatchingNow(exchange);
             case "/api/v1/watching-now/episodes" -> handleWatchingNowEpisodes(exchange);
+            case "/api/v1/watching-now/details" -> handleWatchingNowDetails(exchange);
             case "/api/v1/epg/live" -> liveGuide.handle(exchange);
             case "/api/v1/epg/player" -> playerEpg.handle(exchange);
             case "/api/v1/player" -> player.handle(exchange);
@@ -131,7 +176,9 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             case "/api/v1/backups/current" -> backup.handle(exchange);
             case "/api/v1/cache-reloads" -> cacheReload.handle(exchange);
             default -> {
-                if (path.startsWith("/api/v1/cache-reloads/")) {
+                if (path.startsWith("/api/v1/accounts/")) {
+                    handleAccount(exchange, path.substring("/api/v1/accounts/".length()));
+                } else if (path.startsWith("/api/v1/cache-reloads/")) {
                     cacheReload.handle(exchange);
                 } else {
                     writeJsonResponse(exchange, 404, "{\"error\":\"Unknown desktop API endpoint\"}");
@@ -553,7 +600,13 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
     }
 
     private void handleWatchingNow(HttpExchange exchange) throws IOException {
-        if (!requireGet(exchange)) {
+        if ("DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
+            handleRemoveWatchingNow(exchange);
+            return;
+        }
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.getResponseHeaders().set("Allow", "GET,DELETE");
+            writeJsonResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
             return;
         }
         Integer offset = parseNonNegativeInt(getParam(exchange, "offset"), 0);
@@ -623,21 +676,288 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
                 .toString());
     }
 
+    private void handleRemoveWatchingNow(HttpExchange exchange) throws IOException {
+        String playbackId = getParam(exchange, "playbackId");
+        if (playbackId == null || playbackId.isBlank()) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"playbackId is required\"}");
+            return;
+        }
+        DesktopWatchingNowPlaybackStore.Selection selection =
+                DesktopWatchingNowPlaybackStore.getInstance().resolve(playbackId);
+        if (selection == null) {
+            writeJsonResponse(exchange, 404, "{\"error\":\"Watching item not found or expired\"}");
+            return;
+        }
+        if ("series".equals(selection.mode())) {
+            WatchingNowApplicationService.getInstance().removeSeries(
+                    selection.accountId(), selection.categoryId(), selection.seriesId());
+        } else if ("vod".equals(selection.mode()) && selection.channel() != null
+                && selection.channel().getChannelId() != null
+                && !selection.channel().getChannelId().isBlank()) {
+            WatchingNowApplicationService.getInstance().removeVod(
+                    selection.accountId(), selection.categoryId(), selection.channel().getChannelId());
+        } else {
+            writeJsonResponse(exchange, 404, "{\"error\":\"Watching item not found or expired\"}");
+            return;
+        }
+        writeJsonResponse(exchange, 200, "{\"status\":\"ok\"}");
+    }
+
+    private void handleWatchingNowDetails(HttpExchange exchange) throws IOException {
+        if (!requireGet(exchange)) {
+            return;
+        }
+        String playbackId = getParam(exchange, "playbackId");
+        DesktopWatchingNowPlaybackStore.Selection series =
+                DesktopWatchingNowPlaybackStore.getInstance().resolve(playbackId);
+        if (series == null || !"series".equals(series.mode())) {
+            writeJsonResponse(exchange, 404, "{\"error\":\"Watching series not found or expired\"}");
+            return;
+        }
+
+        try {
+            var details = CatalogApplicationService.getInstance().getSeriesDetails(
+                    new com.uiptv.application.CatalogSeriesDetailsQuery(
+                            series.accountId(), series.categoryId(), series.seriesId(), series.seriesTitle()));
+            JSONObject info = details.seasonInfo() == null ? new JSONObject() : details.seasonInfo();
+            String name = info.optString("name", "").trim();
+            String poster = info.optString("cover", "").trim();
+            JSONObject response = new JSONObject()
+                    .put("name", name.isEmpty() ? series.seriesTitle() : name)
+                    .put("poster", poster.isEmpty() ? series.seriesPoster() : poster)
+                    .put("plot", info.optString("plot", ""))
+                    .put("rating", info.optString("rating", ""))
+                    .put("genre", info.optString("genre", ""))
+                    .put("releaseDate", info.optString("releaseDate", ""))
+                    .put("episodesCount", details.episodes() == null ? 0 : details.episodes().length());
+            generateJsonResponse(exchange, response.toString());
+        } catch (RuntimeException error) {
+            com.uiptv.util.AppLog.addErrorLog(HttpDesktopApiV1GatewayServer.class,
+                    "Watching series details failed (" + error.getClass().getSimpleName() + ")");
+            writeJsonResponse(exchange, 502, "{\"error\":\"Unable to load series details\"}");
+        }
+    }
+
     private void handleAccounts(HttpExchange exchange) throws IOException {
-        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+        String method = exchange.getRequestMethod();
+        if ("GET".equalsIgnoreCase(method)) {
+            JSONArray response = new JSONArray();
+            for (AccountResolver.AccountRow account : AccountApplicationService.getInstance().listAccounts()) {
+                response.put(DesktopApiV1Dtos.accountSummary(account));
+            }
+            writeJsonResponse(exchange, 200, response.toString());
+            return;
+        }
+        if (!"POST".equalsIgnoreCase(method)) {
+            exchange.getResponseHeaders().set("Allow", "GET,POST");
             writeJsonResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
             return;
         }
-        JSONArray response = new JSONArray();
-        for (AccountResolver.AccountRow account : AccountApplicationService.getInstance().listAccounts()) {
-            JSONObject item = new JSONObject();
-            item.put("dbId", account.getDbId());
-            item.put("accountName", account.getAccountName());
-            item.put("type", account.getType() == null ? "" : account.getType());
-            item.put("pinToTop", account.isPinToTop());
-            item.put("webPlaybackProxy", account.isWebPlaybackProxy());
-            response.put(item);
+        JSONObject body = readAccountBody(exchange);
+        if (body == null) {
+            return;
         }
-        writeJsonResponse(exchange, 200, response.toString());
+        if (!ACCOUNT_EDIT_FIELDS.containsAll(body.keySet())) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"Unsupported account field\"}");
+            return;
+        }
+        try {
+            Account account = new Account();
+            applyAccountFields(account, body);
+            AccountService.getInstance().save(account);
+            Account savedAccount = AccountService.getInstance().getByName(account.getAccountName());
+            if (savedAccount == null) {
+                throw new IllegalStateException("Saved account could not be reloaded");
+            }
+            writeJsonResponse(exchange, 201, DesktopApiV1Dtos.accountDetails(savedAccount).toString());
+        } catch (IllegalArgumentException error) {
+            writeJsonResponse(exchange, 400, new JSONObject().put("error", error.getMessage()).toString());
+        } catch (Exception error) {
+            com.uiptv.util.AppLog.addErrorLog(HttpDesktopApiV1GatewayServer.class,
+                    "Desktop account creation failed (" + error.getClass().getSimpleName() + ")");
+            writeJsonResponse(exchange, 422, "{\"error\":\"Unable to create account\"}");
+        }
+    }
+
+    private JSONObject readAccountBody(HttpExchange exchange) throws IOException {
+        try {
+            return new JSONObject(com.uiptv.util.ServerUtils.readRequestBodyText(exchange));
+        } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException _) {
+            writeJsonResponse(exchange, 413, "{\"error\":\"Request body is too large\"}");
+        } catch (org.json.JSONException _) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"A valid JSON request body is required\"}");
+        }
+        return null;
+    }
+
+    private void applyAccountFields(Account account, JSONObject body) {
+        String accountName = accountString(body, "accountName", account.getAccountName()).trim();
+        String type = accountString(body, "type", account.getType() == null ? "" : account.getType().name())
+                .trim();
+        if (accountName.isBlank() || type.isBlank()) {
+            throw new IllegalArgumentException("accountName and type are required");
+        }
+        account.setAccountName(accountName);
+        account.setType(AccountType.valueOf(type));
+        account.setUsername(accountString(body, "username", account.getUsername()));
+        account.setPassword(accountString(body, "password", account.getPassword()));
+        account.setUrl(accountString(body, "url", account.getUrl()));
+        account.setMacAddress(accountString(body, "macAddress", account.getMacAddress()));
+        account.setMacAddressList(accountString(body, "macAddressList", account.getMacAddressList()));
+        account.setSerialNumber(accountString(body, "serialNumber", account.getSerialNumber()));
+        account.setDeviceId1(accountString(body, "deviceId1", account.getDeviceId1()));
+        account.setDeviceId2(accountString(body, "deviceId2", account.getDeviceId2()));
+        account.setSignature(accountString(body, "signature", account.getSignature()));
+        account.setEpg(accountString(body, "epg", account.getEpg()));
+        account.setM3u8Path(accountString(body, "m3u8Path", account.getM3u8Path()));
+        account.setHttpMethod(accountString(body, "httpMethod", account.getHttpMethod()));
+        account.setTimezone(accountString(body, "timezone", account.getTimezone()));
+        account.setPinToTop(accountBoolean(body, "pinToTop", account.isPinToTop()));
+        account.setCacheEnabled(accountBoolean(body, "cacheEnabled", account.isCacheEnabled()));
+        account.setResolveChainAndDeepRedirects(
+                accountBoolean(body, "resolveChainAndDeepRedirects", account.isResolveChainAndDeepRedirects()));
+        account.setWebPlaybackProxy(accountBoolean(body, "webPlaybackProxy", account.isWebPlaybackProxy()));
+        account.setParentalLock(accountBoolean(body, "parentalLock", account.isParentalLock()));
+    }
+
+    private void handleRemoveCachedCategories(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.getResponseHeaders().set("Allow", "POST");
+            writeJsonResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+            return;
+        }
+        JSONObject body;
+        try {
+            body = new JSONObject(com.uiptv.util.ServerUtils.readRequestBodyText(exchange));
+        } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException _) {
+            writeJsonResponse(exchange, 413, "{\"error\":\"Request body is too large\"}");
+            return;
+        } catch (org.json.JSONException _) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"A valid JSON request body is required\"}");
+            return;
+        }
+        if (!Set.of("accountId", "mode", "categoryIds").containsAll(body.keySet())) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"Unsupported category removal field\"}");
+            return;
+        }
+        String accountId = body.optString("accountId", "").trim();
+        String modeValue = body.optString("mode", "itv").trim();
+        JSONArray categoryIds = body.optJSONArray("categoryIds");
+        if (accountId.isBlank() || categoryIds == null || categoryIds.length() == 0) {
+            writeJsonResponse(exchange, 400,
+                    "{\"error\":\"accountId and at least one category ID are required\"}");
+            return;
+        }
+        Account account = AccountService.getInstance().getById(accountId);
+        if (account == null) {
+            writeJsonResponse(exchange, 404, "{\"error\":\"Account not found\"}");
+            return;
+        }
+        try {
+            Account.AccountAction mode = Account.AccountAction.valueOf(modeValue);
+            List<String> ids = new java.util.ArrayList<>();
+            for (int i = 0; i < categoryIds.length(); i++) {
+                Object value = categoryIds.get(i);
+                if (!(value instanceof String categoryId) || categoryId.isBlank()) {
+                    throw new IllegalArgumentException("Category IDs must be non-empty strings");
+                }
+                if ("all".equalsIgnoreCase(categoryId.trim())) {
+                    throw new IllegalArgumentException("The All category cannot be removed");
+                }
+                ids.add(categoryId);
+            }
+            account.setAction(mode);
+            com.uiptv.service.CategoryCacheRemovalResult result =
+                    CategoryCacheRemovalService.getInstance().removeCachedCategories(account, ids);
+            writeJsonResponse(exchange, 200, new JSONObject()
+                    .put("mode", result.mode().name())
+                    .put("requestedCategoryCount", result.requestedCategoryCount())
+                    .put("removedCategoryCount", result.removedCategoryCount())
+                    .put("removedItemCount", result.removedItemCount())
+                    .toString());
+        } catch (IllegalArgumentException error) {
+            writeJsonResponse(exchange, 400, new JSONObject().put("error", error.getMessage()).toString());
+        } catch (Exception error) {
+            com.uiptv.util.AppLog.addErrorLog(HttpDesktopApiV1GatewayServer.class,
+                    "Desktop category cache removal failed (" + error.getClass().getSimpleName() + ")");
+            writeJsonResponse(exchange, 422, "{\"error\":\"Unable to remove cached categories\"}");
+        }
+    }
+
+    private void handleAccount(HttpExchange exchange, String accountId) throws IOException {
+        if (accountId.isBlank() || accountId.contains("/")) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"A valid account ID is required\"}");
+            return;
+        }
+        Account account = AccountService.getInstance().getById(accountId);
+        if (account == null) {
+            writeJsonResponse(exchange, 404, "{\"error\":\"Account not found\"}");
+            return;
+        }
+
+        String method = exchange.getRequestMethod();
+        if ("GET".equalsIgnoreCase(method)) {
+            generateJsonResponse(exchange, DesktopApiV1Dtos.accountDetails(account).toString());
+            return;
+        }
+        if ("DELETE".equalsIgnoreCase(method)) {
+            AccountService.getInstance().delete(accountId);
+            writeJsonResponse(exchange, 200, "{\"status\":\"deleted\"}");
+            return;
+        }
+        if (!"PUT".equalsIgnoreCase(method)) {
+            exchange.getResponseHeaders().set("Allow", "GET,PUT,DELETE");
+            writeJsonResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+            return;
+        }
+
+        JSONObject body = readAccountBody(exchange);
+        if (body == null) {
+            return;
+        }
+        if (!ACCOUNT_EDIT_FIELDS.containsAll(body.keySet())) {
+            writeJsonResponse(exchange, 400, "{\"error\":\"Unsupported account field\"}");
+            return;
+        }
+        try {
+            applyAccountFields(account, body);
+            AccountService.getInstance().save(account);
+            Account savedAccount = AccountService.getInstance().getByName(account.getAccountName());
+            if (savedAccount == null) {
+                throw new IllegalStateException("Saved account could not be reloaded");
+            }
+            writeJsonResponse(exchange, 200, DesktopApiV1Dtos.accountDetails(savedAccount).toString());
+        } catch (IllegalArgumentException error) {
+            writeJsonResponse(exchange, 400, new JSONObject().put("error", error.getMessage()).toString());
+        } catch (Exception error) {
+            com.uiptv.util.AppLog.addErrorLog(HttpDesktopApiV1GatewayServer.class,
+                    "Desktop account update failed (" + error.getClass().getSimpleName() + ")");
+            writeJsonResponse(exchange, 422, "{\"error\":\"Unable to save account changes\"}");
+        }
+    }
+
+    private String accountString(JSONObject body, String key, String fallback) {
+        if (!body.has(key)) {
+            return fallback == null ? "" : fallback;
+        }
+        Object value = body.opt(key);
+        if (value == JSONObject.NULL) {
+            return "";
+        }
+        if (value instanceof String text) {
+            return text;
+        }
+        throw new IllegalArgumentException(key + " must be a string");
+    }
+
+    private boolean accountBoolean(JSONObject body, String key, boolean fallback) {
+        if (!body.has(key)) {
+            return fallback;
+        }
+        Object value = body.opt(key);
+        if (value instanceof Boolean result) {
+            return result;
+        }
+        throw new IllegalArgumentException(key + " must be a boolean");
     }
 }

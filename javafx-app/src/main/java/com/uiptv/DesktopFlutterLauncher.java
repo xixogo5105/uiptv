@@ -1,6 +1,9 @@
 package com.uiptv;
 
+import com.uiptv.model.Configuration;
 import com.uiptv.server.UIptvServer;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.util.I18n;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,6 +21,7 @@ public final class DesktopFlutterLauncher {
                 Path.of(System.getProperty("user.dir")),
                 System.getenv("UIPTV_FLUTTER_PROJECT")
         );
+        initializeI18n(ConfigurationService.getInstance().read());
         UIptvServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(UIptvServer::stop));
 
@@ -50,6 +54,10 @@ public final class DesktopFlutterLauncher {
             }
             UIptvServer.stop();
         }
+    }
+
+    static void initializeI18n(Configuration configuration) {
+        I18n.initialize(configuration == null ? null : configuration.getLanguageLocale());
     }
 
     static Path resolveFlutterProjectDirectory(Path workingDirectory, String configuredPath) throws IOException {

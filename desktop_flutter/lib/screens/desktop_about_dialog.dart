@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../api/uiptv_api_client.dart';
+import 'desktop_update_available_dialog.dart';
 
 class DesktopAboutDialog extends StatefulWidget {
   const DesktopAboutDialog({super.key, required this.api});
@@ -31,10 +32,16 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
     'autoHelp',
     'autoClose',
     'autoCheckForUpdates',
+    'autoUpdateAvailablePrompt',
+    'autoOk',
+    'autoUiptvVersion',
+    'autoYouAreCurrentlyOnTheLatestVersion',
+    'autoUpdateCheckFailed',
   ];
 
   late Future<Map<String, dynamic>> _about;
   late Future<Map<String, String>> _translations;
+  bool _checkingUpdate = false;
 
   @override
   void initState() {
@@ -106,14 +113,13 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
 
   Widget _aboutCard(Map<String, dynamic> about, Map<String, String> labels) {
     final screenSize = MediaQuery.sizeOf(context);
-    final dialogWidth = (screenSize.width * 0.9).clamp(280.0, 720.0).toDouble();
-    final dialogHeight = (screenSize.height * 0.86)
-        .clamp(360.0, 760.0)
+    final dialogWidth = (screenSize.width - 80).clamp(280.0, 720.0).toDouble();
+    final dialogHeight = (screenSize.height - 100)
+        .clamp(320.0, 561.0)
         .toDouble();
     final version = about['version'] as String? ?? 'N/A';
     final projectUrl = about['projectUrl'] as String? ?? '';
     final helpUrl = about['helpUrl'] as String? ?? '';
-    final releaseUrl = about['releaseUrl'] as String? ?? '';
     return Dialog(
       child: SizedBox(
         width: dialogWidth,
@@ -135,7 +141,27 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.live_tv, size: 62),
+                    Container(
+                      width: 82,
+                      height: 82,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
+                      child: Image.asset(
+                        'assets/icons/uiptv-app.png',
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -173,15 +199,21 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Text(labels['autoAuthorXixogo5105'] ?? ''),
-                      Text(
-                        _format(
-                          labels['autoAboutUiptvPlatform'] ?? '{0} ({1})',
-                          [
-                            about['osName'] as String? ?? 'N/A',
-                            about['osArch'] as String? ?? 'N/A',
-                          ],
-                        ),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 4,
+                        children: [
+                          Text(labels['autoAuthorXixogo5105'] ?? ''),
+                          Text(
+                            _format(
+                              labels['autoAboutUiptvPlatform'] ?? '{0} ({1})',
+                              [
+                                about['osName'] as String? ?? 'N/A',
+                                about['osArch'] as String? ?? 'N/A',
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
                         _format(
@@ -194,13 +226,20 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(labels['autoAboutUiptvPoweredBy'] ?? ''),
-                      _linkButton(
-                        labels['autoHttpsGithubComXixogo5105Uiptv'] ??
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(labels['autoAboutUiptvPoweredBy'] ?? ''),
+                          _linkButton(
+                            labels['autoHttpsGithubComXixogo5105Uiptv'] ??
+                                projectUrl,
                             projectUrl,
-                        projectUrl,
+                          ),
+                          _linkButton(labels['autoHelp'] ?? 'Help', helpUrl),
+                        ],
                       ),
-                      _linkButton(labels['autoHelp'] ?? 'Help', helpUrl),
                       const SizedBox(height: 8),
                       Text(labels['autoCopyright2024Xixogo5105'] ?? ''),
                     ],
@@ -217,10 +256,19 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: () => _openUrl(releaseUrl),
-                    child: Text(
-                      labels['autoCheckForUpdates'] ?? 'Check for Updates',
-                    ),
+                    onPressed: _checkingUpdate
+                        ? null
+                        : () => _checkForUpdates(about, labels),
+                    child: _checkingUpdate
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            labels['autoCheckForUpdates'] ??
+                                'Check for Updates',
+                          ),
                   ),
                 ],
               ),
@@ -229,6 +277,46 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _checkForUpdates(
+    Map<String, dynamic> about,
+    Map<String, String> labels,
+  ) async {
+    setState(() => _checkingUpdate = true);
+    try {
+      final update = await widget.api.checkForUpdates(
+        currentVersion: about['version'] as String? ?? '0',
+      );
+      if (!mounted) return;
+      if (!update.isAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              labels['autoYouAreCurrentlyOnTheLatestVersion'] ??
+                  'You are currently on the latest version.',
+            ),
+          ),
+        );
+        return;
+      }
+      final download = await showDesktopUpdateAvailableDialog(
+        context: context,
+        update: update,
+        labels: labels,
+      );
+      if (download == true && mounted) await _openUrl(update.url);
+    } catch (error) {
+      if (!mounted) return;
+      final message =
+          (labels['autoUpdateCheckFailed'] ??
+                  'Failed to check for updates: {0}')
+              .replaceAll('{0}', error.toString());
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 
   Widget _descriptionCard(String overview, String webSync, String release) {
@@ -250,10 +338,7 @@ class _DesktopAboutDialogState extends State<DesktopAboutDialog> {
   }
 
   Widget _linkButton(String label, String url) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: TextButton(onPressed: () => _openUrl(url), child: Text(label)),
-    );
+    return TextButton(onPressed: () => _openUrl(url), child: Text(label));
   }
 
   String _format(String template, List<String> values) {

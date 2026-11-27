@@ -1,5 +1,8 @@
 package com.uiptv;
 
+import com.uiptv.model.Configuration;
+import com.uiptv.util.I18n;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -13,6 +16,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class DesktopFlutterLauncherTest {
     @TempDir
     Path tempDirectory;
+
+    @AfterEach
+    void restoreDefaultLocale() {
+        I18n.setLocale(I18n.DEFAULT_LANGUAGE_TAG);
+    }
+
+    @Test
+    void initializesFlutterTranslationLocaleFromConfiguration() {
+        Configuration configuration = new Configuration();
+        configuration.setLanguageLocale("es-ES");
+
+        DesktopFlutterLauncher.initializeI18n(configuration);
+
+        assertEquals("es-ES", I18n.getCurrentLanguageTag());
+        assertEquals("Configuración", I18n.tr("autoSettings"));
+    }
 
     @Test
     void locatesFlutterProjectFromRepositoryRoot() throws IOException {

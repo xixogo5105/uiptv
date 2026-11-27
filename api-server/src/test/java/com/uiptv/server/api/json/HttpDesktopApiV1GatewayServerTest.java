@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountInfo;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Category;
@@ -17,6 +18,7 @@ import com.uiptv.db.ChannelDb;
 import com.uiptv.db.SeriesWatchingNowSnapshotDb;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.testsupport.DbBackedTest;
@@ -72,6 +74,180 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
         assertFalse(body.contains("provider-password"));
         assertFalse(body.contains("provider-token"));
         assertFalse(body.contains("http://provider.test"));
+    }
+
+    @Test
+    void accountSummaryIncludesJavaFxCardDisplayDataWithoutProviderSecrets() throws Exception {
+        Account account = new Account(
+                "display-account", "user", "provider-password", "http://provider.test",
+                "00:11:22:33:44:55", null, null, null, null, null,
+                AccountType.STALKER_PORTAL, null, "", false);
+        account.setPinToTop(true);
+        AccountService.getInstance().save(account);
+        AccountInfo info = new AccountInfo();
+        info.setAccountId(account.getDbId());
+        info.setExpireDate("2027-04-14 00:00:00");
+        AccountInfoService.getInstance().save(info);
+
+        StubHttpExchange exchange = new StubHttpExchange("/api/v1/accounts", "GET");
+        new HttpDesktopApiV1GatewayServer().handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        String body = exchange.getResponseBodyText();
+        JSONObject summary = new JSONArray(body).getJSONObject(0);
+        assertEquals("Stalker Portal", summary.getString("typeDisplay"));
+        assertEquals("14 Apr 27", summary.getString("expiryDate"));
+        assertEquals("ok", summary.getString("expiryState"));
+        assertEquals(0, summary.getInt("categoryCount"));
+        assertEquals(0, summary.getInt("channelCount"));
+        assertEquals("0", summary.getString("categoryCountDisplay"));
+        assertEquals("0", summary.getString("channelCountDisplay"));
+        assertTrue(summary.getString("pinSvgStemPath").startsWith("m "));
+        assertTrue(summary.getString("pinSvgHeadPath").startsWith("m "));
+        assertFalse(body.contains("provider-password"));
+        assertFalse(body.contains("http://provider.test"));
+    }
+
+    @Test
+    void accountCanBeCreatedWithoutExposingItInTheSummaryResponse() throws Exception {
+        JSONObject request = new JSONObject()
+                .put("accountName", "created-account")
+                .put("type", "M3U8_URL")
+                .put("m3u8Path", "http://playlist.test/list.m3u")
+                .put("cacheEnabled", false);
+        StubHttpExchange create = new StubHttpExchange("/api/v1/accounts", "POST", request.toString());
+
+        new HttpDesktopApiV1GatewayServer().handle(create);
+
+        assertEquals(201, create.getResponseCode());
+        JSONObject details = new JSONObject(create.getResponseBodyText());
+        assertEquals("created-account", details.getString("accountName"));
+        assertEquals("M3U8_URL", details.getString("type"));
+        assertEquals("http://playlist.test/list.m3u", details.getString("m3u8Path"));
+        assertFalse(details.getBoolean("cacheEnabled"));
+        StubHttpExchange list = new StubHttpExchange("/api/v1/accounts", "GET");
+        new HttpDesktopApiV1GatewayServer().handle(list);
+        String summaries = list.getResponseBodyText();
+        assertFalse(summaries.contains("http://playlist.test/list.m3u"));
+        assertFalse(summaries.contains("password"));
+    }
+
+    @Test
+    void accountDetailsCanBeUpdatedAndDeletedByDatabaseId() throws Exception {
+        Account account = new Account(
+                "editable-account", "old-user", "old-password", "http://provider.test", "00:11:22:33:44:55",
+                null, "serial", "device-1", "device-2", "signature", AccountType.STALKER_PORTAL,
+                "http://guide.test/epg", "", true);
+        account.setWebPlaybackProxy(true);
+        AccountService.getInstance().save(account);
+        String accountId = account.getDbId();
+
+        StubHttpExchange details = new StubHttpExchange("/api/v1/accounts/" + accountId, "GET");
+        new HttpDesktopApiV1GatewayServer().handle(details);
+
+        assertEquals(200, details.getResponseCode());
+        JSONObject detail = new JSONObject(details.getResponseBodyText());
+        assertEquals(accountId, detail.getString("dbId"));
+        assertEquals("old-password", detail.getString("password"));
+        assertEquals("00:11:22:33:44:55", detail.getString("macAddress"));
+        assertTrue(detail.getBoolean("pinToTop"));
+        assertFalse(detail.has("token"));
+
+        JSONObject update = new JSONObject()
+                .put("accountName", "editable-account")
+                .put("type", "STALKER_PORTAL")
+                .put("username", "new-user")
+                .put("password", "new-password")
+                .put("url", "http://updated-provider.test")
+                .put("cacheEnabled", false)
+                .put("pinToTop", false)
+                .put("webPlaybackProxy", false);
+        StubHttpExchange save = new StubHttpExchange(
+                "/api/v1/accounts/" + accountId, "PUT", update.toString());
+        new HttpDesktopApiV1GatewayServer().handle(save);
+
+        assertEquals(200, save.getResponseCode(), save.getResponseBodyText());
+        Account saved = AccountService.getInstance().getById(accountId);
+        assertEquals("new-user", saved.getUsername());
+        assertEquals("new-password", saved.getPassword());
+        assertEquals("http://updated-provider.test/", saved.getUrl());
+        assertFalse(saved.isCacheEnabled());
+        assertFalse(saved.isPinToTop());
+
+        StubHttpExchange delete = new StubHttpExchange("/api/v1/accounts/" + accountId, "DELETE");
+        new HttpDesktopApiV1GatewayServer().handle(delete);
+        assertEquals(200, delete.getResponseCode());
+        assertTrue(AccountService.getInstance().getAllById().isEmpty());
+    }
+
+    @Test
+    void accountUpdateRejectsUnknownFieldsAndWrongValueTypes() throws Exception {
+        Account account = new Account(
+                "validated-account", "user", "password", "http://provider.test", null, null, null,
+                null, null, null, AccountType.M3U8_URL, null, "http://provider.test/list.m3u8", false);
+        AccountService.getInstance().save(account);
+        String path = "/api/v1/accounts/" + account.getDbId();
+
+        StubHttpExchange unknown = new StubHttpExchange(
+                path, "PUT", new JSONObject().put("providerToken", "not-accepted").toString());
+        new HttpDesktopApiV1GatewayServer().handle(unknown);
+        assertEquals(400, unknown.getResponseCode());
+
+        StubHttpExchange wrongType = new StubHttpExchange(
+                path, "PUT", new JSONObject().put("pinToTop", "true").toString());
+        new HttpDesktopApiV1GatewayServer().handle(wrongType);
+        assertEquals(400, wrongType.getResponseCode());
+        assertFalse(AccountService.getInstance().getById(account.getDbId()).isPinToTop());
+    }
+
+    @Test
+    void categoryContextRemovalUsesTheSelectedModeAndLocalCategoryIds() throws Exception {
+        Account account = new Account(
+                "removable-cache", "user", "password", "http://provider.test", null, null, null,
+                null, null, null, AccountType.XTREME_API, null, "http://provider.test", false);
+        account.setAction(Account.AccountAction.itv);
+        AccountService.getInstance().save(account);
+        account = AccountService.getInstance().getByName("removable-cache");
+        account.setAction(Account.AccountAction.itv);
+        CategoryDb.get().saveAll(
+                java.util.List.of(new Category("provider-category", "News", "news", false, 0)), account);
+        Category category = CategoryDb.get().getCategories(account).getFirst();
+        ChannelDb.get().saveAll(
+                java.util.List.of(new Channel("provider-channel", "Station", "1",
+                        "http://provider.test/stream", null, null, null, "logo",
+                        0, 1, 1, null, null, null, null, null)),
+                category.getDbId(), account);
+
+        StubHttpExchange remove = new StubHttpExchange("/api/v1/categories/remove", "POST",
+                new JSONObject()
+                        .put("accountId", account.getDbId())
+                        .put("mode", "itv")
+                        .put("categoryIds", new JSONArray().put(category.getDbId()))
+                        .toString());
+        new HttpDesktopApiV1GatewayServer().handle(remove);
+
+        assertEquals(200, remove.getResponseCode());
+        assertEquals(1, new JSONObject(remove.getResponseBodyText()).getInt("removedCategoryCount"));
+        assertTrue(CategoryDb.get().getCategories(account).isEmpty());
+    }
+
+    @Test
+    void categoryContextRemovalRejectsTheAllCategorySentinel() throws Exception {
+        Account account = new Account(
+                "all-category-account", "user", "password", "http://provider.test", null, null, null,
+                null, null, null, AccountType.XTREME_API, null, "http://provider.test", false);
+        account.setAction(Account.AccountAction.itv);
+        AccountService.getInstance().save(account);
+
+        StubHttpExchange remove = new StubHttpExchange("/api/v1/categories/remove", "POST",
+                new JSONObject()
+                        .put("accountId", account.getDbId())
+                        .put("mode", "itv")
+                        .put("categoryIds", new JSONArray().put("all"))
+                        .toString());
+        new HttpDesktopApiV1GatewayServer().handle(remove);
+
+        assertEquals(400, remove.getResponseCode());
     }
 
     @Test
@@ -153,6 +329,8 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
         JSONObject before = new JSONObject(read.getResponseBodyText());
         assertTrue(before.getBoolean("tmdbTokenConfigured"));
         assertTrue(before.getBoolean("filterLockConfigured"));
+        assertTrue(before.has("pauseFiltering"));
+        assertFalse(before.getBoolean("lightweightModeEnabled"));
         assertEquals("__embedded_player__", before.getString("embeddedPlayerPath"));
         assertEquals("__web_browser_player__", before.getString("webBrowserPlayerPath"));
         assertFalse(read.getResponseBodyText().contains("private-tmdb-token"));
@@ -166,7 +344,8 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
                 .put("serverPort", "8181")
                 .put("uiZoomPercent", "125")
                 .put("cacheExpiryDays", "42")
-                .put("epgEnabled", true);
+                .put("epgEnabled", true)
+                .put("lightweightModeEnabled", true);
         StubHttpExchange save = new StubHttpExchange("/api/v1/settings", "PUT", update.toString());
         new HttpDesktopApiV1GatewayServer().handle(save);
 
@@ -184,6 +363,7 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
         assertEquals("dark", saved.resolveThemeMode().persistedValue());
         assertTrue(saved.isEpgEnabled());
         assertFalse(saved.isEmbeddedPlayer());
+        assertTrue(saved.isLightweightModeEnabled());
     }
 
     @Test
@@ -494,6 +674,62 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
                 "/api/v1/translations?keys=missingKey", "GET");
         new HttpDesktopApiV1GatewayServer().handle(unsupported);
         assertEquals(400, unsupported.getResponseCode());
+    }
+
+    @Test
+    void flutterSettingsAndPlayerTranslationsAreAllowlisted() throws Exception {
+        StubHttpExchange exchange = new StubHttpExchange(
+                "/api/v1/translations?keys=configDatabaseRestoreSummary,configDatabaseSyncInProgress"
+                        + ",configExportDatabaseFailed,configExportDatabaseSuccess"
+                        + ",configImportDatabaseFailed,configImportDatabaseSuccess"
+                        + ",configRestoreBackupConfirm,filterLockSetPasswordAction"
+                        + ",filterLockSetPasswordTitle,filterLockStatusLocked"
+                        + ",filterLockStatusNotSet,filterLockStatusUnlocked,filterLockUnlockAction"
+                        + ",autoFit,playerScaleCrop,playerScaleStretch,commonError,autoAudioTracksSection"
+                        + ",autoNoAudioTracks,autoNoOptions,commonDisabled,commonSystem,autoPlay"
+                        + ",epgNow,epgNext,epgNoGuide,epgOpenGuide"
+                        + ",playerPreviousItem,playerNextItem,autoHideThisBar"
+                        + ",autoReloadCache,autoPinAccountOnTop",
+                "GET");
+        new HttpDesktopApiV1GatewayServer().handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        assertEquals(32, new JSONObject(exchange.getResponseBodyText()).length());
+    }
+
+    @Test
+    void watchingNowAndUpdateDialogTranslationsAreAllowlisted() throws Exception {
+        StubHttpExchange exchange = new StubHttpExchange(
+                "/api/v1/translations?keys=autoUpdateAvailablePrompt,autoUpdateCheckFailed"
+                        + ",autoYouAreCurrentlyOnTheLatestVersion,autoUiptvVersion,autoOk"
+                        + ",autoEpisodeNumber,autoEpisodes,autoViewEpisodes,autoReloadFromServer"
+                        + ",autoRatingPrefix,autoGenrePrefix,autoReleasePrefix,autoWatchingNow"
+                        + ",autoRemoveFromWatchingNowConfirm",
+                "GET");
+        new HttpDesktopApiV1GatewayServer().handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        JSONObject translations = new JSONObject(exchange.getResponseBodyText());
+        assertEquals(14, translations.length());
+        assertTrue(translations.has("autoUpdateAvailablePrompt"));
+        assertTrue(translations.has("autoEpisodeNumber"));
+    }
+
+    @Test
+    void watchingNowSeriesDetailsRejectUnknownOpaqueReferences() throws Exception {
+        StubHttpExchange exchange = new StubHttpExchange(
+                "/api/v1/watching-now/details?playbackId=unknown-reference", "GET");
+        new HttpDesktopApiV1GatewayServer().handle(exchange);
+
+        assertEquals(404, exchange.getResponseCode());
+        assertFalse(exchange.getResponseBodyText().contains("provider"));
+
+        StubHttpExchange removal = new StubHttpExchange(
+                "/api/v1/watching-now?playbackId=unknown-reference", "DELETE");
+        new HttpDesktopApiV1GatewayServer().handle(removal);
+
+        assertEquals(404, removal.getResponseCode());
+        assertFalse(removal.getResponseBodyText().contains("provider"));
     }
 
     @Test

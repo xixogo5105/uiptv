@@ -11,6 +11,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -93,6 +94,35 @@ class UIptvServerTest extends DbBackedTest {
                     + "/api/v1/health", UIptvServer.getDesktopApiToken()));
         } finally {
             UIptvServer.stop();
+        }
+    }
+
+    @Test
+    void startWhenConfiguredPortsAreAlreadyInUse_keepsDesktopApiAvailable() throws Exception {
+        String originalUserHome = System.getProperty("user.home");
+        System.setProperty("user.home", tempDir.toString());
+        String bindAddress = com.uiptv.util.ServerUrlUtil.getServerBindAddresses().getFirst();
+        try {
+            try (ServerSocket occupiedHttpPort = new ServerSocket(
+                    0, 50, InetAddress.getByName(bindAddress));
+                 ServerSocket occupiedHttpsPort = new ServerSocket(
+                         0, 50, InetAddress.getByName(bindAddress))) {
+                Configuration configuration = ConfigurationService.getInstance().read();
+                configuration.setServerPort(String.valueOf(occupiedHttpPort.getLocalPort()));
+                configuration.setHttpsServerPort(String.valueOf(occupiedHttpsPort.getLocalPort()));
+                configuration.setHttpsServerEnabled(true);
+                ConfigurationService.getInstance().save(configuration);
+
+                UIptvServer.start();
+
+                assertTrue(UIptvServer.isRunning());
+                assertTrue(UIptvServer.getDesktopApiPort() > 0);
+                assertEquals(200, desktopApiStatus(UIptvServer.getDesktopApiLoopbackUrl()
+                        + "/api/v1/health", UIptvServer.getDesktopApiToken()));
+            }
+        } finally {
+            UIptvServer.stop();
+            System.setProperty("user.home", originalUserHome);
         }
     }
 

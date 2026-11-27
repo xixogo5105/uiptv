@@ -121,7 +121,16 @@ public class WatchingNowApplicationService {
     }
 
     public void removeSeries(String accountId, String categoryId, String seriesId) {
-        SeriesWatchStateService.getInstance().clearSeriesLastWatched(accountId, categoryId, seriesId);
+        if (StringUtils.isBlank(accountId) || StringUtils.isBlank(seriesId)) {
+            return;
+        }
+        for (SeriesWatchState state : SeriesWatchStateService.getInstance()
+                .getAllSeriesLastWatchedByAccount(accountId)) {
+            if (state != null && seriesId.equals(state.getSeriesId())) {
+                SeriesWatchStateService.getInstance().clearSeriesLastWatched(
+                        accountId, state.getCategoryId(), seriesId);
+            }
+        }
     }
 
     public void saveVod(WatchingNowVodActionRequest request, Account account) {

@@ -1,15 +1,44 @@
 package com.uiptv.server.api.json;
 
+import com.uiptv.model.AccountInfo;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
+import com.uiptv.model.Account;
 import com.uiptv.application.WatchingNowSeriesRow;
 import com.uiptv.application.WatchingNowVodRow;
+import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.AccountResolver;
+import com.uiptv.service.AccountService;
+import com.uiptv.service.CategoryService;
+import com.uiptv.service.ChannelService;
+import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import org.json.JSONObject;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.Locale;
+
 final class DesktopApiV1Dtos {
+    private static final DateTimeFormatter COMPACT_EXPIRY_FORMATTER =
+            DateTimeFormatter.ofPattern("d MMM yy", Locale.ENGLISH);
+    private static final List<String> EXPIRY_DATE_TIME_PATTERNS = List.of(
+            "yyyy-MM-dd HH:mm:ss", "yyyy/MM/dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS", "MMMM d, yyyy, h:mm a", "MMM d, yyyy, h:mm a",
+            "MM/dd/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm:ss");
+    private static final List<String> EXPIRY_DATE_PATTERNS =
+            List.of("yyyy-MM-dd", "yyyy/MM/dd", "MM/dd/yyyy", "dd/MM/yyyy");
+
     private DesktopApiV1Dtos() {
     }
 
@@ -59,6 +88,147 @@ final class DesktopApiV1Dtos {
                 .put("pinToTop", account.isPinToTop())
                 .put("cacheEnabled", account.isCacheEnabled())
                 .put("webPlaybackProxy", account.isWebPlaybackProxy());
+    }
+
+    static JSONObject accountSummary(AccountResolver.AccountRow row) {
+        JSONObject summary = account(row)
+                .put("typeDisplay", accountTypeDisplay(row.getType()))
+                .put("pinSvgStemPath", safe(row.getPinSvgStemPath()))
+                .put("pinSvgHeadPath", safe(row.getPinSvgHeadPath()))
+                .put("pinSvgStemFill", safe(row.getPinSvgStemFill()))
+                .put("pinSvgHeadFill", safe(row.getPinSvgHeadFill()))
+                .put("pinSvgViewBox", safe(row.getPinSvgViewBox()))
+                .put("pinSvgScale", row.getPinSvgScale());
+        Account account;
+        try {
+            account = AccountService.getInstance().getById(row.getDbId());
+        } catch (Exception _) {
+            account = null;
+        }
+        int categoryCount = 0;
+        int channelCount = 0;
+        if (account != null) {
+            try {
+                categoryCount = cachedCategoryCount(account);
+                channelCount = Math.max(0,
+                        ChannelService.getInstance().getChannelCountForAccount(row.getDbId()));
+            } catch (Exception _) {
+                categoryCount = 0;
+                channelCount = 0;
+            }
+        }
+        AccountInfo info;
+        try {
+            info = AccountInfoService.getInstance().getByAccountId(row.getDbId());
+        } catch (Exception _) {
+            info = null;
+        }
+        ExpirySummary expiry = accountExpiry(info == null ? "" : info.getExpireDate());
+        return summary.put("categoryCount", categoryCount)
+                .put("channelCount", channelCount)
+                .put("categoryCountDisplay", I18n.formatNumber(String.valueOf(categoryCount)))
+                .put("channelCountDisplay", I18n.formatNumber(String.valueOf(channelCount)))
+                .put("expiryDate", expiry.date())
+                .put("expiryState", expiry.state());
+    }
+
+    private static String accountTypeDisplay(String type) {
+        try {
+            return AccountType.valueOf(safe(type)).getDisplay();
+        } catch (IllegalArgumentException _) {
+            return safe(type).replace('_', ' ');
+        }
+    }
+
+    private static int cachedCategoryCount(Account account) {
+        int count = cachedCategoryCount(account, Account.AccountAction.itv);
+        if (Account.VOD_AND_SERIES_SUPPORTED.contains(account.getType())) {
+            count += cachedCategoryCount(account, Account.AccountAction.vod);
+            count += cachedCategoryCount(account, Account.AccountAction.series);
+        }
+        return Math.max(0, count);
+    }
+
+    private static int cachedCategoryCount(Account account, Account.AccountAction action) {
+        Account modeAccount = AccountMediaContext.from(account, action).toAccount();
+        return CategoryService.getInstance().getCached(modeAccount).size();
+    }
+
+    private static ExpirySummary accountExpiry(String rawExpiry) {
+        String value = safe(rawExpiry).trim();
+        if (value.isBlank() || value.startsWith("0000-00-00")) {
+            return new ExpirySummary("", "unknown");
+        }
+        LocalDateTime dateTime = parseExpiryDateTime(value);
+        if (dateTime == null) {
+            return new ExpirySummary("", "unknown");
+        }
+        Instant instant = dateTime.atZone(ZoneId.systemDefault()).toInstant();
+        long daysRemaining = Duration.between(Instant.now(), instant).toDays();
+        String state = daysRemaining < 0 ? "expired" : daysRemaining <= 7 ? "warning" : "ok";
+        return new ExpirySummary(COMPACT_EXPIRY_FORMATTER.format(dateTime), state);
+    }
+
+    private static LocalDateTime parseExpiryDateTime(String value) {
+        String numeric = value.replaceAll("\\D", "");
+        if (numeric.length() == 10 || numeric.length() == 13) {
+            try {
+                long epoch = Long.parseLong(numeric);
+                if (numeric.length() == 13) {
+                    epoch /= 1000;
+                }
+                return LocalDateTime.ofInstant(Instant.ofEpochSecond(epoch), ZoneId.systemDefault());
+            } catch (RuntimeException _) {
+                return null;
+            }
+        }
+        for (String pattern : EXPIRY_DATE_TIME_PATTERNS) {
+            try {
+                DateTimeFormatter formatter = pattern.contains("MMMM") || pattern.contains("MMM")
+                        ? new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern(pattern)
+                                .toFormatter(Locale.ENGLISH)
+                        : DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
+                return LocalDateTime.parse(value, formatter);
+            } catch (DateTimeParseException _) {
+                // Try the next JavaFX-supported date format.
+            }
+        }
+        for (String pattern : EXPIRY_DATE_PATTERNS) {
+            try {
+                return LocalDate.parse(value, DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)).atStartOfDay();
+            } catch (DateTimeParseException _) {
+                // Try the next JavaFX-supported date format.
+            }
+        }
+        return null;
+    }
+
+    private record ExpirySummary(String date, String state) {
+    }
+
+    static JSONObject accountDetails(Account account) {
+        return new JSONObject()
+                .put("dbId", safe(account.getDbId()))
+                .put("accountName", safe(account.getAccountName()))
+                .put("type", account.getType() == null ? "" : account.getType().name())
+                .put("username", safe(account.getUsername()))
+                .put("password", safe(account.getPassword()))
+                .put("url", safe(account.getUrl()))
+                .put("macAddress", safe(account.getMacAddress()))
+                .put("macAddressList", safe(account.getMacAddressList()))
+                .put("serialNumber", safe(account.getSerialNumber()))
+                .put("deviceId1", safe(account.getDeviceId1()))
+                .put("deviceId2", safe(account.getDeviceId2()))
+                .put("signature", safe(account.getSignature()))
+                .put("epg", safe(account.getEpg()))
+                .put("m3u8Path", safe(account.getM3u8Path()))
+                .put("httpMethod", safe(account.getHttpMethod()))
+                .put("timezone", safe(account.getTimezone()))
+                .put("pinToTop", account.isPinToTop())
+                .put("cacheEnabled", account.isCacheEnabled())
+                .put("resolveChainAndDeepRedirects", account.isResolveChainAndDeepRedirects())
+                .put("webPlaybackProxy", account.isWebPlaybackProxy())
+                .put("parentalLock", account.isParentalLock());
     }
 
     static JSONObject bookmarkCategory(BookmarkCategory category) {
@@ -120,6 +290,9 @@ final class DesktopApiV1Dtos {
                 .put("season", safe(episode.getSeason()))
                 .put("episodeNum", safe(episode.getEpisodeNum()))
                 .put("image", safe(episode.getLogo()))
+                .put("description", safe(episode.getDescription()))
+                .put("rating", safe(episode.getRating()))
+                .put("releaseDate", safe(episode.getReleaseDate()))
                 .put("playbackId", safe(playbackId));
     }
 

@@ -1,12 +1,20 @@
+import 'dart:async';
+
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
-import 'dart:async';
-
 class UiptvPlayer {
   UiptvPlayer({this._onStateChanged}) {
-    player = Player();
-    controller = VideoController(player);
+    player = Player(
+      configuration: const PlayerConfiguration(bufferSize: 64 * 1024 * 1024),
+    );
+    controller = VideoController(
+      player,
+      configuration: const VideoControllerConfiguration(
+        enableHardwareAcceleration: true,
+        hwdec: 'auto-safe',
+      ),
+    );
     _playingSubscription = player.stream.playing.listen((value) {
       playing = value;
       _onStateChanged?.call();
@@ -35,6 +43,13 @@ class UiptvPlayer {
       duration = value;
       _onStateChanged?.call();
     });
+    _tracksSubscription = player.stream.tracks.listen((value) {
+      tracks = value;
+      _onStateChanged?.call();
+    });
+    _trackSubscription = player.stream.track.listen((_) {
+      _onStateChanged?.call();
+    });
   }
 
   final void Function()? _onStateChanged;
@@ -47,6 +62,8 @@ class UiptvPlayer {
   late final StreamSubscription<int?> _heightSubscription;
   late final StreamSubscription<Duration> _positionSubscription;
   late final StreamSubscription<Duration> _durationSubscription;
+  late final StreamSubscription<Tracks> _tracksSubscription;
+  late final StreamSubscription<Track> _trackSubscription;
 
   bool playing = false;
   bool buffering = false;
@@ -55,9 +72,44 @@ class UiptvPlayer {
   int? height;
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
+  Tracks tracks = const Tracks();
+  Media? _currentMedia;
+  double _volume = 50;
+  bool _muted = true;
+
+  String get videoCodec {
+    final selected = player.state.track.video.codec;
+    if (selected != null && selected.trim().isNotEmpty) return selected;
+    for (final track in tracks.video) {
+      if (track.codec?.trim().isNotEmpty == true) return track.codec!;
+    }
+    return '';
+  }
+
+  String get audioCodec {
+    final selected = player.state.track.audio.codec;
+    if (selected != null && selected.trim().isNotEmpty) return selected;
+    for (final track in tracks.audio) {
+      if (track.codec?.trim().isNotEmpty == true) return track.codec!;
+    }
+    return '';
+  }
+
+  int? get videoWidth =>
+      width ?? player.state.track.video.w ?? _firstVideoTrack?.w;
+
+  int? get videoHeight =>
+      height ?? player.state.track.video.h ?? _firstVideoTrack?.h;
+
+  VideoTrack? get _firstVideoTrack =>
+      tracks.video.isEmpty ? null : tracks.video.first;
 
   Future<void> playUrl(String url, {Map<String, String>? headers}) async {
-    await player.open(Media(url, httpHeaders: headers));
+    _currentMedia = Media(url, httpHeaders: headers);
+    error = null;
+    _onStateChanged?.call();
+    await player.setVolume(_muted ? 0 : _volume);
+    await player.open(_currentMedia!);
   }
 
   Future<void> play() => player.play();
@@ -68,8 +120,37 @@ class UiptvPlayer {
 
   Future<void> seek(Duration value) => player.seek(value);
 
-  Future<void> setVolume(double volume) =>
-      player.setVolume(volume.clamp(0, 100).toDouble());
+  Future<void> seekBy(Duration offset) async {
+    var target = position + offset;
+    if (target < Duration.zero) target = Duration.zero;
+    if (duration > Duration.zero && target > duration) target = duration;
+    await seek(target);
+  }
+
+  Future<void> reload() async {
+    final media = _currentMedia;
+    if (media != null) await player.open(media);
+  }
+
+  Future<void> setPlaylistMode(PlaylistMode mode) =>
+      player.setPlaylistMode(mode);
+
+  Future<void> setVideoTrack(VideoTrack track) => player.setVideoTrack(track);
+
+  Future<void> setAudioTrack(AudioTrack track) => player.setAudioTrack(track);
+
+  Future<void> setSubtitleTrack(SubtitleTrack track) =>
+      player.setSubtitleTrack(track);
+
+  Future<void> setVolume(double volume) async {
+    _volume = volume.clamp(0, 100).toDouble();
+    await player.setVolume(_muted ? 0 : _volume);
+  }
+
+  Future<void> setMuted(bool muted) async {
+    _muted = muted;
+    await player.setVolume(_muted ? 0 : _volume);
+  }
 
   Future<void> dispose() async {
     await _playingSubscription.cancel();
@@ -79,6 +160,8 @@ class UiptvPlayer {
     await _heightSubscription.cancel();
     await _positionSubscription.cancel();
     await _durationSubscription.cancel();
+    await _tracksSubscription.cancel();
+    await _trackSubscription.cancel();
     await player.dispose();
   }
 }

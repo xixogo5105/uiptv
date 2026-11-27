@@ -23,6 +23,18 @@ class UiptvAccountSummary {
     required this.pinToTop,
     required this.cacheEnabled,
     required this.webPlaybackProxy,
+    this.typeDisplay = '',
+    this.categoryCount = 0,
+    this.channelCount = 0,
+    this.categoryCountDisplay = '',
+    this.channelCountDisplay = '',
+    this.expiryDate = '',
+    this.expiryState = 'unknown',
+    this.pinSvgStemPath = '',
+    this.pinSvgHeadPath = '',
+    this.pinSvgStemFill = '',
+    this.pinSvgHeadFill = '',
+    this.pinSvgScale = 0.075,
   });
 
   factory UiptvAccountSummary.fromJson(Map<String, dynamic> json) {
@@ -33,6 +45,18 @@ class UiptvAccountSummary {
       pinToTop: json['pinToTop'] as bool? ?? false,
       cacheEnabled: json['cacheEnabled'] as bool? ?? true,
       webPlaybackProxy: json['webPlaybackProxy'] as bool? ?? false,
+      typeDisplay: json['typeDisplay'] as String? ?? '',
+      categoryCount: json['categoryCount'] as int? ?? 0,
+      channelCount: json['channelCount'] as int? ?? 0,
+      categoryCountDisplay: json['categoryCountDisplay'] as String? ?? '',
+      channelCountDisplay: json['channelCountDisplay'] as String? ?? '',
+      expiryDate: json['expiryDate'] as String? ?? '',
+      expiryState: json['expiryState'] as String? ?? 'unknown',
+      pinSvgStemPath: json['pinSvgStemPath'] as String? ?? '',
+      pinSvgHeadPath: json['pinSvgHeadPath'] as String? ?? '',
+      pinSvgStemFill: json['pinSvgStemFill'] as String? ?? '',
+      pinSvgHeadFill: json['pinSvgHeadFill'] as String? ?? '',
+      pinSvgScale: (json['pinSvgScale'] as num?)?.toDouble() ?? 0.075,
     );
   }
 
@@ -42,6 +66,18 @@ class UiptvAccountSummary {
   final bool pinToTop;
   final bool cacheEnabled;
   final bool webPlaybackProxy;
+  final String typeDisplay;
+  final int categoryCount;
+  final int channelCount;
+  final String categoryCountDisplay;
+  final String channelCountDisplay;
+  final String expiryDate;
+  final String expiryState;
+  final String pinSvgStemPath;
+  final String pinSvgHeadPath;
+  final String pinSvgStemFill;
+  final String pinSvgHeadFill;
+  final double pinSvgScale;
 }
 
 class UiptvAccountImportResult {
@@ -185,6 +221,20 @@ class UiptvWatchingNowEntry {
   final int updatedAt;
 }
 
+class UiptvUpdateInfo {
+  const UiptvUpdateInfo({
+    required this.version,
+    required this.url,
+    required this.description,
+    required this.isAvailable,
+  });
+
+  final String version;
+  final String url;
+  final String description;
+  final bool isAvailable;
+}
+
 class UiptvWatchingNowEpisode {
   const UiptvWatchingNowEpisode({
     required this.playbackId,
@@ -192,6 +242,9 @@ class UiptvWatchingNowEpisode {
     required this.season,
     required this.episodeNum,
     required this.image,
+    this.description = '',
+    this.rating = '',
+    this.releaseDate = '',
   });
 
   factory UiptvWatchingNowEpisode.fromJson(Map<String, dynamic> json) {
@@ -201,6 +254,9 @@ class UiptvWatchingNowEpisode {
       season: json['season'] as String? ?? '',
       episodeNum: json['episodeNum'] as String? ?? '',
       image: json['image'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      rating: json['rating'] as String? ?? '',
+      releaseDate: json['releaseDate'] as String? ?? '',
     );
   }
 
@@ -209,6 +265,9 @@ class UiptvWatchingNowEpisode {
   final String season;
   final String episodeNum;
   final String image;
+  final String description;
+  final String rating;
+  final String releaseDate;
 }
 
 class UiptvWatchingNowSnapshot {
@@ -374,6 +433,88 @@ class UiptvApiClient {
     return Map<String, dynamic>.from(json as Map);
   }
 
+  Future<UiptvUpdateInfo> checkForUpdates({
+    required String currentVersion,
+  }) async {
+    final request = Uri.https(
+      'api.github.com',
+      '/repos/xixogo5105/uiptv/releases/latest',
+    );
+    final response = await _httpClient
+        .get(
+          request,
+          headers: {
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'UIPTV/$currentVersion',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw UiptvApiException(
+        response.statusCode,
+        'Unable to retrieve the latest UIPTV release',
+      );
+    }
+    final release = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final rawVersion =
+        (release['tag_name'] as String? ?? release['name'] as String? ?? '')
+            .trim();
+    final latestVersion = _normalizeVersion(
+      rawVersion.isEmpty ? '0' : rawVersion,
+    );
+    final rawUrl = release['html_url'] as String? ?? '';
+    final parsedUrl = Uri.tryParse(rawUrl);
+    final url =
+        parsedUrl != null &&
+            parsedUrl.scheme == 'https' &&
+            parsedUrl.host == 'github.com' &&
+            parsedUrl.path.startsWith('/xixogo5105/uiptv/releases')
+        ? parsedUrl.toString()
+        : 'https://github.com/xixogo5105/uiptv/releases/latest';
+    final name = release['name'] as String? ?? '';
+    final description = (release['body'] as String? ?? '').trim();
+    return UiptvUpdateInfo(
+      version: latestVersion,
+      url: url,
+      description: description.isNotEmpty
+          ? description
+          : name.isNotEmpty
+          ? name
+          : latestVersion,
+      isAvailable: isUpdateAvailable(currentVersion, latestVersion),
+    );
+  }
+
+  static bool isUpdateAvailable(String currentVersion, String latestVersion) {
+    try {
+      final current = _versionParts(currentVersion);
+      final latest = _versionParts(latestVersion);
+      final length = current.length > latest.length
+          ? current.length
+          : latest.length;
+      for (var index = 0; index < length; index++) {
+        final currentPart = index < current.length ? current[index] : 0;
+        final latestPart = index < latest.length ? latest[index] : 0;
+        if (latestPart != currentPart) return latestPart > currentPart;
+      }
+    } on FormatException {
+      return false;
+    }
+    return false;
+  }
+
+  static String _normalizeVersion(String value) => value
+      .trim()
+      .replaceFirst(RegExp(r'^[vV]'), '')
+      .replaceFirst('-SNAPSHOT', '');
+
+  static List<int> _versionParts(String value) =>
+      _normalizeVersion(value)
+          .split('.')
+          .map((part) => int.parse(part))
+          .toList(growable: false);
+
   Future<Uint8List> createBackupArchive() async {
     try {
       final response = await _httpClient
@@ -446,6 +587,52 @@ class UiptvApiClient {
         .toList(growable: false);
   }
 
+  Future<Map<String, dynamic>> accountDetails(String accountId) async {
+    final json = await _get(
+      '/api/v1/accounts/${Uri.encodeComponent(accountId)}',
+    );
+    return Map<String, dynamic>.from(json as Map);
+  }
+
+  Future<Map<String, dynamic>> updateAccount(
+    String accountId,
+    Map<String, dynamic> account,
+  ) async {
+    final json = await _request(
+      'PUT',
+      '/api/v1/accounts/${Uri.encodeComponent(accountId)}',
+      body: account,
+    );
+    return Map<String, dynamic>.from(json as Map);
+  }
+
+  Future<Map<String, dynamic>> createAccount(
+    Map<String, dynamic> account,
+  ) async {
+    final json = await _request('POST', '/api/v1/accounts', body: account);
+    return Map<String, dynamic>.from(json as Map);
+  }
+
+  Future<void> deleteAccount(String accountId) async {
+    await _request(
+      'DELETE',
+      '/api/v1/accounts/${Uri.encodeComponent(accountId)}',
+    );
+  }
+
+  Future<Map<String, dynamic>> removeCachedCategories({
+    required String accountId,
+    required String mode,
+    required List<String> categoryIds,
+  }) async {
+    final json = await _request(
+      'POST',
+      '/api/v1/categories/remove',
+      body: {'accountId': accountId, 'mode': mode, 'categoryIds': categoryIds},
+    );
+    return Map<String, dynamic>.from(json as Map);
+  }
+
   Future<List<UiptvCategorySummary>> categories({
     required String accountId,
     String mode = 'itv',
@@ -510,6 +697,28 @@ class UiptvApiClient {
         'categoryId': categoryDbId,
         'channelId': channelDbId,
       },
+    );
+    return Map<String, dynamic>.from(result as Map);
+  }
+
+  Future<Map<String, dynamic>> playerGuide({
+    String? accountId,
+    String? categoryId,
+    String? channelId,
+    String? bookmarkId,
+  }) async {
+    final queryParameters = <String, String>{};
+    void addIfPresent(String key, String? value) {
+      if (value != null) queryParameters[key] = value;
+    }
+
+    addIfPresent('accountId', accountId);
+    addIfPresent('categoryId', categoryId);
+    addIfPresent('channelId', channelId);
+    addIfPresent('bookmarkId', bookmarkId);
+    final result = await _get(
+      '/api/v1/epg/player',
+      queryParameters: queryParameters,
     );
     return Map<String, dynamic>.from(result as Map);
   }
@@ -801,6 +1010,22 @@ class UiptvApiClient {
       offset = nextOffset;
     }
     return episodes;
+  }
+
+  Future<Map<String, dynamic>> watchingNowDetails(String playbackId) async {
+    final json = await _get(
+      '/api/v1/watching-now/details',
+      queryParameters: {'playbackId': playbackId},
+    );
+    return Map<String, dynamic>.from(json as Map);
+  }
+
+  Future<void> removeWatchingNow(String playbackId) async {
+    await _request(
+      'DELETE',
+      '/api/v1/watching-now',
+      queryParameters: {'playbackId': playbackId},
+    );
   }
 
   Future<Map<String, dynamic>> resolveWatchingNowPlayback(

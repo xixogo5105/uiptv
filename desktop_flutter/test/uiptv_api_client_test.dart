@@ -28,6 +28,35 @@ void main() {
     expect(result['apiVersion'], 'v1');
   });
 
+  test('player guide uses local channel identifiers and bearer auth', () async {
+    final client = UiptvApiClient(
+      baseUrl: 'http://127.0.0.1:8888',
+      bearerToken: 'test-token',
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/api/v1/epg/player');
+        expect(request.url.queryParameters, {
+          'accountId': 'local-account',
+          'categoryId': 'local-category',
+          'channelId': 'local-channel',
+        });
+        expect(request.headers['authorization'], 'Bearer test-token');
+        return http.Response(
+          jsonEncode({'channelName': 'Station', 'now': null, 'next': null}),
+          200,
+        );
+      }),
+    );
+
+    final guide = await client.playerGuide(
+      accountId: 'local-account',
+      categoryId: 'local-category',
+      channelId: 'local-channel',
+    );
+
+    expect(guide['channelName'], 'Station');
+    expect(guide['now'], isNull);
+  });
+
   test(
     'desktop settings read and update use the dedicated desktop route',
     () async {
@@ -320,8 +349,20 @@ void main() {
               'dbId': '1',
               'accountName': 'Main',
               'type': 'M3U8_URL',
+              'typeDisplay': 'M3U8 URL',
               'pinToTop': true,
               'webPlaybackProxy': false,
+              'categoryCount': 12,
+              'channelCount': 394,
+              'categoryCountDisplay': '12',
+              'channelCountDisplay': '394',
+              'expiryDate': '14 Apr 27',
+              'expiryState': 'ok',
+              'pinSvgStemPath': 'm 289.99122,309.99418 c 1,2 3,4 5,6 z',
+              'pinSvgHeadPath': 'm 56.34936,106.22036 c 1,2 3,4 5,6 z',
+              'pinSvgStemFill': '#cad2d2',
+              'pinSvgHeadFill': '#e30000',
+              'pinSvgScale': 0.075,
             },
           ]),
           200,
@@ -335,7 +376,104 @@ void main() {
     expect(accounts, hasLength(1));
     expect(accounts.first.dbId, '1');
     expect(accounts.first.accountName, 'Main');
+    expect(accounts.first.typeDisplay, 'M3U8 URL');
+    expect(accounts.first.categoryCount, 12);
+    expect(accounts.first.channelCount, 394);
+    expect(accounts.first.channelCountDisplay, '394');
+    expect(accounts.first.expiryDate, '14 Apr 27');
+    expect(accounts.first.pinSvgHeadFill, '#e30000');
   });
+
+  test('account detail, update, and delete use account row IDs', () async {
+    final client = UiptvApiClient(
+      baseUrl: 'http://127.0.0.1:8888',
+      bearerToken: 'test-token',
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/api/v1/accounts/local%2Faccount');
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode({'dbId': 'local/account', 'accountName': 'Main'}),
+            200,
+          );
+        }
+        if (request.method == 'PUT') {
+          expect(jsonDecode(request.body), {'accountName': 'Updated'});
+          return http.Response(
+            jsonEncode({'dbId': 'local/account', 'accountName': 'Updated'}),
+            200,
+          );
+        }
+        expect(request.method, 'DELETE');
+        return http.Response(jsonEncode({'status': 'deleted'}), 200);
+      }),
+    );
+
+    final detail = await client.accountDetails('local/account');
+    final updated = await client.updateAccount('local/account', {
+      'accountName': 'Updated',
+    });
+    await client.deleteAccount('local/account');
+
+    expect(detail['accountName'], 'Main');
+    expect(updated['accountName'], 'Updated');
+  });
+
+  test(
+    'account creation posts editable fields to the account collection',
+    () async {
+      final client = UiptvApiClient(
+        baseUrl: 'http://127.0.0.1:8888',
+        bearerToken: 'test-token',
+        httpClient: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api/v1/accounts');
+          expect(jsonDecode(request.body), {
+            'accountName': 'New account',
+            'type': 'M3U8_URL',
+          });
+          return http.Response(
+            jsonEncode({'dbId': 'created-row', 'accountName': 'New account'}),
+            201,
+          );
+        }),
+      );
+
+      final created = await client.createAccount({
+        'accountName': 'New account',
+        'type': 'M3U8_URL',
+      });
+
+      expect(created['dbId'], 'created-row');
+    },
+  );
+
+  test(
+    'category cache removal sends account, mode, and local category IDs',
+    () async {
+      final client = UiptvApiClient(
+        baseUrl: 'http://127.0.0.1:8888',
+        bearerToken: 'test-token',
+        httpClient: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api/v1/categories/remove');
+          expect(jsonDecode(request.body), {
+            'accountId': 'local-account',
+            'mode': 'itv',
+            'categoryIds': ['local-category'],
+          });
+          return http.Response(jsonEncode({'removedCategoryCount': 1}), 200);
+        }),
+      );
+
+      final result = await client.removeCachedCategories(
+        accountId: 'local-account',
+        mode: 'itv',
+        categoryIds: ['local-category'],
+      );
+
+      expect(result['removedCategoryCount'], 1);
+    },
+  );
 
   test('categories and channels use local row identifiers', () async {
     final client = UiptvApiClient(
@@ -860,6 +998,88 @@ void main() {
       expect(episodes.last.season, '2');
     },
   );
+
+  test(
+    'release update check parses the current official release safely',
+    () async {
+      final client = UiptvApiClient(
+        baseUrl: 'http://127.0.0.1:8888',
+        bearerToken: 'desktop-api-token',
+        httpClient: MockClient((request) async {
+          expect(request.url.host, 'api.github.com');
+          expect(request.url.path, '/repos/xixogo5105/uiptv/releases/latest');
+          expect(request.headers['authorization'], isNull);
+          expect(request.headers['accept'], 'application/vnd.github+json');
+          return http.Response(
+            jsonEncode({
+              'tag_name': 'v1.2.0',
+              'name': 'UIPTV 1.2.0',
+              'body': 'New version notes',
+              'html_url':
+                  'https://github.com/xixogo5105/uiptv/releases/tag/v1.2.0',
+            }),
+            200,
+          );
+        }),
+      );
+
+      final update = await client.checkForUpdates(currentVersion: '1.1.5');
+
+      expect(update.version, '1.2.0');
+      expect(update.description, 'New version notes');
+      expect(update.isAvailable, isTrue);
+      expect(
+        update.url,
+        'https://github.com/xixogo5105/uiptv/releases/tag/v1.2.0',
+      );
+      expect(UiptvApiClient.isUpdateAvailable('1.10.0', '1.9.9'), isFalse);
+    },
+  );
+
+  test('series detail requests use the opaque watching reference', () async {
+    final client = UiptvApiClient(
+      baseUrl: 'http://127.0.0.1:8888',
+      bearerToken: 'test-token',
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/api/v1/watching-now/details');
+        expect(request.url.queryParameters['playbackId'], 'series-reference');
+        return http.Response(
+          jsonEncode({
+            'name': 'Example Series',
+            'poster': '',
+            'plot': 'Series plot',
+            'rating': '8.5',
+            'genre': 'Drama',
+            'releaseDate': '2024',
+            'episodesCount': 12,
+          }),
+          200,
+        );
+      }),
+    );
+
+    final details = await client.watchingNowDetails('series-reference');
+
+    expect(details['name'], 'Example Series');
+    expect(details['plot'], 'Series plot');
+    expect(details['rating'], '8.5');
+  });
+
+  test('removing a Watching item sends only its opaque reference', () async {
+    final client = UiptvApiClient(
+      baseUrl: 'http://127.0.0.1:8888',
+      bearerToken: 'test-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'DELETE');
+        expect(request.url.path, '/api/v1/watching-now');
+        expect(request.url.queryParameters, {'playbackId': 'opaque-reference'});
+        expect(request.body, isEmpty);
+        return http.Response(jsonEncode({'status': 'ok'}), 200);
+      }),
+    );
+
+    await client.removeWatchingNow('opaque-reference');
+  });
 
   test('authentication failure becomes typed API exception', () async {
     final client = UiptvApiClient(

@@ -18,12 +18,17 @@ import org.eclipse.jetty.ee9.websocket.server.config.JettyWebSocketServletContai
 
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
+import java.net.BindException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 import static com.uiptv.util.AppLog.addInfoLog;
+import static com.uiptv.util.AppLog.addWarningLog;
 import static com.uiptv.util.ServerUrlUtil.*;
 
 public class UIptvServer {
@@ -58,14 +63,14 @@ public class UIptvServer {
         return desktopApiPort;
     }
 
-    private static void initialiseServer() throws IOException {
+    private static void initialiseServer(boolean includePublicListeners) throws IOException {
         stop();
         String httpPort = getHttpPort();
         int port = Integer.parseInt(httpPort);
         boolean httpsEnabled = isHttpsServerEnabled();
         String httpsPort = getHttpsPort();
         int securePort = Integer.parseInt(httpsPort);
-        if (httpsEnabled && securePort == port) {
+        if (includePublicListeners && httpsEnabled && securePort == port) {
             throw new IOException("HTTPS server port must be different from HTTP server port.");
         }
         int workerThreads = Math.max(MIN_HTTP_WORKERS, Runtime.getRuntime().availableProcessors() * 4);
@@ -86,12 +91,14 @@ public class UIptvServer {
         httpConfig.setResponseHeaderSize(8192);
 
         List<String> bindAddresses = getServerBindAddresses();
-        for (String bindAddress : bindAddresses) {
-            ServerConnector httpConnector = new ServerConnector(httpServer,
-                    new HttpConnectionFactory(httpConfig));
-            httpConnector.setHost(bindAddress);
-            httpConnector.setPort(port);
-            httpServer.addConnector(httpConnector);
+        if (includePublicListeners) {
+            for (String bindAddress : bindAddresses) {
+                ServerConnector httpConnector = new ServerConnector(httpServer,
+                        new HttpConnectionFactory(httpConfig));
+                httpConnector.setHost(bindAddress);
+                httpConnector.setPort(port);
+                httpServer.addConnector(httpConnector);
+            }
         }
 
         // Desktop API traffic has a dedicated loopback-only connector on an
@@ -102,7 +109,7 @@ public class UIptvServer {
         desktopApiConnector.setPort(0);
         httpServer.addConnector(desktopApiConnector);
 
-        if (httpsEnabled) {
+        if (includePublicListeners && httpsEnabled) {
             var sslContext = LocalHttpsCertificateStore.sslContext(bindAddresses);
             HttpConfiguration httpsConfig = new HttpConfiguration(httpConfig);
             httpsConfig.addCustomizer(new SecureRequestCustomizer());
@@ -212,29 +219,63 @@ public class UIptvServer {
     }
 
     public static synchronized void start() throws IOException {
-        initialiseServer();
-        try {
-            httpServer.start();
-        } catch (Exception e) {
-            throw new IOException("Failed to start server", e);
-        }
-        refreshDesktopApiPort();
-        addServerStartedLog();
+        initialiseAndStartServer();
     }
 
     public static synchronized boolean ensureStarted() throws IOException {
         if (isRunning()) {
             return false;
         }
-        initialiseServer();
+        initialiseAndStartServer();
+        return true;
+    }
+
+    private static void initialiseAndStartServer() throws IOException {
+        initialiseServer(true);
+        boolean publicListenersStarted = true;
         try {
             httpServer.start();
         } catch (Exception e) {
-            throw new IOException("Failed to start server", e);
+            if (!isAddressAlreadyInUse(e)) {
+                throw new IOException("Failed to start server", e);
+            }
+            addWarningLog(UIptvServer.class,
+                    "Configured HTTP/HTTPS port is already in use; starting the desktop API without public listeners.");
+            publicListenersStarted = false;
+            initialiseServer(false);
+            try {
+                httpServer.start();
+            } catch (Exception fallbackError) {
+                fallbackError.addSuppressed(e);
+                stop();
+                throw new IOException("Failed to start desktop API server", fallbackError);
+            }
         }
         refreshDesktopApiPort();
-        addServerStartedLog();
-        return true;
+        addServerStartedLog(publicListenersStarted);
+    }
+
+    private static boolean isAddressAlreadyInUse(Throwable failure) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        return isAddressAlreadyInUse(failure, visited);
+    }
+
+    private static boolean isAddressAlreadyInUse(Throwable failure, Set<Throwable> visited) {
+        if (failure == null || !visited.add(failure)) {
+            return false;
+        }
+        if (failure instanceof BindException) {
+            return true;
+        }
+        if (isAddressAlreadyInUse(failure.getCause(), visited)) {
+            return true;
+        }
+        for (Throwable suppressed : failure.getSuppressed()) {
+            if (isAddressAlreadyInUse(suppressed, visited)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void refreshDesktopApiPort() {
@@ -261,7 +302,13 @@ public class UIptvServer {
         return httpServer != null && httpServer.isRunning();
     }
 
-    private static void addServerStartedLog() {
+    private static void addServerStartedLog(boolean publicListenersStarted) {
+        if (!publicListenersStarted) {
+            addInfoLog(UIptvServer.class,
+                    "Desktop API started on loopback port " + desktopApiPort
+                            + "; configured public HTTP/HTTPS listeners are unavailable.");
+            return;
+        }
         String message = "Server Started on HTTP port " + getHttpPort();
         if (isHttpsServerEnabled()) {
             message += " and HTTPS port " + getHttpsPort();

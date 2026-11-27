@@ -27,7 +27,7 @@ final class DesktopWatchingNowPlaybackStore {
         }
         return register(new Selection(
                 row.accountId(), row.categoryId(), "", "", "", "", 0,
-                row.playItem(), "vod", System.currentTimeMillis() + TTL_MILLIS
+                row.playItem(), "vod", System.currentTimeMillis() + TTL_MILLIS, "", ""
         ));
     }
 
@@ -38,7 +38,7 @@ final class DesktopWatchingNowPlaybackStore {
         return register(new Selection(
                 row.accountId(), row.categoryId(), row.categoryDbId(), row.seriesId(),
                 row.episodeId(), row.season(), row.episodeNum(), null, "series",
-                System.currentTimeMillis() + TTL_MILLIS
+                System.currentTimeMillis() + TTL_MILLIS, safe(row.seriesTitle()), safe(row.seriesPoster())
         ));
     }
 
@@ -61,7 +61,7 @@ final class DesktopWatchingNowPlaybackStore {
         return register(new Selection(
                 series.accountId(), series.categoryId(), series.categoryDbId(), series.seriesId(),
                 episode.getChannelId(), safe(episode.getSeason()), episodeNum, episode, "series",
-                System.currentTimeMillis() + TTL_MILLIS
+                System.currentTimeMillis() + TTL_MILLIS, series.seriesTitle(), series.seriesPoster()
         ));
     }
 
@@ -96,7 +96,9 @@ final class DesktopWatchingNowPlaybackStore {
             int episodeNum,
             Channel channel,
             String mode,
-            long expiresAt
+            long expiresAt,
+            String seriesTitle,
+            String seriesPoster
     ) {
     }
 }
