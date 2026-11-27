@@ -16,7 +16,7 @@ kotlinx-coroutines = "1.11.0"
 kover = "0.9.11"
 media3 = "1.11.1"
 okhttp = "5.5.1"
-billing = "7.1.1"
+billing = "9.1.0"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
