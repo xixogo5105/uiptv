@@ -10,6 +10,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.uiptv.db.CategoryDb;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.SQLConnection;
@@ -45,6 +47,7 @@ import org.mockito.MockedStatic;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -584,6 +587,7 @@ class CatalogApplicationServiceTest extends DbBackedTest {
                 AccountType.STALKER_PORTAL, null, "http://portal", false);
         account.setDbId("stalker-1");
         account.setAction(Account.AccountAction.series);
+        account.setCacheEnabled(false);
 
         Category category = new Category("api-cat", "Series", "series", false, 0);
         category.setDbId("db-cat");
@@ -618,6 +622,82 @@ class CatalogApplicationServiceTest extends DbBackedTest {
                 assertEquals(1, result.items().size());
                 assertEquals(1, result.apiOffset());
             }
+        }
+    }
+
+    @Test
+    void listWebChannelsUsesCachedStalkerCategoryInsteadOfFetchingOnlyOneProviderPage() throws Exception {
+        Account account = new Account("stalker-cache", "user", "pass", "http://portal", null, null, null, null, null, null,
+                AccountType.STALKER_PORTAL, null, "http://portal", false);
+        account.setAction(Account.AccountAction.itv);
+        account.setCacheEnabled(true);
+        AccountService.getInstance().save(account);
+        account = AccountService.getInstance().getByName("stalker-cache");
+        account.setAction(Account.AccountAction.itv);
+        account.setCacheEnabled(true);
+        CategoryDb.get().saveAll(
+                List.of(new Category("provider-category", "Cricket", "cricket", false, 0)),
+                account
+        );
+        Category category = CategoryDb.get().getCategories(account).getFirst();
+        List<Channel> cachedChannels = java.util.stream.IntStream.range(0, 12)
+                .mapToObj(index -> channel("channel-" + index, "Channel " + index, ""))
+                .toList();
+
+        ChannelService channelService = mock(ChannelService.class);
+        try (MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class);
+             MockedStatic<FetchAPI> fetchStatic = mockStatic(FetchAPI.class);
+             MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class)) {
+            channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            when(channelService.get(anyString(), any(Account.class), anyString())).thenReturn(cachedChannels);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+
+            CatalogPagedChannelsResult result = CatalogApplicationService.getInstance().listWebChannels(
+                    new CatalogWebChannelsQuery(
+                            account.getDbId(), CatalogMode.ITV, category.getDbId(), "", 1, 100, 1, 0
+                    )
+            );
+
+            assertEquals(12, result.items().size());
+            assertEquals("Channel 0", result.items().getFirst().getName());
+            fetchStatic.verifyNoInteractions();
+        }
+    }
+
+    @Test
+    void listWebChannelsUsesOneBasedPagesForProviderChannelLists() throws Exception {
+        Account account = new Account("m3u-web", "", "", "", null, null, null, null, null, null,
+                AccountType.M3U8_URL, null, "http://playlist.test/list.m3u", false);
+        account.setDbId("m3u-1");
+        account.setCacheEnabled(false);
+
+        Channel first = channel("channel-1", "Channel 1", "");
+        Channel second = channel("channel-2", "Channel 2", "");
+        Channel third = channel("channel-3", "Channel 3", "");
+        AccountService accountService = mock(AccountService.class);
+        ChannelService channelService = mock(ChannelService.class);
+
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class)) {
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            when(accountService.getById("m3u-1")).thenReturn(account);
+            channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            when(channelService.get(anyString(), any(Account.class), anyString()))
+                    .thenReturn(List.of(first, second, third));
+
+            CatalogPagedChannelsResult pageOne = CatalogApplicationService.getInstance()
+                    .listWebChannels(new CatalogWebChannelsQuery(
+                            "m3u-1", CatalogMode.ITV, "news", "", 1, 2, 1, 0));
+            CatalogPagedChannelsResult pageTwo = CatalogApplicationService.getInstance()
+                    .listWebChannels(new CatalogWebChannelsQuery(
+                            "m3u-1", CatalogMode.ITV, "news", "", 2, 2, 1, 0));
+
+            assertEquals(List.of("channel-1", "channel-2"),
+                    pageOne.items().stream().map(Channel::getChannelId).toList());
+            assertTrue(pageOne.hasMore());
+            assertEquals(List.of("channel-3"),
+                    pageTwo.items().stream().map(Channel::getChannelId).toList());
+            assertFalse(pageTwo.hasMore());
         }
     }
 

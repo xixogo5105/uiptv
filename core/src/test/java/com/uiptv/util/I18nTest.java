@@ -93,6 +93,7 @@ class I18nTest {
     @Test
     void recentlyAddedTranslationsAreNotEnglishPlaceholders() throws IOException {
         List<String> recentlyAddedKeys = List.of(
+                "bookmarkRecent",
                 "autoGroupAccountSByMACAddress",
                 "autoVlcNativeMissing",
                 "configEpgPlaybackOnly",

@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.db.ChannelDb;
+import com.uiptv.model.CategoryType;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.*;
@@ -181,6 +182,9 @@ public class PlayerRequestResolver {
                 return vodChannel;
             }
             return VodChannelDb.get().getChannelByChannelIdAndAccount(channelId, account.getDbId());
+        }
+        if (CategoryType.isAll(categoryId)) {
+            return ChannelDb.get().getChannelByIdAndAccount(channelId, account.getDbId());
         }
         return ChannelDb.get().getChannelById(channelId, categoryId);
     }

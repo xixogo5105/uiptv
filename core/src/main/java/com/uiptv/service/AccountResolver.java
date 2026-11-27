@@ -27,6 +27,7 @@ public class AccountResolver {
         row.setType(account.getType() != null ? account.getType().name() : "");
         row.setPinToTop(account.isPinToTop());
         row.setWebPlaybackProxy(account.isWebPlaybackProxy());
+        row.setCacheEnabled(account.isCacheEnabled());
         row.setPinSvgStemPath(PIN_SVG_STEM_PATH);
         row.setPinSvgHeadPath(PIN_SVG_HEAD_PATH);
         row.setPinSvgStemFill(PIN_SVG_STEM_FILL);
@@ -42,6 +43,7 @@ public class AccountResolver {
         private String type;
         private boolean pinToTop;
         private boolean webPlaybackProxy;
+        private boolean cacheEnabled;
         private String pinSvgStemPath;
         private String pinSvgHeadPath;
         private String pinSvgStemFill;
@@ -87,6 +89,14 @@ public class AccountResolver {
 
         public void setWebPlaybackProxy(boolean webPlaybackProxy) {
             this.webPlaybackProxy = webPlaybackProxy;
+        }
+
+        public boolean isCacheEnabled() {
+            return cacheEnabled;
+        }
+
+        public void setCacheEnabled(boolean cacheEnabled) {
+            this.cacheEnabled = cacheEnabled;
         }
 
         public String getPinSvgStemPath() {

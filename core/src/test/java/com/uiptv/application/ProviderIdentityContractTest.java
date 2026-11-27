@@ -15,6 +15,7 @@ import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
@@ -160,6 +161,46 @@ class ProviderIdentityContractTest extends DbBackedTest {
             );
             assertEquals(storedChannel.getDbId(), channelCaptor.getValue().getDbId());
             assertEquals("portal-live-channel-33", channelCaptor.getValue().getChannelId());
+        }
+    }
+
+    @Test
+    void directLivePlaybackResolvesAllCategoryRowsWithinTheSelectedAccount() throws Exception {
+        Account account = saveAccount("identity-live-all-playback", AccountType.XTREME_API, Account.AccountAction.itv);
+        CategoryDb.get().saveAll(List.of(new Category("provider-category", "News", "news", false, 0)), account);
+        Category category = CategoryDb.get().getCategories(account).getFirst();
+        ChannelDb.get().saveAll(List.of(new Channel(
+                "provider-channel", "News One", "1", "http://stream/live",
+                null, null, null, "logo", 0, 1, 1, null, null, null, null, null
+        )), category.getDbId(), account);
+        Channel storedChannel = ChannelDb.get().getChannels(category.getDbId()).getFirst();
+
+        PlayerService playerService = mock(PlayerService.class);
+        try (MockedStatic<PlayerService> playerStatic = mockStatic(PlayerService.class)) {
+            playerStatic.when(PlayerService::getInstance).thenReturn(playerService);
+            when(playerService.get(any(Account.class), any(Channel.class), anyString(), anyString(), anyString()))
+                    .thenReturn(new PlayerResponse("http://resolved/live"));
+
+            new PlayerRequestResolver().resolveDirectPlayback(
+                    account,
+                    CategoryType.ALL.identifier(),
+                    storedChannel.getDbId(),
+                    "itv",
+                    "",
+                    "",
+                    null
+            );
+
+            ArgumentCaptor<Channel> channelCaptor = ArgumentCaptor.forClass(Channel.class);
+            verify(playerService).get(
+                    eq(account),
+                    channelCaptor.capture(),
+                    eq(""),
+                    eq(""),
+                    eq("")
+            );
+            assertEquals(storedChannel.getDbId(), channelCaptor.getValue().getDbId());
+            assertEquals("provider-channel", channelCaptor.getValue().getChannelId());
         }
     }
 

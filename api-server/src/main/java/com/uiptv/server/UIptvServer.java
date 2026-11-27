@@ -18,6 +18,9 @@ import org.eclipse.jetty.ee9.websocket.server.config.JettyWebSocketServletContai
 
 import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
 
 import static com.uiptv.util.AppLog.addInfoLog;
@@ -25,9 +28,34 @@ import static com.uiptv.util.ServerUrlUtil.*;
 
 public class UIptvServer {
     private static final int MIN_HTTP_WORKERS = 20;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static Server httpServer;
+    private static ServerConnector desktopApiConnector;
+    private static int desktopApiPort;
+    private static final String DESKTOP_API_TOKEN = createDesktopApiToken();
 
     private UIptvServer() {
+    }
+
+    private static String createDesktopApiToken() {
+        byte[] bytes = new byte[32];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public static String getDesktopApiToken() {
+        return DESKTOP_API_TOKEN;
+    }
+
+    public static String getDesktopApiLoopbackUrl() {
+        if (desktopApiPort > 0) {
+            return "http://127.0.0.1:" + desktopApiPort;
+        }
+        return "http://127.0.0.1:" + getConfiguredServerPort();
+    }
+
+    public static int getDesktopApiPort() {
+        return desktopApiPort;
     }
 
     private static void initialiseServer() throws IOException {
@@ -66,6 +94,14 @@ public class UIptvServer {
             httpServer.addConnector(httpConnector);
         }
 
+        // Desktop API traffic has a dedicated loopback-only connector on an
+        // ephemeral port. LAN web routes continue to use the configured port.
+        desktopApiConnector = new ServerConnector(httpServer,
+                new HttpConnectionFactory(httpConfig));
+        desktopApiConnector.setHost("127.0.0.1");
+        desktopApiConnector.setPort(0);
+        httpServer.addConnector(desktopApiConnector);
+
         if (httpsEnabled) {
             var sslContext = LocalHttpsCertificateStore.sslContext(bindAddresses);
             HttpConfiguration httpsConfig = new HttpConfiguration(httpConfig);
@@ -94,6 +130,8 @@ public class UIptvServer {
         Filter loggingFilter = new WebRequestActivityLoggingFilter();
         context.addFilter(new FilterHolder(loggingFilter), "/*", null);
         context.addFilter(new FilterHolder(new LocalRequestOriginFilter()), "/*", null);
+        context.addFilter(new FilterHolder(new DesktopApiSecurityFilter(DESKTOP_API_TOKEN)),
+                "/api/v1/*", null);
 
         // SPA routes
         addServlet(context, "/", new HttpSpaHtmlServer());
@@ -124,6 +162,7 @@ public class UIptvServer {
         addServlet(context, "/bingwatch/*", new HttpBingeWatchEntryServer());
 
         // API JSON servers
+        addServlet(context, "/api/v1/*", new HttpDesktopApiV1GatewayServer());
         addServlet(context, "/accounts", new HttpAccountJsonServer());
         addServlet(context, "/categories", new HttpCategoryJsonServer());
         addServlet(context, "/channels", new HttpChannelJsonServer());
@@ -179,6 +218,7 @@ public class UIptvServer {
         } catch (Exception e) {
             throw new IOException("Failed to start server", e);
         }
+        refreshDesktopApiPort();
         addServerStartedLog();
     }
 
@@ -192,8 +232,15 @@ public class UIptvServer {
         } catch (Exception e) {
             throw new IOException("Failed to start server", e);
         }
+        refreshDesktopApiPort();
         addServerStartedLog();
         return true;
+    }
+
+    private static void refreshDesktopApiPort() {
+        if (desktopApiConnector != null) {
+            desktopApiPort = desktopApiConnector.getLocalPort();
+        }
     }
 
     public static synchronized void stop() {
@@ -204,6 +251,8 @@ public class UIptvServer {
                 addInfoLog(UIptvServer.class, "Error stopping server: " + e.getMessage());
             }
             httpServer = null;
+            desktopApiConnector = null;
+            desktopApiPort = 0;
             addInfoLog(UIptvServer.class, "Server Stopped");
         }
     }

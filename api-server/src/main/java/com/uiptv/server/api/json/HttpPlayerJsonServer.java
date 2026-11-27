@@ -2,6 +2,7 @@ package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import com.uiptv.application.WatchingNowApplicationService;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
@@ -74,6 +75,11 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private ResolvedWebPlayback resolvePlayback(HttpExchange ex, String mode) throws IOException {
+        String watchingNowId = getParam(ex, "watchingNowId");
+        if (isNotBlank(watchingNowId)) {
+            return new ResolvedWebPlayback(
+                    resolveWatchingNowPlayback(watchingNowId), "", "", List.of());
+        }
         String bookmarkId = getParam(ex, "bookmarkId");
         String accountId = getParam(ex, "accountId");
         String bingeWatchToken = getParam(ex, "bingeWatchToken");
@@ -180,8 +186,55 @@ public class HttpPlayerJsonServer implements HttpHandler {
                                                  String mode, String seriesParentId) throws IOException {
         Account account = AccountService.getInstance().getById(accountId);
         String seriesId = getParam(ex, "seriesId");
-        Channel requestChannel = buildRequestChannel(channelId, ex);
+        Channel requestChannel = DesktopPlaybackSelectionStore.getInstance().resolve(channelId, accountId, categoryId);
+        if (requestChannel == null) {
+            requestChannel = buildRequestChannel(channelId, ex);
+        }
         return playerRequestResolver.resolveDirectPlayback(account, categoryId, channelId, mode, seriesParentId, seriesId, requestChannel);
+    }
+
+    private PlayerResponse resolveWatchingNowPlayback(String selectionId) throws IOException {
+        DesktopWatchingNowPlaybackStore.Selection selection =
+                DesktopWatchingNowPlaybackStore.getInstance().resolve(selectionId);
+        if (selection == null) {
+            throw new IOException("Watching-now selection expired or was not found");
+        }
+        Account account = WatchingNowApplicationService.getInstance().getAccount(selection.accountId());
+        if (account == null) {
+            throw new IOException("Watching-now account was not found");
+        }
+        if ("vod".equals(selection.mode())) {
+            Channel channel = selection.channel();
+            if (channel == null || isBlank(channel.getChannelId())) {
+                throw new IOException("Watching-now movie is no longer available");
+            }
+            account.setAction(Account.AccountAction.vod);
+            return playerRequestResolver.resolveDirectPlayback(
+                    account, selection.categoryId(), channel.getChannelId(),
+                    "vod", "", "", channel);
+        }
+
+        account.setAction(Account.AccountAction.series);
+        Channel episode = selection.channel();
+        if (episode == null) {
+            List<Channel> episodes = WatchingNowApplicationService.getInstance()
+                    .listSeriesEpisodes(selection.accountId(), selection.categoryId(), selection.seriesId());
+            episode = episodes.stream()
+                    .filter(channel -> selection.episodeId().equals(channel.getChannelId()))
+                    .findFirst()
+                    .orElseGet(() -> episodes.stream()
+                            .filter(channel -> selection.episodeNum() > 0
+                                    && String.valueOf(selection.episodeNum()).equals(channel.getEpisodeNum())
+                                    && selection.season().equals(channel.getSeason()))
+                            .findFirst()
+                            .orElse(null));
+        }
+        if (episode == null) {
+            throw new IOException("The last-watched episode is no longer available");
+        }
+        return playerRequestResolver.resolveDirectPlayback(
+                account, selection.categoryDbId(), episode.getChannelId(),
+                "series", "", selection.seriesId(), episode);
     }
 
     private Channel buildRequestChannel(String channelId, HttpExchange ex) {

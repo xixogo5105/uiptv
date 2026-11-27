@@ -82,6 +82,10 @@ public class BookmarkService {
         return BookmarkDb.get().getBookmarksByCategory(categoryId);
     }
 
+    public List<Bookmark> getBookmarksByCategory(String categoryId, int offset, int limit) {
+        return BookmarkDb.get().getBookmarksByCategory(categoryId, offset, limit);
+    }
+
     public List<Bookmark> getBookmarksByAccountName(String accountName) {
         return BookmarkDb.get().getBookmarksByAccountName(accountName);
     }

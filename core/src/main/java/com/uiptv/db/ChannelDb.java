@@ -119,6 +119,21 @@ public class ChannelDb extends BaseDb {
         return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;
     }
 
+    public Channel getChannelByIdAndAccount(String dbId, String accountId) {
+        String sql = SELECT_CHANNELS + validatedTableName(CHANNEL_TABLE) + " c" +
+                " INNER JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id" +
+                " WHERE c.id = ? AND cat.accountId = ?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, dbId);
+            statement.setString(2, accountId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? populate(rs) : null;
+            }
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to execute getChannelByIdAndAccount query", e);
+        }
+    }
+
     public Channel getChannelByChannelIdAndAccount(String channelId, String accountId) {
         String sql = SELECT_CHANNELS + validatedTableName(CHANNEL_TABLE) + " c" +
                 " INNER JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id" +

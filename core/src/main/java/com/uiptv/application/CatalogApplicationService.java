@@ -161,7 +161,9 @@ public class CatalogApplicationService {
             ));
             return sliceChannels(episodes, query.page(), query.pageSize(), query.prefetchPages());
         }
-        if (account.getType() == AccountType.STALKER_PORTAL && !CategoryType.isAll(categoryId)) {
+        if (account.getType() == AccountType.STALKER_PORTAL
+                && !account.isCacheEnabled()
+                && !CategoryType.isAll(categoryId)) {
             return buildStalkerPagedResponse(account, categoryId, movieId, query.page(), query.pageSize(), query.prefetchPages(), query.apiOffset());
         }
 
@@ -295,6 +297,7 @@ public class CatalogApplicationService {
                 && isNotBlank(movieId)
                 && !CategoryType.isAll(categoryId);
     }
+
     private List<Channel> getStalkerSeriesEpisodes(Account account, String categoryId, String movieId) {
         String categoryApiId = resolveCategoryApiId(account, categoryId);
         if (account.isCacheEnabled() && SeriesEpisodeDb.get().isFresh(account, categoryApiId, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
@@ -565,12 +568,14 @@ public class CatalogApplicationService {
 
     private CatalogPagedChannelsResult sliceChannels(List<Channel> channels, int page, int pageSize, int prefetchPages) {
         List<Channel> all = channels == null ? List.of() : channels;
-        int start = page * pageSize;
-        if (start >= all.size()) {
-            return new CatalogPagedChannelsResult(List.of(), page + Math.max(prefetchPages, 1), false, 0);
+        long startOffset = Math.max(0L, (long) page - 1) * pageSize;
+        int nextPage = (int) Math.min(Integer.MAX_VALUE, (long) page + Math.max(prefetchPages, 1));
+        if (startOffset >= all.size()) {
+            return new CatalogPagedChannelsResult(List.of(), nextPage, false, 0);
         }
-        int end = Math.min(all.size(), start + (pageSize * prefetchPages));
-        return new CatalogPagedChannelsResult(new ArrayList<>(all.subList(start, end)), page + Math.max(prefetchPages, 1), end < all.size(), 0);
+        int start = (int) startOffset;
+        int end = (int) Math.min(all.size(), startOffset + (long) pageSize * Math.max(prefetchPages, 1));
+        return new CatalogPagedChannelsResult(new ArrayList<>(all.subList(start, end)), nextPage, end < all.size(), 0);
     }
 
     private StalkerPageResult fetchStalkerPage(Account account, String categoryApiId, String movieId, int pageNumber, int pageSize) {

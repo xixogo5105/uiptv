@@ -142,6 +142,44 @@ To compile the project, use Maven profiles from the repository root to target sp
 ### Build Commands
 Here are some examples of how to build the application for different targets.
 
+#### Flutter desktop migration
+The Flutter desktop project is under `desktop_flutter/`. The desktop Maven
+profile keeps Flutter tooling separate from Maven compilation and runs dependency
+resolution, Dart formatting, Flutter analysis, Flutter tests, and the native
+build for the current OS:
+
+```sh
+./mvnw clean -Pdesktop verify
+```
+
+Run Flutter directly for development (without the Java backend API):
+
+```sh
+cd desktop_flutter
+flutter pub get
+flutter run -d macos
+flutter test
+flutter analyze
+```
+
+The Java development launcher starts the loopback API and runs Flutter from the
+`desktop_flutter/` project directory. It locates that project from the current
+repository tree; set `UIPTV_FLUTTER_PROJECT` if it is elsewhere. The Flutter CLI
+can be selected with `UIPTV_FLUTTER_CLI`.
+
+```sh
+java -jar javafx-app/target/UIPTV.jar --flutter-desktop
+```
+
+The launcher passes an ephemeral loopback API URL and per-run bearer token
+through dart-defines; it does not log or store the token. This is a development
+launcher only: the final packaged Java runtime + Flutter application + libmpv
+bundle has not been implemented. See [the API v1 contract](docs/desktop-api-v1.md)
+for current endpoint coverage and gaps.
+
+Native builds must run on the matching OS runner with the required Xcode,
+Visual Studio C++/Windows SDK, or Linux desktop toolchain installed.
+
 #### Windows
 - **Windows (x86_64):**
   ```sh

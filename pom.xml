@@ -17,7 +17,6 @@
         <module>lightweight-ui</module>
         <module>coverage-aggregate</module>
     </modules>
-
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -425,4 +424,12 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>desktop</id>
+            <modules>
+                <module>desktop_flutter</module>
+            </modules>
+        </profile>
+    </profiles>
 </project>

@@ -1,6 +1,7 @@
 package com.uiptv.application;
 
 import com.uiptv.db.CategoryDb;
+import com.uiptv.db.ChannelDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.model.Account;
@@ -39,15 +40,24 @@ public class BookmarkApplicationService {
     }
 
     public List<Bookmark> listBookmarks(int offset, int limit) {
+        return listBookmarks(null, offset, limit);
+    }
+
+    public List<Bookmark> listBookmarks(String bookmarkCategoryId, int offset, int limit) {
         // Keep the paged web endpoint genuinely paged. Resolving the complete
         // bookmark catalogue for every 25-item request made the SPA startup
         // cost grow with the total number of bookmarks and repeated fallback
         // channel lookups could block the first visible cards.
         List<Bookmark> bookmarks;
         if (limit > 0) {
-            bookmarks = new ArrayList<>(bookmarkService.readPage(Math.max(0, offset), limit));
-        } else {
+            bookmarks = new ArrayList<>(isBlank(bookmarkCategoryId)
+                    ? bookmarkService.readPage(Math.max(0, offset), limit)
+                    : bookmarkService.getBookmarksByCategory(
+                            bookmarkCategoryId, Math.max(0, offset), limit));
+        } else if (isBlank(bookmarkCategoryId)) {
             bookmarks = new ArrayList<>(bookmarkService.read());
+        } else {
+            bookmarks = new ArrayList<>(bookmarkService.getBookmarksByCategory(bookmarkCategoryId));
         }
         List<BookmarkResolver.ResolvedBookmark> resolved = new BookmarkResolver().resolveBookmarks(bookmarks);
         List<Bookmark> resolvedBookmarks = resolved.stream()
@@ -61,6 +71,36 @@ public class BookmarkApplicationService {
 
     public List<BookmarkCategory> listCategories() {
         return bookmarkService.getAllCategories();
+    }
+
+    public void addBookmarkCategory(String name) {
+        if (isBlank(name)) {
+            return;
+        }
+        bookmarkService.addCategory(new BookmarkCategory(null, name.trim()));
+    }
+
+    public boolean removeBookmarkCategory(String categoryId) {
+        if (isBlank(categoryId)) {
+            return false;
+        }
+        BookmarkCategory category = listCategories().stream()
+                .filter(candidate -> categoryId.equals(candidate.getId()))
+                .findFirst()
+                .orElse(null);
+        if (category == null) {
+            return false;
+        }
+        bookmarkService.removeCategory(category);
+        return true;
+    }
+
+    public List<Bookmark> listRecentBookmarks() {
+        return bookmarkService.readRecentBookmarks();
+    }
+
+    public void clearRecentBookmarks() {
+        bookmarkService.clearRecentBookmarks();
     }
 
     public BookmarkSaveResult saveBookmark(BookmarkSaveRequest request) {
@@ -96,6 +136,34 @@ public class BookmarkApplicationService {
         bookmarkService.save(bookmark);
         Bookmark saved = bookmarkService.getBookmark(bookmark);
         return new BookmarkSaveResult("saved", saved == null ? "" : saved.getDbId());
+    }
+
+    public BookmarkSaveResult saveCachedLiveChannel(String accountId, String categoryDbId, String channelDbId) {
+        Account account = AccountService.getInstance().getById(accountId);
+        if (account == null || !account.isCacheEnabled()
+                || account.getAction() != Account.AccountAction.itv
+                || isBlank(categoryDbId) || isBlank(channelDbId)) {
+            return null;
+        }
+        Category category = CategoryDb.get().getCategoryByDbId(categoryDbId, account);
+        Channel channel = ChannelDb.get().getChannelById(channelDbId, categoryDbId);
+        if (category == null || channel == null || isBlank(channel.getChannelId()) || isBlank(channel.getName())) {
+            return null;
+        }
+        return saveBookmark(new BookmarkSaveRequest(
+                account.getDbId(),
+                categoryDbId,
+                CatalogMode.ITV,
+                channel.getChannelId(),
+                channel.getName(),
+                channel.getCmd(),
+                channel.getLogo(),
+                channel.getDrmType(),
+                channel.getDrmLicenseUrl(),
+                channel.getClearKeysJson(),
+                channel.getInputstreamaddon(),
+                channel.getManifestType()
+        ));
     }
 
     private boolean isValidBookmarkRequest(BookmarkSaveRequest request) {

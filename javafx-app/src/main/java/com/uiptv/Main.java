@@ -6,6 +6,8 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.RootApplication;
 import com.uiptv.util.AppLog;
 
+import java.io.IOException;
+
 public class Main {
     static void main(String[] args) {
         configureGraphicsPipeline();
@@ -15,6 +17,14 @@ public class Main {
         // reaches RootApplication.main, so without this it would keep slf4j's default of INFO and
         // print the server's startup banner on every launch.
         AppLog.setTerminalLoggingEnabled(AppLog.isShowLogsRequested(args));
+        if (isFlutterDesktopRequested(args)) {
+            try {
+                DesktopFlutterLauncher.launch();
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException("Unable to start the Flutter desktop application", e);
+            }
+            return;
+        }
         try {
             Configuration configuration = ConfigurationService.getInstance().read();
             if (configuration != null && configuration.isLightweightModeEnabled()) {
@@ -25,6 +35,18 @@ public class Main {
             AppLog.addErrorLog(Main.class, e.getMessage());
         }
         RootApplication.main(args);
+    }
+
+    private static boolean isFlutterDesktopRequested(String[] args) {
+        if (args == null) {
+            return false;
+        }
+        for (String arg : args) {
+            if ("--flutter-desktop".equalsIgnoreCase(arg)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static void configureGraphicsPipeline() {

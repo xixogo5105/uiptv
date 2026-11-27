@@ -51,6 +51,13 @@ public class BookmarkDb extends BaseDb {
         return getBookmarksOrdered(categoryId);
     }
 
+    public List<Bookmark> getBookmarksByCategory(String categoryId, int offset, int limit) {
+        if (limit <= 0) {
+            return getBookmarksOrdered(categoryId);
+        }
+        return getBookmarksOrdered(categoryId, Math.max(0, offset), limit);
+    }
+
     public List<Bookmark> getRecentlyPlayedBookmarks(int limit) {
         return BookmarkPlayHistoryDb.readRecentBookmarks(limit);
     }

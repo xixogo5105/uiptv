@@ -12,6 +12,8 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -72,6 +74,37 @@ class UIptvServerTest extends DbBackedTest {
         } finally {
             UIptvServer.stop();
         }
+    }
+
+    @Test
+    void desktopApiUsesEphemeralLoopbackPortAndBearerToken() throws Exception {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setServerPort("0");
+        ConfigurationService.getInstance().save(configuration);
+
+        try {
+            UIptvServer.start();
+            assertTrue(UIptvServer.getDesktopApiPort() > 0);
+            assertTrue(UIptvServer.getDesktopApiLoopbackUrl().startsWith("http://127.0.0.1:"));
+
+            assertEquals(401, desktopApiStatus(UIptvServer.getDesktopApiLoopbackUrl()
+                    + "/api/v1/health", null));
+            assertEquals(200, desktopApiStatus(UIptvServer.getDesktopApiLoopbackUrl()
+                    + "/api/v1/health", UIptvServer.getDesktopApiToken()));
+        } finally {
+            UIptvServer.stop();
+        }
+    }
+
+    private int desktopApiStatus(String urlText, String token) throws Exception {
+        HttpURLConnection connection =
+                (HttpURLConnection) new URL(urlText).openConnection();
+        connection.setConnectTimeout(2_000);
+        connection.setReadTimeout(2_000);
+        if (token != null) {
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+        }
+        return connection.getResponseCode();
     }
 
     @Test
