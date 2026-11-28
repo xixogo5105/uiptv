@@ -10,6 +10,8 @@ void main() {
   testWidgets('account card matches JavaFX summary and hover affordance', (
     tester,
   ) async {
+    var tapCount = 0;
+    var doubleTapCount = 0;
     final account = UiptvAccountSummary(
       dbId: 'account-1',
       accountName: 'wtc05.mi20.cc (uttapulta 22-02-2202)',
@@ -40,7 +42,8 @@ void main() {
               child: DesktopAccountCard(
                 account: account,
                 selected: false,
-                onTap: () {},
+                onTap: () => tapCount++,
+                onDoubleTap: () => doubleTapCount++,
                 onMenuSelected: (_) {},
                 menuItems: const <PopupMenuEntry<String>>[],
                 categoriesLabel: 'Categories',
@@ -75,6 +78,13 @@ void main() {
       0,
     );
 
+    await tester.tap(find.byKey(const Key('account-card-account-1')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tapCount, 1);
+    expect(doubleTapCount, 0);
+    await _doubleTap(tester, find.byKey(const Key('account-card-account-1')));
+    expect(doubleTapCount, 1);
+
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     final card = find.byKey(const Key('account-card-account-1'));
     await mouse.addPointer(location: tester.getCenter(card));
@@ -90,4 +100,11 @@ void main() {
       1,
     );
   });
+}
+
+Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
 }

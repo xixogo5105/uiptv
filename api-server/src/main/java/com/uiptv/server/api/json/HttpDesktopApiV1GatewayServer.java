@@ -41,8 +41,10 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             "parentalLock");
     private static final Set<String> DESKTOP_TRANSLATION_KEYS = Set.of(
             "bookmarkRecent", "autoFavoritesEmptyDetail", "autoRecentItemsEmptyDetail",
-            "autoManageCategories", "autoCategoryName", "autoAdd", "autoRemove", "autoManage",
-            "autoCancel", "autoClear", "commonAll", "commonClose", "commonConfirm", "commonSearch",
+            "autoManageCategories", "autoCategoryName", "autoAdd", "autoAddTo",
+            "autoRemoveFromFavorite", "autoRemove", "autoManage",
+            "autoCancel", "autoClear", "autoAll", "autoBookmark", "autoRemoveBookmark",
+            "commonAll", "commonClose", "commonConfirm", "commonSearch",
             "configClearRecent", "configRecentClearConfirm", "configRecentCleared", "configRecentClearFailed",
             "autoImportBulkAccounts", "bulkImportSourceType", "bulkImportSourceDescription",
             "bulkImportDataTitle", "bulkImportDataDescription", "autoGroupAccountsByMACAddress",
@@ -369,12 +371,16 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             return;
         }
         JSONArray items = new JSONArray();
+        java.util.Map<String, String> bookmarkIds =
+                BookmarkApplicationService.getInstance().listBookmarkIdsForChannels(accountId, mode);
         result.items().stream()
-                .map(channel -> DesktopApiV1Dtos.channel(
-                        channel,
-                        channel.getDbId() == null || channel.getDbId().isBlank()
-                                ? DesktopPlaybackSelectionStore.getInstance().register(accountId, categoryDbId, channel)
-                                : ""))
+                .map(channel -> {
+                    String playbackId = channel.getDbId() == null || channel.getDbId().isBlank()
+                            ? DesktopPlaybackSelectionStore.getInstance().register(accountId, categoryDbId, channel)
+                            : "";
+                    return DesktopApiV1Dtos.channel(
+                            channel, playbackId, bookmarkIds.get(channel.getChannelId()));
+                })
                 .forEach(items::put);
         JSONObject response = new JSONObject()
                 .put("items", items)
@@ -518,6 +524,15 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             return;
         }
         if ("DELETE".equalsIgnoreCase(method)) {
+            String bookmarkId = getParam(exchange, "bookmarkId");
+            if (bookmarkId != null && !bookmarkId.isBlank()) {
+                if (!BookmarkApplicationService.getInstance().removeRecentBookmark(bookmarkId)) {
+                    writeJsonResponse(exchange, 404, "{\"error\":\"Recent item not found\"}");
+                    return;
+                }
+                writeJsonResponse(exchange, 200, "{\"status\":\"ok\"}");
+                return;
+            }
             BookmarkApplicationService.getInstance().clearRecentBookmarks();
             writeJsonResponse(exchange, 200, "{\"status\":\"ok\"}");
             return;
@@ -563,6 +578,7 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             String accountId = body.optString("accountId", "").trim();
             String categoryDbId = body.optString("categoryId", "").trim();
             String channelDbId = body.optString("channelId", "").trim();
+            String bookmarkCategoryId = body.optString("bookmarkCategoryId", "").trim();
             if (accountId.isEmpty() || categoryDbId.isEmpty() || channelDbId.isEmpty()) {
                 writeJsonResponse(exchange, 400,
                         "{\"error\":\"accountId, categoryId, and channelId are required\"}");
@@ -570,7 +586,7 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             }
             com.uiptv.application.BookmarkSaveResult saved =
                     BookmarkApplicationService.getInstance().saveCachedLiveChannel(
-                            accountId, categoryDbId, channelDbId);
+                            accountId, categoryDbId, channelDbId, bookmarkCategoryId);
             if (saved == null) {
                 writeJsonResponse(exchange, 404,
                         "{\"error\":\"Cached live channel not found for this account and category\"}");
@@ -579,6 +595,30 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             writeJsonResponse(exchange, 200, new JSONObject()
                     .put("status", saved.action())
                     .put("bookmarkId", saved.bookmarkId()).toString());
+            return;
+        }
+        if ("PATCH".equalsIgnoreCase(method)) {
+            JSONObject body;
+            try {
+                body = new JSONObject(com.uiptv.util.ServerUtils.readRequestBodyText(exchange));
+            } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException _) {
+                writeJsonResponse(exchange, 413, "{\"error\":\"Request body is too large\"}");
+                return;
+            } catch (org.json.JSONException _) {
+                writeJsonResponse(exchange, 400, "{\"error\":\"A valid JSON request body is required\"}");
+                return;
+            }
+            String bookmarkId = body.optString("bookmarkId", "").trim();
+            if (bookmarkId.isEmpty() || !body.has("categoryId")) {
+                writeJsonResponse(exchange, 400, "{\"error\":\"bookmarkId and categoryId are required\"}");
+                return;
+            }
+            String categoryId = body.optString("categoryId", "").trim();
+            if (!BookmarkApplicationService.getInstance().moveBookmarkToCategory(bookmarkId, categoryId)) {
+                writeJsonResponse(exchange, 404, "{\"error\":\"Bookmark or category not found\"}");
+                return;
+            }
+            writeJsonResponse(exchange, 200, "{\"status\":\"ok\"}");
             return;
         }
         if ("DELETE".equalsIgnoreCase(method)) {
@@ -595,7 +635,7 @@ public final class HttpDesktopApiV1GatewayServer implements HttpHandler {
             writeJsonResponse(exchange, 200, "{\"status\":\"ok\"}");
             return;
         }
-        exchange.getResponseHeaders().set("Allow", "GET,POST,DELETE");
+        exchange.getResponseHeaders().set("Allow", "GET,POST,PATCH,DELETE");
         writeJsonResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
     }
 

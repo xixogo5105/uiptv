@@ -13,7 +13,7 @@ void main() {
     final theme = buildUiptvTheme(Brightness.dark);
 
     expect(theme.brightness, Brightness.dark);
-    expect(theme.textTheme.bodyMedium?.fontFamily, 'CupertinoSystemText');
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'Roboto');
     expect(theme.scaffoldBackgroundColor, const Color(0xFF11161B));
     expect(theme.appBarTheme.backgroundColor!.a, lessThan(1));
     expect(theme.cardTheme.color!.a, lessThan(1));
@@ -28,7 +28,7 @@ void main() {
     final theme = buildUiptvTheme(Brightness.light);
 
     expect(theme.brightness, Brightness.light);
-    expect(theme.textTheme.bodyMedium?.fontFamily, 'CupertinoSystemText');
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'Roboto');
     expect(theme.appBarTheme.backgroundColor!.a, lessThan(1));
     expect(theme.cardTheme.color!.a, lessThan(1));
     expect(theme.inputDecorationTheme.fillColor!.a, lessThan(1));

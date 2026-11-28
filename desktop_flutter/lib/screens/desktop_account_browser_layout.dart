@@ -18,6 +18,8 @@ SliverGridDelegate desktopAccountGridDelegate({
 
 class DesktopAccountBrowserLayout extends StatelessWidget {
   static const singleColumnBreakpoint = 1080.0;
+  static const defaultEditorWidth = 420.0;
+  static const widePlayerEditorWidth = 340.0;
 
   static bool usesSingleColumn(double width) => width < singleColumnBreakpoint;
   const DesktopAccountBrowserLayout({
@@ -28,6 +30,7 @@ class DesktopAccountBrowserLayout extends StatelessWidget {
     required this.showEditor,
     required this.hasSelectedAccount,
     required this.hasSelectedCategory,
+    this.editorWidth = defaultEditorWidth,
   });
 
   final Widget accountPane;
@@ -36,6 +39,7 @@ class DesktopAccountBrowserLayout extends StatelessWidget {
   final bool showEditor;
   final bool hasSelectedAccount;
   final bool hasSelectedCategory;
+  final double editorWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +50,7 @@ class DesktopAccountBrowserLayout extends StatelessWidget {
           if (!wide) return editor;
           return Row(
             children: [
-              SizedBox(width: 340, child: editor),
+              SizedBox(width: editorWidth, child: editor),
               Expanded(child: accountPane),
             ],
           );
@@ -58,7 +62,7 @@ class DesktopAccountBrowserLayout extends StatelessWidget {
         if (!hasSelectedAccount) return accountPane;
         return Row(
           children: [
-            if (showEditor) SizedBox(width: 340, child: editor),
+            if (showEditor) SizedBox(width: editorWidth, child: editor),
             SizedBox(
               width: hasSelectedCategory ? 260 : 330,
               child: accountPane,

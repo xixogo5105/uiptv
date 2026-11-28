@@ -1,6 +1,4 @@
 // ignore: deprecated_member_use
-import 'package:flutter/foundation.dart';
-// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
 import '../api/uiptv_api_client.dart';
@@ -20,17 +18,31 @@ ThemeData buildUiptvTheme(Brightness brightness) {
     alpha: isDark ? 0.88 : 0.84,
   );
   final glassBorder = borderColor.withValues(alpha: isDark ? 0.72 : 0.68);
-  return ThemeData(
+  final actionColor = isDark
+      ? const Color(0xFFE6E6E6)
+      : const Color(0xFF101827);
+  final actionForeground = isDark ? const Color(0xFF171717) : Colors.white;
+  final textColor = isDark ? const Color(0xFFF2F2F2) : const Color(0xFF111318);
+  final secondaryTextColor = isDark
+      ? const Color(0xFFB8B8B8)
+      : const Color(0xFF737373);
+  final theme = ThemeData(
     useMaterial3: true,
-    fontFamily: defaultTargetPlatform == TargetPlatform.macOS
-        ? 'CupertinoSystemText'
-        : 'Roboto',
+    fontFamily: 'Roboto',
     brightness: brightness,
-    colorScheme: colorScheme,
+    colorScheme: colorScheme.copyWith(
+      primary: actionColor,
+      onPrimary: actionForeground,
+      primaryContainer: isDark
+          ? const Color(0xFF3A3A3A)
+          : const Color(0xFFF5F5F5),
+      onPrimaryContainer: textColor,
+      onSurface: textColor,
+      onSurfaceVariant: secondaryTextColor,
+      outline: borderColor,
+    ),
     appBarTheme: AppBarTheme(
-      backgroundColor:
-          (isDark ? const Color(0xFF171D23) : const Color(0xFFF9FCFF))
-              .withValues(alpha: 0.90),
+      backgroundColor: Colors.transparent,
       foregroundColor: isDark
           ? const Color(0xFFE7EAED)
           : const Color(0xFF111820),
@@ -81,6 +93,51 @@ ThemeData buildUiptvTheme(Brightness brightness) {
       ),
     ),
   );
+  return theme.copyWith(
+    textTheme: theme.textTheme.apply(
+      fontFamily: 'Roboto',
+      bodyColor: textColor,
+      displayColor: textColor,
+    ),
+    primaryTextTheme: theme.primaryTextTheme.apply(
+      fontFamily: 'Roboto',
+      bodyColor: textColor,
+      displayColor: textColor,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: actionColor,
+        foregroundColor: actionForeground,
+        minimumSize: const Size(0, 38),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        shape: const StadiumBorder(),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isDark
+            ? const Color(0xFF252525)
+            : Colors.white.withValues(alpha: 0.78),
+        foregroundColor: textColor,
+        side: BorderSide(
+          color: isDark ? const Color(0xFF3D3D3D) : const Color(0x1F0F172A),
+        ),
+        minimumSize: const Size(0, 42),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: textColor,
+        minimumSize: const Size(0, 38),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
 }
 
 class UiptvDesktopApp extends StatefulWidget {
@@ -128,7 +185,7 @@ class _UiptvDesktopAppState extends State<UiptvDesktopApp> {
   Widget build(BuildContext context) {
     const initialStreamUrl = String.fromEnvironment('UIPTV_TEST_STREAM_URL');
     return MaterialApp(
-      title: 'UIPTV',
+      title: 'Favourite - UIPTV',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: buildUiptvTheme(Brightness.light),

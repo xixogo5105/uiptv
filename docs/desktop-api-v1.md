@@ -42,14 +42,15 @@ IDs and provider playback commands are not part of the catalogue DTOs.
 | `PUT /api/v1/filter-lock/filters` | Same unlock requirement; only filter-list and restriction fields accepted | Updated protected settings; locked requests return `423` |
 | `GET /api/v1/categories?accountId={dbId}&mode=itv\|vod\|series` | Account row ID and optional catalogue mode (`itv` is the default) | Array of `dbId`, `title`, `alias`, and `activeSub` |
 | `POST /api/v1/categories/remove` | `{ "accountId": "{dbId}", "mode": "itv", "categoryIds": ["{categoryDbId}"] }` | Removes selected cached category rows and their cached items using local category row IDs; the `all` category sentinel cannot be removed |
-| `GET /api/v1/channels?accountId={dbId}&categoryId={categoryDbId}&mode=itv&page=1&pageSize=100&apiOffset=0` | Account/category row IDs, mode and bounded pagination. Page size must be 1–200. `movieId` is accepted for catalogue workflows that need it. | `{ "items": [...], "nextPage": 2, "hasMore": false, "apiOffset": 0 }`; each item contains `dbId`, `name`, `number`, `logo`, `description`, `watched`, `hd`, and `status`. Uncached rows may include an opaque, short-lived `playbackId` |
+| `GET /api/v1/channels?accountId={dbId}&categoryId={categoryDbId}&mode=itv&page=1&pageSize=100&apiOffset=0` | Account/category row IDs, mode and bounded pagination. Page size must be 1–200. `movieId` is accepted for catalogue workflows that need it. | `{ "items": [...], "nextPage": 2, "hasMore": false, "apiOffset": 0 }`; each item contains `dbId`, `name`, `number`, `logo`, `description`, `watched`, `hd`, `status`, `playable`, and safe bookmark-state fields `isBookmarked`/`bookmarkId` (never the provider command or ID). Uncached rows may include an opaque, short-lived `playbackId` |
 | `GET /api/v1/bookmark-categories` | None | Array of saved category `{ "id", "name" }` values in Java service order |
 | `POST /api/v1/bookmark-categories` | `{ "name": "Cricket" }` | Creates a saved bookmark category; empty names are rejected |
 | `DELETE /api/v1/bookmark-categories?categoryId={id}` | Saved category ID | Deletes the category through the existing service; bookmark rows remain available in All |
-| `GET /api/v1/bookmarks?offset=0&limit=100&categoryId={id}` | Bounded page (`limit` 1–200), optional saved-category ID | `{ "items": [...], "offset": 0, "limit": 100, "hasMore": false }`; items expose local `dbId`, saved `categoryId`, `channelName`, `categoryTitle`, `accountName`, and `logo` only |
+| `GET /api/v1/bookmarks?offset=0&limit=100&categoryId={id}` | Bounded page (`limit` 1–200), optional saved-category ID | `{ "items": [...], "offset": 0, "limit": 100, "hasMore": false }`; items expose local `dbId`, saved `categoryId`, `channelName`, `categoryTitle`, `accountName`, `logo`, favourite state, and media mode only |
+| `PATCH /api/v1/bookmarks` | `{ "bookmarkId": "{dbId or recentId}", "categoryId": "{savedCategoryId}" }`; an empty `categoryId` assigns it to All | Moves a saved favourite or promotes a Recent snapshot into a saved favourite in the selected category |
 | `GET /api/v1/bookmarks/recent` | None | `{ "items": [...], "count": n }`; Java-backed recent-play history is separate from saved bookmarks and is bounded by the existing history service |
-| `DELETE /api/v1/bookmarks/recent` | None | Clears only Java-backed recent-play history |
-| `POST /api/v1/bookmarks` | `{ "accountId": "{dbId}", "categoryId": "{categoryDbId}", "channelId": "{channelDbId}" }` for a cached live channel | `{ "status": "saved\|exists", "bookmarkId": "{dbId}" }`; Java resolves the channel from its local row and does not accept a provider URL or command from Flutter |
+| `DELETE /api/v1/bookmarks/recent?bookmarkId={id}` | Optional Recent item ID | Removes one Recent item; omit the ID to clear all Java-backed recent-play history |
+| `POST /api/v1/bookmarks` | `{ "accountId": "{dbId}", "categoryId": "{categoryDbId}", "channelId": "{channelDbId}", "bookmarkCategoryId": "{savedCategoryId}" }` for a cached live channel | `{ "status": "saved\|exists", "bookmarkId": "{dbId}" }`; Java resolves the channel from its local row and does not accept a provider URL or command from Flutter |
 | `DELETE /api/v1/bookmarks?bookmarkId={dbId}` | Local bookmark row ID | `{ "status": "ok" }`; missing IDs return `400` and unknown bookmarks return `404` |
 | `GET /api/v1/watching-now?offset=0&limit=100` | Bounded page (`limit` 1–200) | `{ "series": [...], "vod": [...], "hasMoreSeries": false, "hasMoreVod": false }`; summaries include display metadata and an opaque short-lived `playbackId`, but omit provider IDs, commands, and credentials |
 | `DELETE /api/v1/watching-now?playbackId={playbackId}` | Opaque short-lived Watching reference | Removes its server-resolved series or VOD watch state; provider IDs are never accepted from Flutter |
@@ -80,8 +81,9 @@ The forwarded compatibility routes still need complete DTOs and capability tests
   by the versioned API. Bulk import creates accounts but does not start cache
   verification/reload jobs.
 - Favourites can be listed by saved category, played by opaque bookmark row ID,
-  removed, and added from cached live catalogue rows using local database IDs.
-  Recent playback is separately listed/cleared. Category create/delete exists;
+  moved between categories, removed, and added from cached live catalogue rows
+  using local database IDs. Recent playback is separately listed, removed, or
+  cleared. Category create/delete exists;
   rename/reorder and non-cached channel bookmark creation remain unavailable.
 - Watching Now has safe, bounded series/VOD summaries, season-filtered episode
   browsing, server-resolved removal, and series metadata. Flutter resumes a

@@ -9,6 +9,7 @@ class DesktopAccountCard extends StatefulWidget {
     required this.account,
     required this.selected,
     required this.onTap,
+    this.onDoubleTap,
     required this.onMenuSelected,
     required this.menuItems,
     required this.categoriesLabel,
@@ -19,6 +20,7 @@ class DesktopAccountCard extends StatefulWidget {
   final UiptvAccountSummary account;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
   final ValueChanged<String> onMenuSelected;
   final List<PopupMenuEntry<String>> menuItems;
   final String categoriesLabel;
@@ -68,6 +70,7 @@ class _DesktopAccountCardState extends State<DesktopAccountCard> {
         ),
         child: InkWell(
           onTap: widget.onTap,
+          onDoubleTap: widget.onDoubleTap,
           borderRadius: BorderRadius.circular(14),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),

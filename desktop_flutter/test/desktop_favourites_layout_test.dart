@@ -24,7 +24,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(DropdownButton<String>), findsOneWidget);
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
     expect(find.byType(ChoiceChip), findsNothing);
   });
 
@@ -44,8 +44,40 @@ void main() {
       ),
     );
 
-    expect(find.byType(DropdownButton<String>), findsNothing);
-    expect(find.byType(ChoiceChip), findsNWidgets(_categories.length));
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byType(ChoiceChip), findsNothing);
+    expect(find.byKey(const Key('bookmark-category-pill-bar')), findsOneWidget);
+  });
+
+  testWidgets('compact category menu has a contained selected row', (
+    tester,
+  ) async {
+    String? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 220,
+            child: DesktopBookmarkCategorySelector(
+              categories: _categories,
+              selectedCategoryId: 'recent',
+              onSelected: (category) => selected = category.id,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('bookmark-category-pill-dropdown')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('bookmark-category-pill-dropdown-option-recent')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    await tester.tap(find.text('Cricket').last);
+    expect(selected, 'cricket');
   });
 
   test('favourites grid wraps multiple cards in wide view', () {

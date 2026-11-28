@@ -53,6 +53,10 @@ void main() {
     );
 
     expect(find.text('Account name'), findsOneWidget);
+    expect(
+      tester.getCenter(find.byTooltip('Close')).dx,
+      greaterThan(tester.getCenter(find.text('Save')).dx),
+    );
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('account-type')));

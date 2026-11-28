@@ -5,11 +5,138 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:desktop_flutter/player/desktop_player_layout.dart';
 
 void main() {
+  test('control bar width adapts to the player display mode', () {
+    expect(
+      DesktopPlayerLayout.controlBarMaxWidth(
+        playerWidth: 1200,
+        wideView: false,
+        isFullscreen: false,
+        isFloating: false,
+      ),
+      DesktopPlayerLayout.narrowControlBarWidth,
+    );
+    expect(
+      DesktopPlayerLayout.controlBarMaxWidth(
+        playerWidth: 1200,
+        wideView: true,
+        isFullscreen: false,
+        isFloating: false,
+      ),
+      DesktopPlayerLayout.wideControlBarWidth,
+    );
+    expect(
+      DesktopPlayerLayout.controlBarMaxWidth(
+        playerWidth: 1200,
+        wideView: false,
+        isFullscreen: true,
+        isFloating: false,
+      ),
+      DesktopPlayerLayout.fullscreenControlBarWidth,
+    );
+    expect(
+      DesktopPlayerLayout.controlBarMaxWidth(
+        playerWidth: 1200,
+        wideView: false,
+        isFullscreen: false,
+        isFloating: true,
+      ),
+      DesktopPlayerLayout.floatingControlBarWidth,
+    );
+    expect(
+      DesktopPlayerLayout.controlBarMaxWidth(
+        playerWidth: 400,
+        wideView: false,
+        isFullscreen: false,
+        isFloating: true,
+      ),
+      400,
+    );
+  });
+
   test('only VOD and series show the progress and transport row', () {
     expect(DesktopPlayerLayout.showsTimeline(mode: 'itv'), isFalse);
     expect(DesktopPlayerLayout.showsTimeline(mode: 'vod'), isTrue);
     expect(DesktopPlayerLayout.showsTimeline(mode: 'series'), isTrue);
   });
+
+  test('seek controls are reserved for on-demand playback', () {
+    expect(
+      DesktopPlayerLayout.showsSeekButtonsInToolbar(
+        mode: 'itv',
+        playerWidth: 1200,
+      ),
+      isFalse,
+    );
+    expect(
+      DesktopPlayerLayout.showsSeekButtonsBesideTimeline(
+        mode: 'itv',
+        playerWidth: 700,
+      ),
+      isFalse,
+    );
+    expect(
+      DesktopPlayerLayout.showsSeekButtonsInToolbar(
+        mode: 'vod',
+        playerWidth: 1200,
+      ),
+      isTrue,
+    );
+    expect(
+      DesktopPlayerLayout.showsSeekButtonsBesideTimeline(
+        mode: 'vod',
+        playerWidth: 700,
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+    'channel navigation stays visible and disables movement at queue ends',
+    () {
+      expect(DesktopPlayerLayout.showsChannelNavigation(mode: 'itv'), isTrue);
+      expect(DesktopPlayerLayout.showsChannelNavigation(mode: 'vod'), isFalse);
+      expect(
+        DesktopPlayerLayout.canNavigateChannel(
+          currentIndex: 0,
+          queueLength: 1,
+          next: false,
+        ),
+        isFalse,
+      );
+      expect(
+        DesktopPlayerLayout.canNavigateChannel(
+          currentIndex: 0,
+          queueLength: 1,
+          next: true,
+        ),
+        isFalse,
+      );
+      expect(
+        DesktopPlayerLayout.canNavigateChannel(
+          currentIndex: 0,
+          queueLength: 2,
+          next: false,
+        ),
+        isFalse,
+      );
+      expect(
+        DesktopPlayerLayout.canNavigateChannel(
+          currentIndex: 0,
+          queueLength: 2,
+          next: true,
+        ),
+        isTrue,
+      );
+      expect(
+        DesktopPlayerLayout.canNavigateChannel(
+          currentIndex: 1,
+          queueLength: 2,
+          next: true,
+        ),
+        isFalse,
+      );
+    },
+  );
 
   test('seek buttons move beside the timeline below 900px', () {
     expect(
@@ -138,6 +265,33 @@ void main() {
     expect(player.right, closeTo(1200 - 18, 1));
     expect(player.bottom, closeTo(800 - 18, 1));
     expect(player.overlaps(content), isTrue);
+  });
+
+  testWidgets('floating player can be dragged within the app window', (
+    tester,
+  ) async {
+    await _pumpLayout(tester, isFloating: true);
+
+    final initialRect = tester.getRect(find.byKey(const Key('player')));
+    await tester.drag(
+      find.byKey(const ValueKey('desktop-pip-drag-handle')),
+      const Offset(-180, -120),
+    );
+    await tester.pumpAndSettle();
+
+    final movedRect = tester.getRect(find.byKey(const Key('player')));
+    expect(movedRect.left, lessThan(initialRect.left));
+    expect(movedRect.top, lessThan(initialRect.top));
+
+    await tester.drag(
+      find.byKey(const ValueKey('desktop-pip-drag-handle')),
+      const Offset(-2000, -2000),
+    );
+    await tester.pumpAndSettle();
+
+    final boundedRect = tester.getRect(find.byKey(const Key('player')));
+    expect(boundedRect.left, greaterThanOrEqualTo(0));
+    expect(boundedRect.top, greaterThanOrEqualTo(0));
   });
 
   testWidgets('fullscreen layout contains only the player', (tester) async {

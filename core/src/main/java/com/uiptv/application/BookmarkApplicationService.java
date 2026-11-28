@@ -99,8 +99,55 @@ public class BookmarkApplicationService {
         return bookmarkService.readRecentBookmarks();
     }
 
+    public Map<String, String> listBookmarkIdsForChannels(String accountId, CatalogMode mode) {
+        Account account = AccountService.getInstance().getById(accountId);
+        if (account == null) {
+            return Map.of();
+        }
+        Account.AccountAction action = (mode == null ? CatalogMode.ITV : mode).toAccountAction();
+        Map<String, String> bookmarkIds = new LinkedHashMap<>();
+        bookmarkService.getBookmarksByAccountName(account.getAccountName()).stream()
+                .filter(bookmark -> (bookmark.getAccountAction() == null
+                        ? Account.AccountAction.itv : bookmark.getAccountAction()) == action)
+                .filter(bookmark -> !isBlank(bookmark.getChannelId()))
+                .forEach(bookmark -> bookmarkIds.putIfAbsent(bookmark.getChannelId(), bookmark.getDbId()));
+        return bookmarkIds;
+    }
+
     public void clearRecentBookmarks() {
         bookmarkService.clearRecentBookmarks();
+    }
+
+    public boolean removeRecentBookmark(String bookmarkId) {
+        if (isBlank(bookmarkId)) {
+            return false;
+        }
+        Bookmark recent = bookmarkService.readRecentBookmarks().stream()
+                .filter(candidate -> bookmarkId.equals(candidate.getDbId()))
+                .findFirst()
+                .orElse(null);
+        if (recent == null) {
+            return false;
+        }
+        bookmarkService.removeRecentBookmark(recent);
+        return true;
+    }
+
+    public boolean moveBookmarkToCategory(String bookmarkId, String bookmarkCategoryId) {
+        if (isBlank(bookmarkId)) {
+            return false;
+        }
+        String destinationId = safe(bookmarkCategoryId);
+        if (!isKnownBookmarkCategory(destinationId)) {
+            return false;
+        }
+        Bookmark bookmark = bookmarkService.getBookmark(bookmarkId);
+        if (bookmark == null) {
+            return false;
+        }
+        bookmark.setCategoryId(destinationId);
+        bookmarkService.save(bookmark);
+        return true;
     }
 
     public BookmarkSaveResult saveBookmark(BookmarkSaveRequest request) {
@@ -139,6 +186,11 @@ public class BookmarkApplicationService {
     }
 
     public BookmarkSaveResult saveCachedLiveChannel(String accountId, String categoryDbId, String channelDbId) {
+        return saveCachedLiveChannel(accountId, categoryDbId, channelDbId, "");
+    }
+
+    public BookmarkSaveResult saveCachedLiveChannel(
+            String accountId, String categoryDbId, String channelDbId, String bookmarkCategoryId) {
         Account account = AccountService.getInstance().getById(accountId);
         if (account == null || !account.isCacheEnabled()
                 || account.getAction() != Account.AccountAction.itv
@@ -162,7 +214,8 @@ public class BookmarkApplicationService {
                 channel.getDrmLicenseUrl(),
                 channel.getClearKeysJson(),
                 channel.getInputstreamaddon(),
-                channel.getManifestType()
+                channel.getManifestType(),
+                bookmarkCategoryId
         ));
     }
 

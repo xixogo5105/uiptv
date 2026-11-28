@@ -455,19 +455,6 @@ class _DesktopAccountEditorState extends State<DesktopAccountEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_loadError != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_loadError!, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            OutlinedButton(onPressed: _loadAccount, child: const Text('Retry')),
-          ],
-        ),
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = math.min(380.0, constraints.maxWidth).toDouble();
@@ -487,11 +474,6 @@ class _DesktopAccountEditorState extends State<DesktopAccountEditor> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    IconButton(
-                      tooltip: _tr('commonClose', 'Close'),
-                      onPressed: widget.onCancel,
-                      icon: const Icon(Icons.close),
-                    ),
                     FilledButton.tonalIcon(
                       onPressed: _saving ? null : _save,
                       icon: _saving
@@ -502,89 +484,125 @@ class _DesktopAccountEditorState extends State<DesktopAccountEditor> {
                           : const Icon(Icons.save_outlined, size: 18),
                       label: Text(_tr('commonSave', 'Save')),
                     ),
+                    IconButton(
+                      tooltip: _tr('commonClose', 'Close'),
+                      onPressed: widget.onCancel,
+                      icon: const Icon(Icons.close),
+                      style: IconButton.styleFrom(
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onSurface,
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                        shape: const CircleBorder(),
+                      ),
+                    ),
                   ],
                 ),
               ),
               const Divider(height: 1),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        key: const ValueKey('account-type'),
-                        initialValue: _type,
-                        decoration: InputDecoration(
-                          labelText: _tr('autoAccount', 'Account'),
-                          border: const OutlineInputBorder(),
-                          isDense: true,
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _loadError != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_loadError!, textAlign: TextAlign.center),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              onPressed: _loadAccount,
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
-                        items: _accountTypes
-                            .map(
-                              (type) => DropdownMenuItem(
-                                value: type,
-                                child: Text(type.replaceAll('_', ' ')),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            DropdownButtonFormField<String>(
+                              key: const ValueKey('account-type'),
+                              initialValue: _type,
+                              decoration: InputDecoration(
+                                labelText: _tr('autoAccount', 'Account'),
+                                border: const OutlineInputBorder(),
+                                isDense: true,
                               ),
-                            )
-                            .toList(),
-                        onChanged: _saving
-                            ? null
-                            : (type) {
-                                if (type != null) setState(() => _type = type);
-                              },
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: _accountFields()
-                            .map(
-                              (field) => SizedBox(width: width, child: field),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 8),
-                      _switchRow(
-                        _tr('autoPinAccountOnTop', 'Pin account on top'),
-                        _pinToTop,
-                        (value) => setState(() => _pinToTop = value),
-                      ),
-                      _switchRow(
-                        _tr(
-                          'manageAccountDisableCaching',
-                          'Disable catalogue caching',
+                              items: _accountTypes
+                                  .map(
+                                    (type) => DropdownMenuItem(
+                                      value: type,
+                                      child: Text(type.replaceAll('_', ' ')),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: _saving
+                                  ? null
+                                  : (type) {
+                                      if (type != null) {
+                                        setState(() => _type = type);
+                                      }
+                                    },
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: _accountFields()
+                                  .map(
+                                    (field) =>
+                                        SizedBox(width: width, child: field),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 8),
+                            _switchRow(
+                              _tr('autoPinAccountOnTop', 'Pin account on top'),
+                              _pinToTop,
+                              (value) => setState(() => _pinToTop = value),
+                            ),
+                            _switchRow(
+                              _tr(
+                                'manageAccountDisableCaching',
+                                'Disable catalogue caching',
+                              ),
+                              !_cacheEnabled,
+                              (value) => setState(() => _cacheEnabled = !value),
+                            ),
+                            _switchRow(
+                              _tr(
+                                'manageResolveChainAndDeepRedirects',
+                                'Resolve redirect chains',
+                              ),
+                              _resolveRedirects,
+                              (value) =>
+                                  setState(() => _resolveRedirects = value),
+                            ),
+                            _switchRow(
+                              _tr(
+                                'manageWebPlaybackProxy',
+                                'Use browser stream proxy',
+                              ),
+                              _webPlaybackProxy,
+                              (value) =>
+                                  setState(() => _webPlaybackProxy = value),
+                            ),
+                            _switchRow(
+                              _tr(
+                                'autoEnableParentalLockAccess',
+                                'Enable parental lock access',
+                              ),
+                              _parentalLock,
+                              (value) => setState(() => _parentalLock = value),
+                            ),
+                          ],
                         ),
-                        !_cacheEnabled,
-                        (value) => setState(() => _cacheEnabled = !value),
                       ),
-                      _switchRow(
-                        _tr(
-                          'manageResolveChainAndDeepRedirects',
-                          'Resolve redirect chains',
-                        ),
-                        _resolveRedirects,
-                        (value) => setState(() => _resolveRedirects = value),
-                      ),
-                      _switchRow(
-                        _tr(
-                          'manageWebPlaybackProxy',
-                          'Use browser stream proxy',
-                        ),
-                        _webPlaybackProxy,
-                        (value) => setState(() => _webPlaybackProxy = value),
-                      ),
-                      _switchRow(
-                        _tr(
-                          'autoEnableParentalLockAccess',
-                          'Enable parental lock access',
-                        ),
-                        _parentalLock,
-                        (value) => setState(() => _parentalLock = value),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),

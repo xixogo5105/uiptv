@@ -24,11 +24,12 @@ void main() {
       ),
     );
 
-    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(find.byKey(const Key('account-type-pill-bar')), findsOneWidget);
     expect(find.text('All'), findsOneWidget);
     expect(find.text('Stalker Portal'), findsOneWidget);
     expect(find.text('M3U8'), findsOneWidget);
     expect(find.text('Xtreme'), findsOneWidget);
+    expect(find.byType(ChoiceChip), findsNothing);
 
     await tester.tap(find.byKey(const Key('account-filter-STALKER_PORTAL')));
     expect(selectedType, 'STALKER_PORTAL');

@@ -7,6 +7,31 @@ import 'package:flutter/material.dart';
 
 import '../api/uiptv_api_client.dart';
 
+Future<void> showDesktopSettingsDialog({
+  required BuildContext context,
+  required UiptvApiClient api,
+  VoidCallback? onRestored,
+  ValueChanged<Map<String, dynamic>>? onSettingsSaved,
+}) {
+  final screenSize = MediaQuery.sizeOf(context);
+  return showDialog<void>(
+    context: context,
+    builder: (context) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        width: (screenSize.width - 48).clamp(280.0, 1120.0),
+        height: (screenSize.height - 48).clamp(280.0, 820.0),
+        child: DesktopSettingsScreen(
+          api: api,
+          onRestored: onRestored,
+          onSettingsSaved: onSettingsSaved,
+        ),
+      ),
+    ),
+  );
+}
+
 class DesktopSettingsScreen extends StatefulWidget {
   const DesktopSettingsScreen({
     super.key,
@@ -29,6 +54,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   static const _translationKeys = [
     'autoSettings',
     'commonAll',
+    'commonClose',
     'commonSave',
     'commonSearch',
     'commonLight',
@@ -119,15 +145,39 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
     'configTmdbApiKeyPageLink',
   ];
 
-  static const _settingsTabs = [
-    ('all', 'commonAll'),
-    ('players', 'configVideoPlayers'),
-    ('filters', 'configFilters'),
-    ('theme', 'configDarkTheme'),
-    ('backup', 'configDatabaseSyncTitle'),
-    ('server', 'configWebServer'),
-    ('tmdb', 'configTmdbMetadata'),
-  ];
+  static const _settingsSubsections = <String, List<(String, String, String)>>{
+    'players': [
+      ('selection', 'configVideoPlayers', 'Player selection'),
+      ('paths', 'configAddPlayerPathsHint', 'Player paths'),
+      ('playback', 'configWideView', 'Playback behavior'),
+    ],
+    'filters': [
+      ('access', 'filterLockStateToggleLabel', 'Parental lock access'),
+      ('categories', 'configFilterCategoriesPrompt', 'Protected categories'),
+      ('channels', 'configFilterChannelsPrompt', 'Protected channels'),
+    ],
+    'theme': [
+      ('appearance', 'configDarkTheme', 'Appearance'),
+      ('language', 'configLanguage', 'Language'),
+      ('display', 'configThemeZoom', 'Display'),
+      ('catalog', 'configPlainTextMode', 'Catalogue'),
+      ('cache', 'configCacheExpiresInDays', 'Cache'),
+    ],
+    'backup': [
+      ('create', 'configExportDatabase', 'Create backup'),
+      ('restore', 'configImportDatabase', 'Restore backup'),
+    ],
+    'server': [
+      ('ports', 'configServerPortPrompt', 'Server ports'),
+      ('startup', 'configAutoRunServerOnStartup', 'Startup'),
+      ('proxy', 'configWebPlaybackProxyEnabled', 'Playback proxy'),
+      ('status', 'configStartServer', 'Server status'),
+    ],
+    'tmdb': [
+      ('credentials', 'configTmdbReadAccessToken', 'API credentials'),
+      ('links', 'configTmdbApiGuideLink', 'Developer links'),
+    ],
+  };
 
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _player1Controller = TextEditingController();
@@ -141,6 +191,8 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
       TextEditingController();
   final TextEditingController _filterChannelsController =
       TextEditingController();
+  final ScrollController _settingsScrollController = ScrollController();
+  final Map<String, GlobalKey> _anchorKeys = {};
 
   late Future<_SettingsData> _initialSettings;
   late Future<Map<String, dynamic>> _serverStatus;
@@ -175,6 +227,7 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
 
   @override
   void dispose() {
+    _settingsScrollController.dispose();
     _searchController.dispose();
     _player1Controller.dispose();
     _player2Controller.dispose();
@@ -244,147 +297,165 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   }
 
   Widget _buildSettings(BuildContext context) {
-    final sections = <({String id, String title, Widget child})>[];
-    sections.addAll([
-      (
-        id: 'players',
-        title: _text('configVideoPlayers', 'Video Players'),
-        child: _videoPlayersCard(),
-      ),
-      (
-        id: 'filters',
-        title: _text('configFilters', 'Parental Lock'),
-        child: _parentalLockCard(),
-      ),
-      (
-        id: 'theme',
-        title: _text('configDarkTheme', 'Theme'),
-        child: _themeCard(),
-      ),
-      (
-        id: 'backup',
-        title: _text('configDatabaseSyncTitle', 'Backup & Restore'),
-        child: _backupCard(),
-      ),
-      (
-        id: 'server',
-        title: _text('configWebServer', 'Internal Web Server'),
-        child: _serverCard(),
-      ),
-      (
-        id: 'tmdb',
-        title: _text('configTmdbMetadata', 'TMDB Metadata'),
-        child: _tmdbCard(),
-      ),
-    ]);
-    final visibleTabs = _visibleSettingsTabs();
-    final activeTab = _activeSettingsTab(visibleTabs);
+    final sections =
+        <
+          ({
+            String id,
+            String title,
+            Widget child,
+            List<(String, String, String)> subsections,
+          })
+        >[
+          (
+            id: 'players',
+            title: _text('configVideoPlayers', 'Video Players'),
+            child: _videoPlayersCard(),
+            subsections: _settingsSubsections['players']!,
+          ),
+          (
+            id: 'filters',
+            title: _text('configFilters', 'Parental Lock'),
+            child: _parentalLockCard(),
+            subsections: _settingsSubsections['filters']!,
+          ),
+          (
+            id: 'theme',
+            title: _text('configDarkTheme', 'Theme'),
+            child: _themeCard(),
+            subsections: _settingsSubsections['theme']!,
+          ),
+          (
+            id: 'backup',
+            title: _text('configDatabaseSyncTitle', 'Backup & Restore'),
+            child: _backupCard(),
+            subsections: _settingsSubsections['backup']!,
+          ),
+          (
+            id: 'server',
+            title: _text('configWebServer', 'Internal Web Server'),
+            child: _serverCard(),
+            subsections: _settingsSubsections['server']!,
+          ),
+          (
+            id: 'tmdb',
+            title: _text('configTmdbMetadata', 'TMDB Metadata'),
+            child: _tmdbCard(),
+            subsections: _settingsSubsections['tmdb']!,
+          ),
+        ];
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleSections = sections
+        .where((section) {
+          if (query.isEmpty) return true;
+          return section.title.toLowerCase().contains(query) ||
+              section.subsections.any(
+                (subsection) =>
+                    _subsectionLabel(subsection).toLowerCase().contains(query),
+              );
+        })
+        .toList(growable: false);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 760) {
-          return Column(
-            children: [
-              _compactSettingsNavigation(visibleTabs, activeTab),
-              Expanded(child: _settingsContent(sections, activeTab)),
-            ],
-          );
-        }
-        return Row(
+        final sidebarWidth = constraints.maxWidth < 720 ? 158.0 : 224.0;
+        return Column(
           children: [
-            SizedBox(
-              width: 210,
-              child: _settingsSidebar(visibleTabs, activeTab),
+            _settingsDialogHeader(),
+            const Divider(height: 1),
+            Expanded(
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: sidebarWidth,
+                    child: _settingsSidebar(visibleSections, query),
+                  ),
+                  const VerticalDivider(width: 1, thickness: 1),
+                  Expanded(child: _settingsContent(visibleSections)),
+                ],
+              ),
             ),
-            const VerticalDivider(width: 1, thickness: 1),
-            Expanded(child: _settingsContent(sections, activeTab)),
           ],
         );
       },
     );
   }
 
-  List<({String id, String label})> _visibleSettingsTabs() {
-    final query = _searchController.text.trim().toLowerCase();
-    return _settingsTabs
-        .map((tab) => (id: tab.$1, label: _settingsTabLabel(tab.$1, tab.$2)))
-        .where(
-          (tab) => tab.id == 'all' || tab.label.toLowerCase().contains(query),
-        )
-        .toList(growable: false);
+  Widget _settingsDialogHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _text('autoSettings', 'Settings'),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('settings-close'),
+            tooltip: _text('commonClose', 'Close'),
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+    );
   }
 
-  String _activeSettingsTab(List<({String id, String label})> visibleTabs) {
-    if (visibleTabs.any((tab) => tab.id == _selectedTab)) return _selectedTab;
-    final firstMatchingTab = visibleTabs.where((tab) => tab.id != 'all');
-    return firstMatchingTab.isEmpty ? 'all' : firstMatchingTab.first.id;
-  }
+  String _subsectionLabel((String, String, String) subsection) =>
+      _text(subsection.$2, subsection.$3);
 
-  String _settingsTabLabel(String id, String labelKey) {
-    final fallback = switch (id) {
-      'all' => 'All',
-      'players' => 'Video Players',
-      'filters' => 'Parental Lock',
-      'theme' => 'Theme',
-      'backup' => 'Backup & Restore',
-      'server' => 'Internal Web Server',
-      'tmdb' => 'TMDB Metadata',
-      _ => labelKey,
-    };
-    return _text(labelKey, fallback);
+  GlobalKey _anchorKey(String id) => _anchorKeys.putIfAbsent(id, GlobalKey.new);
+
+  Widget _anchor(String id, Widget child) =>
+      KeyedSubtree(key: _anchorKey(id), child: child);
+
+  void _navigateTo(String id, String sectionId) {
+    setState(() => _selectedTab = sectionId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _anchorKey(id).currentContext;
+      if (target != null) {
+        unawaited(
+          Scrollable.ensureVisible(
+            target,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeInOut,
+            alignment: 0.035,
+          ),
+        );
+      }
+    });
   }
 
   Widget _settingsSidebar(
-    List<({String id, String label})> visibleTabs,
-    String activeTab,
+    List<
+      ({
+        String id,
+        String title,
+        Widget child,
+        List<(String, String, String)> subsections,
+      })
+    >
+    visibleSections,
+    String query,
   ) {
     final colors = Theme.of(context).colorScheme;
-    return ColoredBox(
+    return Material(
       color: colors.surfaceContainerLow,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 14, 12),
-            child: Text(
-              _text('autoSettings', 'Settings'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
             child: _settingsSearchField(),
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 12),
               children: [
-                for (final tab in visibleTabs)
-                  Material(
-                    color: Colors.transparent,
-                    child: ListTile(
-                      key: ValueKey('settings-nav-${tab.id}'),
-                      dense: true,
-                      minTileHeight: 40,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                      ),
-                      selected: activeTab == tab.id,
-                      selectedTileColor: colors.primaryContainer,
-                      selectedColor: colors.onPrimaryContainer,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      leading: Icon(_settingsTabIcon(tab.id), size: 18),
-                      title: Text(
-                        tab.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      onTap: () => setState(() => _selectedTab = tab.id),
-                    ),
-                  ),
+                for (final section in visibleSections)
+                  _settingsNavigationSection(section, query, colors),
               ],
             ),
           ),
@@ -393,37 +464,83 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
     );
   }
 
-  Widget _compactSettingsNavigation(
-    List<({String id, String label})> visibleTabs,
-    String activeTab,
+  Widget _settingsNavigationSection(
+    ({
+      String id,
+      String title,
+      Widget child,
+      List<(String, String, String)> subsections,
+    })
+    section,
+    String query,
+    ColorScheme colors,
   ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            _text('autoSettings', 'Settings'),
-            style: Theme.of(context).textTheme.titleMedium,
+    final sectionMatches = section.title.toLowerCase().contains(query);
+    final subsections = section.subsections.where((subsection) {
+      return query.isEmpty ||
+          sectionMatches ||
+          _subsectionLabel(subsection).toLowerCase().contains(query);
+    });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          key: ValueKey('settings-nav-${section.id}'),
+          dense: true,
+          minTileHeight: 38,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          selected: _selectedTab == section.id,
+          selectedTileColor: colors.primaryContainer,
+          selectedColor: colors.onPrimaryContainer,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          leading: Icon(_settingsTabIcon(section.id), size: 18),
+          title: Text(
+            section.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            key: const ValueKey('settings-section-selector'),
-            initialValue: activeTab,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: [
-              for (final tab in visibleTabs)
-                DropdownMenuItem(value: tab.id, child: Text(tab.label)),
-            ],
-            onChanged: (value) {
-              if (value != null) setState(() => _selectedTab = value);
-            },
+          onTap: () => _navigateTo(section.id, section.id),
+        ),
+        for (final subsection in subsections)
+          Padding(
+            padding: const EdgeInsets.only(left: 14),
+            child: Row(
+              children: [
+                CustomPaint(
+                  size: const Size(14, 32),
+                  painter: _SettingsSubsectionConnectorPainter(
+                    colors.outlineVariant,
+                  ),
+                ),
+                Expanded(
+                  child: TextButton(
+                    key: ValueKey(
+                      'settings-nav-sub-${section.id}-${subsection.$1}',
+                    ),
+                    style: TextButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      minimumSize: const Size(0, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      foregroundColor: colors.onSurfaceVariant,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => _navigateTo(
+                      '${section.id}-${subsection.$1}',
+                      section.id,
+                    ),
+                    child: Text(
+                      _subsectionLabel(subsection),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          _settingsSearchField(),
-        ],
-      ),
+      ],
     );
   }
 
@@ -440,41 +557,40 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   }
 
   Widget _settingsContent(
-    List<({String id, String title, Widget child})> sections,
-    String activeTab,
+    List<
+      ({
+        String id,
+        String title,
+        Widget child,
+        List<(String, String, String)> subsections,
+      })
+    >
+    visibleSections,
   ) {
-    final query = _searchController.text.trim().toLowerCase();
-    final visibleSections = sections
-        .where((section) {
-          if (activeTab != 'all') return section.id == activeTab;
-          return query.isEmpty || section.title.toLowerCase().contains(query);
-        })
-        .toList(growable: false);
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (activeTab == 'all') {
-          final width = (constraints.maxWidth - 36).clamp(1.0, 460.0);
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(18),
-            child: Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              children: [
-                for (final section in visibleSections)
-                  SizedBox(width: width, child: section.child),
-              ],
-            ),
-          );
-        }
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: SizedBox(
-              width: (constraints.maxWidth - 40).clamp(1.0, 960.0),
-              child: visibleSections.isEmpty
-                  ? const SizedBox.shrink()
-                  : visibleSections.first.child,
+        final width = (constraints.maxWidth - 28).clamp(1.0, 960.0);
+        return Scrollbar(
+          controller: _settingsScrollController,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _settingsScrollController,
+            padding: const EdgeInsets.fromLTRB(14, 14, 18, 24),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final section in visibleSections)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _anchor(section.id, section.child),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -502,54 +618,69 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
         ),
       ),
       const SizedBox(height: 10),
-      RadioGroup<String>(
-        groupValue: _selectedDefaultPlayer,
-        onChanged: (selection) {
-          if (selection == null) return;
-          setState(() {
-            _selectedDefaultPlayer = selection;
-            _settings['embeddedPlayer'] = selection == 'embedded';
-            if (selection != 'embedded') _settings['wideView'] = false;
-          });
-        },
-        child: Column(
+      _anchor(
+        'players-selection',
+        RadioGroup<String>(
+          groupValue: _selectedDefaultPlayer,
+          onChanged: (selection) {
+            if (selection == null) return;
+            setState(() {
+              _selectedDefaultPlayer = selection;
+              _settings['embeddedPlayer'] = selection == 'embedded';
+              if (selection != 'embedded') _settings['wideView'] = false;
+            });
+          },
+          child: Column(
+            children: [
+              _playerChoice('player1', _text('autoPlayer1', 'Player 1')),
+              _anchor(
+                'players-paths',
+                _pathField('autoPlayer1', 'Player 1', _player1Controller),
+              ),
+              _playerChoice('player2', _text('autoPlayer2', 'Player 2')),
+              _pathField('autoPlayer2', 'Player 2', _player2Controller),
+              _playerChoice('player3', _text('autoPlayer3', 'Player 3')),
+              _pathField('autoPlayer3', 'Player 3', _player3Controller),
+              _playerChoice(
+                'embedded',
+                _text('autoEmbeddedPlayer', 'Embedded Player (VLC)'),
+              ),
+              _playerChoice(
+                'browser',
+                _text('configDefaultWebBrowserPlayer', 'Web Browser Player'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      _anchor(
+        'players-playback',
+        Column(
           children: [
-            _playerChoice('player1', _text('autoPlayer1', 'Player 1')),
-            _pathField('autoPlayer1', 'Player 1', _player1Controller),
-            _playerChoice('player2', _text('autoPlayer2', 'Player 2')),
-            _pathField('autoPlayer2', 'Player 2', _player2Controller),
-            _playerChoice('player3', _text('autoPlayer3', 'Player 3')),
-            _pathField('autoPlayer3', 'Player 3', _player3Controller),
-            _playerChoice(
-              'embedded',
-              _text('autoEmbeddedPlayer', 'Embedded Player (VLC)'),
-            ),
-            _playerChoice(
-              'browser',
-              _text('configDefaultWebBrowserPlayer', 'Web Browser Player'),
+            if (_selectedDefaultPlayer == 'embedded')
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(_text('configWideView', 'Wide View')),
+                value: _settings['wideView'] as bool? ?? false,
+                onChanged: (value) =>
+                    setState(() => _settings['wideView'] = value),
+              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                _text(
+                  'configResolveChainAndDeepRedirects',
+                  'Resolve redirect chains',
+                ),
+              ),
+              value:
+                  _settings['resolveChainAndDeepRedirects'] as bool? ?? false,
+              onChanged: (value) => setState(() {
+                _settings['resolveChainAndDeepRedirects'] = value;
+              }),
             ),
           ],
         ),
-      ),
-      if (_selectedDefaultPlayer == 'embedded')
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(_text('configWideView', 'Wide View')),
-          value: _settings['wideView'] as bool? ?? false,
-          onChanged: (value) => setState(() => _settings['wideView'] = value),
-        ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(
-          _text(
-            'configResolveChainAndDeepRedirects',
-            'Resolve redirect chains',
-          ),
-        ),
-        value: _settings['resolveChainAndDeepRedirects'] as bool? ?? false,
-        onChanged: (value) => setState(() {
-          _settings['resolveChainAndDeepRedirects'] = value;
-        }),
       ),
       _saveActions(),
     ]);
@@ -621,15 +752,18 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  _text('filterLockStateToggleLabel', 'Parental lock access'),
-                ),
-                subtitle: Text(statusMessage),
-                leading: Icon(
-                  unlocked ? Icons.lock_open_outlined : Icons.lock_outline,
-                  color: unlocked ? Colors.green : null,
+              _anchor(
+                'filters-access',
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    _text('filterLockStateToggleLabel', 'Parental lock access'),
+                  ),
+                  subtitle: Text(statusMessage),
+                  leading: Icon(
+                    unlocked ? Icons.lock_open_outlined : Icons.lock_outline,
+                    color: unlocked ? Colors.green : null,
+                  ),
                 ),
               ),
               if (!unlocked)
@@ -763,24 +897,30 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
                 });
               },
             ),
-            TextField(
-              controller: _filterCategoriesController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: _text(
-                  'configFilterCategoriesPrompt',
-                  'Protected categories',
+            _anchor(
+              'filters-categories',
+              TextField(
+                controller: _filterCategoriesController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: _text(
+                    'configFilterCategoriesPrompt',
+                    'Protected categories',
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _filterChannelsController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: _text(
-                  'configFilterChannelsPrompt',
-                  'Protected channels',
+            _anchor(
+              'filters-channels',
+              TextField(
+                controller: _filterChannelsController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: _text(
+                    'configFilterChannelsPrompt',
+                    'Protected channels',
+                  ),
                 ),
               ),
             ),
@@ -1044,95 +1184,126 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
     }
 
     return _card('configDarkTheme', 'Theme', [
-      Text(_text('configDarkTheme', 'Theme')),
-      const SizedBox(height: 6),
-      SegmentedButton<String>(
-        segments: [
-          ButtonSegment(
-            value: 'light',
-            label: Text(_text('commonLight', 'Light')),
-          ),
-          ButtonSegment(
-            value: 'dark',
-            label: Text(_text('commonDark', 'Dark')),
-          ),
-          ButtonSegment(
-            value: 'system',
-            label: Text(_text('commonSystem', 'System')),
-          ),
-        ],
-        selected: {_settings['themeMode'] as String? ?? 'system'},
-        onSelectionChanged: (selection) {
-          setState(() => _settings['themeMode'] = selection.first);
-        },
-      ),
-      const SizedBox(height: 10),
-      DropdownButtonFormField<String>(
-        initialValue: currentLanguage.isEmpty ? null : currentLanguage,
-        decoration: InputDecoration(
-          labelText: _text('configLanguage', 'Language'),
-        ),
-        items: [
-          for (final language in languageOptions)
-            DropdownMenuItem(
-              value: language['tag'] as String,
-              child: Text(language['name'] as String),
+      _anchor(
+        'theme-appearance',
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(_text('configDarkTheme', 'Theme')),
+            const SizedBox(height: 6),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(
+                  value: 'light',
+                  label: Text(_text('commonLight', 'Light')),
+                ),
+                ButtonSegment(
+                  value: 'dark',
+                  label: Text(_text('commonDark', 'Dark')),
+                ),
+                ButtonSegment(
+                  value: 'system',
+                  label: Text(_text('commonSystem', 'System')),
+                ),
+              ],
+              selected: {_settings['themeMode'] as String? ?? 'system'},
+              onSelectionChanged: (selection) {
+                setState(() => _settings['themeMode'] = selection.first);
+              },
             ),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => _settings['languageLocale'] = value);
-          }
-        },
+          ],
+        ),
       ),
       const SizedBox(height: 10),
-      DropdownButtonFormField<int>(
-        initialValue: zoomValues.contains(selectedZoom)
-            ? selectedZoom
-            : zoomValues.first,
-        decoration: InputDecoration(
-          labelText: _text('configThemeZoom', 'Zoom'),
-        ),
-        items: [
-          for (final zoom in zoomValues)
-            DropdownMenuItem(value: zoom, child: Text('$zoom%')),
-        ],
-        onChanged: (value) {
-          if (value != null) setState(() => _settings['uiZoomPercent'] = value);
-        },
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(_text('configPlainTextMode', 'Plain text mode')),
-        value: !(_settings['enableThumbnails'] as bool? ?? true),
-        onChanged: (value) =>
-            setState(() => _settings['enableThumbnails'] = !value),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(
-          _text(
-            'configShowBookmarkAndAccountCounts',
-            'Show Favourites and account counts',
+      _anchor(
+        'theme-language',
+        DropdownButtonFormField<String>(
+          initialValue: currentLanguage.isEmpty ? null : currentLanguage,
+          decoration: InputDecoration(
+            labelText: _text('configLanguage', 'Language'),
           ),
+          items: [
+            for (final language in languageOptions)
+              DropdownMenuItem(
+                value: language['tag'] as String,
+                child: Text(language['name'] as String),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _settings['languageLocale'] = value);
+            }
+          },
         ),
-        value: _settings['showBookmarkAndAccountCounts'] as bool? ?? false,
-        onChanged: (value) => setState(() {
-          _settings['showBookmarkAndAccountCounts'] = value;
-        }),
       ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(_text('configEnableEpg', 'Enable EPG')),
-        value: _settings['epgEnabled'] as bool? ?? false,
-        onChanged: (value) => setState(() => _settings['epgEnabled'] = value),
+      const SizedBox(height: 10),
+      _anchor(
+        'theme-display',
+        DropdownButtonFormField<int>(
+          initialValue: zoomValues.contains(selectedZoom)
+              ? selectedZoom
+              : zoomValues.first,
+          decoration: InputDecoration(
+            labelText: _text('configThemeZoom', 'Zoom'),
+          ),
+          items: [
+            for (final zoom in zoomValues)
+              DropdownMenuItem(value: zoom, child: Text('$zoom%')),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _settings['uiZoomPercent'] = value);
+            }
+          },
+        ),
       ),
-      TextField(
-        controller: _cacheExpiryController,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: _text('configCacheExpiresInDays', 'Cache Expires in days'),
-          hintText: _text('configCacheExpiryPrompt', ''),
+      _anchor(
+        'theme-catalog',
+        Column(
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(_text('configPlainTextMode', 'Plain text mode')),
+              value: !(_settings['enableThumbnails'] as bool? ?? true),
+              onChanged: (value) =>
+                  setState(() => _settings['enableThumbnails'] = !value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                _text(
+                  'configShowBookmarkAndAccountCounts',
+                  'Show Favourites and account counts',
+                ),
+              ),
+              value:
+                  _settings['showBookmarkAndAccountCounts'] as bool? ?? false,
+              onChanged: (value) => setState(() {
+                _settings['showBookmarkAndAccountCounts'] = value;
+              }),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(_text('configEnableEpg', 'Enable EPG')),
+              value: _settings['epgEnabled'] as bool? ?? false,
+              onChanged: (value) =>
+                  setState(() => _settings['epgEnabled'] = value),
+            ),
+          ],
+        ),
+      ),
+      _anchor(
+        'theme-cache',
+        TextField(
+          controller: _cacheExpiryController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: _text(
+              'configCacheExpiresInDays',
+              'Cache Expires in days',
+            ),
+            hintText: _text('configCacheExpiryPrompt', ''),
+          ),
         ),
       ),
       _saveActions(),
@@ -1149,15 +1320,21 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
       ),
       const SizedBox(height: 12),
       if (_backupBusy) const LinearProgressIndicator(),
-      OutlinedButton.icon(
-        onPressed: _backupBusy ? null : _createBackup,
-        icon: const Icon(Icons.upload_file),
-        label: Text(_text('configExportDatabase', 'Create Backup')),
+      _anchor(
+        'backup-create',
+        OutlinedButton.icon(
+          onPressed: _backupBusy ? null : _createBackup,
+          icon: const Icon(Icons.upload_file),
+          label: Text(_text('configExportDatabase', 'Create Backup')),
+        ),
       ),
-      OutlinedButton.icon(
-        onPressed: _backupBusy ? null : _restoreBackup,
-        icon: const Icon(Icons.restore),
-        label: Text(_text('configImportDatabase', 'Restore Backup')),
+      _anchor(
+        'backup-restore',
+        OutlinedButton.icon(
+          onPressed: _backupBusy ? null : _restoreBackup,
+          icon: const Icon(Icons.restore),
+          label: Text(_text('configImportDatabase', 'Restore Backup')),
+        ),
       ),
     ]);
   }
@@ -1266,79 +1443,104 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
 
   Widget _serverCard() {
     return _card('configWebServer', 'Internal Web Server', [
-      TextField(
-        controller: _httpPortController,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: 'HTTP',
-          hintText: _text('configServerPortPrompt', ''),
+      _anchor(
+        'server-ports',
+        Column(
+          children: [
+            TextField(
+              controller: _httpPortController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'HTTP',
+                hintText: _text('configServerPortPrompt', ''),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _httpsPortController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'HTTPS',
+                hintText: _text('configHttpsServerPortPrompt', ''),
+              ),
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 8),
-      TextField(
-        controller: _httpsPortController,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: 'HTTPS',
-          hintText: _text('configHttpsServerPortPrompt', ''),
-        ),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(
-          _text(
-            'configAutoRunServerOnStartup',
-            'Automatically run server on startup',
-          ),
-        ),
-        value: _settings['autoRunServerOnStartup'] as bool? ?? false,
-        onChanged: (value) => setState(() {
-          _settings['autoRunServerOnStartup'] = value;
-        }),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(_text('configEnableHttpsServer', 'Enable HTTPS server')),
-        value: _settings['httpsServerEnabled'] as bool? ?? false,
-        onChanged: (value) => setState(() {
-          _settings['httpsServerEnabled'] = value;
-        }),
-      ),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(
-          _text('configWebPlaybackProxyEnabled', 'Enable browser stream proxy'),
-        ),
-        value: _settings['webPlaybackProxyEnabled'] as bool? ?? false,
-        onChanged: (value) => setState(() {
-          _settings['webPlaybackProxyEnabled'] = value;
-        }),
-      ),
-      FutureBuilder<Map<String, dynamic>>(
-        future: _serverStatus,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return Text(snapshot.error.toString());
-          final status = snapshot.data ?? const {};
-          final running = status['running'] as bool? ?? false;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if ((status['httpUrl'] as String? ?? '').isNotEmpty)
-                SelectableText(status['httpUrl'] as String),
-              if ((status['httpsUrl'] as String? ?? '').isNotEmpty)
-                SelectableText(status['httpsUrl'] as String),
-              FilledButton(
-                onPressed: _serverBusy ? null : () => _toggleServer(!running),
-                child: Text(
-                  _text(
-                    running ? 'configStopServer' : 'configStartServer',
-                    running ? 'Stop Server' : 'Start Server',
-                  ),
+      _anchor(
+        'server-startup',
+        Column(
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                _text(
+                  'configAutoRunServerOnStartup',
+                  'Automatically run server on startup',
                 ),
               ),
-            ],
-          );
-        },
+              value: _settings['autoRunServerOnStartup'] as bool? ?? false,
+              onChanged: (value) => setState(() {
+                _settings['autoRunServerOnStartup'] = value;
+              }),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                _text('configEnableHttpsServer', 'Enable HTTPS server'),
+              ),
+              value: _settings['httpsServerEnabled'] as bool? ?? false,
+              onChanged: (value) => setState(() {
+                _settings['httpsServerEnabled'] = value;
+              }),
+            ),
+          ],
+        ),
+      ),
+      _anchor(
+        'server-proxy',
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            _text(
+              'configWebPlaybackProxyEnabled',
+              'Enable browser stream proxy',
+            ),
+          ),
+          value: _settings['webPlaybackProxyEnabled'] as bool? ?? false,
+          onChanged: (value) => setState(() {
+            _settings['webPlaybackProxyEnabled'] = value;
+          }),
+        ),
+      ),
+      _anchor(
+        'server-status',
+        FutureBuilder<Map<String, dynamic>>(
+          future: _serverStatus,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return Text(snapshot.error.toString());
+            final status = snapshot.data ?? const {};
+            final running = status['running'] as bool? ?? false;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if ((status['httpUrl'] as String? ?? '').isNotEmpty)
+                  SelectableText(status['httpUrl'] as String),
+                if ((status['httpsUrl'] as String? ?? '').isNotEmpty)
+                  SelectableText(status['httpsUrl'] as String),
+                FilledButton(
+                  onPressed: _serverBusy ? null : () => _toggleServer(!running),
+                  child: Text(
+                    _text(
+                      running ? 'configStopServer' : 'configStartServer',
+                      running ? 'Stop Server' : 'Start Server',
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
       _saveActions(),
     ]);
@@ -1347,29 +1549,41 @@ class _DesktopSettingsScreenState extends State<DesktopSettingsScreen> {
   Widget _tmdbCard() {
     final tokenConfigured = _settings['tmdbTokenConfigured'] as bool? ?? false;
     return _card('configTmdbMetadata', 'TMDB Metadata', [
-      TextField(
-        controller: _tmdbTokenController,
-        obscureText: true,
-        decoration: InputDecoration(
-          labelText: _text(
-            'configTmdbReadAccessToken',
-            'TMDB Read Access Token',
+      _anchor(
+        'tmdb-credentials',
+        TextField(
+          controller: _tmdbTokenController,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: _text(
+              'configTmdbReadAccessToken',
+              'TMDB Read Access Token',
+            ),
+            hintText: tokenConfigured
+                ? '••••••••••••••'
+                : _text('configTmdbReadAccessTokenPrompt', ''),
           ),
-          hintText: tokenConfigured
-              ? '••••••••••••••'
-              : _text('configTmdbReadAccessTokenPrompt', ''),
         ),
       ),
       const SizedBox(height: 8),
-      TextButton(
-        onPressed: () => _openTmdbUrl('https://developer.themoviedb.org/docs'),
-        child: Text(_text('configTmdbApiGuideLink', 'TMDB API Guide')),
-      ),
-      TextButton(
-        onPressed: () =>
-            _openTmdbUrl('https://www.themoviedb.org/settings/api'),
-        child: Text(
-          _text('configTmdbApiKeyPageLink', 'Get TMDB API Key or Token'),
+      _anchor(
+        'tmdb-links',
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextButton(
+              onPressed: () =>
+                  _openTmdbUrl('https://developer.themoviedb.org/docs'),
+              child: Text(_text('configTmdbApiGuideLink', 'TMDB API Guide')),
+            ),
+            TextButton(
+              onPressed: () =>
+                  _openTmdbUrl('https://www.themoviedb.org/settings/api'),
+              child: Text(
+                _text('configTmdbApiKeyPageLink', 'Get TMDB API Key or Token'),
+              ),
+            ),
+          ],
         ),
       ),
       _saveActions(),
@@ -1557,4 +1771,32 @@ class _SettingsData {
 
   final Map<String, dynamic> settings;
   final Map<String, String> labels;
+}
+
+class _SettingsSubsectionConnectorPainter extends CustomPainter {
+  const _SettingsSubsectionConnectorPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    final centerY = size.height / 2;
+    canvas.drawLine(Offset(3, 0), Offset(3, size.height), paint);
+    canvas.drawLine(Offset(3, centerY), Offset(size.width, centerY), paint);
+    canvas.drawCircle(
+      Offset(3, centerY),
+      2.2,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SettingsSubsectionConnectorPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

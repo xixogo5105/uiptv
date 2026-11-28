@@ -4,7 +4,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 class UiptvPlayer {
-  UiptvPlayer({this._onStateChanged}) {
+  UiptvPlayer({
+    this._onStateChanged,
+    this.onPlaybackStarted,
+    this.onPlaybackFailure,
+    this.onPlaybackCompleted,
+  }) {
     player = Player(
       configuration: const PlayerConfiguration(bufferSize: 64 * 1024 * 1024),
     );
@@ -17,6 +22,7 @@ class UiptvPlayer {
     );
     _playingSubscription = player.stream.playing.listen((value) {
       playing = value;
+      if (value && !_stopping) onPlaybackStarted?.call();
       _onStateChanged?.call();
     });
     _bufferingSubscription = player.stream.buffering.listen((value) {
@@ -25,7 +31,11 @@ class UiptvPlayer {
     });
     _errorSubscription = player.stream.error.listen((value) {
       error = value;
+      if (value.isNotEmpty && !_stopping) onPlaybackFailure?.call(value);
       _onStateChanged?.call();
+    });
+    _completedSubscription = player.stream.completed.listen((value) {
+      if (value && !_stopping) onPlaybackCompleted?.call();
     });
     _widthSubscription = player.stream.width.listen((value) {
       width = value;
@@ -53,11 +63,15 @@ class UiptvPlayer {
   }
 
   final void Function()? _onStateChanged;
+  final void Function()? onPlaybackStarted;
+  final void Function(String)? onPlaybackFailure;
+  final void Function()? onPlaybackCompleted;
   late final Player player;
   late final VideoController controller;
   late final StreamSubscription<bool> _playingSubscription;
   late final StreamSubscription<bool> _bufferingSubscription;
   late final StreamSubscription<String> _errorSubscription;
+  late final StreamSubscription<bool> _completedSubscription;
   late final StreamSubscription<int?> _widthSubscription;
   late final StreamSubscription<int?> _heightSubscription;
   late final StreamSubscription<Duration> _positionSubscription;
@@ -76,6 +90,7 @@ class UiptvPlayer {
   Media? _currentMedia;
   double _volume = 50;
   bool _muted = true;
+  bool _stopping = false;
 
   String get videoCodec {
     final selected = player.state.track.video.codec;
@@ -105,6 +120,7 @@ class UiptvPlayer {
       tracks.video.isEmpty ? null : tracks.video.first;
 
   Future<void> playUrl(String url, {Map<String, String>? headers}) async {
+    _stopping = false;
     _currentMedia = Media(url, httpHeaders: headers);
     error = null;
     _onStateChanged?.call();
@@ -116,7 +132,15 @@ class UiptvPlayer {
 
   Future<void> pause() => player.pause();
 
-  Future<void> stop() => player.stop();
+  Future<void> stop() async {
+    _stopping = true;
+    _currentMedia = null;
+    try {
+      await player.stop();
+    } finally {
+      _stopping = false;
+    }
+  }
 
   Future<void> seek(Duration value) => player.seek(value);
 
@@ -156,6 +180,7 @@ class UiptvPlayer {
     await _playingSubscription.cancel();
     await _bufferingSubscription.cancel();
     await _errorSubscription.cancel();
+    await _completedSubscription.cancel();
     await _widthSubscription.cancel();
     await _heightSubscription.cancel();
     await _positionSubscription.cancel();

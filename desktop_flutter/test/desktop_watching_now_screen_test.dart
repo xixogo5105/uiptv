@@ -36,8 +36,18 @@ void main() {
     );
     expect(find.byKey(const Key('watching-entry-card-vod-1')), findsNothing);
     expect(find.text('View Episodes...'), findsOneWidget);
+    expect(find.byKey(const Key('watching-mode-pill-bar')), findsOneWidget);
+    expect(find.byType(SegmentedButton<String>), findsNothing);
 
-    await tester.tap(find.text('View Episodes...'));
+    final seriesTitle = find.byKey(
+      const Key('watching-entry-select-series-1-title'),
+    );
+    await tester.tap(seriesTitle);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Watching Now'), findsNothing);
+    expect(played, isEmpty);
+
+    await _doubleTap(tester, seriesTitle);
     await tester.pumpAndSettle();
 
     expect(find.text('Watching Now'), findsOneWidget);
@@ -49,11 +59,22 @@ void main() {
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('View Episodes...'));
+    await tester.pumpAndSettle();
+    expect(find.text('Example series plot.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('VOD').first);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('watching-entry-card-vod-1')), findsOneWidget);
-    await tester.tap(find.text('Play'));
+    final vodTitle = find.byKey(const Key('watching-entry-select-vod-1-title'));
+    await tester.tap(vodTitle);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(played, isEmpty);
+    await _doubleTap(tester, vodTitle);
     expect(played, ['vod-1']);
+    await tester.tap(find.text('Play'));
+    expect(played, ['vod-1', 'vod-1']);
   });
 
   testWidgets('Watching series details remain usable in a narrow window', (
@@ -86,6 +107,13 @@ void main() {
     expect(find.text('Example series plot.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
 }
 
 Future<void> _setSize(WidgetTester tester, Size size) async {

@@ -37,10 +37,12 @@ void main() {
     required bool showEditor,
     bool hasSelectedAccount = true,
     bool hasSelectedCategory = false,
+    double editorWidth = 420,
   }) {
     return MaterialApp(
       home: DesktopAccountBrowserLayout(
         showEditor: showEditor,
+        editorWidth: editorWidth,
         hasSelectedAccount: hasSelectedAccount,
         hasSelectedCategory: hasSelectedCategory,
         accountPane: const ColoredBox(
@@ -175,5 +177,15 @@ void main() {
     expect(find.byKey(const Key('account-editor')), findsOneWidget);
     expect(find.byKey(const Key('account-pane')), findsOneWidget);
     expect(find.byKey(const Key('catalog-pane')), findsOneWidget);
+    expect(tester.getRect(find.byKey(const Key('account-editor'))).width, 420);
+  });
+
+  testWidgets('wide player keeps the narrower account editor pane', (
+    tester,
+  ) async {
+    await setWindowSize(tester, 1600, 900);
+    await tester.pumpWidget(buildLayout(showEditor: true, editorWidth: 340));
+
+    expect(tester.getRect(find.byKey(const Key('account-editor'))).width, 340);
   });
 }

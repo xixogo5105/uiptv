@@ -3,6 +3,24 @@ import 'package:flutter/material.dart';
 
 import '../api/uiptv_api_client.dart';
 import 'desktop_responsive_card_grid.dart';
+import 'desktop_pill_bar.dart';
+
+ButtonStyle desktopBookmarkToolbarButtonStyle(BuildContext context) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  return OutlinedButton.styleFrom(
+    backgroundColor: dark
+        ? const Color(0xFF252525)
+        : Colors.white.withValues(alpha: 0.78),
+    foregroundColor: dark ? const Color(0xFFF2F2F2) : const Color(0xFF111318),
+    side: BorderSide(
+      color: dark ? const Color(0xFF3D3D3D) : const Color(0x1F0F172A),
+    ),
+    minimumSize: const Size(0, 42),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  );
+}
 
 class DesktopBookmarkCategorySelector extends StatelessWidget {
   const DesktopBookmarkCategorySelector({
@@ -19,82 +37,17 @@ class DesktopBookmarkCategorySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (categories.isEmpty) return const SizedBox.shrink();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useDropdown = _needsDropdown(context, constraints.maxWidth);
-        if (useDropdown) {
-          final selected = categories.firstWhere(
-            (category) => category.id == selectedCategoryId,
-            orElse: () => categories.first,
-          );
-          return Container(
-            height: 50,
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: selected.id,
-                isExpanded: true,
-                items: [
-                  for (final category in categories)
-                    DropdownMenuItem(
-                      value: category.id,
-                      child: Text(
-                        category.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: (id) {
-                  if (id == null) return;
-                  onSelected(
-                    categories.firstWhere((category) => category.id == id),
-                  );
-                },
-              ),
-            ),
-          );
-        }
-        return SizedBox(
-          height: 50,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (var index = 0; index < categories.length; index++) ...[
-                  if (index > 0) const SizedBox(width: 6),
-                  ChoiceChip(
-                    key: ValueKey('bookmark-category-${categories[index].id}'),
-                    label: Text(categories[index].name),
-                    selected: selectedCategoryId == categories[index].id,
-                    onSelected: (_) => onSelected(categories[index]),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
+    return DesktopPillBar(
+      barKey: 'bookmark-category-pill-bar',
+      dropdownKey: 'bookmark-category-pill-dropdown',
+      optionKeyPrefix: 'bookmark-category',
+      options: [
+        for (final category in categories) (category.id, category.name),
+      ],
+      selectedValue: selectedCategoryId,
+      onSelected: (id) =>
+          onSelected(categories.firstWhere((category) => category.id == id)),
     );
-  }
-
-  bool _needsDropdown(BuildContext context, double availableWidth) {
-    if (categories.length < 2) return false;
-    final style = Theme.of(context).textTheme.labelLarge ?? const TextStyle();
-    final textPainter = TextPainter(textDirection: Directionality.of(context));
-    var requiredWidth = (categories.length - 1) * 6.0;
-    for (final category in categories) {
-      textPainter.text = TextSpan(text: category.name, style: style);
-      textPainter.layout();
-      requiredWidth += textPainter.width + 44;
-    }
-    return requiredWidth > availableWidth;
   }
 }
 

@@ -43,16 +43,19 @@ void main() {
     expect(find.byKey(const ValueKey('settings-nav-players')), findsOneWidget);
   });
 
-  testWidgets('settings sidebar switches to the selected settings section', (
+  testWidgets('settings subsection navigation jumps to its control group', (
     tester,
   ) async {
     await _pumpScreen(tester, DesktopSettingsScreen(api: _api()));
 
-    await tester.tap(find.byKey(const ValueKey('settings-nav-backup')));
+    final control = find.text('Wide View').last;
+    final initialTop = tester.getTopLeft(control).dy;
+    await tester.tap(
+      find.byKey(const ValueKey('settings-nav-sub-players-playback')),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.upload_file), findsOneWidget);
-    expect(find.byType(RadioListTile<String>), findsNothing);
+    expect(tester.getTopLeft(control).dy, lessThan(initialTop));
   });
 
   testWidgets('settings search filters sections from the all view', (
@@ -76,10 +79,40 @@ void main() {
     await _pumpScreen(tester, DesktopSettingsScreen(api: _api()));
 
     expect(
-      find.byKey(const ValueKey('settings-section-selector')),
+      find.byKey(const ValueKey('settings-nav-sub-theme-cache')),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('settings opens in a dismissible dialog with all sections', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () =>
+                  showDesktopSettingsDialog(context: context, api: _api()),
+              child: const Text('Open settings'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('settings-close')), findsOneWidget);
+    expect(find.text('Video Players'), findsWidgets);
+    expect(find.text('Internal Web Server'), findsWidgets);
+
+    await tester.tap(find.byKey(const ValueKey('settings-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('settings-close')), findsNothing);
   });
 
   testWidgets('logs screen renders app log actions', (tester) async {
@@ -149,6 +182,7 @@ UiptvApiClient _api() {
           'autoAboutUiptvTitle': 'UIPTV {0}',
           'autoAboutUiptvRuntime': '{0} ({1})',
           'configVideoPlayers': 'Video Players',
+          'configWideView': 'Wide View',
           'configDatabaseSyncTitle': 'Backup & Restore',
           'configWebServer': 'Internal Web Server',
         });

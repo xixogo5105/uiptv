@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -123,6 +124,51 @@ class BookmarkApplicationServiceTest extends DbBackedTest {
                 account.getDbId(), "", CatalogMode.ITV, "ch-invalid-category", "Invalid Destination", "cmd",
                 "", "", "", "", "", "", "missing-category"
         )));
+    }
+
+    @Test
+    void recentBookmarkCanBeMovedIntoCategoryAndRemovedWithoutDeletingFavourite() {
+        Account account = createAccount("bookmark-recent-move");
+        BookmarkService bookmarkService = BookmarkService.getInstance();
+        bookmarkService.addCategory(new BookmarkCategory(null, "Sports"));
+        BookmarkCategory destination = bookmarkService.getAllCategories().getFirst();
+        Bookmark recent = new Bookmark(
+                account.getAccountName(), "Sports", "recent-channel", "Recent station",
+                "http://stream/recent", "http://test/xtreme", "provider-category");
+        recent.setAccountAction(Account.AccountAction.itv);
+        bookmarkService.recordRecentPlayback(recent);
+        String recentId = service.listRecentBookmarks().getFirst().getDbId();
+
+        assertTrue(recentId.startsWith("recent:"));
+        assertTrue(service.moveBookmarkToCategory(recentId, destination.getId()));
+
+        Bookmark promoted = service.listRecentBookmarks().getFirst();
+        assertFalse(promoted.getDbId().startsWith("recent:"));
+        assertEquals(destination.getId(), promoted.getCategoryId());
+        assertEquals(1, service.listBookmarks(0, 10).size());
+        assertTrue(service.removeRecentBookmark(promoted.getDbId()));
+        assertTrue(service.listRecentBookmarks().isEmpty());
+        assertEquals(1, service.listBookmarks(0, 10).size());
+        assertTrue(service.moveBookmarkToCategory(promoted.getDbId(), ""));
+        assertEquals("", service.getBookmark(promoted.getDbId()).getCategoryId());
+        assertFalse(service.removeRecentBookmark("missing-recent"));
+    }
+
+    @Test
+    void channelBookmarkIdsAreScopedByAccountAndCatalogueMode() {
+        Account account = createAccount("bookmark-channel-state");
+        Bookmark saved = new Bookmark(
+                account.getAccountName(), "Sports", "provider-channel", "Station",
+                "cmd", "http://test/xtreme", "provider-category");
+        saved.setAccountAction(Account.AccountAction.itv);
+        BookmarkService.getInstance().save(saved);
+
+        Map<String, String> ids = service.listBookmarkIdsForChannels(account.getDbId(), CatalogMode.ITV);
+
+        assertEquals(1, ids.size());
+        assertEquals(BookmarkService.getInstance().read().getFirst().getDbId(), ids.get("provider-channel"));
+        assertFalse(service.listBookmarkIdsForChannels(account.getDbId(), CatalogMode.VOD)
+                .containsKey("provider-channel"));
     }
 
     @Test

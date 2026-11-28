@@ -11,16 +11,20 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../api/uiptv_api_client.dart';
+import '../player/desktop_playback_recovery_policy.dart';
+import '../player/desktop_channel_queue.dart';
 import '../player/desktop_player_layout.dart';
 import '../player/desktop_player_stream_info.dart';
 import '../player/uiptv_player.dart';
 import 'desktop_favourites_layout.dart';
+import 'desktop_bookmark_category_manager.dart';
 import 'desktop_account_browser_layout.dart';
 import 'desktop_account_card.dart';
 import 'desktop_account_mode_pill_bar.dart';
 import 'desktop_responsive_card_grid.dart';
 import 'desktop_account_type_filter.dart';
 import 'desktop_account_editor.dart';
+import 'desktop_channel_card_style.dart';
 import 'bulk_account_import_screen.dart';
 import 'desktop_cache_reload_screen.dart';
 import 'desktop_about_dialog.dart';
@@ -31,6 +35,7 @@ import 'desktop_settings_screen.dart';
 import 'desktop_navigation_button.dart';
 import '../widgets/desktop_settings_menu.dart';
 import '../widgets/desktop_context_menu_region.dart';
+import '../widgets/desktop_channel_logo.dart';
 
 enum _DesktopSection {
   favourites,
@@ -41,6 +46,8 @@ enum _DesktopSection {
   logs,
   cacheReload,
 }
+
+typedef _PlaybackResolver = Future<Map<String, dynamic>> Function();
 
 class UiptvDesktopShell extends StatefulWidget {
   const UiptvDesktopShell({
@@ -73,10 +80,16 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
       TextEditingController();
   late Future<List<UiptvAccountSummary>> _accounts;
   late Future<List<UiptvBookmarkCategory>> _bookmarkCategories;
+  List<UiptvBookmarkCategory> _bookmarkCategoryItems = const [];
   late Future<List<UiptvBookmarkSummary>> _bookmarks;
   late Future<UiptvWatchingNowSnapshot> _watchingNow;
   UiptvAccountSummary? _selectedAccount;
+  String? _highlightedAccountDbId;
   UiptvCategorySummary? _selectedCategory;
+  String? _highlightedCategoryDbId;
+  String? _highlightedChannelDbId;
+  String? _highlightedBookmarkDbId;
+  String? _hoveredBookmarkDbId;
   bool _showAccountEditor = false;
   String? _editingAccountId;
   String _accountSortMode = 'DEFAULT';
@@ -102,6 +115,12 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   final FocusNode _playerFocusNode = FocusNode(debugLabel: 'UIPTV player');
   bool _playerControlsHidden = false;
   bool _repeatEnabled = false;
+  _PlaybackResolver? _activePlaybackResolver;
+  Timer? _playbackRecoveryTimer;
+  int _playbackGeneration = 0;
+  int _playbackRecoveryAttempts = 0;
+  bool _activePlaybackIsLive = false;
+  String? _playbackTerminalError;
   bool _playerGuideLoading = false;
   int _playerGuideRequestGeneration = 0;
   Map<String, dynamic>? _playerGuide;
@@ -128,6 +147,127 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
       return;
     }
     setState(() {});
+  }
+
+  int _beginPlaybackSource(_PlaybackResolver resolver, {required bool live}) {
+    _cancelPlaybackRecovery();
+    _playbackGeneration++;
+    _activePlaybackResolver = resolver;
+    _activePlaybackIsLive = live;
+    _playbackRecoveryAttempts = 0;
+    _playbackTerminalError = null;
+    return _playbackGeneration;
+  }
+
+  Future<Map<String, dynamic>> _resolveAndPlaySource(
+    _PlaybackResolver resolver,
+    int generation,
+  ) async {
+    final playback = await resolver();
+    return _openResolvedPlayback(playback, resolver, generation);
+  }
+
+  Future<Map<String, dynamic>> _openResolvedPlayback(
+    Map<String, dynamic> playback,
+    _PlaybackResolver resolver,
+    int generation,
+  ) async {
+    if (generation != _playbackGeneration ||
+        !identical(resolver, _activePlaybackResolver)) {
+      return playback;
+    }
+    final url = playback['url'] as String?;
+    if (url == null || url.isEmpty) {
+      throw UiptvApiException(422, 'The playback source did not resolve');
+    }
+    await _player.playUrl(url);
+    if (mounted && generation == _playbackGeneration) {
+      setState(() {
+        _showPlayer = true;
+        _playbackTerminalError = null;
+      });
+    }
+    return playback;
+  }
+
+  void _onPlaybackStarted() {
+    _cancelPlaybackRecovery();
+    _playbackRecoveryAttempts = 0;
+    if (mounted && _playbackTerminalError != null) {
+      setState(() => _playbackTerminalError = null);
+    }
+  }
+
+  void _onPlaybackFailure(String _) => _schedulePlaybackRecovery();
+
+  void _onPlaybackCompleted() => _schedulePlaybackRecovery();
+
+  void _schedulePlaybackRecovery() {
+    final resolver = _activePlaybackResolver;
+    if (!mounted || resolver == null || _playbackRecoveryTimer != null) return;
+    final live = _activePlaybackIsLive;
+    if (!live && !_repeatEnabled) return;
+    final delay = DesktopPlaybackRecoveryPolicy.delayBeforeNextAttempt(
+      live: live,
+      repeatEnabled: _repeatEnabled,
+      completedAttempts: _playbackRecoveryAttempts,
+    );
+    if (delay == null) {
+      _activePlaybackResolver = null;
+      _playbackTerminalError = _bookmarkText(
+        'autoFailedToReconnectAfter5Attempts',
+        'Failed to reconnect after 5 attempts',
+      );
+      setState(() {});
+      unawaited(_player.stop());
+      return;
+    }
+    final generation = _playbackGeneration;
+    _playbackRecoveryAttempts++;
+    setState(() => _playbackTerminalError = null);
+    _playbackRecoveryTimer = Timer(delay, () {
+      _playbackRecoveryTimer = null;
+      if (generation != _playbackGeneration ||
+          !identical(resolver, _activePlaybackResolver) ||
+          (!live && !_repeatEnabled)) {
+        return;
+      }
+      unawaited(_recoverPlaybackSource(resolver, generation));
+    });
+  }
+
+  Future<void> _recoverPlaybackSource(
+    _PlaybackResolver resolver,
+    int generation,
+  ) async {
+    await _player.stop();
+    if (generation != _playbackGeneration ||
+        !identical(resolver, _activePlaybackResolver)) {
+      return;
+    }
+    try {
+      await _resolveAndPlaySource(resolver, generation);
+    } catch (_) {
+      if (generation == _playbackGeneration &&
+          identical(resolver, _activePlaybackResolver)) {
+        _schedulePlaybackRecovery();
+      }
+    }
+  }
+
+  Future<void> _reloadPlayerSource() async {
+    final resolver = _activePlaybackResolver;
+    if (resolver == null) {
+      await _player.reload();
+      return;
+    }
+    _cancelPlaybackRecovery();
+    await _recoverPlaybackSource(resolver, _playbackGeneration);
+  }
+
+  void _cancelPlaybackRecovery() {
+    _playbackRecoveryTimer?.cancel();
+    _playbackRecoveryTimer = null;
   }
 
   Future<void> _loadPlayerLayoutSettings() async {
@@ -203,6 +343,10 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   }
 
   Future<void> _closePlayer() async {
+    _cancelPlaybackRecovery();
+    _playbackGeneration++;
+    _activePlaybackResolver = null;
+    await _player.stop();
     if (_playerFullscreen) {
       await _setPlayerFullscreen(false);
     }
@@ -210,6 +354,7 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
       setState(() {
         _showPlayer = false;
         _playerFloating = false;
+        _playbackTerminalError = null;
       });
     }
   }
@@ -221,9 +366,6 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   Future<void> _toggleRepeat() async {
     final enabled = !_repeatEnabled;
     setState(() => _repeatEnabled = enabled);
-    await _player.setPlaylistMode(
-      enabled ? PlaylistMode.single : PlaylistMode.none,
-    );
   }
 
   Future<Map<String, dynamic>?> _loadPlayerGuide({
@@ -329,6 +471,127 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
     );
   }
 
+  List<PopupMenuEntry<String>> _bookmarkContextMenuItems(
+    UiptvBookmarkSummary bookmark,
+  ) {
+    final items = <PopupMenuEntry<String>>[
+      PopupMenuItem(
+        value: 'play',
+        child: Text(_bookmarkText('autoEmbeddedPlayer', 'Embedded Player')),
+      ),
+      const PopupMenuDivider(),
+      PopupMenuItem(
+        enabled: false,
+        child: Text(_bookmarkText('autoAddTo', 'Add to')),
+      ),
+      PopupMenuItem(
+        value: 'category:',
+        child: Text(_bookmarkText('autoAll', 'All')),
+      ),
+      for (final category in _bookmarkCategoryItems)
+        PopupMenuItem(
+          value: 'category:${category.id}',
+          child: Text(category.name),
+        ),
+    ];
+    if (bookmark.isBookmarked) {
+      items
+        ..add(const PopupMenuDivider())
+        ..add(
+          PopupMenuItem(
+            value: 'removeFavorite',
+            child: Text(
+              _bookmarkText('autoRemoveFromFavorite', 'Remove from favorite'),
+            ),
+          ),
+        );
+    }
+    if (bookmark.mode.toLowerCase() == 'itv') {
+      items
+        ..add(const PopupMenuDivider())
+        ..add(
+          PopupMenuItem(
+            value: 'guide',
+            child: Text(_bookmarkText('epgOpenGuide', 'View Guide')),
+          ),
+        );
+    }
+    if (_favouriteCategory == _recentBookmarkCategoryId) {
+      items
+        ..add(const PopupMenuDivider())
+        ..add(
+          PopupMenuItem(
+            value: 'removeRecent',
+            child: Text(_bookmarkText('autoRemove', 'Remove from Recent')),
+          ),
+        );
+    }
+    return items;
+  }
+
+  Future<void> _handleBookmarkContextAction(
+    UiptvBookmarkSummary bookmark,
+    String action,
+  ) async {
+    try {
+      if (action == 'play') {
+        await _playBookmark(bookmark.dbId, channelName: bookmark.channelName);
+        return;
+      }
+      if (action == 'guide') {
+        await _showBookmarkGuide(bookmark);
+        return;
+      }
+      if (action == 'removeFavorite') {
+        await widget.api.deleteBookmark(bookmark.dbId);
+      } else if (action == 'removeRecent') {
+        await widget.api.removeRecentBookmark(bookmark.dbId);
+      } else if (action.startsWith('category:')) {
+        await widget.api.moveBookmarkToCategory(
+          bookmarkDbId: bookmark.dbId,
+          categoryId: action.substring('category:'.length),
+        );
+      } else {
+        return;
+      }
+      if (mounted) {
+        setState(() => _bookmarks = _loadFavouriteItems(_favouriteCategory));
+      }
+    } catch (error) {
+      _showMenuError(error);
+    }
+  }
+
+  Future<void> _showBookmarkGuide(UiptvBookmarkSummary bookmark) async {
+    setState(() {
+      _playerGuideContext = null;
+      _playerGuideBookmarkId = bookmark.dbId;
+      _playerGuideChannelName = bookmark.channelName;
+      _playerGuide = null;
+      _playerGuideError = null;
+    });
+    await _showPlayerGuide();
+  }
+
+  Future<void> _showChannelGuide(
+    UiptvChannelSummary channel,
+    UiptvAccountSummary account,
+    UiptvCategorySummary category,
+  ) async {
+    setState(() {
+      _playerGuideContext = (
+        accountId: account.dbId,
+        categoryId: category.dbId,
+        channelId: channel.dbId,
+      );
+      _playerGuideBookmarkId = null;
+      _playerGuideChannelName = channel.name;
+      _playerGuide = null;
+      _playerGuideError = null;
+    });
+    await _showPlayerGuide();
+  }
+
   Widget _buildInlinePlayerGuide() {
     final guide = _playerGuide;
     Widget guideLine(String key, String fallback, dynamic programme) {
@@ -412,7 +675,7 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   void _refreshAfterDatabaseRestore() {
     setState(() {
       _accounts = widget.api.accounts();
-      _bookmarkCategories = widget.api.bookmarkCategories();
+      _bookmarkCategories = _loadBookmarkCategories();
       _bookmarks = _loadFavouriteItems(_favouriteCategory);
       _watchingNow = widget.api.watchingNow();
       _selectedAccount = null;
@@ -690,18 +953,26 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   void initState() {
     super.initState();
     windowManager.addListener(this);
-    _player = UiptvPlayer(onStateChanged: _refreshPlayerStatus);
+    _player = UiptvPlayer(
+      onStateChanged: _refreshPlayerStatus,
+      onPlaybackStarted: _onPlaybackStarted,
+      onPlaybackFailure: _onPlaybackFailure,
+      onPlaybackCompleted: _onPlaybackCompleted,
+    );
     _accounts = widget.api.accounts();
-    _bookmarkCategories = widget.api.bookmarkCategories();
+    _bookmarkCategories = _loadBookmarkCategories();
     _bookmarks = _loadFavouriteItems(_favouriteCategory);
     _watchingNow = widget.api.watchingNow();
     _loadPlayerLayoutSettings();
     _loadBookmarkTranslations();
     if (widget.initialStreamUrl.isNotEmpty) {
-      _streamUrlController.text = widget.initialStreamUrl;
+      Future<Map<String, dynamic>> resolveInitialStream() async => {
+        'url': widget.initialStreamUrl,
+      };
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() => _showPlayer = true);
-        _player.playUrl(widget.initialStreamUrl);
+        final resolver = resolveInitialStream;
+        final generation = _beginPlaybackSource(resolver, live: false);
+        unawaited(_resolveAndPlaySource(resolver, generation));
       });
     }
   }
@@ -710,6 +981,8 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   void dispose() {
     windowManager.removeListener(this);
     _playerIdleTimer?.cancel();
+    _cancelPlaybackRecovery();
+    _playbackGeneration++;
     _player.dispose();
     _playerFocusNode.dispose();
     _streamUrlController.dispose();
@@ -729,6 +1002,12 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
           'autoManageCategories',
           'autoCategoryName',
           'autoAdd',
+          'autoAddTo',
+          'autoAll',
+          'autoBookmark',
+          'autoRemoveFromFavorite',
+          'autoRemoveBookmark',
+          'autoEmbeddedPlayer',
           'autoRemove',
           'autoManage',
           'autoCancel',
@@ -850,6 +1129,13 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
         .catchError((Object _) {});
   }
 
+  Future<List<UiptvBookmarkCategory>> _loadBookmarkCategories() async {
+    final categories = await widget.api.bookmarkCategories();
+    _bookmarkCategoryItems = categories;
+    if (mounted) setState(() {});
+    return categories;
+  }
+
   String _bookmarkText(String key, String fallback) =>
       _bookmarkTranslations[key] ?? fallback;
 
@@ -863,33 +1149,6 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   }
 
   Future<void> _clearRecentBookmarks() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(_bookmarkText('commonConfirm', 'Confirm')),
-        content: Text(
-          _bookmarkText(
-            'configRecentClearConfirm',
-            'Are you sure you want to clear recently played items?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(_bookmarkText('autoCancel', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              _bookmarkText('configClearRecent', 'Clear Recent Items'),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) {
-      return;
-    }
     try {
       await widget.api.clearRecentBookmarks();
       if (!mounted) return;
@@ -922,123 +1181,46 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   Future<void> _manageBookmarkCategories(
     List<UiptvBookmarkCategory> initialCategories,
   ) async {
-    final nameController = TextEditingController();
-    var categories = List<UiptvBookmarkCategory>.of(initialCategories);
-
     Future<List<UiptvBookmarkCategory>> reloadCategories() async {
       final updated = await widget.api.bookmarkCategories();
       if (mounted) {
-        setState(() => _bookmarkCategories = Future.value(updated));
+        setState(() {
+          _bookmarkCategoryItems = updated;
+          _bookmarkCategories = Future.value(updated);
+        });
       }
       return updated;
-    }
-
-    Future<void> addCategory(StateSetter updateDialog) async {
-      final name = nameController.text.trim();
-      if (name.isEmpty) return;
-      try {
-        await widget.api.addBookmarkCategory(name);
-        nameController.clear();
-        final updated = await reloadCategories();
-        updateDialog(() => categories = updated);
-      } catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(error.toString())));
-        }
-      }
-    }
-
-    Future<void> removeCategory(
-      UiptvBookmarkCategory category,
-      StateSetter updateDialog,
-    ) async {
-      try {
-        await widget.api.deleteBookmarkCategory(category.id);
-        final updated = await reloadCategories();
-        updateDialog(() => categories = updated);
-        if (!mounted) return;
-        setState(() {
-          if (_favouriteCategory == category.id) {
-            _favouriteCategory = '';
-          }
-          _bookmarks = _loadFavouriteItems(_favouriteCategory);
-        });
-      } catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(error.toString())));
-        }
-      }
     }
 
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, updateDialog) => AlertDialog(
-          title: Text(
-            _bookmarkText('autoManageCategories', 'Manage Categories'),
-          ),
-          content: SizedBox(
-            width: 440,
-            height: 400,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: nameController,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => addCategory(updateDialog),
-                        decoration: InputDecoration(
-                          labelText: _bookmarkText(
-                            'autoCategoryName',
-                            'Category Name',
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () => addCategory(updateDialog),
-                      child: Text(_bookmarkText('autoAdd', 'Add')),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: categories.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final category = categories[index];
-                      return ListTile(
-                        title: Text(category.name),
-                        trailing: IconButton(
-                          tooltip: _bookmarkText('autoRemove', 'Remove'),
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () =>
-                              removeCategory(category, updateDialog),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(_bookmarkText('commonClose', 'Close')),
-            ),
-          ],
-        ),
+      builder: (dialogContext) => DesktopBookmarkCategoryManagerDialog(
+        categories: initialCategories,
+        title: _bookmarkText('autoManageCategories', 'Manage Categories'),
+        categoriesLabel: _bookmarkText('autoCategories', 'Categories'),
+        categoryLabel: _bookmarkText('autoCategoryName', 'Category Name'),
+        addLabel: _bookmarkText('autoAdd', 'Add'),
+        removeLabel: _bookmarkText('autoRemove', 'Remove'),
+        closeLabel: _bookmarkText('commonClose', 'Close'),
+        emptyLabel: _bookmarkText('commonNoResults', 'No categories found'),
+        onAdd: (name) async {
+          await widget.api.addBookmarkCategory(name);
+          return reloadCategories();
+        },
+        onRemove: (id) async {
+          await widget.api.deleteBookmarkCategory(id);
+          final updated = await reloadCategories();
+          if (mounted) {
+            setState(() {
+              if (_favouriteCategory == id) _favouriteCategory = '';
+              _bookmarks = _loadFavouriteItems(_favouriteCategory);
+            });
+          }
+          return updated;
+        },
       ),
     );
-    nameController.dispose();
   }
 
   @override
@@ -1059,35 +1241,9 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
               toolbarHeight: 54,
               backgroundColor: Colors.transparent,
               surfaceTintColor: Colors.transparent,
-              flexibleSpace: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).appBarTheme.backgroundColor,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).colorScheme.outlineVariant
-                              .withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
               titleSpacing: 14,
               title: Row(
                 children: [
-                  Image.asset(
-                    'assets/icons/uiptv-app.png',
-                    key: const Key('uiptv-app-logo'),
-                    width: 25,
-                    height: 28,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text('UIPTV', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 24),
                   _navigationButton(
                     _DesktopSection.favourites,
                     Icons.favorite,
@@ -1105,19 +1261,7 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                   ),
                 ],
               ),
-              actions: [
-                IconButton(
-                  tooltip: _showPlayer ? 'Hide player' : 'Show player',
-                  icon: Icon(
-                    _showPlayer
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                  ),
-                  onPressed: () => setState(() => _showPlayer = !_showPlayer),
-                ),
-                const SizedBox(width: 10),
-                _buildSettingsMenu(),
-              ],
+              actions: [_buildSettingsMenu()],
             ),
       body: _playerFullscreen
           ? desktopContent
@@ -1165,7 +1309,14 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   void _handleSettingsMenuAction(DesktopSettingsMenuAction action) {
     switch (action) {
       case DesktopSettingsMenuAction.settings:
-        setState(() => _section = _DesktopSection.settings);
+        unawaited(
+          showDesktopSettingsDialog(
+            context: context,
+            api: widget.api,
+            onRestored: _refreshAfterDatabaseRestore,
+            onSettingsSaved: _settingsSaved,
+          ),
+        );
       case DesktopSettingsMenuAction.import:
         setState(() => _section = _DesktopSection.import);
       case DesktopSettingsMenuAction.cacheReload:
@@ -1487,14 +1638,29 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                     padding: const EdgeInsets.all(8),
                     child: LayoutBuilder(
                       builder: (context, playerConstraints) {
-                        final moveSeekButtonsToTimeline =
-                            DesktopPlayerLayout.movesSeekButtonsToTimeline(
+                        final showSeekButtonsInToolbar =
+                            DesktopPlayerLayout.showsSeekButtonsInToolbar(
+                              mode: _playerChannelMode,
                               playerWidth: playerConstraints.maxWidth,
+                            );
+                        final showSeekButtonsBesideTimeline =
+                            DesktopPlayerLayout.showsSeekButtonsBesideTimeline(
+                              mode: _playerChannelMode,
+                              playerWidth: playerConstraints.maxWidth,
+                            );
+                        final controlBarMaxWidth =
+                            DesktopPlayerLayout.controlBarMaxWidth(
+                              playerWidth: playerConstraints.maxWidth,
+                              wideView: _wideView,
+                              isFullscreen: _playerFullscreen,
+                              isFloating: _playerFloating,
                             );
                         return Align(
                           alignment: Alignment.bottomCenter,
                           child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 640),
+                            constraints: BoxConstraints(
+                              maxWidth: controlBarMaxWidth,
+                            ),
                             child: AnimatedOpacity(
                               opacity: _playerHovered && !_playerControlsHidden
                                   ? 1
@@ -1636,14 +1802,16 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                                                   ),
                                                 ),
                                               ),
-                                            if (_player.error != null)
+                                            if (_player.error != null ||
+                                                _playbackTerminalError != null)
                                               SizedBox(
                                                 width: double.infinity,
                                                 child: Text(
-                                                  _bookmarkText(
-                                                    'autoAnErrorOccurredDuringPlayback',
-                                                    'Playback error',
-                                                  ),
+                                                  _playbackTerminalError ??
+                                                      _bookmarkText(
+                                                        'autoAnErrorOccurredDuringPlayback',
+                                                        'Playback error',
+                                                      ),
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -1653,195 +1821,212 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                                                   ),
                                                 ),
                                               ),
-                                            SingleChildScrollView(
-                                              scrollDirection: Axis.horizontal,
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  _playerAssetButton(
-                                                    icon: _player.playing
-                                                        ? 'pause.png'
-                                                        : 'play.png',
-                                                    tooltip: _player.playing
-                                                        ? null
-                                                        : _bookmarkText(
-                                                            'autoPlay',
-                                                            'Play',
-                                                          ),
-                                                    onPressed: _player.playing
-                                                        ? _player.pause
-                                                        : _player.play,
+                                            Wrap(
+                                              alignment:
+                                                  WrapAlignment.spaceBetween,
+                                              spacing: 4,
+                                              runSpacing: 0,
+                                              children: [
+                                                _playerAssetButton(
+                                                  icon: _player.playing
+                                                      ? 'pause.png'
+                                                      : 'play.png',
+                                                  tooltip: _player.playing
+                                                      ? null
+                                                      : _bookmarkText(
+                                                          'autoPlay',
+                                                          'Play',
+                                                        ),
+                                                  onPressed: _player.playing
+                                                      ? _player.pause
+                                                      : _player.play,
+                                                ),
+                                                _playerAssetButton(
+                                                  icon: 'stop.png',
+                                                  tooltip: _bookmarkText(
+                                                    'autoStop',
+                                                    'Stop',
                                                   ),
-                                                  _playerAssetButton(
-                                                    icon: 'stop.png',
-                                                    tooltip: _bookmarkText(
-                                                      'autoStop',
-                                                      'Stop',
-                                                    ),
-                                                    onPressed: _closePlayer,
-                                                  ),
-                                                  if (_playerChannelIndex > 0)
-                                                    _playerActionButton(
-                                                      tooltip: _bookmarkText(
-                                                        'playerPreviousItem',
-                                                        'Previous item',
-                                                      ),
-                                                      onPressed: () =>
-                                                          _navigatePlayerChannel(
-                                                            -1,
-                                                          ),
-                                                      icon: const Icon(
-                                                        Icons.skip_previous,
-                                                      ),
-                                                    ),
-                                                  if (_playerChannelIndex >=
-                                                          0 &&
-                                                      _playerChannelIndex + 1 <
-                                                          _playerChannelQueue
-                                                              .length)
-                                                    _playerActionButton(
-                                                      tooltip: _bookmarkText(
-                                                        'playerNextItem',
-                                                        'Next item',
-                                                      ),
-                                                      onPressed: () =>
-                                                          _navigatePlayerChannel(
-                                                            1,
-                                                          ),
-                                                      icon: const Icon(
-                                                        Icons.skip_next,
-                                                      ),
-                                                    ),
-                                                  if (!isOnDemand ||
-                                                      !moveSeekButtonsToTimeline)
-                                                    _playerAssetButton(
-                                                      icon:
-                                                          'reverse-rewind.png',
-                                                      onPressed: () =>
-                                                          _player.seekBy(
-                                                            const Duration(
-                                                              seconds: -15,
-                                                            ),
-                                                          ),
-                                                    ),
-                                                  if (!isOnDemand ||
-                                                      !moveSeekButtonsToTimeline)
-                                                    _playerAssetButton(
-                                                      icon: 'fast-forward.png',
-                                                      onPressed: () =>
-                                                          _player.seekBy(
-                                                            const Duration(
-                                                              seconds: 15,
-                                                            ),
-                                                          ),
-                                                    ),
-                                                  _playerAssetButton(
-                                                    icon: _repeatEnabled
-                                                        ? 'repeat-on.png'
-                                                        : 'repeat-off.png',
-                                                    onPressed: _toggleRepeat,
-                                                  ),
-                                                  _playerAssetButton(
-                                                    icon: 'reload.png',
-                                                    onPressed: _player.reload,
-                                                  ),
-                                                  _playerAssetButton(
-                                                    icon: _playerFullscreen
-                                                        ? 'fullscreen-exit.png'
-                                                        : 'fullscreen.png',
-                                                    onPressed:
-                                                        _togglePlayerFullscreen,
-                                                  ),
-                                                  _playerAssetButton(
-                                                    icon: _playerFloating
-                                                        ? 'picture-in-picture-exit.png'
-                                                        : 'picture-in-picture.png',
-                                                    onPressed:
-                                                        _toggleFloatingPlayer,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  _playerAssetButton(
-                                                    icon: _playerMuted
-                                                        ? 'mute-on.png'
-                                                        : 'mute-off.png',
-                                                    onPressed:
-                                                        _togglePlayerMute,
-                                                  ),
-                                                  RotatedBox(
-                                                    quarterTurns: 3,
-                                                    child: SizedBox(
-                                                      width: 52,
-                                                      height: 20,
-                                                      child: Slider(
-                                                        value: _volume,
-                                                        min: 0,
-                                                        max: 100,
-                                                        onChanged:
-                                                            _setPlayerVolume,
-                                                      ),
-                                                    ),
-                                                  ),
+                                                  onPressed: _closePlayer,
+                                                ),
+                                                if (DesktopPlayerLayout.showsChannelNavigation(
+                                                  mode: _playerChannelMode,
+                                                ))
                                                   _playerActionButton(
                                                     tooltip: _bookmarkText(
-                                                      'configWideView',
-                                                      'Wide View',
+                                                      'playerPreviousItem',
+                                                      'Previous item',
                                                     ),
-                                                    onPressed: _toggleWideView,
-                                                    icon: Icon(
-                                                      _wideView
-                                                          ? Icons.view_sidebar
-                                                          : Icons.view_column,
-                                                    ),
-                                                  ),
-                                                  _playerAssetButton(
-                                                    icon: aspectIcon,
-                                                    tooltip: aspectTooltip,
                                                     onPressed:
-                                                        _toggleAspectRatio,
+                                                        !_playerChannelNavigationBusy &&
+                                                            DesktopPlayerLayout.canNavigateChannel(
+                                                              currentIndex:
+                                                                  _playerChannelIndex,
+                                                              queueLength:
+                                                                  _playerChannelQueue
+                                                                      .length,
+                                                              next: false,
+                                                            )
+                                                        ? () =>
+                                                              _navigatePlayerChannel(
+                                                                -1,
+                                                              )
+                                                        : null,
+                                                    icon: const Icon(
+                                                      Icons.skip_previous,
+                                                    ),
                                                   ),
-                                                  _playerTrackButton(),
-                                                  _playerAssetButton(
-                                                    icon: 'arrow-down.png',
+                                                if (DesktopPlayerLayout.showsChannelNavigation(
+                                                  mode: _playerChannelMode,
+                                                ))
+                                                  _playerActionButton(
                                                     tooltip: _bookmarkText(
-                                                      'autoHideThisBar',
-                                                      'Hide this bar',
+                                                      'playerNextItem',
+                                                      'Next item',
                                                     ),
                                                     onPressed:
-                                                        _hidePlayerControls,
-                                                  ),
-                                                  if (DesktopPlayerLayout.showsEpgControl(
-                                                        wideView: _wideView,
-                                                        isFullscreen:
-                                                            _playerFullscreen,
-                                                        isFloating:
-                                                            _playerFloating,
-                                                      ) &&
-                                                      _menuSettings['epgEnabled'] ==
-                                                          true &&
-                                                      (_playerGuideContext !=
-                                                              null ||
-                                                          _playerGuideBookmarkId !=
-                                                              null))
-                                                    _playerActionButton(
-                                                      tooltip: _bookmarkText(
-                                                        'epgOpenGuide',
-                                                        'View Guide',
-                                                      ),
-                                                      onPressed:
-                                                          _playerGuideLoading
-                                                          ? null
-                                                          : _showPlayerGuide,
-                                                      icon: const Icon(
-                                                        Icons.article_outlined,
-                                                      ),
+                                                        !_playerChannelNavigationBusy &&
+                                                            DesktopPlayerLayout.canNavigateChannel(
+                                                              currentIndex:
+                                                                  _playerChannelIndex,
+                                                              queueLength:
+                                                                  _playerChannelQueue
+                                                                      .length,
+                                                              next: true,
+                                                            )
+                                                        ? () =>
+                                                              _navigatePlayerChannel(
+                                                                1,
+                                                              )
+                                                        : null,
+                                                    icon: const Icon(
+                                                      Icons.skip_next,
                                                     ),
-                                                ],
-                                              ),
+                                                  ),
+                                                if (showSeekButtonsInToolbar)
+                                                  _playerAssetButton(
+                                                    icon: 'reverse-rewind.png',
+                                                    onPressed: () =>
+                                                        _player.seekBy(
+                                                          const Duration(
+                                                            seconds: -15,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                if (showSeekButtonsInToolbar)
+                                                  _playerAssetButton(
+                                                    icon: 'fast-forward.png',
+                                                    onPressed: () =>
+                                                        _player.seekBy(
+                                                          const Duration(
+                                                            seconds: 15,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                _playerAssetButton(
+                                                  icon: _repeatEnabled
+                                                      ? 'repeat-on.png'
+                                                      : 'repeat-off.png',
+                                                  onPressed: _toggleRepeat,
+                                                ),
+                                                _playerAssetButton(
+                                                  icon: 'reload.png',
+                                                  onPressed:
+                                                      _reloadPlayerSource,
+                                                ),
+                                                if (controlBarMaxWidth >= 620)
+                                                  const SizedBox(width: 32)
+                                                else
+                                                  const SizedBox(width: 8),
+                                                _playerAssetButton(
+                                                  icon: _playerFullscreen
+                                                      ? 'fullscreen-exit.png'
+                                                      : 'fullscreen.png',
+                                                  onPressed:
+                                                      _togglePlayerFullscreen,
+                                                ),
+                                                _playerAssetButton(
+                                                  icon: _playerFloating
+                                                      ? 'picture-in-picture-exit.png'
+                                                      : 'picture-in-picture.png',
+                                                  onPressed:
+                                                      _toggleFloatingPlayer,
+                                                ),
+                                                _playerAssetButton(
+                                                  icon: _playerMuted
+                                                      ? 'mute-on.png'
+                                                      : 'mute-off.png',
+                                                  onPressed: _togglePlayerMute,
+                                                ),
+                                                SizedBox(
+                                                  width: 88,
+                                                  height: 32,
+                                                  child: Slider(
+                                                    value: _volume,
+                                                    min: 0,
+                                                    max: 100,
+                                                    onChanged: _setPlayerVolume,
+                                                  ),
+                                                ),
+                                                _playerActionButton(
+                                                  tooltip: _bookmarkText(
+                                                    'configWideView',
+                                                    'Wide View',
+                                                  ),
+                                                  onPressed: _toggleWideView,
+                                                  icon: Icon(
+                                                    _wideView
+                                                        ? Icons.view_sidebar
+                                                        : Icons.view_column,
+                                                  ),
+                                                ),
+                                                _playerAssetButton(
+                                                  icon: aspectIcon,
+                                                  tooltip: aspectTooltip,
+                                                  onPressed: _toggleAspectRatio,
+                                                ),
+                                                _playerTrackButton(),
+                                                _playerAssetButton(
+                                                  icon: 'arrow-down.png',
+                                                  tooltip: _bookmarkText(
+                                                    'autoHideThisBar',
+                                                    'Hide this bar',
+                                                  ),
+                                                  onPressed:
+                                                      _hidePlayerControls,
+                                                ),
+                                                if (DesktopPlayerLayout.showsEpgControl(
+                                                      wideView: _wideView,
+                                                      isFullscreen:
+                                                          _playerFullscreen,
+                                                      isFloating:
+                                                          _playerFloating,
+                                                    ) &&
+                                                    _menuSettings['epgEnabled'] ==
+                                                        true &&
+                                                    (_playerGuideContext !=
+                                                            null ||
+                                                        _playerGuideBookmarkId !=
+                                                            null))
+                                                  _playerActionButton(
+                                                    tooltip: _bookmarkText(
+                                                      'epgOpenGuide',
+                                                      'View Guide',
+                                                    ),
+                                                    onPressed:
+                                                        _playerGuideLoading
+                                                        ? null
+                                                        : _showPlayerGuide,
+                                                    icon: const Icon(
+                                                      Icons.article_outlined,
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                             if (isOnDemand)
                                               Row(
                                                 children: [
-                                                  if (moveSeekButtonsToTimeline)
+                                                  if (showSeekButtonsBesideTimeline)
                                                     _playerAssetButton(
                                                       icon:
                                                           'reverse-rewind.png',
@@ -1852,7 +2037,7 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                                                             ),
                                                           ),
                                                     ),
-                                                  if (moveSeekButtonsToTimeline)
+                                                  if (showSeekButtonsBesideTimeline)
                                                     _playerAssetButton(
                                                       icon: 'fast-forward.png',
                                                       onPressed: () =>
@@ -2043,16 +2228,19 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                         ),
                       ),
                       if (_favouriteCategory == _recentBookmarkCategoryId)
-                        TextButton.icon(
+                        OutlinedButton(
+                          key: const ValueKey('clear-recent-bookmarks'),
                           onPressed: _clearRecentBookmarks,
-                          icon: const Icon(Icons.clear),
-                          label: Text(_bookmarkText('autoClear', 'Clear')),
+                          style: desktopBookmarkToolbarButtonStyle(context),
+                          child: Text(_bookmarkText('autoClear', 'Clear')),
                         ),
                       const SizedBox(width: 6),
                       OutlinedButton.icon(
+                        key: const ValueKey('manage-bookmark-categories'),
                         onPressed: () => _manageBookmarkCategories(categories),
                         icon: const Icon(Icons.tune),
                         label: Text(_bookmarkText('autoManage', 'Manage')),
+                        style: desktopBookmarkToolbarButtonStyle(context),
                       ),
                     ],
                   ),
@@ -2132,79 +2320,164 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                           itemBuilder: (context, index) {
                             final bookmark = visibleBookmarks[index];
                             final colorScheme = Theme.of(context).colorScheme;
-                            return Material(
-                              color: colorScheme.surface,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(
-                                  color: colorScheme.outlineVariant,
-                                ),
+                            final selected =
+                                _highlightedBookmarkDbId == bookmark.dbId;
+                            final isRecent =
+                                _favouriteCategory == _recentBookmarkCategoryId;
+                            return MouseRegion(
+                              onEnter: (_) => setState(
+                                () => _hoveredBookmarkDbId = bookmark.dbId,
                               ),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () => _playBookmark(
-                                  bookmark.dbId,
-                                  channelName: bookmark.channelName,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 52,
-                                        height: 52,
-                                        child: bookmark.logo.isEmpty
-                                            ? const Icon(
-                                                Icons.live_tv_outlined,
-                                                size: 34,
-                                                color: Color(0xFF6D7B87),
-                                              )
-                                            : Image.network(
-                                                bookmark.logo,
-                                                fit: BoxFit.contain,
-                                                errorBuilder: (_, _, _) =>
-                                                    const Icon(
-                                                      Icons.live_tv_outlined,
-                                                      size: 34,
+                              onExit: (_) {
+                                if (_hoveredBookmarkDbId == bookmark.dbId) {
+                                  setState(() => _hoveredBookmarkDbId = null);
+                                }
+                              },
+                              child: DesktopContextMenuRegion(
+                                items: _bookmarkContextMenuItems(bookmark),
+                                onSelected: (action) {
+                                  setState(
+                                    () => _highlightedBookmarkDbId =
+                                        bookmark.dbId,
+                                  );
+                                  unawaited(
+                                    _handleBookmarkContextAction(
+                                      bookmark,
+                                      action,
+                                    ),
+                                  );
+                                },
+                                child: Material(
+                                  color: DesktopChannelCardStyle.background(
+                                    colorScheme,
+                                    selected: selected,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(
+                                      color: DesktopChannelCardStyle.border(
+                                        colorScheme,
+                                        selected: selected,
+                                      ),
+                                    ),
+                                  ),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () => setState(
+                                      () => _highlightedBookmarkDbId =
+                                          bookmark.dbId,
+                                    ),
+                                    onDoubleTap: () => _playBookmark(
+                                      bookmark.dbId,
+                                      channelName: bookmark.channelName,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Row(
+                                        children: [
+                                          DesktopChannelLogo(
+                                            logo: bookmark.logo,
+                                            selected: selected,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        bookmark.channelName,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.normal,
+                                                          color:
+                                                              DesktopChannelCardStyle.foreground(
+                                                                colorScheme,
+                                                                selected:
+                                                                    selected,
+                                                              ),
+                                                        ),
+                                                      ),
                                                     ),
-                                              ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              bookmark.channelName,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                                    if (isRecent &&
+                                                        bookmark.isBookmarked)
+                                                      const Padding(
+                                                        padding:
+                                                            EdgeInsets.only(
+                                                              left: 4,
+                                                            ),
+                                                        child: Icon(
+                                                          Icons.favorite,
+                                                          color: Color(
+                                                            0xFFE03131,
+                                                          ),
+                                                          size: 16,
+                                                        ),
+                                                      ),
+                                                    if (_hoveredBookmarkDbId ==
+                                                        bookmark.dbId)
+                                                      PopupMenuButton<String>(
+                                                        key: ValueKey(
+                                                          'bookmark-menu-${bookmark.dbId}',
+                                                        ),
+                                                        tooltip: _bookmarkText(
+                                                          'autoManage',
+                                                          'Actions',
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        icon: Icon(
+                                                          Icons.more_horiz,
+                                                          size: 18,
+                                                          color:
+                                                              DesktopChannelCardStyle.mutedForeground(
+                                                                colorScheme,
+                                                                selected:
+                                                                    selected,
+                                                              ),
+                                                        ),
+                                                        onSelected: (action) =>
+                                                            _handleBookmarkContextAction(
+                                                              bookmark,
+                                                              action,
+                                                            ),
+                                                        itemBuilder: (_) =>
+                                                            _bookmarkContextMenuItems(
+                                                              bookmark,
+                                                            ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  bookmark.accountName,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 11.5,
+                                                    color:
+                                                        DesktopChannelCardStyle.mutedForeground(
+                                                          colorScheme,
+                                                          selected: selected,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(height: 5),
-                                            Text(
-                                              [
-                                                    bookmark.accountName,
-                                                    bookmark.categoryTitle,
-                                                  ]
-                                                  .where(
-                                                    (value) => value.isNotEmpty,
-                                                  )
-                                                  .join(' • '),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -2277,6 +2550,9 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
       builder: (context, constraints) {
         return DesktopAccountBrowserLayout(
           showEditor: _showAccountEditor,
+          editorWidth: _showPlayer && _wideView && !_playerFloating
+              ? DesktopAccountBrowserLayout.widePlayerEditorWidth
+              : DesktopAccountBrowserLayout.defaultEditorWidth,
           hasSelectedAccount: _selectedAccount != null,
           hasSelectedCategory: _selectedCategory != null,
           editor: _accountEditorPane(),
@@ -2505,7 +2781,9 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                     itemCount: accounts.length,
                     itemBuilder: (context, index) {
                       final account = accounts[index];
-                      final selected = _selectedAccount?.dbId == account.dbId;
+                      final selected =
+                          _selectedAccount?.dbId == account.dbId ||
+                          _highlightedAccountDbId == account.dbId;
                       final menuItems = _accountMenuItems(account);
                       return DesktopContextMenuRegion(
                         items: menuItems,
@@ -2526,7 +2804,10 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                           menuItems: menuItems,
                           onMenuSelected: (action) =>
                               _handleAccountMenu(account, action),
-                          onTap: () => _selectAccount(account),
+                          onTap: () => setState(
+                            () => _highlightedAccountDbId = account.dbId,
+                          ),
+                          onDoubleTap: () => _selectAccount(account),
                         ),
                       );
                     },
@@ -2594,8 +2875,11 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   void _selectAccount(UiptvAccountSummary account, {String mode = 'itv'}) {
     setState(() {
       _selectedAccount = account;
+      _highlightedAccountDbId = account.dbId;
       _selectedMode = mode;
       _selectedCategory = null;
+      _highlightedCategoryDbId = null;
+      _highlightedChannelDbId = null;
       _catalogueSearchController.clear();
       _categories = widget.api.categories(accountId: account.dbId, mode: mode);
       _channels = null;
@@ -2726,17 +3010,14 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                 final query = _catalogueSearchController.text
                     .trim()
                     .toLowerCase();
-                final visibleChannels = query.isEmpty
-                    ? channels
-                    : channels
-                          .where(
-                            (channel) =>
-                                channel.name.toLowerCase().contains(query) ||
-                                channel.description.toLowerCase().contains(
-                                  query,
-                                ),
-                          )
-                          .toList();
+                final visibleChannels = DesktopChannelQueue.filter(
+                  channels: channels,
+                  query: query,
+                );
+                final playableChannels = DesktopChannelQueue.filter(
+                  channels: visibleChannels,
+                  playableOnly: true,
+                );
                 final page = _lastChannelPage ?? firstPage;
                 return Column(
                   children: [
@@ -2782,7 +3063,7 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                               visibleChannels[index],
                               selectedAccount,
                               selectedCategory,
-                              channelQueue: channels,
+                              channelQueue: playableChannels,
                             );
                           },
                         ),
@@ -2900,7 +3181,11 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                       selectedAccount,
                       category,
                       onTap: () => setState(() {
+                        _highlightedCategoryDbId = category.dbId;
+                      }),
+                      onDoubleTap: () => setState(() {
                         _selectedCategory = category;
+                        _highlightedCategoryDbId = category.dbId;
                         _catalogueSearchController.clear();
                         _additionalChannels.clear();
                         _lastChannelPage = null;
@@ -2927,6 +3212,7 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
     UiptvAccountSummary account,
     UiptvCategorySummary category, {
     required VoidCallback onTap,
+    required VoidCallback onDoubleTap,
   }) {
     final menuItems = category.dbId == 'all'
         ? const <PopupMenuEntry<String>>[]
@@ -2936,15 +3222,21 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
               child: Text(_bookmarkText('autoRemove', 'Remove from cache')),
             ),
           ];
+    final selected = _highlightedCategoryDbId == category.dbId;
     final card = Card(
       margin: const EdgeInsets.symmetric(vertical: 3),
       clipBehavior: Clip.antiAlias,
+      color: selected
+          ? Theme.of(context).colorScheme.secondaryContainer
+                .withValues(alpha: 0.88)
+          : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: InkWell(
         onTap: onTap,
+        onDoubleTap: onDoubleTap,
         child: Padding(
           padding: const EdgeInsets.only(left: 14, right: 4),
           child: Row(
@@ -3015,67 +3307,100 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
     final menuItems = <PopupMenuEntry<String>>[
       PopupMenuItem(
         value: 'play',
-        child: Text(_bookmarkText('autoPlay', 'Play')),
+        child: Text(_bookmarkText('autoEmbeddedPlayer', 'Embedded Player')),
       ),
-      if (channel.dbId.isNotEmpty)
+      if (_selectedMode == 'itv' && channel.dbId.isNotEmpty) ...[
+        const PopupMenuDivider(),
         PopupMenuItem(
-          value: 'favourite',
-          child: Text(_bookmarkText('autoAdd', 'Add to favourites')),
+          enabled: false,
+          child: Text(_bookmarkText('autoBookmark', 'Add to Favorites')),
         ),
+        PopupMenuItem(
+          value: 'bookmark:',
+          child: Text(_bookmarkText('autoAll', 'All')),
+        ),
+        for (final bookmarkCategory in _bookmarkCategoryItems)
+          PopupMenuItem(
+            value: 'bookmark:${bookmarkCategory.id}',
+            child: Text(bookmarkCategory.name),
+          ),
+        if (channel.isBookmarked && channel.bookmarkId.isNotEmpty) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            value: 'removeBookmark',
+            child: Text(_bookmarkText('autoRemoveBookmark', 'Remove Bookmark')),
+          ),
+        ],
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'guide',
+          child: Text(_bookmarkText('epgOpenGuide', 'View Guide')),
+        ),
+      ],
     ];
-    void onMenuSelected(String action) {
-      if (action == 'play') {
-        _playChannel(
-          account.dbId,
-          category.dbId,
-          channel.playbackId.isEmpty ? channel.dbId : channel.playbackId,
-          mode: _selectedMode,
-          guideChannelDbId: channel.dbId,
-          channelName: channel.name,
-          channelQueue: channelQueue,
-        );
-      } else if (action == 'favourite') {
-        _addLiveBookmark(account.dbId, category.dbId, channel.dbId);
+    void playChannel() => _playChannel(
+      account.dbId,
+      category.dbId,
+      channel.playbackId.isEmpty ? channel.dbId : channel.playbackId,
+      mode: _selectedMode,
+      guideChannelDbId: channel.dbId,
+      channelName: channel.name,
+      channelQueue: channelQueue,
+    );
+    void selectChannel() {
+      if (_highlightedChannelDbId != channel.dbId) {
+        setState(() => _highlightedChannelDbId = channel.dbId);
       }
     }
 
+    void playSelectedChannel() {
+      selectChannel();
+      playChannel();
+    }
+
+    void onMenuSelected(String action) {
+      if (action == 'play') {
+        playSelectedChannel();
+      } else if (action == 'guide') {
+        _showChannelGuide(channel, account, category);
+      } else if (action == 'removeBookmark') {
+        _removeChannelBookmark(channel);
+      } else if (action.startsWith('bookmark:')) {
+        _addLiveBookmark(
+          account.dbId,
+          category.dbId,
+          channel.dbId,
+          bookmarkCategoryId: action.substring('bookmark:'.length),
+        );
+      }
+    }
+
+    final selected = _highlightedChannelDbId == channel.dbId;
+    final colorScheme = Theme.of(context).colorScheme;
     final card = Material(
-      color: Theme.of(context).colorScheme.surface,
+      key: Key('channel-card-${channel.dbId}'),
+      color: DesktopChannelCardStyle.background(
+        colorScheme,
+        selected: selected,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        side: BorderSide(
+          color: DesktopChannelCardStyle.border(
+            colorScheme,
+            selected: selected,
+          ),
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _playChannel(
-          account.dbId,
-          category.dbId,
-          channel.playbackId.isEmpty ? channel.dbId : channel.playbackId,
-          mode: _selectedMode,
-          guideChannelDbId: channel.dbId,
-          channelName: channel.name,
-          channelQueue: channelQueue,
-        ),
+        onTap: selectChannel,
+        onDoubleTap: playSelectedChannel,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              SizedBox(
-                width: 52,
-                height: 52,
-                child: channel.logo.isEmpty
-                    ? const Icon(
-                        Icons.live_tv_outlined,
-                        size: 34,
-                        color: Color(0xFF6D7B87),
-                      )
-                    : Image.network(
-                        channel.logo,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) =>
-                            const Icon(Icons.live_tv_outlined, size: 34),
-                      ),
-              ),
+              DesktopChannelLogo(logo: channel.logo, selected: selected),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -3086,7 +3411,13 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                       channel.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: DesktopChannelCardStyle.foreground(
+                          colorScheme,
+                          selected: selected,
+                        ),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -3095,13 +3426,26 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
                           : '${channel.number}  ${channel.description}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
+                      style: TextStyle(
+                        color: DesktopChannelCardStyle.mutedForeground(
+                          colorScheme,
+                          selected: selected,
+                        ),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
               PopupMenuButton<String>(
                 tooltip: _bookmarkText('autoManage', 'Actions'),
+                icon: Icon(
+                  Icons.more_vert,
+                  color: DesktopChannelCardStyle.mutedForeground(
+                    colorScheme,
+                    selected: selected,
+                  ),
+                ),
                 onSelected: onMenuSelected,
                 itemBuilder: (_) => menuItems,
               ),
@@ -3126,24 +3470,21 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
     String? channelName,
     List<UiptvChannelSummary>? channelQueue,
   }) async {
-    try {
-      final playback = await widget.api.resolveLivePlayback(
-        accountId: accountDbId,
-        categoryDbId: categoryDbId,
-        channelDbId: channelDbId,
-        mode: mode,
-      );
-      final url = playback['url'] as String?;
-      if (url == null || url.isEmpty) {
-        throw UiptvApiException(
-          422,
-          'The selected channel did not resolve to a stream',
+    Future<Map<String, dynamic>> resolveChannelPlayback() =>
+        widget.api.resolveLivePlayback(
+          accountId: accountDbId,
+          categoryDbId: categoryDbId,
+          channelDbId: channelDbId,
+          mode: mode,
         );
-      }
-      await _player.playUrl(url);
+    final resolver = resolveChannelPlayback;
+    final generation = _beginPlaybackSource(resolver, live: mode == 'itv');
+    try {
+      await _player.stop();
+      await _resolveAndPlaySource(resolver, generation);
+      if (!mounted || generation != _playbackGeneration) return;
       if (mounted) {
         setState(() {
-          _showPlayer = true;
           _playerGuideRequestGeneration++;
           _playerGuideLoading = false;
           _playerGuideContext = mode == 'itv' && guideChannelDbId != null
@@ -3172,9 +3513,9 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
         }
       }
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted || generation != _playbackGeneration) return;
+      _activePlaybackResolver = null;
+      _cancelPlaybackRecovery();
       final message = error is UiptvApiException
           ? error.message
           : 'Unable to start channel playback';
@@ -3210,23 +3551,23 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   }
 
   Future<void> _playBookmark(String bookmarkDbId, {String? channelName}) async {
+    Future<Map<String, dynamic>> resolveBookmark() =>
+        widget.api.resolveBookmarkPlayback(bookmarkDbId);
+    final resolver = resolveBookmark;
+    final generation = _beginPlaybackSource(resolver, live: false);
     try {
-      final playback = await widget.api.resolveBookmarkPlayback(bookmarkDbId);
-      final url = playback['url'] as String?;
-      if (url == null || url.isEmpty) {
-        throw UiptvApiException(
-          422,
-          'The selected favourite did not resolve to a stream',
-        );
-      }
+      await _player.stop();
+      final playback = await resolver();
+      if (generation != _playbackGeneration) return;
       final mode = (playback['mode'] as String? ?? 'itv').toLowerCase();
+      _activePlaybackIsLive = mode == 'itv';
       final playbackTitle = (playback['title'] as String?) ?? channelName ?? '';
-      await _player.playUrl(url);
+      await _openResolvedPlayback(playback, resolver, generation);
+      if (!mounted || generation != _playbackGeneration) return;
       if (mounted) {
         final canLoadGuide =
             mode == 'itv' && _favouriteCategory != _recentBookmarkCategoryId;
         setState(() {
-          _showPlayer = true;
           _playerChannelMode = mode;
           _playerChannelQueue = const [];
           _playerChannelIndex = -1;
@@ -3247,29 +3588,44 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
         }
       }
     } catch (error) {
-      if (mounted) {
-        final message = error is UiptvApiException
-            ? error.message
-            : 'Unable to start favourite playback';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
-      }
+      if (!mounted || generation != _playbackGeneration) return;
+      _activePlaybackResolver = null;
+      _cancelPlaybackRecovery();
+      final message = error is UiptvApiException
+          ? error.message
+          : 'Unable to start favourite playback';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
   Future<void> _addLiveBookmark(
     String accountDbId,
     String categoryDbId,
-    String channelDbId,
-  ) async {
+    String channelDbId, {
+    String? bookmarkCategoryId,
+  }) async {
     try {
       await widget.api.addLiveBookmark(
         accountDbId: accountDbId,
         categoryDbId: categoryDbId,
         channelDbId: channelDbId,
+        bookmarkCategoryId: bookmarkCategoryId,
       );
       if (mounted) {
-        setState(() => _bookmarks = _loadFavouriteItems(_favouriteCategory));
+        setState(() {
+          _bookmarks = _loadFavouriteItems(_favouriteCategory);
+          if (_selectedAccount?.dbId == accountDbId &&
+              _selectedCategory?.dbId == categoryDbId) {
+            _channels = widget.api.channels(
+              accountId: accountDbId,
+              categoryDbId: categoryDbId,
+              mode: _selectedMode,
+            );
+            _additionalChannels.clear();
+            _lastChannelPage = null;
+          }
+        });
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Added to favourites')));
       }
@@ -3281,6 +3637,29 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(message)));
       }
+    }
+  }
+
+  Future<void> _removeChannelBookmark(UiptvChannelSummary channel) async {
+    try {
+      await widget.api.deleteBookmark(channel.bookmarkId);
+      if (!mounted) return;
+      final account = _selectedAccount;
+      final category = _selectedCategory;
+      setState(() {
+        if (account != null && category != null) {
+          _channels = widget.api.channels(
+            accountId: account.dbId,
+            categoryDbId: category.dbId,
+            mode: _selectedMode,
+          );
+          _additionalChannels.clear();
+          _lastChannelPage = null;
+        }
+        _bookmarks = _loadFavouriteItems(_favouriteCategory);
+      });
+    } catch (error) {
+      _showMenuError(error);
     }
   }
 
@@ -3418,22 +3797,16 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
   }
 
   Future<void> _playWatchingReference(String playbackId, String mode) async {
+    Future<Map<String, dynamic>> resolveWatchingReference() =>
+        widget.api.resolveWatchingNowPlayback(playbackId, mode: mode);
+    final resolver = resolveWatchingReference;
+    final generation = _beginPlaybackSource(resolver, live: false);
     try {
-      final playback = await widget.api.resolveWatchingNowPlayback(
-        playbackId,
-        mode: mode,
-      );
-      final url = playback['url'] as String?;
-      if (url == null || url.isEmpty) {
-        throw UiptvApiException(
-          422,
-          'The selected item did not resolve to a stream',
-        );
-      }
-      await _player.playUrl(url);
+      await _player.stop();
+      await _resolveAndPlaySource(resolver, generation);
+      if (!mounted || generation != _playbackGeneration) return;
       if (mounted) {
         setState(() {
-          _showPlayer = true;
           _playerGuideRequestGeneration++;
           _playerGuideLoading = false;
           _playerGuideContext = null;
@@ -3444,13 +3817,14 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
         });
       }
     } catch (error) {
-      if (mounted) {
-        final message = error is UiptvApiException
-            ? error.message
-            : 'Unable to resume playback';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
-      }
+      if (!mounted || generation != _playbackGeneration) return;
+      _activePlaybackResolver = null;
+      _cancelPlaybackRecovery();
+      final message = error is UiptvApiException
+          ? error.message
+          : 'Unable to resume playback';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -3471,21 +3845,18 @@ class _UiptvDesktopShellState extends State<UiptvDesktopShell>
       if (!mounted || _selectedCategory?.dbId != category.dbId) {
         return;
       }
+      final query = _catalogueSearchController.text.trim();
       setState(() {
         _additionalChannels.addAll(nextPage.items);
         _lastChannelPage = nextPage;
         if (_playerChannelIndex >= 0 &&
             _playerChannelAccountDbId == account.dbId &&
             _playerChannelCategoryDbId == category.dbId) {
-          final knownIds = _playerChannelQueue
-              .map((channel) => channel.dbId)
-              .toSet();
-          _playerChannelQueue = List.unmodifiable([
-            ..._playerChannelQueue,
-            ...nextPage.items.where(
-              (channel) => !knownIds.contains(channel.dbId),
-            ),
-          ]);
+          _playerChannelQueue = DesktopChannelQueue.appendFiltered(
+            current: _playerChannelQueue,
+            nextPage: nextPage.items,
+            query: query,
+          );
         }
       });
     } catch (error) {

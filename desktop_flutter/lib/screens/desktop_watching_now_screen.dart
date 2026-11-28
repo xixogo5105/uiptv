@@ -1,6 +1,8 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+import 'desktop_pill_bar.dart';
+
 import '../api/uiptv_api_client.dart';
 
 class DesktopWatchingNowScreen extends StatefulWidget {
@@ -39,6 +41,7 @@ class DesktopWatchingNowScreen extends StatefulWidget {
 class _DesktopWatchingNowScreenState extends State<DesktopWatchingNowScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _mode = 'series';
+  String? _highlightedEntryId;
   UiptvWatchingNowEntry? _selectedEntry;
   Future<List<UiptvWatchingNowEpisode>>? _episodes;
   Future<Map<String, dynamic>>? _details;
@@ -60,6 +63,29 @@ class _DesktopWatchingNowScreenState extends State<DesktopWatchingNowScreen> {
       _details = widget.loadDetails(entry);
       _selectedSeason = null;
     });
+  }
+
+  void _activateEntry(UiptvWatchingNowEntry entry) {
+    setState(() => _highlightedEntryId = entry.playbackId);
+    if (entry.isSeries) {
+      _openSeries(entry);
+    } else {
+      widget.onPlay(entry);
+    }
+  }
+
+  Widget _selectableEntryContent(
+    UiptvWatchingNowEntry entry,
+    Widget child,
+    String area,
+  ) {
+    return GestureDetector(
+      key: Key('watching-entry-select-${entry.playbackId}-$area'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _highlightedEntryId = entry.playbackId),
+      onDoubleTap: () => _activateEntry(entry),
+      child: child,
+    );
   }
 
   void _reloadSeries() {
@@ -106,16 +132,16 @@ class _DesktopWatchingNowScreenState extends State<DesktopWatchingNowScreen> {
   }
 
   Widget _buildModeTabs() {
-    return SegmentedButton<String>(
-      segments: [
-        ButtonSegment(
-          value: 'series',
-          label: Text(_text('autoSeries', 'Series')),
-        ),
-        ButtonSegment(value: 'vod', label: Text(_text('autoVod', 'VOD'))),
+    return DesktopPillBar(
+      barKey: 'watching-mode-pill-bar',
+      dropdownKey: 'watching-mode-pill-dropdown',
+      optionKeyPrefix: 'watching-mode',
+      options: [
+        ('series', _text('autoSeries', 'Series')),
+        ('vod', _text('autoVod', 'VOD')),
       ],
-      selected: {_mode},
-      onSelectionChanged: (selected) => setState(() => _mode = selected.first),
+      selectedValue: _mode,
+      onSelected: (mode) => setState(() => _mode = mode),
     );
   }
 
@@ -194,12 +220,20 @@ class _DesktopWatchingNowScreenState extends State<DesktopWatchingNowScreen> {
     return Card(
       key: Key('watching-entry-card-${entry.playbackId}'),
       clipBehavior: Clip.antiAlias,
+      color: _highlightedEntryId == entry.playbackId
+          ? Theme.of(context).colorScheme.secondaryContainer
+                .withValues(alpha: 0.88)
+          : null,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _poster(entry.image, width: 136, height: 204),
+            _selectableEntryContent(
+              entry,
+              _poster(entry.image, width: 136, height: 204),
+              'poster',
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -209,11 +243,15 @@ class _DesktopWatchingNowScreenState extends State<DesktopWatchingNowScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          entry.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
+                        child: _selectableEntryContent(
+                          entry,
+                          Text(
+                            entry.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          'title',
                         ),
                       ),
                       IconButton(
@@ -224,34 +262,46 @@ class _DesktopWatchingNowScreenState extends State<DesktopWatchingNowScreen> {
                       ),
                     ],
                   ),
-                  Text(
-                    entry.accountName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      _metadataChip(
-                        entry.isSeries
-                            ? _text('autoSeries', 'Series')
-                            : _text('autoVod', 'VOD'),
-                      ),
-                      if (entry.season.isNotEmpty)
-                        _metadataChip(
-                          _text(
-                            'autoSeasonNumber',
-                            'Season {0}',
-                          ).replaceAll('{0}', entry.season),
+                  _selectableEntryContent(
+                    entry,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.accountName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
                         ),
-                      if (entry.details.isNotEmpty)
-                        _metadataChip(entry.details),
-                    ],
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            _metadataChip(
+                              entry.isSeries
+                                  ? _text('autoSeries', 'Series')
+                                  : _text('autoVod', 'VOD'),
+                            ),
+                            if (entry.season.isNotEmpty)
+                              _metadataChip(
+                                _text(
+                                  'autoSeasonNumber',
+                                  'Season {0}',
+                                ).replaceAll('{0}', entry.season),
+                              ),
+                            if (entry.details.isNotEmpty)
+                              _metadataChip(entry.details),
+                          ],
+                        ),
+                      ],
+                    ),
+                    'details',
                   ),
                   const Spacer(),
                   Align(

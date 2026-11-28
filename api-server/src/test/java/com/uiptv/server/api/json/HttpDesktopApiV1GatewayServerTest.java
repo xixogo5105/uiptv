@@ -109,6 +109,26 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
     }
 
     @Test
+    void channelDtoExposesPlayabilityWithoutLeakingThePlaybackCommand() {
+        Channel playable = new Channel("provider-channel", "Station", "1",
+                "http://provider.test/stream?token=private", null, null, null, "logo",
+                0, 1, 1, null, null, null, null, null);
+        Channel unavailable = new Channel("unavailable-channel", "Unavailable", "2",
+                "", null, null, null, "", 0, 1, 1, null, null, null, null, null);
+
+        JSONObject playableDto = DesktopApiV1Dtos.channel(playable);
+        JSONObject bookmarkedDto = DesktopApiV1Dtos.channel(playable, "", "local-bookmark-id");
+        JSONObject unavailableDto = DesktopApiV1Dtos.channel(unavailable);
+
+        assertTrue(playableDto.getBoolean("playable"));
+        assertTrue(bookmarkedDto.getBoolean("isBookmarked"));
+        assertEquals("local-bookmark-id", bookmarkedDto.getString("bookmarkId"));
+        assertFalse(unavailableDto.getBoolean("playable"));
+        assertFalse(playableDto.toString().contains("http://provider.test"));
+        assertFalse(playableDto.has("cmd"));
+    }
+
+    @Test
     void accountCanBeCreatedWithoutExposingItInTheSummaryResponse() throws Exception {
         JSONObject request = new JSONObject()
                 .put("accountName", "created-account")
@@ -698,6 +718,18 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
     }
 
     @Test
+    void bookmarkContextMenuTranslationsAreAllowlisted() throws Exception {
+        StubHttpExchange exchange = new StubHttpExchange(
+                "/api/v1/translations?keys=autoAddTo,autoRemoveFromFavorite,autoAll"
+                        + ",autoBookmark,autoRemoveBookmark,autoEmbeddedPlayer",
+                "GET");
+        new HttpDesktopApiV1GatewayServer().handle(exchange);
+
+        assertEquals(200, exchange.getResponseCode());
+        assertEquals(6, new JSONObject(exchange.getResponseBodyText()).length());
+    }
+
+    @Test
     void watchingNowAndUpdateDialogTranslationsAreAllowlisted() throws Exception {
         StubHttpExchange exchange = new StubHttpExchange(
                 "/api/v1/translations?keys=autoUpdateAvailablePrompt,autoUpdateCheckFailed"
@@ -770,6 +802,8 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
         assertEquals(1, items.length());
         assertEquals("Recent station", items.getJSONObject(0).getString("channelName"));
         assertTrue(items.getJSONObject(0).getString("dbId").startsWith("recent:"));
+        assertFalse(items.getJSONObject(0).getBoolean("isBookmarked"));
+        assertEquals("itv", items.getJSONObject(0).getString("mode"));
         assertFalse(list.getResponseBodyText().contains("secret"));
         assertFalse(list.getResponseBodyText().contains("provider.test"));
 
@@ -778,6 +812,37 @@ class HttpDesktopApiV1GatewayServerTest extends DbBackedTest {
 
         assertEquals(200, clear.getResponseCode());
         assertTrue(BookmarkService.getInstance().readRecentBookmarks().isEmpty());
+    }
+
+    @Test
+    void recentBookmarkCanBeMovedToCategoryAndRemovedWithoutRemovingFavourite() throws Exception {
+        BookmarkService.getInstance().addCategory(new BookmarkCategory(null, "Sports"));
+        BookmarkCategory category = BookmarkService.getInstance().getAllCategories().getFirst();
+        Bookmark recent = new Bookmark(
+                "recent-api-account", "Sports", "provider-channel", "Recent station",
+                "https://provider.test/secret/stream", "https://provider.test", "provider-category");
+        recent.setAccountAction(Account.AccountAction.itv);
+        BookmarkService.getInstance().recordRecentPlayback(recent);
+        String recentId = BookmarkService.getInstance().readRecentBookmarks().getFirst().getDbId();
+
+        StubHttpExchange move = new StubHttpExchange(
+                "/api/v1/bookmarks", "PATCH", new JSONObject()
+                        .put("bookmarkId", recentId)
+                        .put("categoryId", category.getId())
+                        .toString());
+        new HttpDesktopApiV1GatewayServer().handle(move);
+
+        assertEquals(200, move.getResponseCode());
+        Bookmark saved = BookmarkService.getInstance().read().getFirst();
+        assertEquals(category.getId(), saved.getCategoryId());
+
+        StubHttpExchange removeRecent = new StubHttpExchange(
+                "/api/v1/bookmarks/recent?bookmarkId=" + saved.getDbId(), "DELETE");
+        new HttpDesktopApiV1GatewayServer().handle(removeRecent);
+
+        assertEquals(200, removeRecent.getResponseCode());
+        assertTrue(BookmarkService.getInstance().readRecentBookmarks().isEmpty());
+        assertEquals(1, BookmarkService.getInstance().read().size());
     }
 
     @Test

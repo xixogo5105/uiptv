@@ -1,6 +1,8 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+import 'desktop_pill_bar.dart';
+
 class DesktopAccountTypeFilter extends StatelessWidget {
   const DesktopAccountTypeFilter({
     super.key,
@@ -22,67 +24,17 @@ class DesktopAccountTypeFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 42,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final option in _options)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: _filterPill(
-                  context,
-                  value: option.$1,
-                  label: option.$1 == 'ALL' ? allLabel : option.$2,
-                  selected: selectedType == option.$1,
-                  theme: theme,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _filterPill(
-    BuildContext context, {
-    required String value,
-    required String label,
-    required bool selected,
-    required ThemeData theme,
-  }) {
-    final colorScheme = theme.colorScheme;
-    return InkWell(
-      key: Key('account-filter-$value'),
-      onTap: () => onSelected(value),
-      borderRadius: BorderRadius.circular(999),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? colorScheme.secondaryContainer.withValues(alpha: 0.92)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected
-                ? colorScheme.outline.withValues(alpha: 0.52)
-                : Colors.transparent,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: selected
-                ? colorScheme.onSecondaryContainer
-                : colorScheme.onSurfaceVariant,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
+    return DesktopPillBar(
+      barKey: 'account-type-pill-bar',
+      dropdownKey: 'account-type-pill-dropdown',
+      optionKeyPrefix: 'account-filter',
+      options: [
+        for (final option in _options)
+          (option.$1, option.$1 == 'ALL' ? allLabel : option.$2),
+      ],
+      compactAsDropdown: false,
+      selectedValue: selectedType,
+      onSelected: onSelected,
     );
   }
 }

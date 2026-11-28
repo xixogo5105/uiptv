@@ -2,6 +2,7 @@ package com.uiptv.server.api.json;
 
 import com.uiptv.model.AccountInfo;
 import com.uiptv.model.AccountMediaContext;
+import com.uiptv.db.BookmarkPlayHistoryDb;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Bookmark;
@@ -59,11 +60,18 @@ final class DesktopApiV1Dtos {
                 .put("description", safe(channel.getDescription()))
                 .put("watched", channel.isWatched())
                 .put("hd", channel.getHd())
-                .put("status", channel.getStatus());
+                .put("status", channel.getStatus())
+                .put("playable", !safe(channel.getCmd()).isBlank());
     }
 
     static JSONObject channel(Channel channel, String playbackId) {
-        JSONObject json = channel(channel);
+        return channel(channel, playbackId, "");
+    }
+
+    static JSONObject channel(Channel channel, String playbackId, String bookmarkId) {
+        JSONObject json = channel(channel)
+                .put("bookmarkId", safe(bookmarkId))
+                .put("isBookmarked", bookmarkId != null && !bookmarkId.isBlank());
         if (playbackId != null && !playbackId.isBlank()) {
             json.put("playbackId", playbackId);
         }
@@ -77,7 +85,11 @@ final class DesktopApiV1Dtos {
                 .put("channelName", safe(bookmark.getChannelName()))
                 .put("categoryTitle", safe(bookmark.getCategoryTitle()))
                 .put("accountName", safe(bookmark.getAccountName()))
-                .put("logo", safe(bookmark.getLogo()));
+                .put("logo", safe(bookmark.getLogo()))
+                .put("isBookmarked", !BookmarkPlayHistoryDb.isRecentId(bookmark.getDbId()))
+                .put("mode", bookmark.getAccountAction() == null
+                        ? "itv"
+                        : bookmark.getAccountAction().name().toLowerCase(Locale.ROOT));
     }
 
     static JSONObject account(AccountResolver.AccountRow account) {

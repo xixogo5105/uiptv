@@ -121,6 +121,9 @@ class UiptvChannelSummary {
     required this.number,
     required this.logo,
     required this.description,
+    this.playable = true,
+    this.isBookmarked = false,
+    this.bookmarkId = '',
   });
 
   factory UiptvChannelSummary.fromJson(Map<String, dynamic> json) {
@@ -131,6 +134,9 @@ class UiptvChannelSummary {
       number: json['number'] as String? ?? '',
       logo: json['logo'] as String? ?? '',
       description: json['description'] as String? ?? '',
+      playable: json['playable'] as bool? ?? true,
+      isBookmarked: json['isBookmarked'] as bool? ?? false,
+      bookmarkId: json['bookmarkId'] as String? ?? '',
     );
   }
 
@@ -140,6 +146,9 @@ class UiptvChannelSummary {
   final String number;
   final String logo;
   final String description;
+  final bool playable;
+  final bool isBookmarked;
+  final String bookmarkId;
 }
 
 class UiptvChannelPage {
@@ -164,16 +173,22 @@ class UiptvBookmarkSummary {
     required this.categoryTitle,
     required this.accountName,
     required this.logo,
+    this.isBookmarked = true,
+    this.mode = 'itv',
   });
 
   factory UiptvBookmarkSummary.fromJson(Map<String, dynamic> json) {
+    final dbId = json['dbId'] as String? ?? '';
     return UiptvBookmarkSummary(
-      dbId: json['dbId'] as String? ?? '',
+      dbId: dbId,
       categoryId: json['categoryId'] as String? ?? '',
       channelName: json['channelName'] as String? ?? '',
       categoryTitle: json['categoryTitle'] as String? ?? '',
       accountName: json['accountName'] as String? ?? '',
       logo: json['logo'] as String? ?? '',
+      isBookmarked:
+          json['isBookmarked'] as bool? ?? !dbId.startsWith('recent:'),
+      mode: json['mode'] as String? ?? 'itv',
     );
   }
 
@@ -183,6 +198,8 @@ class UiptvBookmarkSummary {
   final String categoryTitle;
   final String accountName;
   final String logo;
+  final bool isBookmarked;
+  final String mode;
 }
 
 class UiptvBookmarkCategory {
@@ -877,6 +894,25 @@ class UiptvApiClient {
     await _request('DELETE', '/api/v1/bookmarks/recent');
   }
 
+  Future<void> removeRecentBookmark(String bookmarkDbId) async {
+    await _request(
+      'DELETE',
+      '/api/v1/bookmarks/recent',
+      queryParameters: {'bookmarkId': bookmarkDbId},
+    );
+  }
+
+  Future<void> moveBookmarkToCategory({
+    required String bookmarkDbId,
+    required String categoryId,
+  }) async {
+    await _request(
+      'PATCH',
+      '/api/v1/bookmarks',
+      body: {'bookmarkId': bookmarkDbId, 'categoryId': categoryId},
+    );
+  }
+
   Future<Map<String, dynamic>> resolveBookmarkPlayback(
     String bookmarkDbId,
   ) async {
@@ -899,6 +935,7 @@ class UiptvApiClient {
     required String accountDbId,
     required String categoryDbId,
     required String channelDbId,
+    String? bookmarkCategoryId,
   }) async {
     final response = await _request(
       'POST',
@@ -907,6 +944,9 @@ class UiptvApiClient {
         'accountId': accountDbId,
         'categoryId': categoryDbId,
         'channelId': channelDbId,
+        ...?bookmarkCategoryId == null
+            ? null
+            : {'bookmarkCategoryId': bookmarkCategoryId},
       },
     ) as Map;
     return response['bookmarkId'] as String? ?? '';
@@ -1062,6 +1102,11 @@ class UiptvApiClient {
           body: jsonEncode(body),
         ),
         'POST' => _httpClient.post(
+          requestUri,
+          headers: headers,
+          body: jsonEncode(body),
+        ),
+        'PATCH' => _httpClient.patch(
           requestUri,
           headers: headers,
           body: jsonEncode(body),

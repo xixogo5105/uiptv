@@ -7,6 +7,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:desktop_flutter/api/uiptv_api_client.dart';
 
 void main() {
+  test('channel DTO reads safe saved-bookmark menu state', () {
+    final channel = UiptvChannelSummary.fromJson({
+      'dbId': 'local-channel-row',
+      'playbackId': '',
+      'name': 'Station',
+      'number': '1',
+      'logo': '',
+      'description': '',
+      'isBookmarked': true,
+      'bookmarkId': 'local-bookmark-row',
+    });
+
+    expect(channel.isBookmarked, isTrue);
+    expect(channel.bookmarkId, 'local-bookmark-row');
+  });
   test('health sends bearer token and parses response', () async {
     final client = UiptvApiClient(
       baseUrl: 'http://127.0.0.1:8888',
@@ -513,6 +528,7 @@ void main() {
                 'number': page == '1' ? '1' : '2',
                 'logo': '',
                 'description': '',
+                'playable': page == '1',
                 'watched': false,
                 'hd': 1,
                 'status': 1,
@@ -537,6 +553,7 @@ void main() {
     expect(channels.items.single.dbId, 'local-channel');
     expect(channels.items.single.playbackId, 'ephemeral-playback-reference');
     expect(channels.items.single.name, 'Public News');
+    expect(channels.items.single.playable, isTrue);
     expect(channels.hasMore, isTrue);
     expect(channels.nextPage, 2);
     expect(channels.apiOffset, 100);
@@ -547,6 +564,7 @@ void main() {
       apiOffset: channels.apiOffset,
     );
     expect(nextPage.items.single.dbId, 'local-channel-2');
+    expect(nextPage.items.single.playable, isFalse);
     expect(nextPage.hasMore, isFalse);
   });
 
@@ -656,9 +674,58 @@ void main() {
 
     expect(bookmarks.single.channelName, 'Station');
     expect(bookmarks.single.categoryId, 'saved-category');
+    expect(bookmarks.single.isBookmarked, isTrue);
     expect(playback['url'], 'https://stream.test/live.m3u8');
     expect(savedBookmarkId, 'local-bookmark');
   });
+
+  test(
+    'channel context actions use category-aware safe bookmark routes',
+    () async {
+      final requests = <http.Request>[];
+      final client = UiptvApiClient(
+        baseUrl: 'http://127.0.0.1:8888',
+        bearerToken: 'test-token',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode({'status': 'ok', 'bookmarkId': 'saved'}),
+            200,
+          );
+        }),
+      );
+
+      await client.addLiveBookmark(
+        accountDbId: 'account-row',
+        categoryDbId: 'category-row',
+        channelDbId: 'channel-row',
+        bookmarkCategoryId: 'favorites-row',
+      );
+      await client.moveBookmarkToCategory(
+        bookmarkDbId: 'recent:12',
+        categoryId: 'favorites-row',
+      );
+      await client.removeRecentBookmark('recent:12');
+
+      expect(requests[0].method, 'POST');
+      expect(requests[0].url.path, '/api/v1/bookmarks');
+      expect(jsonDecode(requests[0].body), {
+        'accountId': 'account-row',
+        'categoryId': 'category-row',
+        'channelId': 'channel-row',
+        'bookmarkCategoryId': 'favorites-row',
+      });
+      expect(requests[1].method, 'PATCH');
+      expect(requests[1].url.path, '/api/v1/bookmarks');
+      expect(jsonDecode(requests[1].body), {
+        'bookmarkId': 'recent:12',
+        'categoryId': 'favorites-row',
+      });
+      expect(requests[2].method, 'DELETE');
+      expect(requests[2].url.path, '/api/v1/bookmarks/recent');
+      expect(requests[2].url.queryParameters['bookmarkId'], 'recent:12');
+    },
+  );
 
   test(
     'favourite categories, category-filtered lists, and recent history',
@@ -734,6 +801,7 @@ void main() {
       expect(bookmarks.single.categoryId, 'saved-category');
       expect(recent.single.dbId, 'recent:12');
       expect(recent.single.channelName, 'Recent station');
+      expect(recent.single.isBookmarked, isFalse);
     },
   );
 

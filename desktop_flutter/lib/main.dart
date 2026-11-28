@@ -13,7 +13,7 @@ Future<void> main() async {
       size: Size(1440, 900),
       minimumSize: Size(640, 640),
       center: true,
-      title: 'UIPTV',
+      title: 'Favourite - UIPTV',
     ),
     () async {
       await windowManager.maximize();
